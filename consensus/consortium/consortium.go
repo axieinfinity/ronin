@@ -78,7 +78,7 @@ var (
 
 	// errInvalidVote is returned if a nonce value is something else that the two
 	// allowed constants of 0x00..0 or 0xff..f.
-	errInvalidVote = errors.New("vote nonce not 0x00..0 or 0xff..f")
+	errInvalidNonce = errors.New("vote nonce not 0x00..0 ")
 
 	// errInvalidCheckpointVote is returned if a checkpoint/epoch transition block
 	// has a vote nonce set to non-zeroes.
@@ -168,7 +168,6 @@ type Consortium struct {
 	config *params.ConsortiumConfig // Consensus engine configuration parameters
 	db     ethdb.Database           // Database to store and retrieve snapshot checkpoints
 
-	recents    *lru.ARCCache // Snapshots for recent block to speed up reorgs
 	signatures *lru.ARCCache // Signatures of recent blocks to speed up mining
 
 	proposals map[common.Address]bool // Current list of proposals we are pushing
@@ -176,9 +175,6 @@ type Consortium struct {
 	signer common.Address // Ethereum address of the signing key
 	signFn SignerFn       // Signer function to authorize hashes with
 	lock   sync.RWMutex   // Protects the signer fields
-
-	// The fields below are for testing only
-	fakeDiff bool // Skip difficulty verifications
 }
 
 // New creates a Consortium proof-of-authority consensus engine with the initial
@@ -190,13 +186,11 @@ func New(config *params.ConsortiumConfig, db ethdb.Database) *Consortium {
 		conf.Epoch = epochLength
 	}
 	// Allocate the snapshot caches and create the engine
-	recents, _ := lru.NewARC(inmemorySnapshots)
 	signatures, _ := lru.NewARC(inmemorySignatures)
 
 	return &Consortium{
 		config:     &conf,
 		db:         db,
-		recents:    recents,
 		signatures: signatures,
 		proposals:  make(map[common.Address]bool),
 	}
@@ -248,17 +242,14 @@ func (c *Consortium) verifyHeader(chain consensus.ChainReader, header *types.Hea
 	if header.Time > uint64(time.Now().Unix()) {
 		return consensus.ErrFutureBlock
 	}
-	// Checkpoint blocks need to enforce zero beneficiary
 	checkpoint := (number % c.config.Epoch) == 0
-	if checkpoint && header.Coinbase != (common.Address{}) {
+	// Blocks need to enforce zero beneficiary
+	if header.Coinbase != (common.Address{}) {
 		return errInvalidCheckpointBeneficiary
 	}
 	// Nonces must be 0x00..0 or 0xff..f, zeroes enforced on checkpoints
-	if !bytes.Equal(header.Nonce[:], nonceAuthVote) && !bytes.Equal(header.Nonce[:], nonceDropVote) {
-		return errInvalidVote
-	}
-	if checkpoint && !bytes.Equal(header.Nonce[:], nonceDropVote) {
-		return errInvalidCheckpointVote
+	if !bytes.Equal(header.Nonce[:], emptyNonce) {
+		return errInvalidNonce
 	}
 	// Check that the extra-data contains both the vanity and signature
 	if len(header.Extra) < extraVanity {
@@ -285,7 +276,7 @@ func (c *Consortium) verifyHeader(chain consensus.ChainReader, header *types.Hea
 	}
 	// Ensure that the block's difficulty is meaningful (may not be correct at this point)
 	if number > 0 {
-		if header.Difficulty == nil || (header.Difficulty.Cmp(diffInTurn) != 0 && header.Difficulty.Cmp(diffNoTurn) != 0) {
+		if header.Difficulty == nil || header.Difficulty.Cmp(emptyDiffInTurn) != 0 {
 			return errInvalidDifficulty
 		}
 	}
