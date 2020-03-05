@@ -311,15 +311,14 @@ func (c *Consortium) verifyCascadingFields(chain consensus.ChainReader, header *
 	if parent.Time+c.config.Period > header.Time {
 		return ErrInvalidTimestamp
 	}
-	// Retrieve the snapshot needed to verify this header and cache it
-	snap, err := c.snapshot(chain, number-1, header.ParentHash, parents)
-	if err != nil {
-		return err
-	}
 	// If the block is a checkpoint block, verify the signer list
 	if number%c.config.Epoch == 0 {
-		signers := make([]byte, len(snap.Signers)*common.AddressLength)
-		for i, signer := range snap.signers() {
+		validators, err := c.getValidatorsFromContract()
+		if err != nil {
+			return err
+		}
+		signers := make([]byte, len(validators)*common.AddressLength)
+		for i, signer := range validators {
 			copy(signers[i*common.AddressLength:], signer[:])
 		}
 		extraSuffix := len(header.Extra) - extraSeal
@@ -329,87 +328,6 @@ func (c *Consortium) verifyCascadingFields(chain consensus.ChainReader, header *
 	}
 	// All basic checks passed, verify the seal and return
 	return c.verifySeal(chain, header, parents)
-}
-
-// snapshot retrieves the authorization snapshot at a given point in time.
-func (c *Consortium) snapshot(chain consensus.ChainReader, number uint64, hash common.Hash, parents []*types.Header) (*Snapshot, error) {
-	// Search for a snapshot in memory or on disk for checkpoints
-	var (
-		headers []*types.Header
-		snap    *Snapshot
-	)
-	for snap == nil {
-		// If an in-memory snapshot was found, use that
-		if s, ok := c.recents.Get(hash); ok {
-			snap = s.(*Snapshot)
-			break
-		}
-		// If an on-disk checkpoint snapshot can be found, use that
-		if number%checkpointInterval == 0 {
-			if s, err := loadSnapshot(c.config, c.signatures, c.db, hash); err == nil {
-				log.Trace("Loaded voting snapshot from disk", "number", number, "hash", hash)
-				snap = s
-				break
-			}
-		}
-		// If we're at the genesis, snapshot the initial state. Alternatively if we're
-		// at a checkpoint block without a parent (light client CHT), or we have piled
-		// up more headers than allowed to be reorged (chain reinit from a freezer),
-		// consider the checkpoint trusted and snapshot it.
-		if number == 0 || (number%c.config.Epoch == 0 && (len(headers) > params.ImmutabilityThreshold || chain.GetHeaderByNumber(number-1) == nil)) {
-			checkpoint := chain.GetHeaderByNumber(number)
-			if checkpoint != nil {
-				hash := checkpoint.Hash()
-
-				signers := make([]common.Address, (len(checkpoint.Extra)-extraVanity-extraSeal)/common.AddressLength)
-				for i := 0; i < len(signers); i++ {
-					copy(signers[i][:], checkpoint.Extra[extraVanity+i*common.AddressLength:])
-				}
-				snap = newSnapshot(c.config, c.signatures, number, hash, signers)
-				if err := snap.store(c.db); err != nil {
-					return nil, err
-				}
-				log.Info("Stored checkpoint snapshot to disk", "number", number, "hash", hash)
-				break
-			}
-		}
-		// No snapshot for this header, gather the header and move backward
-		var header *types.Header
-		if len(parents) > 0 {
-			// If we have explicit parents, pick from there (enforced)
-			header = parents[len(parents)-1]
-			if header.Hash() != hash || header.Number.Uint64() != number {
-				return nil, consensus.ErrUnknownAncestor
-			}
-			parents = parents[:len(parents)-1]
-		} else {
-			// No explicit parents (or no more left), reach out to the database
-			header = chain.GetHeader(hash, number)
-			if header == nil {
-				return nil, consensus.ErrUnknownAncestor
-			}
-		}
-		headers = append(headers, header)
-		number, hash = number-1, header.ParentHash
-	}
-	// Previous snapshot found, apply any pending headers on top of it
-	for i := 0; i < len(headers)/2; i++ {
-		headers[i], headers[len(headers)-1-i] = headers[len(headers)-1-i], headers[i]
-	}
-	snap, err := snap.apply(headers)
-	if err != nil {
-		return nil, err
-	}
-	c.recents.Add(snap.Hash, snap)
-
-	// If we've generated a new checkpoint snapshot, save to disk
-	if snap.Number%checkpointInterval == 0 && len(headers) > 0 {
-		if err = snap.store(c.db); err != nil {
-			return nil, err
-		}
-		log.Trace("Stored voting snapshot to disk", "number", snap.Number, "hash", snap.Hash)
-	}
-	return snap, err
 }
 
 // VerifyUncles implements consensus.Engine, always returning an error for any
@@ -678,6 +596,10 @@ func (c *Consortium) APIs(chain consensus.ChainReader) []rpc.API {
 		Service:   &API{chain: chain, consortium: c},
 		Public:    false,
 	}}
+}
+
+func (c *Consortium) getValidatorsFromContract() ([]common.Address, error) {
+	return nil, nil
 }
 
 // SealHash returns the hash of a block prior to it being sealed.
