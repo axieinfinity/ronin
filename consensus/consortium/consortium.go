@@ -60,7 +60,7 @@ var (
 
 	uncleHash = types.CalcUncleHash(nil) // Always Keccak256(RLP([])) as uncles are meaningless outside of PoW.
 
-	emptyDiffInTurn = big.NewInt(0) // Block difficulty should be empty
+	emptyDifficulty = big.NewInt(0) // Block difficulty should be empty
 )
 
 // Various error messages to mark blocks invalid. These should be private to
@@ -276,7 +276,7 @@ func (c *Consortium) verifyHeader(chain consensus.ChainReader, header *types.Hea
 	}
 	// Ensure that the block's difficulty is meaningful (may not be correct at this point)
 	if number > 0 {
-		if header.Difficulty == nil || header.Difficulty.Cmp(emptyDiffInTurn) != 0 {
+		if header.Difficulty == nil || header.Difficulty.Cmp(emptyDifficulty) != 0 {
 			return errInvalidDifficulty
 		}
 	}
@@ -355,37 +355,23 @@ func (c *Consortium) verifySeal(chain consensus.ChainReader, header *types.Heade
 	if number == 0 {
 		return errUnknownBlock
 	}
-	// Retrieve the snapshot needed to verify this header and cache it
-	snap, err := c.snapshot(chain, number-1, header.ParentHash, parents)
-	if err != nil {
-		return err
-	}
-
 	// Resolve the authorization key and check against signers
 	signer, err := ecrecover(header, c.signatures)
 	if err != nil {
 		return err
 	}
-	if _, ok := snap.Signers[signer]; !ok {
+
+	validators, err := c.getValidatorsFromLastCheckpoint(chain, number-1, parents)
+	if err != nil {
+		return err
+	}
+	if !signerInList(signer, validators) {
 		return errUnauthorizedSigner
 	}
-	for seen, recent := range snap.Recents {
-		if recent == signer {
-			// Signer is among recents, only fail if the current block doesn't shift it out
-			if limit := uint64(len(snap.Signers)/2 + 1); seen > number-limit {
-				return errRecentlySigned
-			}
-		}
-	}
-	// Ensure that the difficulty corresponds to the turn-ness of the signer
-	if !c.fakeDiff {
-		inturn := snap.inturn(header.Number.Uint64(), signer)
-		if inturn && header.Difficulty.Cmp(diffInTurn) != 0 {
-			return errWrongDifficulty
-		}
-		if !inturn && header.Difficulty.Cmp(diffNoTurn) != 0 {
-			return errWrongDifficulty
-		}
+
+	// Ensure that the difficulty is empty
+	if header.Difficulty.Cmp(emptyDifficulty) != 0 {
+		return errWrongDifficulty
 	}
 	return nil
 }
@@ -602,6 +588,10 @@ func (c *Consortium) getValidatorsFromContract() ([]common.Address, error) {
 	return nil, nil
 }
 
+func (c *Consortium) getValidatorsFromLastCheckpoint(chain consensus.ChainReader, number uint64, parents []*types.Header) ([]common.Address, error) {
+	return nil, nil
+}
+
 // SealHash returns the hash of a block prior to it being sealed.
 func SealHash(header *types.Header) (hash common.Hash) {
 	hasher := sha3.NewLegacyKeccak256()
@@ -644,4 +634,13 @@ func encodeSigHeader(w io.Writer, header *types.Header) {
 	if err != nil {
 		panic("can't encode: " + err.Error())
 	}
+}
+
+func signerInList(signer common.Address, validators []common.Address) bool {
+	for _, validator := range validators {
+		if signer == validator {
+			return true
+		}
+	}
+	return false
 }
