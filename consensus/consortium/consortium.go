@@ -175,6 +175,8 @@ type Consortium struct {
 	signer common.Address // Ethereum address of the signing key
 	signFn SignerFn       // Signer function to authorize hashes with
 	lock   sync.RWMutex   // Protects the signer fields
+
+	getSCValidators func() ([]common.Address, error) // Get the list of validator from contract
 }
 
 // New creates a Consortium proof-of-authority consensus engine with the initial
@@ -530,16 +532,44 @@ func (c *Consortium) APIs(chain consensus.ChainReader) []rpc.API {
 	}}
 }
 
+// Read the validator list from contract
 func (c *Consortium) getValidatorsFromContract() ([]common.Address, error) {
-	return nil, nil
+	if c.getSCValidators == nil {
+		return nil, errors.New("No getSCValidators function supplied")
+	}
+
+	return c.getSCValidators()
 }
 
-func (c *Consortium) getValidatorsFromLastCheckpoint(chain consensus.ChainReader, number uint64, parents []*types.Header) ([]common.Address, error) {
-	return nil, nil
+// getValidatorsFromLastCheckpoint gets the list of validator in the Extra field in the last checkpoint
+// Sometime, when syncing the database havenot stored the recent headers yet, so we need to look them up by passing them directly
+func (c *Consortium) getValidatorsFromLastCheckpoint(chain consensus.ChainReader, number uint64, recents []*types.Header) ([]common.Address, error) {
+	lastCheckpoint := number / c.config.Epoch * c.config.Epoch
+
+	if lastCheckpoint == 0 {
+		return c.getValidatorsFromContract()
+	}
+
+	var header *types.Header
+	if recents != nil {
+		for _, parent := range recents {
+			if parent.Number.Uint64() == lastCheckpoint {
+				header = parent
+			}
+		}
+	}
+	if header == nil {
+		header = chain.GetHeaderByNumber(lastCheckpoint)
+	}
+	extraSuffix := len(header.Extra) - extraSeal
+	return extractAddressFromBytes(header.Extra[extraVanity:extraSuffix]), nil
 }
 
+// Check if it is the turn of the signer from the last checkpoint
 func (c *Consortium) signerInTurn(chain consensus.ChainReader, number uint64, validators []common.Address) bool {
-	return true
+	lastCheckpoint := number / c.config.Epoch * c.config.Epoch
+	index := (number - lastCheckpoint) % uint64(len(validators))
+	return validators[index] == c.signer
 }
 
 // SealHash returns the hash of a block prior to it being sealed.
@@ -593,4 +623,15 @@ func signerInList(signer common.Address, validators []common.Address) bool {
 		}
 	}
 	return false
+}
+
+func extractAddressFromBytes(bytes []byte) []common.Address {
+	if bytes != nil && len(bytes) < common.AddressLength {
+		return []common.Address{}
+	}
+	results := make([]common.Address, len(bytes)/common.AddressLength)
+	for i := 0; i < len(results); i++ {
+		copy(results[i][:], bytes[i*common.AddressLength:])
+	}
+	return results
 }
