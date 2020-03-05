@@ -469,35 +469,22 @@ func (c *Consortium) Seal(chain consensus.ChainReader, block *types.Block, resul
 	signer, signFn := c.signer, c.signFn
 	c.lock.RUnlock()
 
-	// Bail out if we're unauthorized to sign a block
-	snap, err := c.snapshot(chain, number-1, header.ParentHash, nil)
-	if err != nil {
-		return err
-	}
-	if _, authorized := snap.Signers[signer]; !authorized {
+	validators, err := c.getValidatorsFromLastCheckpoint(chain, number-1, nil)
+	if !signerInList(c.signer, validators) {
 		return errUnauthorizedSigner
 	}
-	// If we're amongst the recent signers, wait for the next block
-	for seen, recent := range snap.Recents {
-		if recent == signer {
-			// Signer is among recents, only wait if the current block doesn't shift it out
-			if limit := uint64(len(snap.Signers)/2 + 1); number < limit || seen > number-limit {
-				log.Info("Signed recently, must wait for others")
-				return nil
-			}
-		}
-	}
+
 	// Sweet, the protocol permits us to sign the block, wait for our time
 	delay := time.Unix(int64(header.Time), 0).Sub(time.Now()) // nolint: gosimple
-	if header.Difficulty.Cmp(diffNoTurn) == 0 {
+	if !c.signerInTurn(chain, number, validators) {
 		// It's not our turn explicitly to sign, delay it a bit
-		wiggle := time.Duration(len(snap.Signers)/2+1) * wiggleTime
+		wiggle := time.Duration(len(validators)/2+1) * wiggleTime
 		delay += time.Duration(rand.Int63n(int64(wiggle)))
 
 		log.Trace("Out-of-turn signing requested", "wiggle", common.PrettyDuration(wiggle))
 	}
 	// Sign all the things!
-	sighash, err := signFn(accounts.Account{Address: signer}, accounts.MimetypeConsortium, ConsortiumRLP(header))
+	sighash, err := signFn(accounts.Account{Address: signer}, accounts.MimetypeTextPlain, ConsortiumRLP(header))
 	if err != nil {
 		return err
 	}
@@ -521,27 +508,6 @@ func (c *Consortium) Seal(chain consensus.ChainReader, block *types.Block, resul
 	return nil
 }
 
-// CalcDifficulty is the difficulty adjustment algorithm. It returns the difficulty
-// that a new block should have based on the previous blocks in the chain and the
-// current signer.
-func (c *Consortium) CalcDifficulty(chain consensus.ChainReader, time uint64, parent *types.Header) *big.Int {
-	snap, err := c.snapshot(chain, parent.Number.Uint64(), parent.Hash(), nil)
-	if err != nil {
-		return nil
-	}
-	return CalcDifficulty(snap, c.signer)
-}
-
-// CalcDifficulty is the difficulty adjustment algorithm. It returns the difficulty
-// that a new block should have based on the previous blocks in the chain and the
-// current signer.
-func CalcDifficulty(snap *Snapshot, signer common.Address) *big.Int {
-	if snap.inturn(snap.Number+1, signer) {
-		return new(big.Int).Set(diffInTurn)
-	}
-	return new(big.Int).Set(diffNoTurn)
-}
-
 // SealHash returns the hash of a block prior to it being sealed.
 func (c *Consortium) SealHash(header *types.Header) common.Hash {
 	return SealHash(header)
@@ -558,8 +524,9 @@ func (c *Consortium) APIs(chain consensus.ChainReader) []rpc.API {
 	return []rpc.API{{
 		Namespace: "consortium",
 		Version:   "1.0",
-		Service:   &API{chain: chain, consortium: c},
-		Public:    false,
+		// TODO(andy): Provide API for consortium
+		Service: nil, //&API{chain: chain, consortium: c},
+		Public:  false,
 	}}
 }
 
@@ -569,6 +536,10 @@ func (c *Consortium) getValidatorsFromContract() ([]common.Address, error) {
 
 func (c *Consortium) getValidatorsFromLastCheckpoint(chain consensus.ChainReader, number uint64, parents []*types.Header) ([]common.Address, error) {
 	return nil, nil
+}
+
+func (c *Consortium) signerInTurn(chain consensus.ChainReader, number uint64, validators []common.Address) bool {
+	return true
 }
 
 // SealHash returns the hash of a block prior to it being sealed.
