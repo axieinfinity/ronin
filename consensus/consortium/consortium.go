@@ -60,7 +60,7 @@ var (
 
 	uncleHash = types.CalcUncleHash(nil) // Always Keccak256(RLP([])) as uncles are meaningless outside of PoW.
 
-	zeroDifficulty = big.NewInt(0) // Block difficulty should be empty
+	fixedDifficulty = big.NewInt(1) // Block difficulty should be a non-zero fixed number
 )
 
 // Various error messages to mark blocks invalid. These should be private to
@@ -279,7 +279,7 @@ func (c *Consortium) verifyHeader(chain consensus.ChainReader, header *types.Hea
 	}
 	// Ensure that the block's difficulty is meaningful (may not be correct at this point)
 	if number > 0 {
-		if header.Difficulty == nil || header.Difficulty.Cmp(zeroDifficulty) != 0 {
+		if header.Difficulty == nil || header.Difficulty.Cmp(fixedDifficulty) != 0 {
 			return errInvalidDifficulty
 		}
 	}
@@ -373,7 +373,7 @@ func (c *Consortium) verifySeal(chain consensus.ChainReader, header *types.Heade
 	}
 
 	// Ensure that the difficulty is empty
-	if header.Difficulty.Cmp(zeroDifficulty) != 0 {
+	if header.Difficulty.Cmp(fixedDifficulty) != 0 {
 		return errWrongDifficulty
 	}
 	return nil
@@ -388,7 +388,7 @@ func (c *Consortium) Prepare(chain consensus.ChainReader, header *types.Header) 
 
 	number := header.Number.Uint64()
 	// Set the correct difficulty
-	header.Difficulty = zeroDifficulty
+	header.Difficulty = fixedDifficulty
 
 	// Ensure the extra data has all its components
 	if len(header.Extra) < extraVanity {
@@ -530,13 +530,14 @@ func (c *Consortium) CalcDifficulty(chain consensus.ChainReader, time uint64, pa
 // APIs implements consensus.Engine, returning the user facing RPC API to allow
 // controlling the signer voting.
 func (c *Consortium) APIs(chain consensus.ChainReader) []rpc.API {
-	return []rpc.API{{
-		Namespace: "consortium",
-		Version:   "1.0",
-		// TODO(andy): Provide API for consortium
-		Service: nil, //&API{chain: chain, consortium: c},
-		Public:  false,
-	}}
+	return nil
+	// TODO(andy): Provide API for consortium
+	// return []rpc.API{{
+	// 	Namespace: "consortium",
+	// 	Version:   "1.0",
+	// 	Service: nil, &API{chain: chain, consortium: c},
+	// 	Public:  false,
+	// }}
 }
 
 // Read the validator list from contract
