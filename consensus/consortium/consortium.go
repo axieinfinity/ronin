@@ -60,7 +60,7 @@ var (
 
 	uncleHash = types.CalcUncleHash(nil) // Always Keccak256(RLP([])) as uncles are meaningless outside of PoW.
 
-	emptyDifficulty = big.NewInt(0) // Block difficulty should be empty
+	zeroDifficulty = big.NewInt(0) // Block difficulty should be empty
 )
 
 // Various error messages to mark blocks invalid. These should be private to
@@ -181,7 +181,7 @@ type Consortium struct {
 
 // New creates a Consortium proof-of-authority consensus engine with the initial
 // signers set to the ones provided by the user.
-func New(config *params.ConsortiumConfig, db ethdb.Database) *Consortium {
+func New(config *params.ConsortiumConfig, db ethdb.Database, getSCValidators func() ([]common.Address, error)) *Consortium {
 	// Set any missing consensus parameters to their defaults
 	conf := *config
 	if conf.Epoch == 0 {
@@ -191,10 +191,11 @@ func New(config *params.ConsortiumConfig, db ethdb.Database) *Consortium {
 	signatures, _ := lru.NewARC(inmemorySignatures)
 
 	return &Consortium{
-		config:     &conf,
-		db:         db,
-		signatures: signatures,
-		proposals:  make(map[common.Address]bool),
+		config:          &conf,
+		db:              db,
+		signatures:      signatures,
+		proposals:       make(map[common.Address]bool),
+		getSCValidators: getSCValidators,
 	}
 }
 
@@ -278,7 +279,7 @@ func (c *Consortium) verifyHeader(chain consensus.ChainReader, header *types.Hea
 	}
 	// Ensure that the block's difficulty is meaningful (may not be correct at this point)
 	if number > 0 {
-		if header.Difficulty == nil || header.Difficulty.Cmp(emptyDifficulty) != 0 {
+		if header.Difficulty == nil || header.Difficulty.Cmp(zeroDifficulty) != 0 {
 			return errInvalidDifficulty
 		}
 	}
@@ -372,7 +373,7 @@ func (c *Consortium) verifySeal(chain consensus.ChainReader, header *types.Heade
 	}
 
 	// Ensure that the difficulty is empty
-	if header.Difficulty.Cmp(emptyDifficulty) != 0 {
+	if header.Difficulty.Cmp(zeroDifficulty) != 0 {
 		return errWrongDifficulty
 	}
 	return nil
@@ -387,7 +388,7 @@ func (c *Consortium) Prepare(chain consensus.ChainReader, header *types.Header) 
 
 	number := header.Number.Uint64()
 	// Set the correct difficulty
-	header.Difficulty = big.NewInt(0)
+	header.Difficulty = zeroDifficulty
 
 	// Ensure the extra data has all its components
 	if len(header.Extra) < extraVanity {
@@ -518,6 +519,12 @@ func (c *Consortium) SealHash(header *types.Header) common.Hash {
 // Close implements consensus.Engine. It's a noop for consortium as there are no background threads.
 func (c *Consortium) Close() error {
 	return nil
+}
+
+// CalcDifficulty is the difficulty adjustment algorithm. It returns the difficulty
+// that a new block should have.
+func (c *Consortium) CalcDifficulty(chain consensus.ChainReader, time uint64, parent *types.Header) *big.Int {
+	return big.NewInt(0)
 }
 
 // APIs implements consensus.Engine, returning the user facing RPC API to allow
