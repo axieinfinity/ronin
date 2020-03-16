@@ -1,0 +1,93 @@
+version: "3"
+services:
+  bootnode:
+    hostname: geth-bootnode
+    build: ./bootnode
+    environment:
+      - nodekeyhex=8b6d791b001bd03af30920af07bc23929e5d458071265b5a87cb0aa41ecd2699
+    ports:
+      - 30301:30301/udp
+    networks:
+      chainnet:
+        ipv4_address: 172.25.0.101
+
+  miner-1:
+    hostname: geth-miner-1
+    depends_on:
+      - bootnode
+    environment:
+      - address=0x4a4bc674A97737376cFE990aE2fE0d2B6E738393
+      - bootnodeId=6df6adf0ec6eabfd6c54a51243d7cb86a15705abb50e1327ad8d5ce5df0e7c190a9624b1c8b5157233aa26ae7cae43f7dbedd8cb23a92a6592551ce77ab8d6ce
+      - bootnodeIp=172.25.0.101
+    build:
+      context: .
+      dockerfile: ./geth-node/Dockerfile
+      args:
+        privatekey: "${MINER_1_PRIV_KEY}"
+        password: "${MINER_1_PASSWORD}"
+    container_name: geth-miner-1
+    ports:
+      - 8545:8545
+    volumes:
+      - miner1:/root
+    networks:
+      chainnet:
+        ipv4_address: 172.25.0.102
+
+  miner-2:
+    hostname: geth-miner-2
+    depends_on:
+      - bootnode
+    environment:
+      - address=0xb6bc5bc0410773a3f86b1537ce7495c52e38f88b
+      - bootnodeId=6df6adf0ec6eabfd6c54a51243d7cb86a15705abb50e1327ad8d5ce5df0e7c190a9624b1c8b5157233aa26ae7cae43f7dbedd8cb23a92a6592551ce77ab8d6ce
+      - bootnodeIp=172.25.0.101
+    build:
+      context: .
+      dockerfile: ./geth-node/Dockerfile
+      args:
+        privatekey: "${MINER_2_PRIV_KEY}"
+        password: "${MINER_2_PASSWORD}"
+
+    container_name: geth-miner-2
+    ports:
+      - 8546:8545
+    volumes:
+      - miner2:/root
+    networks:
+      chainnet:
+        ipv4_address: 172.25.0.103
+
+  monitor-backend:
+    hostname: geth-monitor-backend
+    depends_on:
+      - miner-1
+    build:
+      context: ./monitor-be
+    container_name: monitor-backend
+    networks:
+      chainnet:
+
+  monitor-frontend:
+   hostname: geth-monitor-frontend
+   depends_on:
+     - monitor-backend
+   build:
+     context: ./monitor-fe
+   container_name: monitor-frontend
+   ports:
+    - 3000:3000
+   networks:
+    chainnet:
+      ipv4_address: 172.25.0.104
+
+networks:
+  chainnet:
+    driver: bridge
+    ipam:
+      config:
+      - subnet: 172.25.0.0/24
+
+volumes:
+  miner1:
+  miner2:
