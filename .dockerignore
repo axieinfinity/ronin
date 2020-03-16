@@ -6,3 +6,5 @@ tests/testdata
 docker-compose.yml
 bootnode
 geth-node
+monitor-fe
+monitor-be
