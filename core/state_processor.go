@@ -17,6 +17,7 @@
 package core
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -90,6 +91,14 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 }
 
 func applyTransaction(msg types.Message, config *params.ChainConfig, bc ChainContext, author *common.Address, gp *GasPool, statedb *state.StateDB, header *types.Header, tx *types.Transaction, usedGas *uint64, evm *vm.EVM) (*types.Receipt, error) {
+	// Check if sender is authorized to deploy
+	if msg.To() == nil && config.Consortium != nil {
+		whitelistedDeployer := state.IsWhitelistedDeployer(statedb, msg.From())
+		if !whitelistedDeployer {
+			return nil, errors.New("unauthorized deployer")
+		}
+	}
+
 	// Create a new context to be used in the EVM environment.
 	txContext := NewEVMTxContext(msg)
 	evm.Reset(txContext, statedb)
