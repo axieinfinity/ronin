@@ -83,6 +83,9 @@ var (
 	// than some meaningful limit a user might use. This is not a consensus error
 	// making the transaction invalid, rather a DOS protection.
 	ErrOversizedData = errors.New("oversized data")
+
+	// ErrUnauthorizedDeployer is returned if a unauthorized address tries to deploy
+	ErrUnauthorizedDeployer = errors.New("unauthorized deployer")
 )
 
 var (
@@ -565,6 +568,14 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	}
 	if tx.Gas() < intrGas {
 		return ErrIntrinsicGas
+	}
+
+	// Contract creation transaction
+	if tx.To() == nil && pool.chainconfig.Consortium != nil {
+		whitelisted := state.IsWhitelistedDeployer(pool.currentState, from)
+		if !whitelisted {
+			return ErrUnauthorizedDeployer
+		}
 	}
 	return nil
 }
