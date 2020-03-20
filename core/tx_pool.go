@@ -26,6 +26,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/prque"
+
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/event"
@@ -91,6 +92,9 @@ var (
 	// than some meaningful limit a user might use. This is not a consensus error
 	// making the transaction invalid, rather a DOS protection.
 	ErrOversizedData = errors.New("oversized data")
+
+	// ErrUnauthorizedDeployer is returned if a unauthorized address tries to deploy
+	ErrUnauthorizedDeployer = errors.New("unauthorized deployer")
 )
 
 var (
@@ -565,6 +569,14 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	}
 	if tx.Gas() < intrGas {
 		return ErrIntrinsicGas
+	}
+
+	// Contract creation transaction
+	if tx.To() == nil {
+		whitelisted := state.IsWhitelistedDeployer(pool.currentState, from)
+		if !whitelisted {
+			return ErrUnauthorizedDeployer
+		}
 	}
 	return nil
 }
@@ -1393,6 +1405,7 @@ func (pool *TxPool) demoteUnexecutables() {
 			log.Trace("Removed unpayable pending transaction", "hash", hash)
 			pool.all.Remove(hash)
 		}
+
 		pool.priced.Removed(len(olds) + len(drops))
 		pendingNofundsMeter.Mark(int64(len(drops)))
 
