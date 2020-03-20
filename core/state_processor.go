@@ -17,6 +17,8 @@
 package core
 
 import (
+	"errors"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/misc"
@@ -89,6 +91,14 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 	msg, err := tx.AsMessage(types.MakeSigner(config, header.Number))
 	if err != nil {
 		return nil, err
+	}
+
+	// Check if sender is authorized to deploy
+	if msg.To() == nil {
+		whitelistedDeployer := state.IsWhitelistedDeployer(statedb, msg.From())
+		if !whitelistedDeployer {
+			return nil, errors.New("unauthorized deployer")
+		}
 	}
 	// Create a new context to be used in the EVM environment
 	context := NewEVMContext(msg, header, bc, author)
