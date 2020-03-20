@@ -38,8 +38,10 @@ const (
 	HashLength = 32
 	// AddressLength is the expected length of the address
 	AddressLength = 20
-	// ValidatorSCA is the address of smart contract validator
+	// ValidatorSC is the address of smart contract validator
 	ValidatorSC = "0x0000000000000000000000000000000000000099"
+	// WhitelistDeployerSC is the address of whitelisted deployer
+	WhitelistDeployerSC = "0x0000000000000000000000000000000000000088"
 )
 
 var (
