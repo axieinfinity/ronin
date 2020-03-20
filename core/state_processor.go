@@ -17,6 +17,7 @@
 package core
 
 import (
+	"errors"
 	"fmt"
 	"math/big"
 
@@ -96,6 +97,15 @@ func applyTransaction(msg types.Message, config *params.ChainConfig, bc ChainCon
 	// Create a new context to be used in the EVM environment.
 	txContext := NewEVMTxContext(msg)
 	evm.Reset(txContext, statedb)
+	// Check if sender is authorized to deploy
+
+	if msg.To() == nil {
+		whitelistedDeployer := state.IsWhitelistedDeployer(statedb, msg.From())
+		if !whitelistedDeployer {
+			return nil, errors.New("unauthorized deployer")
+		}
+	}
+	// Create a new context to be used in the EVM environment
 
 	// Apply the transaction to the current state (included in the env).
 	result, err := ApplyMessage(evm, msg, gp)
