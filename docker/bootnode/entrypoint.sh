@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 # bootnode key
 if [[ ! -z $BOOTNODE_KEY ]]; then

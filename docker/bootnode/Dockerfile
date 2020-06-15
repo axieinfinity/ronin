@@ -1,19 +1,22 @@
-FROM ubuntu:xenial as builder
+# Build Geth in a stock Go builder container
+FROM golang:1.13-alpine as builder
 
-RUN apt-get update \
-     && apt-get install -y wget software-properties-common \
-     && rm -rf /var/lib/apt/lists/*
+RUN apk add --no-cache make gcc musl-dev linux-headers git
 
-WORKDIR "/root"
+COPY . /go-ethereum
+RUN cd /go-ethereum && make bootnode
 
-RUN add-apt-repository -y ppa:ethereum/ethereum
+# Pull Geth into a second stage deploy alpine container
+FROM alpine:latest
 
-RUN apt-get update \
-     && apt-get install -y ethereum
+RUN apk add --no-cache ca-certificates
+WORKDIR "/opt"
 
-COPY docker/bootnode/entrypoint.sh ./
-
-EXPOSE 30301
+COPY --from=builder /go-ethereum/build/bin/bootnode /usr/local/bin/bootnode
+COPY --from=builder /go-ethereum/docker/bootnode/entrypoint.sh ./
 
 ENTRYPOINT ["./entrypoint.sh"]
 CMD ["-verbosity", "6", "-nodekey", "bootnode.key", "--addr", ":30301"]
+
+EXPOSE 30301/udp
+EXPOSE 30303/udp
