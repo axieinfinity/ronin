@@ -9,8 +9,8 @@
 # - NETWORK_ID (default to 2021)
 
 # constants
-DATA_DIR="data"
-KEYSTORE_DIR="keystore"
+DATA_DIR="/ethereum/data"
+KEYSTORE_DIR="/ethereum/keystore"
 
 # variables
 genesisPath=""
