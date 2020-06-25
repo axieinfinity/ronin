@@ -550,7 +550,7 @@ func (c *Consortium) getValidatorsFromContract() ([]common.Address, error) {
 }
 
 // getValidatorsFromLastCheckpoint gets the list of validator in the Extra field in the last checkpoint
-// Sometime, when syncing the database havenot stored the recent headers yet, so we need to look them up by passing them directly
+// Sometime, when syncing the database have not stored the recent headers yet, so we need to look them up by passing them directly
 func (c *Consortium) getValidatorsFromLastCheckpoint(chain consensus.ChainReader, number uint64, recents []*types.Header) ([]common.Address, error) {
 	lastCheckpoint := number / c.config.Epoch * c.config.Epoch
 
