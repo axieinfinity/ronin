@@ -60,7 +60,8 @@ var (
 
 	uncleHash = types.CalcUncleHash(nil) // Always Keccak256(RLP([])) as uncles are meaningless outside of PoW.
 
-	fixedDifficulty = big.NewInt(1) // Block difficulty should be a non-zero fixed number
+	diffInTurn = big.NewInt(7) // Block difficulty for in-turn signatures
+	diffNoTurn = big.NewInt(3) // Block difficulty for out-of-turn signatures
 )
 
 // Various error messages to mark blocks invalid. These should be private to
@@ -279,7 +280,7 @@ func (c *Consortium) verifyHeader(chain consensus.ChainReader, header *types.Hea
 	}
 	// Ensure that the block's difficulty is meaningful (may not be correct at this point)
 	if number > 0 {
-		if header.Difficulty == nil || header.Difficulty.Cmp(fixedDifficulty) != 0 {
+		if header.Difficulty == nil || (header.Difficulty.Cmp(diffInTurn) != 0 && header.Difficulty.Cmp(diffNoTurn) != 0) {
 			return errInvalidDifficulty
 		}
 	}
@@ -372,8 +373,12 @@ func (c *Consortium) verifySeal(chain consensus.ChainReader, header *types.Heade
 		return errUnauthorizedSigner
 	}
 
-	// Ensure that the difficulty is empty
-	if header.Difficulty.Cmp(fixedDifficulty) != 0 {
+	// Ensure that the difficulty corresponds to the turn-ness of the signer
+	inturn := c.signerInTurn(signer, header.Number.Uint64(), validators)
+	if inturn && header.Difficulty.Cmp(diffInTurn) != 0 {
+		return errWrongDifficulty
+	}
+	if !inturn && header.Difficulty.Cmp(diffNoTurn) != 0 {
 		return errWrongDifficulty
 	}
 	return nil
@@ -388,7 +393,11 @@ func (c *Consortium) Prepare(chain consensus.ChainReader, header *types.Header) 
 
 	number := header.Number.Uint64()
 	// Set the correct difficulty
-	header.Difficulty = fixedDifficulty
+	validators, err := c.getValidatorsFromLastCheckpoint(chain, number-1, nil)
+	if err != nil {
+		return err
+	}
+	header.Difficulty = c.doCalcDifficulty(c.signer, number, validators)
 
 	// Ensure the extra data has all its components
 	if len(header.Extra) < extraVanity {
@@ -479,7 +488,7 @@ func (c *Consortium) Seal(chain consensus.ChainReader, block *types.Block, resul
 
 	// Sweet, the protocol permits us to sign the block, wait for our time
 	delay := time.Unix(int64(header.Time), 0).Sub(time.Now()) // nolint: gosimple
-	if !c.signerInTurn(chain, number, validators) {
+	if !c.signerInTurn(signer, number, validators) {
 		// It's not our turn explicitly to sign, delay it a bit
 		wiggle := time.Duration(len(validators)/2+1) * wiggleTime
 		delay += time.Duration(rand.Int63n(int64(wiggle)))
@@ -521,12 +530,6 @@ func (c *Consortium) Close() error {
 	return nil
 }
 
-// CalcDifficulty is the difficulty adjustment algorithm. It returns the difficulty
-// that a new block should have.
-func (c *Consortium) CalcDifficulty(chain consensus.ChainReader, time uint64, parent *types.Header) *big.Int {
-	return big.NewInt(0)
-}
-
 // APIs implements consensus.Engine, returning the user facing RPC API to allow
 // controlling the signer voting.
 func (c *Consortium) APIs(chain consensus.ChainReader) []rpc.API {
@@ -540,44 +543,15 @@ func (c *Consortium) APIs(chain consensus.ChainReader) []rpc.API {
 	// }}
 }
 
-// Read the validator list from contract
-func (c *Consortium) getValidatorsFromContract() ([]common.Address, error) {
-	if c.getSCValidators == nil {
-		return nil, errors.New("No getSCValidators function supplied")
+// CalcDifficulty is the difficulty adjustment algorithm. It returns the difficulty
+// that a new block should have.
+func (c *Consortium) CalcDifficulty(chain consensus.ChainReader, time uint64, parent *types.Header) *big.Int {
+	number := parent.Number.Uint64() + 1
+	validators, err := c.getValidatorsFromLastCheckpoint(chain, number-1, []*types.Header{parent})
+	if err != nil {
+		return nil
 	}
-
-	return c.getSCValidators()
-}
-
-// getValidatorsFromLastCheckpoint gets the list of validator in the Extra field in the last checkpoint
-// Sometime, when syncing the database have not stored the recent headers yet, so we need to look them up by passing them directly
-func (c *Consortium) getValidatorsFromLastCheckpoint(chain consensus.ChainReader, number uint64, recents []*types.Header) ([]common.Address, error) {
-	lastCheckpoint := number / c.config.Epoch * c.config.Epoch
-
-	if lastCheckpoint == 0 {
-		return c.getValidatorsFromContract()
-	}
-
-	var header *types.Header
-	if recents != nil {
-		for _, parent := range recents {
-			if parent.Number.Uint64() == lastCheckpoint {
-				header = parent
-			}
-		}
-	}
-	if header == nil {
-		header = chain.GetHeaderByNumber(lastCheckpoint)
-	}
-	extraSuffix := len(header.Extra) - extraSeal
-	return extractAddressFromBytes(header.Extra[extraVanity:extraSuffix]), nil
-}
-
-// Check if it is the turn of the signer from the last checkpoint
-func (c *Consortium) signerInTurn(chain consensus.ChainReader, number uint64, validators []common.Address) bool {
-	lastCheckpoint := number / c.config.Epoch * c.config.Epoch
-	index := (number - lastCheckpoint) % uint64(len(validators))
-	return validators[index] == c.signer
+	return c.doCalcDifficulty(c.signer, number, validators)
 }
 
 // SealHash returns the hash of a block prior to it being sealed.
@@ -642,4 +616,52 @@ func extractAddressFromBytes(bytes []byte) []common.Address {
 		copy(results[i][:], bytes[i*common.AddressLength:])
 	}
 	return results
+}
+
+func (c *Consortium) doCalcDifficulty(signer common.Address, number uint64, validators []common.Address) *big.Int {
+	if c.signerInTurn(signer, number, validators) {
+		return new(big.Int).Set(diffInTurn)
+	}
+	return new(big.Int).Set(diffNoTurn)
+}
+
+// Read the validator list from contract
+func (c *Consortium) getValidatorsFromContract() ([]common.Address, error) {
+	if c.getSCValidators == nil {
+		return nil, errors.New("No getSCValidators function supplied")
+	}
+
+	return c.getSCValidators()
+}
+
+// getValidatorsFromLastCheckpoint gets the list of validator in the Extra field in the last checkpoint
+// Sometime, when syncing the database have not stored the recent headers yet, so we need to look them up by passing them directly
+func (c *Consortium) getValidatorsFromLastCheckpoint(chain consensus.ChainReader, number uint64, recents []*types.Header) ([]common.Address, error) {
+	lastCheckpoint := number / c.config.Epoch * c.config.Epoch
+
+	if lastCheckpoint == 0 {
+		// TODO(andy): Review if we should put validator in genesis block's extra data
+		return c.getValidatorsFromContract()
+	}
+
+	var header *types.Header
+	if recents != nil {
+		for _, parent := range recents {
+			if parent.Number.Uint64() == lastCheckpoint {
+				header = parent
+			}
+		}
+	}
+	if header == nil {
+		header = chain.GetHeaderByNumber(lastCheckpoint)
+	}
+	extraSuffix := len(header.Extra) - extraSeal
+	return extractAddressFromBytes(header.Extra[extraVanity:extraSuffix]), nil
+}
+
+// Check if it is the turn of the signer from the last checkpoint
+func (c *Consortium) signerInTurn(signer common.Address, number uint64, validators []common.Address) bool {
+	lastCheckpoint := number / c.config.Epoch * c.config.Epoch
+	index := (number - lastCheckpoint) % uint64(len(validators))
+	return validators[index] == signer
 }
