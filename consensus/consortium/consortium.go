@@ -533,14 +533,12 @@ func (c *Consortium) Close() error {
 // APIs implements consensus.Engine, returning the user facing RPC API to allow
 // controlling the signer voting.
 func (c *Consortium) APIs(chain consensus.ChainReader) []rpc.API {
-	return nil
-	// TODO(andy): Provide API for consortium
-	// return []rpc.API{{
-	// 	Namespace: "consortium",
-	// 	Version:   "1.0",
-	// 	Service: nil, &API{chain: chain, consortium: c},
-	// 	Public:  false,
-	// }}
+	return []rpc.API{{
+		Namespace: "consortium",
+		Version:   "1.0",
+		Service:   &API{chain: chain, consortium: c},
+		Public:    false,
+	}}
 }
 
 // CalcDifficulty is the difficulty adjustment algorithm. It returns the difficulty
@@ -640,7 +638,7 @@ func (c *Consortium) getValidatorsFromLastCheckpoint(chain consensus.ChainReader
 	lastCheckpoint := number / c.config.Epoch * c.config.Epoch
 
 	if lastCheckpoint == 0 {
-		// TODO(andy): Review if we should put validator in genesis block's extra data
+		// TODO(andy): Review if we should put validators in genesis block's extra data
 		return c.getValidatorsFromContract()
 	}
 
