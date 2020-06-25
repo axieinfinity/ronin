@@ -29,7 +29,7 @@ if [[ ! -z $NETWORK_ID ]]; then
       ;;
     2021 )
       genesisPath="testnet.json"
-      params="$params --gcmode archive --rpcapi db,eth,net,web3,debug"
+      params="$params --gcmode archive --rpcapi eth,net,web3,debug,consortium"
       ;;
     2022 )
       genesisPath="devnet.json"
