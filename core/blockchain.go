@@ -37,7 +37,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/state/snapshot"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
@@ -212,7 +211,6 @@ type BlockChain struct {
 	terminateInsert func(common.Hash, uint64) bool // Testing hook used to terminate ancient receipt chain insertion.
 
 	IPCEndpoint string
-	client      *ethclient.Client
 }
 
 // NewBlockChain returns a fully initialised block chain using information
@@ -2513,19 +2511,4 @@ func (bc *BlockChain) SubscribeLogsEvent(ch chan<- []*types.Log) event.Subscript
 // block processing has started while false means it has stopped.
 func (bc *BlockChain) SubscribeBlockProcessingEvent(ch chan<- bool) event.Subscription {
 	return bc.scope.Track(bc.blockProcFeed.Subscribe(ch))
-}
-
-// GetClient returns the client to query the the blockchain, i.e. call to smart contracts
-func (bc *BlockChain) GetClient() (*ethclient.Client, error) {
-	if bc.client == nil {
-		// Inject ipc client global instance.
-		client, err := ethclient.Dial(bc.IPCEndpoint)
-		if err != nil {
-			log.Error("Fail to connect IPC", "error", err)
-			return nil, err
-		}
-		bc.client = client
-	}
-
-	return bc.client, nil
 }
