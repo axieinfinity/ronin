@@ -94,7 +94,7 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 	}
 
 	// Check if sender is authorized to deploy
-	if msg.To() == nil {
+	if msg.To() == nil && config.Consortium != nil {
 		whitelistedDeployer := state.IsWhitelistedDeployer(statedb, msg.From())
 		if !whitelistedDeployer {
 			return nil, errors.New("unauthorized deployer")
