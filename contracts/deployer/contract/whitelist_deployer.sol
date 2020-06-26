@@ -41,8 +41,8 @@ contract WhitelistDeployer is HasAdmin {
   event AddressWhitelisted(address indexed _address, bool indexed _status);
   event WhitelistAllChange(bool indexed _status);
 
-  bool public whitelistAll;
   mapping (address => bool) public whitelisted;
+  bool public whitelistAll;
 
   constructor() public {}
 
