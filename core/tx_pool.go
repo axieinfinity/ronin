@@ -572,7 +572,7 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	}
 
 	// Contract creation transaction
-	if tx.To() == nil {
+	if tx.To() == nil && pool.chainconfig.Consortium != nil {
 		whitelisted := state.IsWhitelistedDeployer(pool.currentState, from)
 		if !whitelisted {
 			return ErrUnauthorizedDeployer
