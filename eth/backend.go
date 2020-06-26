@@ -25,6 +25,8 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/ethereum/go-ethereum/core/state"
+
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
@@ -33,7 +35,6 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/clique"
 	"github.com/ethereum/go-ethereum/consensus/consortium"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
-	validatorContract "github.com/ethereum/go-ethereum/contracts/validator/contract"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/bloombits"
 	"github.com/ethereum/go-ethereum/core/rawdb"
@@ -42,7 +43,6 @@ import (
 	"github.com/ethereum/go-ethereum/eth/downloader"
 	"github.com/ethereum/go-ethereum/eth/filters"
 	"github.com/ethereum/go-ethereum/eth/gasprice"
-	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
@@ -238,6 +238,17 @@ func New(ctx *node.ServiceContext, config *Config) (*Ethereum, error) {
 		return nil, err
 	}
 
+	if chainConfig.Consortium != nil {
+		c := eth.engine.(*consortium.Consortium)
+		c.SetGetSCValidatorsFn(func() ([]common.Address, error) {
+			stateDb, err := eth.blockchain.State()
+			if err != nil {
+				log.Crit("Cannot get state of blockchain", "err", err)
+				return nil, err
+			}
+			return state.GetValidators(stateDb), nil
+		})
+	}
 	return eth, nil
 }
 
@@ -266,20 +277,7 @@ func CreateConsensusEngine(ctx *node.ServiceContext, chainConfig *params.ChainCo
 	}
 
 	if chainConfig.Consortium != nil {
-		return consortium.New(chainConfig.Consortium, db, func() ([]common.Address, error) {
-			client, err := ethclient.Dial(ctx.Config.IPCEndpoint())
-			if err != nil {
-				return nil, err
-			}
-
-			addr := common.HexToAddress(common.ValidatorSC)
-			// TODO: Consider getting from stateDB for faster performance
-			contract, err := validatorContract.NewValidator(addr, client)
-			if err != nil {
-				return nil, err
-			}
-			return contract.GetValidators(nil)
-		})
+		return consortium.New(chainConfig.Consortium, db)
 	}
 	// Otherwise assume proof-of-work
 	switch config.PowMode {

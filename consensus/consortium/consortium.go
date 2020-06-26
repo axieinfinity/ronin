@@ -182,7 +182,7 @@ type Consortium struct {
 
 // New creates a Consortium proof-of-authority consensus engine with the initial
 // signers set to the ones provided by the user.
-func New(config *params.ConsortiumConfig, db ethdb.Database, getSCValidators func() ([]common.Address, error)) *Consortium {
+func New(config *params.ConsortiumConfig, db ethdb.Database) *Consortium {
 	// Set any missing consensus parameters to their defaults
 	conf := *config
 	if conf.Epoch == 0 {
@@ -192,12 +192,16 @@ func New(config *params.ConsortiumConfig, db ethdb.Database, getSCValidators fun
 	signatures, _ := lru.NewARC(inmemorySignatures)
 
 	return &Consortium{
-		config:          &conf,
-		db:              db,
-		signatures:      signatures,
-		proposals:       make(map[common.Address]bool),
-		getSCValidators: getSCValidators,
+		config:     &conf,
+		db:         db,
+		signatures: signatures,
+		proposals:  make(map[common.Address]bool),
 	}
+}
+
+// SetGetSCValidatorsFn sets the function to get a list of validators from smart contracts
+func (c *Consortium) SetGetSCValidatorsFn(fn func() ([]common.Address, error)) {
+	c.getSCValidators = fn
 }
 
 // Author implements consensus.Engine, returning the Ethereum address recovered
