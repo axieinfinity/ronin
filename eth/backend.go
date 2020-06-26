@@ -26,18 +26,17 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/ethereum/go-ethereum/core/state"
+
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/beacon"
 	"github.com/ethereum/go-ethereum/consensus/clique"
-<<<<<<< HEAD
-=======
 	"github.com/ethereum/go-ethereum/consensus/consortium"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
 	validatorContract "github.com/ethereum/go-ethereum/contracts/validator/contract"
->>>>>>> Add consortium consensus (#1)
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/bloombits"
 	"github.com/ethereum/go-ethereum/core/rawdb"
@@ -48,12 +47,9 @@ import (
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
 	"github.com/ethereum/go-ethereum/eth/filters"
 	"github.com/ethereum/go-ethereum/eth/gasprice"
-<<<<<<< HEAD
 	"github.com/ethereum/go-ethereum/eth/protocols/eth"
 	"github.com/ethereum/go-ethereum/eth/protocols/snap"
-=======
 	"github.com/ethereum/go-ethereum/ethclient"
->>>>>>> Add consortium consensus (#1)
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
@@ -288,6 +284,17 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 			log.Warn("Unclean shutdown detected", "booted", t,
 				"age", common.PrettyAge(t))
 		}
+
+	if chainConfig.Consortium != nil {
+		c := eth.engine.(*consortium.Consortium)
+		c.SetGetSCValidatorsFn(func() ([]common.Address, error) {
+			stateDb, err := eth.blockchain.State()
+			if err != nil {
+				log.Crit("Cannot get state of blockchain", "err", err)
+				return nil, err
+			}
+			return state.GetValidators(stateDb), nil
+		})
 	}
 	return eth, nil
 }
@@ -317,20 +324,7 @@ func CreateConsensusEngine(stack *node.Node, chainConfig *params.ChainConfig, co
 	}
 
 	if chainConfig.Consortium != nil {
-		return consortium.New(chainConfig.Consortium, db, func() ([]common.Address, error) {
-			client, err := ethclient.Dial(ctx.Config.IPCEndpoint())
-			if err != nil {
-				return nil, err
-			}
-
-			addr := common.HexToAddress(common.ValidatorSC)
-			// TODO: Consider getting from stateDB for faster performance
-			contract, err := validatorContract.NewValidator(addr, client)
-			if err != nil {
-				return nil, err
-			}
-			return contract.GetValidators(nil)
-		})
+		return consortium.New(chainConfig.Consortium, db)
 	}
 	// Otherwise assume proof-of-work
 	switch config.PowMode {
