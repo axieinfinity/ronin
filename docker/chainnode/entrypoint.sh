@@ -104,7 +104,7 @@ fi
 
 # debug mode
 if [[ ! -z $DEBUG_MODE ]]; then
-  params="$params --gcmode archive --rpcapi db,eth,net,web3,debug,posv"
+  params="$params --gcmode archive --rpcapi eth,net,web3,debug,consortium"
 fi
 
 # dump
