@@ -51,14 +51,14 @@ const (
 
 // Consortium proof-of-authority protocol constants.
 var (
-	epochLength = uint64(30000) // Default number of blocks after which to checkpoint and reset the pending votes
+	epochLength = uint64(30000) // Default number of blocks after which to checkpoint
 
 	extraVanity = 32                     // Fixed number of extra-data prefix bytes reserved for signer vanity
 	extraSeal   = crypto.SignatureLength // Fixed number of extra-data suffix bytes reserved for signer seal
 
 	emptyNonce = hexutil.MustDecode("0x0000000000000000") // Nonce number should be empty
 
-	uncleHash = types.CalcUncleHash(nil) // Always Keccak256(RLP([])) as uncles are meaningless outside of PoW.
+	uncleHash = types.CalcUncleHash(nil) // Always Keccak256(RLP([])) as uncles are meaningless outside of PoW
 
 	diffInTurn = big.NewInt(7) // Block difficulty for in-turn signatures
 	diffNoTurn = big.NewInt(3) // Block difficulty for out-of-turn signatures
@@ -77,13 +77,8 @@ var (
 	// block has a beneficiary set to non-zeroes.
 	errInvalidCheckpointBeneficiary = errors.New("beneficiary in checkpoint block non-zero")
 
-	// errInvalidVote is returned if a nonce value is something else that the two
-	// allowed constants of 0x00..0 or 0xff..f.
-	errInvalidNonce = errors.New("vote nonce not 0x00..0 ")
-
-	// errInvalidCheckpointVote is returned if a checkpoint/epoch transition block
-	// has a vote nonce set to non-zeroes.
-	errInvalidCheckpointVote = errors.New("vote nonce in checkpoint block non-zero")
+	// errInvalidNonce is returned if a nonce value is not 0x00..0
+	errInvalidNonce = errors.New("nonce not 0x00..0 ")
 
 	// errMissingVanity is returned if a block's extra-data section is shorter than
 	// 32 bytes, which is required to store the signer vanity.
@@ -121,10 +116,6 @@ var (
 	// ErrInvalidTimestamp is returned if the timestamp of a block is lower than
 	// the previous block's timestamp + the minimum block period.
 	ErrInvalidTimestamp = errors.New("invalid timestamp")
-
-	// errInvalidVotingChain is returned if an authorization list is attempted to
-	// be modified via out-of-range or non-contiguous headers.
-	errInvalidVotingChain = errors.New("invalid voting chain")
 
 	// errUnauthorizedSigner is returned if a header is signed by a non-authorized entity.
 	errUnauthorizedSigner = errors.New("unauthorized signer")
@@ -255,7 +246,7 @@ func (c *Consortium) verifyHeader(chain consensus.ChainReader, header *types.Hea
 	if header.Coinbase != (common.Address{}) {
 		return errInvalidCheckpointBeneficiary
 	}
-	// Nonces must be 0x00..0 or 0xff..f, zeroes enforced on checkpoints
+	// Nonces must be 0x00..0
 	if !bytes.Equal(header.Nonce[:], emptyNonce) {
 		return errInvalidNonce
 	}
@@ -391,7 +382,6 @@ func (c *Consortium) verifySeal(chain consensus.ChainReader, header *types.Heade
 // Prepare implements consensus.Engine, preparing all the consensus fields of the
 // header for running the transactions on top.
 func (c *Consortium) Prepare(chain consensus.ChainReader, header *types.Header) error {
-	// If the block isn't a checkpoint, cast a random vote (good enough for now)
 	header.Coinbase = common.Address{}
 	header.Nonce = types.BlockNonce{}
 
@@ -534,8 +524,7 @@ func (c *Consortium) Close() error {
 	return nil
 }
 
-// APIs implements consensus.Engine, returning the user facing RPC API to allow
-// controlling the signer voting.
+// APIs implements consensus.Engine, returning the user facing RPC API.
 func (c *Consortium) APIs(chain consensus.ChainReader) []rpc.API {
 	return []rpc.API{{
 		Namespace: "consortium",
