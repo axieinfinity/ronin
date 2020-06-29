@@ -123,6 +123,10 @@ var (
 	// errRecentlySigned is returned if a header is signed by an authorized entity
 	// that already signed a header recently, thus is temporarily not allowed to.
 	errRecentlySigned = errors.New("recently signed")
+
+	// errWrongCoinbase is returned if the coinbase field in header does not match the signer
+	// of that block.
+	errWrongCoinbase = errors.New("wrong coinbase address")
 )
 
 // SignerFn is a signer callback function to request a header to be signed by a
@@ -241,11 +245,6 @@ func (c *Consortium) verifyHeader(chain consensus.ChainReader, header *types.Hea
 	if header.Time > uint64(time.Now().Unix()) {
 		return consensus.ErrFutureBlock
 	}
-	checkpoint := (number % c.config.Epoch) == 0
-	// Blocks need to enforce zero beneficiary
-	if header.Coinbase != (common.Address{}) {
-		return errInvalidCheckpointBeneficiary
-	}
 	// Nonces must be 0x00..0
 	if !bytes.Equal(header.Nonce[:], emptyNonce) {
 		return errInvalidNonce
@@ -258,6 +257,7 @@ func (c *Consortium) verifyHeader(chain consensus.ChainReader, header *types.Hea
 		return errMissingSignature
 	}
 	// Ensure that the extra-data contains a signer list on checkpoint, but none otherwise
+	checkpoint := (number % c.config.Epoch) == 0
 	signersBytes := len(header.Extra) - extraVanity - extraSeal
 	if !checkpoint && signersBytes != 0 {
 		return errExtraSigners
@@ -354,10 +354,14 @@ func (c *Consortium) verifySeal(chain consensus.ChainReader, header *types.Heade
 	if number == 0 {
 		return errUnknownBlock
 	}
+
 	// Resolve the authorization key and check against signers
 	signer, err := ecrecover(header, c.signatures)
 	if err != nil {
 		return err
+	}
+	if signer != header.Coinbase {
+		return errWrongCoinbase
 	}
 
 	validators, err := c.getValidatorsFromLastCheckpoint(chain, number-1, parents)
@@ -382,7 +386,8 @@ func (c *Consortium) verifySeal(chain consensus.ChainReader, header *types.Heade
 // Prepare implements consensus.Engine, preparing all the consensus fields of the
 // header for running the transactions on top.
 func (c *Consortium) Prepare(chain consensus.ChainReader, header *types.Header) error {
-	header.Coinbase = common.Address{}
+	// Set the Coinbase address as the signer
+	header.Coinbase = c.signer
 	header.Nonce = types.BlockNonce{}
 
 	number := header.Number.Uint64()
