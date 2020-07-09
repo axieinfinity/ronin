@@ -9,14 +9,14 @@
 # - NETWORK_ID (default to 2021)
 
 # constants
-DATA_DIR="/ethereum/data"
-KEYSTORE_DIR="/ethereum/keystore"
+DATA_DIR="/ronin/data"
+KEYSTORE_DIR="/ronin/keystore"
 
 # variables
 genesisPath=""
 params=""
 accountsCount=$(
-  geth account list --datadir $DATA_DIR  --keystore $KEYSTORE_DIR \
+  ronin account list --datadir $DATA_DIR  --keystore $KEYSTORE_DIR \
   2> /dev/null \
   | wc -l
 )
@@ -47,9 +47,9 @@ if [[ ! -z $GENESIS_PATH ]]; then
 fi
 
 # data dir
-if [[ ! -d $DATA_DIR/geth ]]; then
+if [[ ! -d $DATA_DIR/ronin ]]; then
   echo "No blockchain data, creating genesis block."
-  geth init $genesisPath --datadir $DATA_DIR 2> /dev/null
+  ronin init $genesisPath --datadir $DATA_DIR 2> /dev/null
 fi
 
 # password file
@@ -69,14 +69,14 @@ if [[ $accountsCount -le 0 ]]; then
   if [[ ! -z $PRIVATE_KEY ]]; then
     echo "Creating account from private key"
     echo "$PRIVATE_KEY" > ./private_key
-    geth account import ./private_key \
+    ronin account import ./private_key \
       --datadir $DATA_DIR \
       --keystore $KEYSTORE_DIR \
       --password ./password
     rm ./private_key
   else
     echo "Creating new account"
-    geth account new \
+    ronin account new \
       --datadir $DATA_DIR \
       --keystore $KEYSTORE_DIR \
       --password ./password
@@ -84,7 +84,7 @@ if [[ $accountsCount -le 0 ]]; then
 fi
 
 account=$(
-  geth account list --datadir $DATA_DIR  --keystore $KEYSTORE_DIR \
+  ronin account list --datadir $DATA_DIR  --keystore $KEYSTORE_DIR \
   2> /dev/null \
   | head -n 1 \
   | cut -d"{" -f 2 | cut -d"}" -f 1
@@ -112,7 +112,7 @@ echo "dump: $account $BOOTNODES"
 
 set -x
 
-exec geth $params \
+exec ronin $params \
   --verbosity $VERBOSITY \
   --datadir $DATA_DIR \
   --keystore $KEYSTORE_DIR \
