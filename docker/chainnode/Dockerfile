@@ -18,6 +18,7 @@ ENV BOOTNODES ''
 ENV VERBOSITY 3
 ENV SYNC_MODE 'full'
 ENV NETWORK_ID '2021'
+ENV ETHSTATS_ENDPOINT ''
 
 
 COPY --from=builder /opt/build/bin/ronin /usr/local/bin/ronin

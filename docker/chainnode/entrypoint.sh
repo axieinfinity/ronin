@@ -107,6 +107,11 @@ if [[ ! -z $DEBUG_MODE ]]; then
   params="$params --gcmode archive --rpcapi eth,net,web3,debug,consortium"
 fi
 
+# ethstats
+if [[ ! -z $ETHSTATS_ENDPOINT ]]; then
+  params="$params --ethstats $ETHSTATS_ENDPOINT"
+fi
+
 # dump
 echo "dump: $account $BOOTNODES"
 
