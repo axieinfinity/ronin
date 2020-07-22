@@ -29,7 +29,7 @@ if [[ ! -z $NETWORK_ID ]]; then
       ;;
     2021 )
       genesisPath="testnet.json"
-      params="$params --gcmode archive --rpcapi eth,net,web3,debug,consortium"
+      params="$params --gcmode archive --http.api eth,net,web3,debug,consortium"
       ;;
     2022 )
       genesisPath="devnet.json"
@@ -104,7 +104,7 @@ fi
 
 # debug mode
 if [[ ! -z $DEBUG_MODE ]]; then
-  params="$params --gcmode archive --rpcapi eth,net,web3,debug,consortium"
+  params="$params --gcmode archive --http.api eth,net,web3,debug,consortium"
 fi
 
 # ethstats
@@ -123,17 +123,17 @@ exec ronin $params \
   --keystore $KEYSTORE_DIR \
   --password ./password \
   --port 30303 \
-  --rpc \
-  --rpccorsdomain "*" \
-  --rpcaddr 0.0.0.0 \
-  --rpcport 8545 \
-  --rpcvhosts "*" \
+  --http \
+  --http.corsdomain "*" \
+  --http.addr 0.0.0.0 \
+  --http.port 8545 \
+  --http.vhosts "*" \
   --ws \
-  --wsaddr 0.0.0.0 \
-  --wsport 8546 \
-  --wsorigins "*" \
+  --ws.addr 0.0.0.0 \
+  --ws.port 8546 \
+  --ws.origins "*" \
   --mine \
   --allow-insecure-unlock \
-  --gasprice "0" \
-  --targetgaslimit "20000000" \
+  --miner.gasprice "0" \
+  --miner.gastarget "20000000" \
   "$@"
