@@ -123,6 +123,8 @@ exec ronin $params \
   --keystore $KEYSTORE_DIR \
   --password ./password \
   --port 30303 \
+  --txpool.globalqueue 5000 \
+  --txpool.globalslots 5000 \
   --http \
   --http.corsdomain "*" \
   --http.addr 0.0.0.0 \
@@ -134,6 +136,6 @@ exec ronin $params \
   --ws.origins "*" \
   --mine \
   --allow-insecure-unlock \
-  --miner.gasprice "0" \
-  --miner.gastarget "20000000" \
+  --miner.gasprice "1000000000" \
+  --miner.gastarget "100000000" \
   "$@"
