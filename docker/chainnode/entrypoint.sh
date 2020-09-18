@@ -33,6 +33,7 @@ if [[ ! -z $NETWORK_ID ]]; then
       ;;
     2022 )
       genesisPath="devnet.json"
+      params="$params --gcmode archive --http.api eth,net,web3,debug,consortium"
       ;;
     * )
       echo "network id not supported"
@@ -102,9 +103,9 @@ if [[ ! -z $SYNC_MODE ]]; then
   params="$params --syncmode ${SYNC_MODE}"
 fi
 
-# debug mode
-if [[ ! -z $DEBUG_MODE ]]; then
-  params="$params --gcmode archive --http.api eth,net,web3,debug,consortium"
+# debug mode - enable rpc and disable local transactions
+if [[ ! -z $RPC_NODE ]]; then
+  params="$params --gcmode archive --http.api eth,net,web3,debug,consortium --txpool.nolocals"
 fi
 
 # ethstats
