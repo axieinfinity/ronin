@@ -490,7 +490,7 @@ func (c *Consortium) Seal(chain consensus.ChainReader, block *types.Block, resul
 	if !c.signerInTurn(signer, number, validators) {
 		// It's not our turn explicitly to sign, delay it a bit
 		wiggle := time.Duration(len(validators)/2+1) * wiggleTime
-		delay += time.Duration(rand.Int63n(int64(wiggle)))
+		delay += time.Duration(rand.Int63n(int64(wiggle))) + wiggleTime // delay for 0.5s more
 
 		log.Trace("Out-of-turn signing requested", "wiggle", common.PrettyDuration(wiggle))
 	}
