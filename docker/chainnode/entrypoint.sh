@@ -33,6 +33,7 @@ if [[ ! -z $NETWORK_ID ]]; then
       ;;
     2022 )
       genesisPath="devnet.json"
+      params="$params --gcmode archive --http.api eth,net,web3,debug,consortium"
       ;;
     * )
       echo "network id not supported"
@@ -102,9 +103,9 @@ if [[ ! -z $SYNC_MODE ]]; then
   params="$params --syncmode ${SYNC_MODE}"
 fi
 
-# debug mode
-if [[ ! -z $DEBUG_MODE ]]; then
-  params="$params --gcmode archive --http.api eth,net,web3,debug,consortium"
+# debug mode - enable rpc and disable local transactions
+if [[ ! -z $RPC_NODE ]]; then
+  params="$params --gcmode archive --http.api eth,net,web3,debug,consortium --txpool.nolocals"
 fi
 
 # ethstats
@@ -123,6 +124,8 @@ exec ronin $params \
   --keystore $KEYSTORE_DIR \
   --password ./password \
   --port 30303 \
+  --txpool.globalqueue 5000 \
+  --txpool.globalslots 5000 \
   --http \
   --http.corsdomain "*" \
   --http.addr 0.0.0.0 \
@@ -134,6 +137,6 @@ exec ronin $params \
   --ws.origins "*" \
   --mine \
   --allow-insecure-unlock \
-  --miner.gasprice "0" \
-  --miner.gastarget "20000000" \
+  --miner.gasprice "1000000000" \
+  --miner.gastarget "100000000" \
   "$@"
