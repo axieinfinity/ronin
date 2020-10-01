@@ -26,107 +26,107 @@ var (
 	_ = event.NewSubscription
 )
 
-// ValidatorABI is the input ABI used to generate the binding from.
-const ValidatorABI = "[{\"constant\":true,\"inputs\":[],\"name\":\"validatorCount\",\"outputs\":[{\"name\":\"\",\"type\":\"uint256\"}],\"payable\":false,\"stateMutability\":\"view\",\"type\":\"function\"},{\"constant\":true,\"inputs\":[{\"name\":\"\",\"type\":\"uint256\"}],\"name\":\"validators\",\"outputs\":[{\"name\":\"\",\"type\":\"address\"}],\"payable\":false,\"stateMutability\":\"view\",\"type\":\"function\"},{\"constant\":false,\"inputs\":[{\"name\":\"_validators\",\"type\":\"address[]\"}],\"name\":\"addValidators\",\"outputs\":[],\"payable\":false,\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"constant\":false,\"inputs\":[{\"name\":\"_newAdmin\",\"type\":\"address\"}],\"name\":\"changeAdmin\",\"outputs\":[],\"payable\":false,\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"constant\":false,\"inputs\":[],\"name\":\"removeAdmin\",\"outputs\":[],\"payable\":false,\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"constant\":true,\"inputs\":[],\"name\":\"getValidators\",\"outputs\":[{\"name\":\"_validators\",\"type\":\"address[]\"}],\"payable\":false,\"stateMutability\":\"view\",\"type\":\"function\"},{\"constant\":true,\"inputs\":[],\"name\":\"admin\",\"outputs\":[{\"name\":\"\",\"type\":\"address\"}],\"payable\":false,\"stateMutability\":\"view\",\"type\":\"function\"},{\"constant\":false,\"inputs\":[{\"name\":\"_index\",\"type\":\"uint256\"}],\"name\":\"removeValidator\",\"outputs\":[],\"payable\":false,\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"constant\":true,\"inputs\":[{\"name\":\"_addr\",\"type\":\"address\"}],\"name\":\"isValidator\",\"outputs\":[{\"name\":\"_result\",\"type\":\"bool\"}],\"payable\":false,\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"payable\":false,\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"name\":\"_oldAdmin\",\"type\":\"address\"},{\"indexed\":true,\"name\":\"_newAdmin\",\"type\":\"address\"}],\"name\":\"AdminChanged\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"name\":\"_oldAdmin\",\"type\":\"address\"}],\"name\":\"AdminRemoved\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"name\":\"validator\",\"type\":\"address\"}],\"name\":\"ValidatorAdded\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"name\":\"validator\",\"type\":\"address\"}],\"name\":\"ValidatorRemoved\",\"type\":\"event\"}]"
+// ContractABI is the input ABI used to generate the binding from.
+const ContractABI = "[{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_acknowledgement\",\"type\":\"address\"},{\"internalType\":\"address[]\",\"name\":\"_validators\",\"type\":\"address[]\"},{\"internalType\":\"uint256\",\"name\":\"_num\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"_denom\",\"type\":\"uint256\"}],\"payable\":false,\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"_id\",\"type\":\"uint256\"},{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"numerator\",\"type\":\"uint256\"},{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"denominator\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"previousNumerator\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"previousDenominator\",\"type\":\"uint256\"}],\"name\":\"ThresholdUpdated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"_id\",\"type\":\"uint256\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"validator\",\"type\":\"address\"}],\"name\":\"ValidatorAdded\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"_id\",\"type\":\"uint256\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"validator\",\"type\":\"address\"}],\"name\":\"ValidatorRemoved\",\"type\":\"event\"},{\"constant\":true,\"inputs\":[],\"name\":\"acknowledgement\",\"outputs\":[{\"internalType\":\"contractAcknowledgement\",\"name\":\"\",\"type\":\"address\"}],\"payable\":false,\"stateMutability\":\"view\",\"type\":\"function\"},{\"constant\":false,\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_id\",\"type\":\"uint256\"},{\"internalType\":\"address\",\"name\":\"_validator\",\"type\":\"address\"}],\"name\":\"addValidator\",\"outputs\":[],\"payable\":false,\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"constant\":true,\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_voteCount\",\"type\":\"uint256\"}],\"name\":\"checkThreshold\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"payable\":false,\"stateMutability\":\"view\",\"type\":\"function\"},{\"constant\":true,\"inputs\":[],\"name\":\"denom\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"payable\":false,\"stateMutability\":\"view\",\"type\":\"function\"},{\"constant\":true,\"inputs\":[],\"name\":\"getValidators\",\"outputs\":[{\"internalType\":\"address[]\",\"name\":\"_validators\",\"type\":\"address[]\"}],\"payable\":false,\"stateMutability\":\"view\",\"type\":\"function\"},{\"constant\":true,\"inputs\":[{\"internalType\":\"address\",\"name\":\"_addr\",\"type\":\"address\"}],\"name\":\"isValidator\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"payable\":false,\"stateMutability\":\"view\",\"type\":\"function\"},{\"constant\":true,\"inputs\":[],\"name\":\"num\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"payable\":false,\"stateMutability\":\"view\",\"type\":\"function\"},{\"constant\":false,\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_id\",\"type\":\"uint256\"},{\"internalType\":\"address\",\"name\":\"_validator\",\"type\":\"address\"}],\"name\":\"removeValidator\",\"outputs\":[],\"payable\":false,\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"constant\":false,\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_id\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"_numerator\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"_denominator\",\"type\":\"uint256\"}],\"name\":\"updateQuorum\",\"outputs\":[],\"payable\":false,\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"constant\":true,\"inputs\":[],\"name\":\"validatorCount\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"payable\":false,\"stateMutability\":\"view\",\"type\":\"function\"},{\"constant\":true,\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"name\":\"validators\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"payable\":false,\"stateMutability\":\"view\",\"type\":\"function\"}]"
 
-// Validator is an auto generated Go binding around an Ethereum contract.
-type Validator struct {
-	ValidatorCaller     // Read-only binding to the contract
-	ValidatorTransactor // Write-only binding to the contract
-	ValidatorFilterer   // Log filterer for contract events
+// Contract is an auto generated Go binding around an Ethereum contract.
+type Contract struct {
+	ContractCaller     // Read-only binding to the contract
+	ContractTransactor // Write-only binding to the contract
+	ContractFilterer   // Log filterer for contract events
 }
 
-// ValidatorCaller is an auto generated read-only Go binding around an Ethereum contract.
-type ValidatorCaller struct {
+// ContractCaller is an auto generated read-only Go binding around an Ethereum contract.
+type ContractCaller struct {
 	contract *bind.BoundContract // Generic contract wrapper for the low level calls
 }
 
-// ValidatorTransactor is an auto generated write-only Go binding around an Ethereum contract.
-type ValidatorTransactor struct {
+// ContractTransactor is an auto generated write-only Go binding around an Ethereum contract.
+type ContractTransactor struct {
 	contract *bind.BoundContract // Generic contract wrapper for the low level calls
 }
 
-// ValidatorFilterer is an auto generated log filtering Go binding around an Ethereum contract events.
-type ValidatorFilterer struct {
+// ContractFilterer is an auto generated log filtering Go binding around an Ethereum contract events.
+type ContractFilterer struct {
 	contract *bind.BoundContract // Generic contract wrapper for the low level calls
 }
 
-// ValidatorSession is an auto generated Go binding around an Ethereum contract,
+// ContractSession is an auto generated Go binding around an Ethereum contract,
 // with pre-set call and transact options.
-type ValidatorSession struct {
-	Contract     *Validator        // Generic contract binding to set the session for
+type ContractSession struct {
+	Contract     *Contract         // Generic contract binding to set the session for
 	CallOpts     bind.CallOpts     // Call options to use throughout this session
 	TransactOpts bind.TransactOpts // Transaction auth options to use throughout this session
 }
 
-// ValidatorCallerSession is an auto generated read-only Go binding around an Ethereum contract,
+// ContractCallerSession is an auto generated read-only Go binding around an Ethereum contract,
 // with pre-set call options.
-type ValidatorCallerSession struct {
-	Contract *ValidatorCaller // Generic contract caller binding to set the session for
-	CallOpts bind.CallOpts    // Call options to use throughout this session
+type ContractCallerSession struct {
+	Contract *ContractCaller // Generic contract caller binding to set the session for
+	CallOpts bind.CallOpts   // Call options to use throughout this session
 }
 
-// ValidatorTransactorSession is an auto generated write-only Go binding around an Ethereum contract,
+// ContractTransactorSession is an auto generated write-only Go binding around an Ethereum contract,
 // with pre-set transact options.
-type ValidatorTransactorSession struct {
-	Contract     *ValidatorTransactor // Generic contract transactor binding to set the session for
-	TransactOpts bind.TransactOpts    // Transaction auth options to use throughout this session
+type ContractTransactorSession struct {
+	Contract     *ContractTransactor // Generic contract transactor binding to set the session for
+	TransactOpts bind.TransactOpts   // Transaction auth options to use throughout this session
 }
 
-// ValidatorRaw is an auto generated low-level Go binding around an Ethereum contract.
-type ValidatorRaw struct {
-	Contract *Validator // Generic contract binding to access the raw methods on
+// ContractRaw is an auto generated low-level Go binding around an Ethereum contract.
+type ContractRaw struct {
+	Contract *Contract // Generic contract binding to access the raw methods on
 }
 
-// ValidatorCallerRaw is an auto generated low-level read-only Go binding around an Ethereum contract.
-type ValidatorCallerRaw struct {
-	Contract *ValidatorCaller // Generic read-only contract binding to access the raw methods on
+// ContractCallerRaw is an auto generated low-level read-only Go binding around an Ethereum contract.
+type ContractCallerRaw struct {
+	Contract *ContractCaller // Generic read-only contract binding to access the raw methods on
 }
 
-// ValidatorTransactorRaw is an auto generated low-level write-only Go binding around an Ethereum contract.
-type ValidatorTransactorRaw struct {
-	Contract *ValidatorTransactor // Generic write-only contract binding to access the raw methods on
+// ContractTransactorRaw is an auto generated low-level write-only Go binding around an Ethereum contract.
+type ContractTransactorRaw struct {
+	Contract *ContractTransactor // Generic write-only contract binding to access the raw methods on
 }
 
-// NewValidator creates a new instance of Validator, bound to a specific deployed contract.
-func NewValidator(address common.Address, backend bind.ContractBackend) (*Validator, error) {
-	contract, err := bindValidator(address, backend, backend, backend)
+// NewContract creates a new instance of Contract, bound to a specific deployed contract.
+func NewContract(address common.Address, backend bind.ContractBackend) (*Contract, error) {
+	contract, err := bindContract(address, backend, backend, backend)
 	if err != nil {
 		return nil, err
 	}
-	return &Validator{ValidatorCaller: ValidatorCaller{contract: contract}, ValidatorTransactor: ValidatorTransactor{contract: contract}, ValidatorFilterer: ValidatorFilterer{contract: contract}}, nil
+	return &Contract{ContractCaller: ContractCaller{contract: contract}, ContractTransactor: ContractTransactor{contract: contract}, ContractFilterer: ContractFilterer{contract: contract}}, nil
 }
 
-// NewValidatorCaller creates a new read-only instance of Validator, bound to a specific deployed contract.
-func NewValidatorCaller(address common.Address, caller bind.ContractCaller) (*ValidatorCaller, error) {
-	contract, err := bindValidator(address, caller, nil, nil)
+// NewContractCaller creates a new read-only instance of Contract, bound to a specific deployed contract.
+func NewContractCaller(address common.Address, caller bind.ContractCaller) (*ContractCaller, error) {
+	contract, err := bindContract(address, caller, nil, nil)
 	if err != nil {
 		return nil, err
 	}
-	return &ValidatorCaller{contract: contract}, nil
+	return &ContractCaller{contract: contract}, nil
 }
 
-// NewValidatorTransactor creates a new write-only instance of Validator, bound to a specific deployed contract.
-func NewValidatorTransactor(address common.Address, transactor bind.ContractTransactor) (*ValidatorTransactor, error) {
-	contract, err := bindValidator(address, nil, transactor, nil)
+// NewContractTransactor creates a new write-only instance of Contract, bound to a specific deployed contract.
+func NewContractTransactor(address common.Address, transactor bind.ContractTransactor) (*ContractTransactor, error) {
+	contract, err := bindContract(address, nil, transactor, nil)
 	if err != nil {
 		return nil, err
 	}
-	return &ValidatorTransactor{contract: contract}, nil
+	return &ContractTransactor{contract: contract}, nil
 }
 
-// NewValidatorFilterer creates a new log filterer instance of Validator, bound to a specific deployed contract.
-func NewValidatorFilterer(address common.Address, filterer bind.ContractFilterer) (*ValidatorFilterer, error) {
-	contract, err := bindValidator(address, nil, nil, filterer)
+// NewContractFilterer creates a new log filterer instance of Contract, bound to a specific deployed contract.
+func NewContractFilterer(address common.Address, filterer bind.ContractFilterer) (*ContractFilterer, error) {
+	contract, err := bindContract(address, nil, nil, filterer)
 	if err != nil {
 		return nil, err
 	}
-	return &ValidatorFilterer{contract: contract}, nil
+	return &ContractFilterer{contract: contract}, nil
 }
 
-// bindValidator binds a generic wrapper to an already deployed contract.
-func bindValidator(address common.Address, caller bind.ContractCaller, transactor bind.ContractTransactor, filterer bind.ContractFilterer) (*bind.BoundContract, error) {
-	parsed, err := abi.JSON(strings.NewReader(ValidatorABI))
+// bindContract binds a generic wrapper to an already deployed contract.
+func bindContract(address common.Address, caller bind.ContractCaller, transactor bind.ContractTransactor, filterer bind.ContractFilterer) (*bind.BoundContract, error) {
+	parsed, err := abi.JSON(strings.NewReader(ContractABI))
 	if err != nil {
 		return nil, err
 	}
@@ -137,257 +137,354 @@ func bindValidator(address common.Address, caller bind.ContractCaller, transacto
 // sets the output to result. The result type might be a single field for simple
 // returns, a slice of interfaces for anonymous returns and a struct for named
 // returns.
-func (_Validator *ValidatorRaw) Call(opts *bind.CallOpts, result interface{}, method string, params ...interface{}) error {
-	return _Validator.Contract.ValidatorCaller.contract.Call(opts, result, method, params...)
+func (_Contract *ContractRaw) Call(opts *bind.CallOpts, result *[]interface{}, method string, params ...interface{}) error {
+	return _Contract.Contract.ContractCaller.contract.Call(opts, result, method, params...)
 }
 
 // Transfer initiates a plain transaction to move funds to the contract, calling
 // its default method if one is available.
-func (_Validator *ValidatorRaw) Transfer(opts *bind.TransactOpts) (*types.Transaction, error) {
-	return _Validator.Contract.ValidatorTransactor.contract.Transfer(opts)
+func (_Contract *ContractRaw) Transfer(opts *bind.TransactOpts) (*types.Transaction, error) {
+	return _Contract.Contract.ContractTransactor.contract.Transfer(opts)
 }
 
 // Transact invokes the (paid) contract method with params as input values.
-func (_Validator *ValidatorRaw) Transact(opts *bind.TransactOpts, method string, params ...interface{}) (*types.Transaction, error) {
-	return _Validator.Contract.ValidatorTransactor.contract.Transact(opts, method, params...)
+func (_Contract *ContractRaw) Transact(opts *bind.TransactOpts, method string, params ...interface{}) (*types.Transaction, error) {
+	return _Contract.Contract.ContractTransactor.contract.Transact(opts, method, params...)
 }
 
 // Call invokes the (constant) contract method with params as input values and
 // sets the output to result. The result type might be a single field for simple
 // returns, a slice of interfaces for anonymous returns and a struct for named
 // returns.
-func (_Validator *ValidatorCallerRaw) Call(opts *bind.CallOpts, result interface{}, method string, params ...interface{}) error {
-	return _Validator.Contract.contract.Call(opts, result, method, params...)
+func (_Contract *ContractCallerRaw) Call(opts *bind.CallOpts, result *[]interface{}, method string, params ...interface{}) error {
+	return _Contract.Contract.contract.Call(opts, result, method, params...)
 }
 
 // Transfer initiates a plain transaction to move funds to the contract, calling
 // its default method if one is available.
-func (_Validator *ValidatorTransactorRaw) Transfer(opts *bind.TransactOpts) (*types.Transaction, error) {
-	return _Validator.Contract.contract.Transfer(opts)
+func (_Contract *ContractTransactorRaw) Transfer(opts *bind.TransactOpts) (*types.Transaction, error) {
+	return _Contract.Contract.contract.Transfer(opts)
 }
 
 // Transact invokes the (paid) contract method with params as input values.
-func (_Validator *ValidatorTransactorRaw) Transact(opts *bind.TransactOpts, method string, params ...interface{}) (*types.Transaction, error) {
-	return _Validator.Contract.contract.Transact(opts, method, params...)
+func (_Contract *ContractTransactorRaw) Transact(opts *bind.TransactOpts, method string, params ...interface{}) (*types.Transaction, error) {
+	return _Contract.Contract.contract.Transact(opts, method, params...)
 }
 
-// Admin is a free data retrieval call binding the contract method 0xf851a440.
+// Acknowledgement is a free data retrieval call binding the contract method 0xfc819750.
 //
-// Solidity: function admin() constant returns(address)
-func (_Validator *ValidatorCaller) Admin(opts *bind.CallOpts) (common.Address, error) {
-	var (
-		ret0 = new(common.Address)
-	)
-	out := ret0
-	err := _Validator.contract.Call(opts, out, "admin")
-	return *ret0, err
+// Solidity: function acknowledgement() view returns(address)
+func (_Contract *ContractCaller) Acknowledgement(opts *bind.CallOpts) (common.Address, error) {
+	var out []interface{}
+	err := _Contract.contract.Call(opts, &out, "acknowledgement")
+
+	if err != nil {
+		return *new(common.Address), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(common.Address)).(*common.Address)
+
+	return out0, err
+
 }
 
-// Admin is a free data retrieval call binding the contract method 0xf851a440.
+// Acknowledgement is a free data retrieval call binding the contract method 0xfc819750.
 //
-// Solidity: function admin() constant returns(address)
-func (_Validator *ValidatorSession) Admin() (common.Address, error) {
-	return _Validator.Contract.Admin(&_Validator.CallOpts)
+// Solidity: function acknowledgement() view returns(address)
+func (_Contract *ContractSession) Acknowledgement() (common.Address, error) {
+	return _Contract.Contract.Acknowledgement(&_Contract.CallOpts)
 }
 
-// Admin is a free data retrieval call binding the contract method 0xf851a440.
+// Acknowledgement is a free data retrieval call binding the contract method 0xfc819750.
 //
-// Solidity: function admin() constant returns(address)
-func (_Validator *ValidatorCallerSession) Admin() (common.Address, error) {
-	return _Validator.Contract.Admin(&_Validator.CallOpts)
+// Solidity: function acknowledgement() view returns(address)
+func (_Contract *ContractCallerSession) Acknowledgement() (common.Address, error) {
+	return _Contract.Contract.Acknowledgement(&_Contract.CallOpts)
+}
+
+// CheckThreshold is a free data retrieval call binding the contract method 0xdafae408.
+//
+// Solidity: function checkThreshold(uint256 _voteCount) view returns(bool)
+func (_Contract *ContractCaller) CheckThreshold(opts *bind.CallOpts, _voteCount *big.Int) (bool, error) {
+	var out []interface{}
+	err := _Contract.contract.Call(opts, &out, "checkThreshold", _voteCount)
+
+	if err != nil {
+		return *new(bool), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(bool)).(*bool)
+
+	return out0, err
+
+}
+
+// CheckThreshold is a free data retrieval call binding the contract method 0xdafae408.
+//
+// Solidity: function checkThreshold(uint256 _voteCount) view returns(bool)
+func (_Contract *ContractSession) CheckThreshold(_voteCount *big.Int) (bool, error) {
+	return _Contract.Contract.CheckThreshold(&_Contract.CallOpts, _voteCount)
+}
+
+// CheckThreshold is a free data retrieval call binding the contract method 0xdafae408.
+//
+// Solidity: function checkThreshold(uint256 _voteCount) view returns(bool)
+func (_Contract *ContractCallerSession) CheckThreshold(_voteCount *big.Int) (bool, error) {
+	return _Contract.Contract.CheckThreshold(&_Contract.CallOpts, _voteCount)
+}
+
+// Denom is a free data retrieval call binding the contract method 0xc370b042.
+//
+// Solidity: function denom() view returns(uint256)
+func (_Contract *ContractCaller) Denom(opts *bind.CallOpts) (*big.Int, error) {
+	var out []interface{}
+	err := _Contract.contract.Call(opts, &out, "denom")
+
+	if err != nil {
+		return *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return out0, err
+
+}
+
+// Denom is a free data retrieval call binding the contract method 0xc370b042.
+//
+// Solidity: function denom() view returns(uint256)
+func (_Contract *ContractSession) Denom() (*big.Int, error) {
+	return _Contract.Contract.Denom(&_Contract.CallOpts)
+}
+
+// Denom is a free data retrieval call binding the contract method 0xc370b042.
+//
+// Solidity: function denom() view returns(uint256)
+func (_Contract *ContractCallerSession) Denom() (*big.Int, error) {
+	return _Contract.Contract.Denom(&_Contract.CallOpts)
 }
 
 // GetValidators is a free data retrieval call binding the contract method 0xb7ab4db5.
 //
-// Solidity: function getValidators() constant returns(address[] _validators)
-func (_Validator *ValidatorCaller) GetValidators(opts *bind.CallOpts) ([]common.Address, error) {
-	var (
-		ret0 = new([]common.Address)
-	)
-	out := ret0
-	err := _Validator.contract.Call(opts, out, "getValidators")
-	return *ret0, err
+// Solidity: function getValidators() view returns(address[] _validators)
+func (_Contract *ContractCaller) GetValidators(opts *bind.CallOpts) ([]common.Address, error) {
+	var out []interface{}
+	err := _Contract.contract.Call(opts, &out, "getValidators")
+
+	if err != nil {
+		return *new([]common.Address), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new([]common.Address)).(*[]common.Address)
+
+	return out0, err
+
 }
 
 // GetValidators is a free data retrieval call binding the contract method 0xb7ab4db5.
 //
-// Solidity: function getValidators() constant returns(address[] _validators)
-func (_Validator *ValidatorSession) GetValidators() ([]common.Address, error) {
-	return _Validator.Contract.GetValidators(&_Validator.CallOpts)
+// Solidity: function getValidators() view returns(address[] _validators)
+func (_Contract *ContractSession) GetValidators() ([]common.Address, error) {
+	return _Contract.Contract.GetValidators(&_Contract.CallOpts)
 }
 
 // GetValidators is a free data retrieval call binding the contract method 0xb7ab4db5.
 //
-// Solidity: function getValidators() constant returns(address[] _validators)
-func (_Validator *ValidatorCallerSession) GetValidators() ([]common.Address, error) {
-	return _Validator.Contract.GetValidators(&_Validator.CallOpts)
+// Solidity: function getValidators() view returns(address[] _validators)
+func (_Contract *ContractCallerSession) GetValidators() ([]common.Address, error) {
+	return _Contract.Contract.GetValidators(&_Contract.CallOpts)
 }
 
 // IsValidator is a free data retrieval call binding the contract method 0xfacd743b.
 //
-// Solidity: function isValidator(address _addr) constant returns(bool _result)
-func (_Validator *ValidatorCaller) IsValidator(opts *bind.CallOpts, _addr common.Address) (bool, error) {
-	var (
-		ret0 = new(bool)
-	)
-	out := ret0
-	err := _Validator.contract.Call(opts, out, "isValidator", _addr)
-	return *ret0, err
+// Solidity: function isValidator(address _addr) view returns(bool)
+func (_Contract *ContractCaller) IsValidator(opts *bind.CallOpts, _addr common.Address) (bool, error) {
+	var out []interface{}
+	err := _Contract.contract.Call(opts, &out, "isValidator", _addr)
+
+	if err != nil {
+		return *new(bool), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(bool)).(*bool)
+
+	return out0, err
+
 }
 
 // IsValidator is a free data retrieval call binding the contract method 0xfacd743b.
 //
-// Solidity: function isValidator(address _addr) constant returns(bool _result)
-func (_Validator *ValidatorSession) IsValidator(_addr common.Address) (bool, error) {
-	return _Validator.Contract.IsValidator(&_Validator.CallOpts, _addr)
+// Solidity: function isValidator(address _addr) view returns(bool)
+func (_Contract *ContractSession) IsValidator(_addr common.Address) (bool, error) {
+	return _Contract.Contract.IsValidator(&_Contract.CallOpts, _addr)
 }
 
 // IsValidator is a free data retrieval call binding the contract method 0xfacd743b.
 //
-// Solidity: function isValidator(address _addr) constant returns(bool _result)
-func (_Validator *ValidatorCallerSession) IsValidator(_addr common.Address) (bool, error) {
-	return _Validator.Contract.IsValidator(&_Validator.CallOpts, _addr)
+// Solidity: function isValidator(address _addr) view returns(bool)
+func (_Contract *ContractCallerSession) IsValidator(_addr common.Address) (bool, error) {
+	return _Contract.Contract.IsValidator(&_Contract.CallOpts, _addr)
+}
+
+// Num is a free data retrieval call binding the contract method 0x4e70b1dc.
+//
+// Solidity: function num() view returns(uint256)
+func (_Contract *ContractCaller) Num(opts *bind.CallOpts) (*big.Int, error) {
+	var out []interface{}
+	err := _Contract.contract.Call(opts, &out, "num")
+
+	if err != nil {
+		return *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return out0, err
+
+}
+
+// Num is a free data retrieval call binding the contract method 0x4e70b1dc.
+//
+// Solidity: function num() view returns(uint256)
+func (_Contract *ContractSession) Num() (*big.Int, error) {
+	return _Contract.Contract.Num(&_Contract.CallOpts)
+}
+
+// Num is a free data retrieval call binding the contract method 0x4e70b1dc.
+//
+// Solidity: function num() view returns(uint256)
+func (_Contract *ContractCallerSession) Num() (*big.Int, error) {
+	return _Contract.Contract.Num(&_Contract.CallOpts)
 }
 
 // ValidatorCount is a free data retrieval call binding the contract method 0x0f43a677.
 //
-// Solidity: function validatorCount() constant returns(uint256)
-func (_Validator *ValidatorCaller) ValidatorCount(opts *bind.CallOpts) (*big.Int, error) {
-	var (
-		ret0 = new(*big.Int)
-	)
-	out := ret0
-	err := _Validator.contract.Call(opts, out, "validatorCount")
-	return *ret0, err
+// Solidity: function validatorCount() view returns(uint256)
+func (_Contract *ContractCaller) ValidatorCount(opts *bind.CallOpts) (*big.Int, error) {
+	var out []interface{}
+	err := _Contract.contract.Call(opts, &out, "validatorCount")
+
+	if err != nil {
+		return *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return out0, err
+
 }
 
 // ValidatorCount is a free data retrieval call binding the contract method 0x0f43a677.
 //
-// Solidity: function validatorCount() constant returns(uint256)
-func (_Validator *ValidatorSession) ValidatorCount() (*big.Int, error) {
-	return _Validator.Contract.ValidatorCount(&_Validator.CallOpts)
+// Solidity: function validatorCount() view returns(uint256)
+func (_Contract *ContractSession) ValidatorCount() (*big.Int, error) {
+	return _Contract.Contract.ValidatorCount(&_Contract.CallOpts)
 }
 
 // ValidatorCount is a free data retrieval call binding the contract method 0x0f43a677.
 //
-// Solidity: function validatorCount() constant returns(uint256)
-func (_Validator *ValidatorCallerSession) ValidatorCount() (*big.Int, error) {
-	return _Validator.Contract.ValidatorCount(&_Validator.CallOpts)
+// Solidity: function validatorCount() view returns(uint256)
+func (_Contract *ContractCallerSession) ValidatorCount() (*big.Int, error) {
+	return _Contract.Contract.ValidatorCount(&_Contract.CallOpts)
 }
 
 // Validators is a free data retrieval call binding the contract method 0x35aa2e44.
 //
-// Solidity: function validators(uint256 ) constant returns(address)
-func (_Validator *ValidatorCaller) Validators(opts *bind.CallOpts, arg0 *big.Int) (common.Address, error) {
-	var (
-		ret0 = new(common.Address)
-	)
-	out := ret0
-	err := _Validator.contract.Call(opts, out, "validators", arg0)
-	return *ret0, err
+// Solidity: function validators(uint256 ) view returns(address)
+func (_Contract *ContractCaller) Validators(opts *bind.CallOpts, arg0 *big.Int) (common.Address, error) {
+	var out []interface{}
+	err := _Contract.contract.Call(opts, &out, "validators", arg0)
+
+	if err != nil {
+		return *new(common.Address), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(common.Address)).(*common.Address)
+
+	return out0, err
+
 }
 
 // Validators is a free data retrieval call binding the contract method 0x35aa2e44.
 //
-// Solidity: function validators(uint256 ) constant returns(address)
-func (_Validator *ValidatorSession) Validators(arg0 *big.Int) (common.Address, error) {
-	return _Validator.Contract.Validators(&_Validator.CallOpts, arg0)
+// Solidity: function validators(uint256 ) view returns(address)
+func (_Contract *ContractSession) Validators(arg0 *big.Int) (common.Address, error) {
+	return _Contract.Contract.Validators(&_Contract.CallOpts, arg0)
 }
 
 // Validators is a free data retrieval call binding the contract method 0x35aa2e44.
 //
-// Solidity: function validators(uint256 ) constant returns(address)
-func (_Validator *ValidatorCallerSession) Validators(arg0 *big.Int) (common.Address, error) {
-	return _Validator.Contract.Validators(&_Validator.CallOpts, arg0)
+// Solidity: function validators(uint256 ) view returns(address)
+func (_Contract *ContractCallerSession) Validators(arg0 *big.Int) (common.Address, error) {
+	return _Contract.Contract.Validators(&_Contract.CallOpts, arg0)
 }
 
-// AddValidators is a paid mutator transaction binding the contract method 0x70223952.
+// AddValidator is a paid mutator transaction binding the contract method 0x4b561753.
 //
-// Solidity: function addValidators(address[] _validators) returns()
-func (_Validator *ValidatorTransactor) AddValidators(opts *bind.TransactOpts, _validators []common.Address) (*types.Transaction, error) {
-	return _Validator.contract.Transact(opts, "addValidators", _validators)
+// Solidity: function addValidator(uint256 _id, address _validator) returns()
+func (_Contract *ContractTransactor) AddValidator(opts *bind.TransactOpts, _id *big.Int, _validator common.Address) (*types.Transaction, error) {
+	return _Contract.contract.Transact(opts, "addValidator", _id, _validator)
 }
 
-// AddValidators is a paid mutator transaction binding the contract method 0x70223952.
+// AddValidator is a paid mutator transaction binding the contract method 0x4b561753.
 //
-// Solidity: function addValidators(address[] _validators) returns()
-func (_Validator *ValidatorSession) AddValidators(_validators []common.Address) (*types.Transaction, error) {
-	return _Validator.Contract.AddValidators(&_Validator.TransactOpts, _validators)
+// Solidity: function addValidator(uint256 _id, address _validator) returns()
+func (_Contract *ContractSession) AddValidator(_id *big.Int, _validator common.Address) (*types.Transaction, error) {
+	return _Contract.Contract.AddValidator(&_Contract.TransactOpts, _id, _validator)
 }
 
-// AddValidators is a paid mutator transaction binding the contract method 0x70223952.
+// AddValidator is a paid mutator transaction binding the contract method 0x4b561753.
 //
-// Solidity: function addValidators(address[] _validators) returns()
-func (_Validator *ValidatorTransactorSession) AddValidators(_validators []common.Address) (*types.Transaction, error) {
-	return _Validator.Contract.AddValidators(&_Validator.TransactOpts, _validators)
+// Solidity: function addValidator(uint256 _id, address _validator) returns()
+func (_Contract *ContractTransactorSession) AddValidator(_id *big.Int, _validator common.Address) (*types.Transaction, error) {
+	return _Contract.Contract.AddValidator(&_Contract.TransactOpts, _id, _validator)
 }
 
-// ChangeAdmin is a paid mutator transaction binding the contract method 0x8f283970.
+// RemoveValidator is a paid mutator transaction binding the contract method 0x6a0cd1f5.
 //
-// Solidity: function changeAdmin(address _newAdmin) returns()
-func (_Validator *ValidatorTransactor) ChangeAdmin(opts *bind.TransactOpts, _newAdmin common.Address) (*types.Transaction, error) {
-	return _Validator.contract.Transact(opts, "changeAdmin", _newAdmin)
+// Solidity: function removeValidator(uint256 _id, address _validator) returns()
+func (_Contract *ContractTransactor) RemoveValidator(opts *bind.TransactOpts, _id *big.Int, _validator common.Address) (*types.Transaction, error) {
+	return _Contract.contract.Transact(opts, "removeValidator", _id, _validator)
 }
 
-// ChangeAdmin is a paid mutator transaction binding the contract method 0x8f283970.
+// RemoveValidator is a paid mutator transaction binding the contract method 0x6a0cd1f5.
 //
-// Solidity: function changeAdmin(address _newAdmin) returns()
-func (_Validator *ValidatorSession) ChangeAdmin(_newAdmin common.Address) (*types.Transaction, error) {
-	return _Validator.Contract.ChangeAdmin(&_Validator.TransactOpts, _newAdmin)
+// Solidity: function removeValidator(uint256 _id, address _validator) returns()
+func (_Contract *ContractSession) RemoveValidator(_id *big.Int, _validator common.Address) (*types.Transaction, error) {
+	return _Contract.Contract.RemoveValidator(&_Contract.TransactOpts, _id, _validator)
 }
 
-// ChangeAdmin is a paid mutator transaction binding the contract method 0x8f283970.
+// RemoveValidator is a paid mutator transaction binding the contract method 0x6a0cd1f5.
 //
-// Solidity: function changeAdmin(address _newAdmin) returns()
-func (_Validator *ValidatorTransactorSession) ChangeAdmin(_newAdmin common.Address) (*types.Transaction, error) {
-	return _Validator.Contract.ChangeAdmin(&_Validator.TransactOpts, _newAdmin)
+// Solidity: function removeValidator(uint256 _id, address _validator) returns()
+func (_Contract *ContractTransactorSession) RemoveValidator(_id *big.Int, _validator common.Address) (*types.Transaction, error) {
+	return _Contract.Contract.RemoveValidator(&_Contract.TransactOpts, _id, _validator)
 }
 
-// RemoveAdmin is a paid mutator transaction binding the contract method 0x9a202d47.
+// UpdateQuorum is a paid mutator transaction binding the contract method 0x53727d26.
 //
-// Solidity: function removeAdmin() returns()
-func (_Validator *ValidatorTransactor) RemoveAdmin(opts *bind.TransactOpts) (*types.Transaction, error) {
-	return _Validator.contract.Transact(opts, "removeAdmin")
+// Solidity: function updateQuorum(uint256 _id, uint256 _numerator, uint256 _denominator) returns()
+func (_Contract *ContractTransactor) UpdateQuorum(opts *bind.TransactOpts, _id *big.Int, _numerator *big.Int, _denominator *big.Int) (*types.Transaction, error) {
+	return _Contract.contract.Transact(opts, "updateQuorum", _id, _numerator, _denominator)
 }
 
-// RemoveAdmin is a paid mutator transaction binding the contract method 0x9a202d47.
+// UpdateQuorum is a paid mutator transaction binding the contract method 0x53727d26.
 //
-// Solidity: function removeAdmin() returns()
-func (_Validator *ValidatorSession) RemoveAdmin() (*types.Transaction, error) {
-	return _Validator.Contract.RemoveAdmin(&_Validator.TransactOpts)
+// Solidity: function updateQuorum(uint256 _id, uint256 _numerator, uint256 _denominator) returns()
+func (_Contract *ContractSession) UpdateQuorum(_id *big.Int, _numerator *big.Int, _denominator *big.Int) (*types.Transaction, error) {
+	return _Contract.Contract.UpdateQuorum(&_Contract.TransactOpts, _id, _numerator, _denominator)
 }
 
-// RemoveAdmin is a paid mutator transaction binding the contract method 0x9a202d47.
+// UpdateQuorum is a paid mutator transaction binding the contract method 0x53727d26.
 //
-// Solidity: function removeAdmin() returns()
-func (_Validator *ValidatorTransactorSession) RemoveAdmin() (*types.Transaction, error) {
-	return _Validator.Contract.RemoveAdmin(&_Validator.TransactOpts)
+// Solidity: function updateQuorum(uint256 _id, uint256 _numerator, uint256 _denominator) returns()
+func (_Contract *ContractTransactorSession) UpdateQuorum(_id *big.Int, _numerator *big.Int, _denominator *big.Int) (*types.Transaction, error) {
+	return _Contract.Contract.UpdateQuorum(&_Contract.TransactOpts, _id, _numerator, _denominator)
 }
 
-// RemoveValidator is a paid mutator transaction binding the contract method 0xf94e1867.
-//
-// Solidity: function removeValidator(uint256 _index) returns()
-func (_Validator *ValidatorTransactor) RemoveValidator(opts *bind.TransactOpts, _index *big.Int) (*types.Transaction, error) {
-	return _Validator.contract.Transact(opts, "removeValidator", _index)
-}
-
-// RemoveValidator is a paid mutator transaction binding the contract method 0xf94e1867.
-//
-// Solidity: function removeValidator(uint256 _index) returns()
-func (_Validator *ValidatorSession) RemoveValidator(_index *big.Int) (*types.Transaction, error) {
-	return _Validator.Contract.RemoveValidator(&_Validator.TransactOpts, _index)
-}
-
-// RemoveValidator is a paid mutator transaction binding the contract method 0xf94e1867.
-//
-// Solidity: function removeValidator(uint256 _index) returns()
-func (_Validator *ValidatorTransactorSession) RemoveValidator(_index *big.Int) (*types.Transaction, error) {
-	return _Validator.Contract.RemoveValidator(&_Validator.TransactOpts, _index)
-}
-
-// ValidatorAdminChangedIterator is returned from FilterAdminChanged and is used to iterate over the raw logs and unpacked data for AdminChanged events raised by the Validator contract.
-type ValidatorAdminChangedIterator struct {
-	Event *ValidatorAdminChanged // Event containing the contract specifics and raw log
+// ContractThresholdUpdatedIterator is returned from FilterThresholdUpdated and is used to iterate over the raw logs and unpacked data for ThresholdUpdated events raised by the Contract contract.
+type ContractThresholdUpdatedIterator struct {
+	Event *ContractThresholdUpdated // Event containing the contract specifics and raw log
 
 	contract *bind.BoundContract // Generic contract to use for unpacking event data
 	event    string              // Event name to use for unpacking event data
@@ -401,7 +498,7 @@ type ValidatorAdminChangedIterator struct {
 // Next advances the iterator to the subsequent event, returning whether there
 // are any more events found. In case of a retrieval or parsing error, false is
 // returned and Error() can be queried for the exact failure.
-func (it *ValidatorAdminChangedIterator) Next() bool {
+func (it *ContractThresholdUpdatedIterator) Next() bool {
 	// If the iterator failed, stop iterating
 	if it.fail != nil {
 		return false
@@ -410,7 +507,7 @@ func (it *ValidatorAdminChangedIterator) Next() bool {
 	if it.done {
 		select {
 		case log := <-it.logs:
-			it.Event = new(ValidatorAdminChanged)
+			it.Event = new(ContractThresholdUpdated)
 			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 				it.fail = err
 				return false
@@ -425,7 +522,7 @@ func (it *ValidatorAdminChangedIterator) Next() bool {
 	// Iterator still in progress, wait for either a data or an error event
 	select {
 	case log := <-it.logs:
-		it.Event = new(ValidatorAdminChanged)
+		it.Event = new(ContractThresholdUpdated)
 		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 			it.fail = err
 			return false
@@ -441,60 +538,63 @@ func (it *ValidatorAdminChangedIterator) Next() bool {
 }
 
 // Error returns any retrieval or parsing error occurred during filtering.
-func (it *ValidatorAdminChangedIterator) Error() error {
+func (it *ContractThresholdUpdatedIterator) Error() error {
 	return it.fail
 }
 
 // Close terminates the iteration process, releasing any pending underlying
 // resources.
-func (it *ValidatorAdminChangedIterator) Close() error {
+func (it *ContractThresholdUpdatedIterator) Close() error {
 	it.sub.Unsubscribe()
 	return nil
 }
 
-// ValidatorAdminChanged represents a AdminChanged event raised by the Validator contract.
-type ValidatorAdminChanged struct {
-	OldAdmin common.Address
-	NewAdmin common.Address
-	Raw      types.Log // Blockchain specific contextual infos
+// ContractThresholdUpdated represents a ThresholdUpdated event raised by the Contract contract.
+type ContractThresholdUpdated struct {
+	Id                  *big.Int
+	Numerator           *big.Int
+	Denominator         *big.Int
+	PreviousNumerator   *big.Int
+	PreviousDenominator *big.Int
+	Raw                 types.Log // Blockchain specific contextual infos
 }
 
-// FilterAdminChanged is a free log retrieval operation binding the contract event 0x7e644d79422f17c01e4894b5f4f588d331ebfa28653d42ae832dc59e38c9798f.
+// FilterThresholdUpdated is a free log retrieval operation binding the contract event 0x976f8a9c5bdf8248dec172376d6e2b80a8e3df2f0328e381c6db8e1cf138c0f8.
 //
-// Solidity: event AdminChanged(address indexed _oldAdmin, address indexed _newAdmin)
-func (_Validator *ValidatorFilterer) FilterAdminChanged(opts *bind.FilterOpts, _oldAdmin []common.Address, _newAdmin []common.Address) (*ValidatorAdminChangedIterator, error) {
+// Solidity: event ThresholdUpdated(uint256 _id, uint256 indexed numerator, uint256 indexed denominator, uint256 previousNumerator, uint256 previousDenominator)
+func (_Contract *ContractFilterer) FilterThresholdUpdated(opts *bind.FilterOpts, numerator []*big.Int, denominator []*big.Int) (*ContractThresholdUpdatedIterator, error) {
 
-	var _oldAdminRule []interface{}
-	for _, _oldAdminItem := range _oldAdmin {
-		_oldAdminRule = append(_oldAdminRule, _oldAdminItem)
+	var numeratorRule []interface{}
+	for _, numeratorItem := range numerator {
+		numeratorRule = append(numeratorRule, numeratorItem)
 	}
-	var _newAdminRule []interface{}
-	for _, _newAdminItem := range _newAdmin {
-		_newAdminRule = append(_newAdminRule, _newAdminItem)
+	var denominatorRule []interface{}
+	for _, denominatorItem := range denominator {
+		denominatorRule = append(denominatorRule, denominatorItem)
 	}
 
-	logs, sub, err := _Validator.contract.FilterLogs(opts, "AdminChanged", _oldAdminRule, _newAdminRule)
+	logs, sub, err := _Contract.contract.FilterLogs(opts, "ThresholdUpdated", numeratorRule, denominatorRule)
 	if err != nil {
 		return nil, err
 	}
-	return &ValidatorAdminChangedIterator{contract: _Validator.contract, event: "AdminChanged", logs: logs, sub: sub}, nil
+	return &ContractThresholdUpdatedIterator{contract: _Contract.contract, event: "ThresholdUpdated", logs: logs, sub: sub}, nil
 }
 
-// WatchAdminChanged is a free log subscription operation binding the contract event 0x7e644d79422f17c01e4894b5f4f588d331ebfa28653d42ae832dc59e38c9798f.
+// WatchThresholdUpdated is a free log subscription operation binding the contract event 0x976f8a9c5bdf8248dec172376d6e2b80a8e3df2f0328e381c6db8e1cf138c0f8.
 //
-// Solidity: event AdminChanged(address indexed _oldAdmin, address indexed _newAdmin)
-func (_Validator *ValidatorFilterer) WatchAdminChanged(opts *bind.WatchOpts, sink chan<- *ValidatorAdminChanged, _oldAdmin []common.Address, _newAdmin []common.Address) (event.Subscription, error) {
+// Solidity: event ThresholdUpdated(uint256 _id, uint256 indexed numerator, uint256 indexed denominator, uint256 previousNumerator, uint256 previousDenominator)
+func (_Contract *ContractFilterer) WatchThresholdUpdated(opts *bind.WatchOpts, sink chan<- *ContractThresholdUpdated, numerator []*big.Int, denominator []*big.Int) (event.Subscription, error) {
 
-	var _oldAdminRule []interface{}
-	for _, _oldAdminItem := range _oldAdmin {
-		_oldAdminRule = append(_oldAdminRule, _oldAdminItem)
+	var numeratorRule []interface{}
+	for _, numeratorItem := range numerator {
+		numeratorRule = append(numeratorRule, numeratorItem)
 	}
-	var _newAdminRule []interface{}
-	for _, _newAdminItem := range _newAdmin {
-		_newAdminRule = append(_newAdminRule, _newAdminItem)
+	var denominatorRule []interface{}
+	for _, denominatorItem := range denominator {
+		denominatorRule = append(denominatorRule, denominatorItem)
 	}
 
-	logs, sub, err := _Validator.contract.WatchLogs(opts, "AdminChanged", _oldAdminRule, _newAdminRule)
+	logs, sub, err := _Contract.contract.WatchLogs(opts, "ThresholdUpdated", numeratorRule, denominatorRule)
 	if err != nil {
 		return nil, err
 	}
@@ -504,8 +604,8 @@ func (_Validator *ValidatorFilterer) WatchAdminChanged(opts *bind.WatchOpts, sin
 			select {
 			case log := <-logs:
 				// New log arrived, parse the event and forward to the user
-				event := new(ValidatorAdminChanged)
-				if err := _Validator.contract.UnpackLog(event, "AdminChanged", log); err != nil {
+				event := new(ContractThresholdUpdated)
+				if err := _Contract.contract.UnpackLog(event, "ThresholdUpdated", log); err != nil {
 					return err
 				}
 				event.Raw = log
@@ -526,20 +626,20 @@ func (_Validator *ValidatorFilterer) WatchAdminChanged(opts *bind.WatchOpts, sin
 	}), nil
 }
 
-// ParseAdminChanged is a log parse operation binding the contract event 0x7e644d79422f17c01e4894b5f4f588d331ebfa28653d42ae832dc59e38c9798f.
+// ParseThresholdUpdated is a log parse operation binding the contract event 0x976f8a9c5bdf8248dec172376d6e2b80a8e3df2f0328e381c6db8e1cf138c0f8.
 //
-// Solidity: event AdminChanged(address indexed _oldAdmin, address indexed _newAdmin)
-func (_Validator *ValidatorFilterer) ParseAdminChanged(log types.Log) (*ValidatorAdminChanged, error) {
-	event := new(ValidatorAdminChanged)
-	if err := _Validator.contract.UnpackLog(event, "AdminChanged", log); err != nil {
+// Solidity: event ThresholdUpdated(uint256 _id, uint256 indexed numerator, uint256 indexed denominator, uint256 previousNumerator, uint256 previousDenominator)
+func (_Contract *ContractFilterer) ParseThresholdUpdated(log types.Log) (*ContractThresholdUpdated, error) {
+	event := new(ContractThresholdUpdated)
+	if err := _Contract.contract.UnpackLog(event, "ThresholdUpdated", log); err != nil {
 		return nil, err
 	}
 	return event, nil
 }
 
-// ValidatorAdminRemovedIterator is returned from FilterAdminRemoved and is used to iterate over the raw logs and unpacked data for AdminRemoved events raised by the Validator contract.
-type ValidatorAdminRemovedIterator struct {
-	Event *ValidatorAdminRemoved // Event containing the contract specifics and raw log
+// ContractValidatorAddedIterator is returned from FilterValidatorAdded and is used to iterate over the raw logs and unpacked data for ValidatorAdded events raised by the Contract contract.
+type ContractValidatorAddedIterator struct {
+	Event *ContractValidatorAdded // Event containing the contract specifics and raw log
 
 	contract *bind.BoundContract // Generic contract to use for unpacking event data
 	event    string              // Event name to use for unpacking event data
@@ -553,7 +653,7 @@ type ValidatorAdminRemovedIterator struct {
 // Next advances the iterator to the subsequent event, returning whether there
 // are any more events found. In case of a retrieval or parsing error, false is
 // returned and Error() can be queried for the exact failure.
-func (it *ValidatorAdminRemovedIterator) Next() bool {
+func (it *ContractValidatorAddedIterator) Next() bool {
 	// If the iterator failed, stop iterating
 	if it.fail != nil {
 		return false
@@ -562,7 +662,7 @@ func (it *ValidatorAdminRemovedIterator) Next() bool {
 	if it.done {
 		select {
 		case log := <-it.logs:
-			it.Event = new(ValidatorAdminRemoved)
+			it.Event = new(ContractValidatorAdded)
 			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 				it.fail = err
 				return false
@@ -577,7 +677,7 @@ func (it *ValidatorAdminRemovedIterator) Next() bool {
 	// Iterator still in progress, wait for either a data or an error event
 	select {
 	case log := <-it.logs:
-		it.Event = new(ValidatorAdminRemoved)
+		it.Event = new(ContractValidatorAdded)
 		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 			it.fail = err
 			return false
@@ -593,194 +693,52 @@ func (it *ValidatorAdminRemovedIterator) Next() bool {
 }
 
 // Error returns any retrieval or parsing error occurred during filtering.
-func (it *ValidatorAdminRemovedIterator) Error() error {
+func (it *ContractValidatorAddedIterator) Error() error {
 	return it.fail
 }
 
 // Close terminates the iteration process, releasing any pending underlying
 // resources.
-func (it *ValidatorAdminRemovedIterator) Close() error {
+func (it *ContractValidatorAddedIterator) Close() error {
 	it.sub.Unsubscribe()
 	return nil
 }
 
-// ValidatorAdminRemoved represents a AdminRemoved event raised by the Validator contract.
-type ValidatorAdminRemoved struct {
-	OldAdmin common.Address
-	Raw      types.Log // Blockchain specific contextual infos
-}
-
-// FilterAdminRemoved is a free log retrieval operation binding the contract event 0xa3b62bc36326052d97ea62d63c3d60308ed4c3ea8ac079dd8499f1e9c4f80c0f.
-//
-// Solidity: event AdminRemoved(address indexed _oldAdmin)
-func (_Validator *ValidatorFilterer) FilterAdminRemoved(opts *bind.FilterOpts, _oldAdmin []common.Address) (*ValidatorAdminRemovedIterator, error) {
-
-	var _oldAdminRule []interface{}
-	for _, _oldAdminItem := range _oldAdmin {
-		_oldAdminRule = append(_oldAdminRule, _oldAdminItem)
-	}
-
-	logs, sub, err := _Validator.contract.FilterLogs(opts, "AdminRemoved", _oldAdminRule)
-	if err != nil {
-		return nil, err
-	}
-	return &ValidatorAdminRemovedIterator{contract: _Validator.contract, event: "AdminRemoved", logs: logs, sub: sub}, nil
-}
-
-// WatchAdminRemoved is a free log subscription operation binding the contract event 0xa3b62bc36326052d97ea62d63c3d60308ed4c3ea8ac079dd8499f1e9c4f80c0f.
-//
-// Solidity: event AdminRemoved(address indexed _oldAdmin)
-func (_Validator *ValidatorFilterer) WatchAdminRemoved(opts *bind.WatchOpts, sink chan<- *ValidatorAdminRemoved, _oldAdmin []common.Address) (event.Subscription, error) {
-
-	var _oldAdminRule []interface{}
-	for _, _oldAdminItem := range _oldAdmin {
-		_oldAdminRule = append(_oldAdminRule, _oldAdminItem)
-	}
-
-	logs, sub, err := _Validator.contract.WatchLogs(opts, "AdminRemoved", _oldAdminRule)
-	if err != nil {
-		return nil, err
-	}
-	return event.NewSubscription(func(quit <-chan struct{}) error {
-		defer sub.Unsubscribe()
-		for {
-			select {
-			case log := <-logs:
-				// New log arrived, parse the event and forward to the user
-				event := new(ValidatorAdminRemoved)
-				if err := _Validator.contract.UnpackLog(event, "AdminRemoved", log); err != nil {
-					return err
-				}
-				event.Raw = log
-
-				select {
-				case sink <- event:
-				case err := <-sub.Err():
-					return err
-				case <-quit:
-					return nil
-				}
-			case err := <-sub.Err():
-				return err
-			case <-quit:
-				return nil
-			}
-		}
-	}), nil
-}
-
-// ParseAdminRemoved is a log parse operation binding the contract event 0xa3b62bc36326052d97ea62d63c3d60308ed4c3ea8ac079dd8499f1e9c4f80c0f.
-//
-// Solidity: event AdminRemoved(address indexed _oldAdmin)
-func (_Validator *ValidatorFilterer) ParseAdminRemoved(log types.Log) (*ValidatorAdminRemoved, error) {
-	event := new(ValidatorAdminRemoved)
-	if err := _Validator.contract.UnpackLog(event, "AdminRemoved", log); err != nil {
-		return nil, err
-	}
-	return event, nil
-}
-
-// ValidatorValidatorAddedIterator is returned from FilterValidatorAdded and is used to iterate over the raw logs and unpacked data for ValidatorAdded events raised by the Validator contract.
-type ValidatorValidatorAddedIterator struct {
-	Event *ValidatorValidatorAdded // Event containing the contract specifics and raw log
-
-	contract *bind.BoundContract // Generic contract to use for unpacking event data
-	event    string              // Event name to use for unpacking event data
-
-	logs chan types.Log        // Log channel receiving the found contract events
-	sub  ethereum.Subscription // Subscription for errors, completion and termination
-	done bool                  // Whether the subscription completed delivering logs
-	fail error                 // Occurred error to stop iteration
-}
-
-// Next advances the iterator to the subsequent event, returning whether there
-// are any more events found. In case of a retrieval or parsing error, false is
-// returned and Error() can be queried for the exact failure.
-func (it *ValidatorValidatorAddedIterator) Next() bool {
-	// If the iterator failed, stop iterating
-	if it.fail != nil {
-		return false
-	}
-	// If the iterator completed, deliver directly whatever's available
-	if it.done {
-		select {
-		case log := <-it.logs:
-			it.Event = new(ValidatorValidatorAdded)
-			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
-				it.fail = err
-				return false
-			}
-			it.Event.Raw = log
-			return true
-
-		default:
-			return false
-		}
-	}
-	// Iterator still in progress, wait for either a data or an error event
-	select {
-	case log := <-it.logs:
-		it.Event = new(ValidatorValidatorAdded)
-		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
-			it.fail = err
-			return false
-		}
-		it.Event.Raw = log
-		return true
-
-	case err := <-it.sub.Err():
-		it.done = true
-		it.fail = err
-		return it.Next()
-	}
-}
-
-// Error returns any retrieval or parsing error occurred during filtering.
-func (it *ValidatorValidatorAddedIterator) Error() error {
-	return it.fail
-}
-
-// Close terminates the iteration process, releasing any pending underlying
-// resources.
-func (it *ValidatorValidatorAddedIterator) Close() error {
-	it.sub.Unsubscribe()
-	return nil
-}
-
-// ValidatorValidatorAdded represents a ValidatorAdded event raised by the Validator contract.
-type ValidatorValidatorAdded struct {
+// ContractValidatorAdded represents a ValidatorAdded event raised by the Contract contract.
+type ContractValidatorAdded struct {
+	Id        *big.Int
 	Validator common.Address
 	Raw       types.Log // Blockchain specific contextual infos
 }
 
-// FilterValidatorAdded is a free log retrieval operation binding the contract event 0xe366c1c0452ed8eec96861e9e54141ebff23c9ec89fe27b996b45f5ec3884987.
+// FilterValidatorAdded is a free log retrieval operation binding the contract event 0x7429a06e9412e469f0d64f9d222640b0af359f556b709e2913588c227851b88d.
 //
-// Solidity: event ValidatorAdded(address indexed validator)
-func (_Validator *ValidatorFilterer) FilterValidatorAdded(opts *bind.FilterOpts, validator []common.Address) (*ValidatorValidatorAddedIterator, error) {
+// Solidity: event ValidatorAdded(uint256 _id, address indexed validator)
+func (_Contract *ContractFilterer) FilterValidatorAdded(opts *bind.FilterOpts, validator []common.Address) (*ContractValidatorAddedIterator, error) {
 
 	var validatorRule []interface{}
 	for _, validatorItem := range validator {
 		validatorRule = append(validatorRule, validatorItem)
 	}
 
-	logs, sub, err := _Validator.contract.FilterLogs(opts, "ValidatorAdded", validatorRule)
+	logs, sub, err := _Contract.contract.FilterLogs(opts, "ValidatorAdded", validatorRule)
 	if err != nil {
 		return nil, err
 	}
-	return &ValidatorValidatorAddedIterator{contract: _Validator.contract, event: "ValidatorAdded", logs: logs, sub: sub}, nil
+	return &ContractValidatorAddedIterator{contract: _Contract.contract, event: "ValidatorAdded", logs: logs, sub: sub}, nil
 }
 
-// WatchValidatorAdded is a free log subscription operation binding the contract event 0xe366c1c0452ed8eec96861e9e54141ebff23c9ec89fe27b996b45f5ec3884987.
+// WatchValidatorAdded is a free log subscription operation binding the contract event 0x7429a06e9412e469f0d64f9d222640b0af359f556b709e2913588c227851b88d.
 //
-// Solidity: event ValidatorAdded(address indexed validator)
-func (_Validator *ValidatorFilterer) WatchValidatorAdded(opts *bind.WatchOpts, sink chan<- *ValidatorValidatorAdded, validator []common.Address) (event.Subscription, error) {
+// Solidity: event ValidatorAdded(uint256 _id, address indexed validator)
+func (_Contract *ContractFilterer) WatchValidatorAdded(opts *bind.WatchOpts, sink chan<- *ContractValidatorAdded, validator []common.Address) (event.Subscription, error) {
 
 	var validatorRule []interface{}
 	for _, validatorItem := range validator {
 		validatorRule = append(validatorRule, validatorItem)
 	}
 
-	logs, sub, err := _Validator.contract.WatchLogs(opts, "ValidatorAdded", validatorRule)
+	logs, sub, err := _Contract.contract.WatchLogs(opts, "ValidatorAdded", validatorRule)
 	if err != nil {
 		return nil, err
 	}
@@ -790,8 +748,8 @@ func (_Validator *ValidatorFilterer) WatchValidatorAdded(opts *bind.WatchOpts, s
 			select {
 			case log := <-logs:
 				// New log arrived, parse the event and forward to the user
-				event := new(ValidatorValidatorAdded)
-				if err := _Validator.contract.UnpackLog(event, "ValidatorAdded", log); err != nil {
+				event := new(ContractValidatorAdded)
+				if err := _Contract.contract.UnpackLog(event, "ValidatorAdded", log); err != nil {
 					return err
 				}
 				event.Raw = log
@@ -812,20 +770,20 @@ func (_Validator *ValidatorFilterer) WatchValidatorAdded(opts *bind.WatchOpts, s
 	}), nil
 }
 
-// ParseValidatorAdded is a log parse operation binding the contract event 0xe366c1c0452ed8eec96861e9e54141ebff23c9ec89fe27b996b45f5ec3884987.
+// ParseValidatorAdded is a log parse operation binding the contract event 0x7429a06e9412e469f0d64f9d222640b0af359f556b709e2913588c227851b88d.
 //
-// Solidity: event ValidatorAdded(address indexed validator)
-func (_Validator *ValidatorFilterer) ParseValidatorAdded(log types.Log) (*ValidatorValidatorAdded, error) {
-	event := new(ValidatorValidatorAdded)
-	if err := _Validator.contract.UnpackLog(event, "ValidatorAdded", log); err != nil {
+// Solidity: event ValidatorAdded(uint256 _id, address indexed validator)
+func (_Contract *ContractFilterer) ParseValidatorAdded(log types.Log) (*ContractValidatorAdded, error) {
+	event := new(ContractValidatorAdded)
+	if err := _Contract.contract.UnpackLog(event, "ValidatorAdded", log); err != nil {
 		return nil, err
 	}
 	return event, nil
 }
 
-// ValidatorValidatorRemovedIterator is returned from FilterValidatorRemoved and is used to iterate over the raw logs and unpacked data for ValidatorRemoved events raised by the Validator contract.
-type ValidatorValidatorRemovedIterator struct {
-	Event *ValidatorValidatorRemoved // Event containing the contract specifics and raw log
+// ContractValidatorRemovedIterator is returned from FilterValidatorRemoved and is used to iterate over the raw logs and unpacked data for ValidatorRemoved events raised by the Contract contract.
+type ContractValidatorRemovedIterator struct {
+	Event *ContractValidatorRemoved // Event containing the contract specifics and raw log
 
 	contract *bind.BoundContract // Generic contract to use for unpacking event data
 	event    string              // Event name to use for unpacking event data
@@ -839,7 +797,7 @@ type ValidatorValidatorRemovedIterator struct {
 // Next advances the iterator to the subsequent event, returning whether there
 // are any more events found. In case of a retrieval or parsing error, false is
 // returned and Error() can be queried for the exact failure.
-func (it *ValidatorValidatorRemovedIterator) Next() bool {
+func (it *ContractValidatorRemovedIterator) Next() bool {
 	// If the iterator failed, stop iterating
 	if it.fail != nil {
 		return false
@@ -848,7 +806,7 @@ func (it *ValidatorValidatorRemovedIterator) Next() bool {
 	if it.done {
 		select {
 		case log := <-it.logs:
-			it.Event = new(ValidatorValidatorRemoved)
+			it.Event = new(ContractValidatorRemoved)
 			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 				it.fail = err
 				return false
@@ -863,7 +821,7 @@ func (it *ValidatorValidatorRemovedIterator) Next() bool {
 	// Iterator still in progress, wait for either a data or an error event
 	select {
 	case log := <-it.logs:
-		it.Event = new(ValidatorValidatorRemoved)
+		it.Event = new(ContractValidatorRemoved)
 		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 			it.fail = err
 			return false
@@ -879,51 +837,52 @@ func (it *ValidatorValidatorRemovedIterator) Next() bool {
 }
 
 // Error returns any retrieval or parsing error occurred during filtering.
-func (it *ValidatorValidatorRemovedIterator) Error() error {
+func (it *ContractValidatorRemovedIterator) Error() error {
 	return it.fail
 }
 
 // Close terminates the iteration process, releasing any pending underlying
 // resources.
-func (it *ValidatorValidatorRemovedIterator) Close() error {
+func (it *ContractValidatorRemovedIterator) Close() error {
 	it.sub.Unsubscribe()
 	return nil
 }
 
-// ValidatorValidatorRemoved represents a ValidatorRemoved event raised by the Validator contract.
-type ValidatorValidatorRemoved struct {
+// ContractValidatorRemoved represents a ValidatorRemoved event raised by the Contract contract.
+type ContractValidatorRemoved struct {
+	Id        *big.Int
 	Validator common.Address
 	Raw       types.Log // Blockchain specific contextual infos
 }
 
-// FilterValidatorRemoved is a free log retrieval operation binding the contract event 0xe1434e25d6611e0db941968fdc97811c982ac1602e951637d206f5fdda9dd8f1.
+// FilterValidatorRemoved is a free log retrieval operation binding the contract event 0x7126bef88d1149ccdff9681ed5aecd3ba5ae70c96517551de250af09cebd1a0b.
 //
-// Solidity: event ValidatorRemoved(address indexed validator)
-func (_Validator *ValidatorFilterer) FilterValidatorRemoved(opts *bind.FilterOpts, validator []common.Address) (*ValidatorValidatorRemovedIterator, error) {
+// Solidity: event ValidatorRemoved(uint256 _id, address indexed validator)
+func (_Contract *ContractFilterer) FilterValidatorRemoved(opts *bind.FilterOpts, validator []common.Address) (*ContractValidatorRemovedIterator, error) {
 
 	var validatorRule []interface{}
 	for _, validatorItem := range validator {
 		validatorRule = append(validatorRule, validatorItem)
 	}
 
-	logs, sub, err := _Validator.contract.FilterLogs(opts, "ValidatorRemoved", validatorRule)
+	logs, sub, err := _Contract.contract.FilterLogs(opts, "ValidatorRemoved", validatorRule)
 	if err != nil {
 		return nil, err
 	}
-	return &ValidatorValidatorRemovedIterator{contract: _Validator.contract, event: "ValidatorRemoved", logs: logs, sub: sub}, nil
+	return &ContractValidatorRemovedIterator{contract: _Contract.contract, event: "ValidatorRemoved", logs: logs, sub: sub}, nil
 }
 
-// WatchValidatorRemoved is a free log subscription operation binding the contract event 0xe1434e25d6611e0db941968fdc97811c982ac1602e951637d206f5fdda9dd8f1.
+// WatchValidatorRemoved is a free log subscription operation binding the contract event 0x7126bef88d1149ccdff9681ed5aecd3ba5ae70c96517551de250af09cebd1a0b.
 //
-// Solidity: event ValidatorRemoved(address indexed validator)
-func (_Validator *ValidatorFilterer) WatchValidatorRemoved(opts *bind.WatchOpts, sink chan<- *ValidatorValidatorRemoved, validator []common.Address) (event.Subscription, error) {
+// Solidity: event ValidatorRemoved(uint256 _id, address indexed validator)
+func (_Contract *ContractFilterer) WatchValidatorRemoved(opts *bind.WatchOpts, sink chan<- *ContractValidatorRemoved, validator []common.Address) (event.Subscription, error) {
 
 	var validatorRule []interface{}
 	for _, validatorItem := range validator {
 		validatorRule = append(validatorRule, validatorItem)
 	}
 
-	logs, sub, err := _Validator.contract.WatchLogs(opts, "ValidatorRemoved", validatorRule)
+	logs, sub, err := _Contract.contract.WatchLogs(opts, "ValidatorRemoved", validatorRule)
 	if err != nil {
 		return nil, err
 	}
@@ -933,8 +892,8 @@ func (_Validator *ValidatorFilterer) WatchValidatorRemoved(opts *bind.WatchOpts,
 			select {
 			case log := <-logs:
 				// New log arrived, parse the event and forward to the user
-				event := new(ValidatorValidatorRemoved)
-				if err := _Validator.contract.UnpackLog(event, "ValidatorRemoved", log); err != nil {
+				event := new(ContractValidatorRemoved)
+				if err := _Contract.contract.UnpackLog(event, "ValidatorRemoved", log); err != nil {
 					return err
 				}
 				event.Raw = log
@@ -955,12 +914,12 @@ func (_Validator *ValidatorFilterer) WatchValidatorRemoved(opts *bind.WatchOpts,
 	}), nil
 }
 
-// ParseValidatorRemoved is a log parse operation binding the contract event 0xe1434e25d6611e0db941968fdc97811c982ac1602e951637d206f5fdda9dd8f1.
+// ParseValidatorRemoved is a log parse operation binding the contract event 0x7126bef88d1149ccdff9681ed5aecd3ba5ae70c96517551de250af09cebd1a0b.
 //
-// Solidity: event ValidatorRemoved(address indexed validator)
-func (_Validator *ValidatorFilterer) ParseValidatorRemoved(log types.Log) (*ValidatorValidatorRemoved, error) {
-	event := new(ValidatorValidatorRemoved)
-	if err := _Validator.contract.UnpackLog(event, "ValidatorRemoved", log); err != nil {
+// Solidity: event ValidatorRemoved(uint256 _id, address indexed validator)
+func (_Contract *ContractFilterer) ParseValidatorRemoved(log types.Log) (*ContractValidatorRemoved, error) {
+	event := new(ContractValidatorRemoved)
+	if err := _Contract.contract.UnpackLog(event, "ValidatorRemoved", log); err != nil {
 		return nil, err
 	}
 	return event, nil
