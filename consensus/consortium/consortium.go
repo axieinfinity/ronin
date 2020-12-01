@@ -39,6 +39,7 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/ethereum/go-ethereum/trie"
 	lru "github.com/hashicorp/golang-lru"
 	"golang.org/x/crypto/sha3"
 )
@@ -206,14 +207,14 @@ func (c *Consortium) Author(header *types.Header) (common.Address, error) {
 }
 
 // VerifyHeader checks whether a header conforms to the consensus rules.
-func (c *Consortium) VerifyHeader(chain consensus.ChainReader, header *types.Header, seal bool) error {
+func (c *Consortium) VerifyHeader(chain consensus.ChainHeaderReader, header *types.Header, seal bool) error {
 	return c.verifyHeader(chain, header, nil)
 }
 
 // VerifyHeaders is similar to VerifyHeader, but verifies a batch of headers. The
 // method returns a quit channel to abort the operations and a results channel to
 // retrieve the async verifications (the order is that of the input slice).
-func (c *Consortium) VerifyHeaders(chain consensus.ChainReader, headers []*types.Header, seals []bool) (chan<- struct{}, <-chan error) {
+func (c *Consortium) VerifyHeaders(chain consensus.ChainHeaderReader, headers []*types.Header, seals []bool) (chan<- struct{}, <-chan error) {
 	abort := make(chan struct{})
 	results := make(chan error, len(headers))
 
@@ -235,7 +236,7 @@ func (c *Consortium) VerifyHeaders(chain consensus.ChainReader, headers []*types
 // caller may optionally pass in a batch of parents (ascending order) to avoid
 // looking those up from the database. This is useful for concurrently verifying
 // a batch of new headers.
-func (c *Consortium) verifyHeader(chain consensus.ChainReader, header *types.Header, parents []*types.Header) error {
+func (c *Consortium) verifyHeader(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header) error {
 	if header.Number == nil {
 		return errUnknownBlock
 	}
@@ -291,7 +292,7 @@ func (c *Consortium) verifyHeader(chain consensus.ChainReader, header *types.Hea
 // rather depend on a batch of previous headers. The caller may optionally pass
 // in a batch of parents (ascending order) to avoid looking those up from the
 // database. This is useful for concurrently verifying a batch of new headers.
-func (c *Consortium) verifyCascadingFields(chain consensus.ChainReader, header *types.Header, parents []*types.Header) error {
+func (c *Consortium) verifyCascadingFields(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header) error {
 	// The genesis block is the always valid dead-end
 	number := header.Number.Uint64()
 	if number == 0 {
@@ -340,7 +341,7 @@ func (c *Consortium) VerifyUncles(chain consensus.ChainReader, block *types.Bloc
 
 // VerifySeal implements consensus.Engine, checking whether the signature contained
 // in the header satisfies the consensus protocol requirements.
-func (c *Consortium) VerifySeal(chain consensus.ChainReader, header *types.Header) error {
+func (c *Consortium) VerifySeal(chain consensus.ChainHeaderReader, header *types.Header) error {
 	return c.verifySeal(chain, header, nil)
 }
 
@@ -348,7 +349,7 @@ func (c *Consortium) VerifySeal(chain consensus.ChainReader, header *types.Heade
 // consensus protocol requirements. The method accepts an optional list of parent
 // headers that aren't yet part of the local blockchain to generate the snapshots
 // from.
-func (c *Consortium) verifySeal(chain consensus.ChainReader, header *types.Header, parents []*types.Header) error {
+func (c *Consortium) verifySeal(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header) error {
 	// Verifying the genesis block is not supported
 	number := header.Number.Uint64()
 	if number == 0 {
@@ -385,7 +386,7 @@ func (c *Consortium) verifySeal(chain consensus.ChainReader, header *types.Heade
 
 // Prepare implements consensus.Engine, preparing all the consensus fields of the
 // header for running the transactions on top.
-func (c *Consortium) Prepare(chain consensus.ChainReader, header *types.Header) error {
+func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.Header) error {
 	// Set the Coinbase address as the signer
 	header.Coinbase = c.signer
 	header.Nonce = types.BlockNonce{}
@@ -433,7 +434,7 @@ func (c *Consortium) Prepare(chain consensus.ChainReader, header *types.Header) 
 
 // Finalize implements consensus.Engine, ensuring no uncles are set, nor block
 // rewards given.
-func (c *Consortium) Finalize(chain consensus.ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, uncles []*types.Header) {
+func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, uncles []*types.Header) {
 	// No block rewards in PoA, so the state remains as is and uncles are dropped
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 	header.UncleHash = types.CalcUncleHash(nil)
@@ -441,13 +442,13 @@ func (c *Consortium) Finalize(chain consensus.ChainReader, header *types.Header,
 
 // FinalizeAndAssemble implements consensus.Engine, ensuring no uncles are set,
 // nor block rewards given, and returns the final block.
-func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt) (*types.Block, error) {
+func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt) (*types.Block, error) {
 	// No block rewards in PoA, so the state remains as is and uncles are dropped
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 	header.UncleHash = types.CalcUncleHash(nil)
 
 	// Assemble and return the final block for sealing
-	return types.NewBlock(header, txs, nil, receipts), nil
+	return types.NewBlock(header, txs, nil, receipts, new(trie.Trie)), nil
 }
 
 // Authorize injects a private key into the consensus engine to mint new blocks
@@ -462,7 +463,7 @@ func (c *Consortium) Authorize(signer common.Address, signFn SignerFn) {
 
 // Seal implements consensus.Engine, attempting to create a sealed block using
 // the local signing credentials.
-func (c *Consortium) Seal(chain consensus.ChainReader, block *types.Block, results chan<- *types.Block, stop <-chan struct{}) error {
+func (c *Consortium) Seal(chain consensus.ChainHeaderReader, block *types.Block, results chan<- *types.Block, stop <-chan struct{}) error {
 	header := block.Header()
 
 	// Sealing the genesis block is not supported
@@ -530,7 +531,7 @@ func (c *Consortium) Close() error {
 }
 
 // APIs implements consensus.Engine, returning the user facing RPC API.
-func (c *Consortium) APIs(chain consensus.ChainReader) []rpc.API {
+func (c *Consortium) APIs(chain consensus.ChainHeaderReader) []rpc.API {
 	return []rpc.API{{
 		Namespace: "consortium",
 		Version:   "1.0",
@@ -541,7 +542,7 @@ func (c *Consortium) APIs(chain consensus.ChainReader) []rpc.API {
 
 // CalcDifficulty is the difficulty adjustment algorithm. It returns the difficulty
 // that a new block should have.
-func (c *Consortium) CalcDifficulty(chain consensus.ChainReader, time uint64, parent *types.Header) *big.Int {
+func (c *Consortium) CalcDifficulty(chain consensus.ChainHeaderReader, time uint64, parent *types.Header) *big.Int {
 	number := parent.Number.Uint64() + 1
 	validators, err := c.getValidatorsFromLastCheckpoint(chain, number-1, []*types.Header{parent})
 	if err != nil {
@@ -632,7 +633,7 @@ func (c *Consortium) getValidatorsFromContract() ([]common.Address, error) {
 
 // getValidatorsFromLastCheckpoint gets the list of validator in the Extra field in the last checkpoint
 // Sometime, when syncing the database have not stored the recent headers yet, so we need to look them up by passing them directly
-func (c *Consortium) getValidatorsFromLastCheckpoint(chain consensus.ChainReader, number uint64, recents []*types.Header) ([]common.Address, error) {
+func (c *Consortium) getValidatorsFromLastCheckpoint(chain consensus.ChainHeaderReader, number uint64, recents []*types.Header) ([]common.Address, error) {
 	lastCheckpoint := number / c.config.Epoch * c.config.Epoch
 
 	if lastCheckpoint == 0 {
