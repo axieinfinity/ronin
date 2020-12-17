@@ -20,7 +20,7 @@ ENV SYNC_MODE 'full'
 ENV NETWORK_ID '2021'
 ENV ETHSTATS_ENDPOINT ''
 ENV RPC_NODE ''
-
+ENV NODEKEY ''
 
 COPY --from=builder /opt/build/bin/ronin /usr/local/bin/ronin
 COPY --from=builder /opt/genesis/ ./
