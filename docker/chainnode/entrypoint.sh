@@ -113,6 +113,12 @@ if [[ ! -z $ETHSTATS_ENDPOINT ]]; then
   params="$params --ethstats $ETHSTATS_ENDPOINT"
 fi
 
+#nodekey
+if [[ ! -z $NODEKEY ]]; then
+  echo $NODEKEY > $PWD/.nodekey
+  params="$params --nodekey $PWD/.nodekey"
+fi
+
 # dump
 echo "dump: $account $BOOTNODES"
 
