@@ -15,11 +15,6 @@ KEYSTORE_DIR="/ronin/keystore"
 # variables
 genesisPath=""
 params=""
-accountsCount=$(
-  ronin account list --datadir $DATA_DIR  --keystore $KEYSTORE_DIR \
-  2> /dev/null \
-  | wc -l
-)
 
 # networkid
 if [[ ! -z $NETWORK_ID ]]; then
@@ -64,6 +59,11 @@ if [[ ! -f ./password ]]; then
   fi
 fi
 
+accountsCount=$(
+  ronin account list --datadir $DATA_DIR  --keystore $KEYSTORE_DIR \
+  2> /dev/null \
+  | wc -l
+)
 # private key
 if [[ $accountsCount -le 0 ]]; then
   echo "No accounts found"
