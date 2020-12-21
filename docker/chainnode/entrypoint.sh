@@ -11,6 +11,7 @@
 # constants
 DATA_DIR="/ronin/data"
 KEYSTORE_DIR="/ronin/keystore"
+PASSWORD_FILE="$KEYSTORE_DIR/password"
 
 # variables
 genesisPath=""
@@ -49,13 +50,14 @@ if [[ ! -d $DATA_DIR/ronin ]]; then
 fi
 
 # password file
-if [[ ! -f ./password ]]; then
+if [[ ! -f $PASSWORD_FILE ]]; then
+  mkdir -p $KEYSTORE_DIR
   if [[ ! -z $PASSWORD ]]; then
     echo "Password env is set. Writing into file."
-    echo "$PASSWORD" > ./password
+    echo "$PASSWORD" > $PASSWORD_FILE
   else
     echo "No password set (or empty), generating a new one"
-    $(< /dev/urandom tr -dc _A-Z-a-z-0-9 | head -c${1:-32} > password)
+    $(< /dev/urandom tr -dc _A-Z-a-z-0-9 | head -c${1:-32} > $PASSWORD_FILE)
   fi
 fi
 
@@ -64,6 +66,7 @@ accountsCount=$(
   2> /dev/null \
   | wc -l
 )
+
 # private key
 if [[ $accountsCount -le 0 ]]; then
   echo "No accounts found"
