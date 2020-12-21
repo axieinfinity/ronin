@@ -76,14 +76,14 @@ if [[ $accountsCount -le 0 ]]; then
     ronin account import ./private_key \
       --datadir $DATA_DIR \
       --keystore $KEYSTORE_DIR \
-      --password ./password
+      --password $PASSWORD_FILE
     rm ./private_key
   else
     echo "Creating new account"
     ronin account new \
       --datadir $DATA_DIR \
       --keystore $KEYSTORE_DIR \
-      --password ./password
+      --password $PASSWORD_FILE
   fi
 fi
 
@@ -131,7 +131,7 @@ exec ronin $params \
   --verbosity $VERBOSITY \
   --datadir $DATA_DIR \
   --keystore $KEYSTORE_DIR \
-  --password ./password \
+  --password $PASSWORD_FILE \
   --port 30303 \
   --txpool.globalqueue 5000 \
   --txpool.globalslots 5000 \
