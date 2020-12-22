@@ -126,8 +126,6 @@ fi
 #gasprice
 if [[ ! -z $GASPRICE ]]; then
   params="$params --miner.gasprice $GASPRICE"
-else
-  params="$params --miner.gasprice 0"
 fi
 
 # dump
