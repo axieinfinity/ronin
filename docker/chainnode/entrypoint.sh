@@ -7,6 +7,7 @@
 # - VERBOSITY (default to 3)
 # - SYNC_MODE (default to 'full')
 # - NETWORK_ID (default to 2021)
+# - GASPRICE (default to 0)
 
 # constants
 DATA_DIR="/ronin/data"
@@ -122,6 +123,13 @@ if [[ ! -z $NODEKEY ]]; then
   params="$params --nodekey $PWD/.nodekey"
 fi
 
+#gasprice
+if [[ ! -z $GASPRICE ]]; then
+  params="$params --miner.gasprice $GASPRICE"
+else
+  params="$params --miner.gasprice 0"
+fi
+
 # dump
 echo "dump: $account $BOOTNODES"
 
@@ -146,6 +154,5 @@ exec ronin $params \
   --ws.origins "*" \
   --mine \
   --allow-insecure-unlock \
-  --miner.gasprice "1000000000" \
   --miner.gastarget "100000000" \
   "$@"
