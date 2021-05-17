@@ -38,7 +38,7 @@ var (
 	VersionCheckVersionFlag = cli.StringFlag{
 		Name:  "check.version",
 		Usage: "Version to check",
-		Value: fmt.Sprintf("Geth/v%v/%v-%v/%v",
+		Value: fmt.Sprintf("Ronin/v%v/%v-%v/%v",
 			params.VersionWithCommit(gitCommit, gitDate),
 			runtime.GOOS, runtime.GOARCH, runtime.Version()),
 	}
@@ -106,7 +106,7 @@ and displays information about any security vulnerabilities that affect the curr
 func makecache(ctx *cli.Context) error {
 	args := ctx.Args()
 	if len(args) != 2 {
-		utils.Fatalf(`Usage: geth makecache <block number> <outputdir>`)
+		utils.Fatalf(`Usage: ronin makecache <block number> <outputdir>`)
 	}
 	block, err := strconv.ParseUint(args[0], 0, 64)
 	if err != nil {
@@ -121,7 +121,7 @@ func makecache(ctx *cli.Context) error {
 func makedag(ctx *cli.Context) error {
 	args := ctx.Args()
 	if len(args) != 2 {
-		utils.Fatalf(`Usage: geth makedag <block number> <outputdir>`)
+		utils.Fatalf(`Usage: ronin makedag <block number> <outputdir>`)
 	}
 	block, err := strconv.ParseUint(args[0], 0, 64)
 	if err != nil {

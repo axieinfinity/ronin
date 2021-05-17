@@ -129,8 +129,8 @@ func ipcEndpoint(ipcPath, datadir string) string {
 var nextIPC = uint32(0)
 
 func startGethWithIpc(t *testing.T, name string, args ...string) *gethrpc {
-	ipcName := fmt.Sprintf("geth-%d.ipc", atomic.AddUint32(&nextIPC, 1))
-	args = append([]string{"--networkid=42", "--port=0", "--ipcpath", ipcName}, args...)
+	ipcName := fmt.Sprintf("ronin-%d.ipc", atomic.AddUint32(&nextIPC, 1))
+	args = append([]string{"--networkid=2021", "--port=0", "--ipcpath", ipcName}, args...)
 	t.Logf("Starting %v with rpc: %v", name, args)
 
 	g := &gethrpc{
@@ -158,7 +158,7 @@ func initGeth(t *testing.T) string {
 
 func startLightServer(t *testing.T) *gethrpc {
 	datadir := initGeth(t)
-	t.Logf("Importing keys to geth")
+	t.Logf("Importing keys to ronin")
 	runGeth(t, "--datadir", datadir, "--password", "./testdata/password.txt", "account", "import", "./testdata/key.prv", "--lightkdf").WaitExit()
 	account := "0x02f0d131f1f97aef08aec6e3291b957d9efe7105"
 	server := startGethWithIpc(t, "lightserver", "--allow-insecure-unlock", "--datadir", datadir, "--password", "./testdata/password.txt", "--unlock", account, "--mine", "--light.serve=100", "--light.maxpeers=1", "--nodiscover", "--nat=extip:127.0.0.1", "--verbosity=4")
