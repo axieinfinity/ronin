@@ -8,6 +8,7 @@
     "byzantiumBlock": 0,
     "constantinopleBlock": 0,
     "petersburgBlock": 0,
+    "istanbulBlock": 0,
     "consortium": {
       "period": 3,
       "epoch": 600
