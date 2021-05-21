@@ -5,8 +5,10 @@
 # - PRIVATE_KEY (default to empty)
 # - BOOTNODES (default to empty)
 # - VERBOSITY (default to 3)
-# - SYNC_MODE (default to 'full')
+# - SYNC_MODE (default to 'snap')
 # - NETWORK_ID (default to 2021)
+# - GASPRICE (default to 0)
+# - FORCE_INIT (default to 'true')
 
 # constants
 DATA_DIR="/ronin/data"
@@ -46,6 +48,9 @@ fi
 # data dir
 if [[ ! -d $DATA_DIR/ronin ]]; then
   echo "No blockchain data, creating genesis block."
+  ronin init $genesisPath --datadir $DATA_DIR 2> /dev/null
+elif [[ $FORCE_INIT = 'true' ]]; then
+  echo "Forcing update chain config."
   ronin init $genesisPath --datadir $DATA_DIR 2> /dev/null
 fi
 
@@ -116,10 +121,15 @@ if [[ ! -z $ETHSTATS_ENDPOINT ]]; then
   params="$params --ethstats $ETHSTATS_ENDPOINT"
 fi
 
-#nodekey
+# nodekey
 if [[ ! -z $NODEKEY ]]; then
   echo $NODEKEY > $PWD/.nodekey
   params="$params --nodekey $PWD/.nodekey"
+fi
+
+# gasprice
+if [[ ! -z $GASPRICE ]]; then
+  params="$params --miner.gasprice $GASPRICE"
 fi
 
 # dump
@@ -146,6 +156,5 @@ exec ronin $params \
   --ws.origins "*" \
   --mine \
   --allow-insecure-unlock \
-  --miner.gasprice "1000000000" \
   --miner.gastarget "100000000" \
   "$@"
