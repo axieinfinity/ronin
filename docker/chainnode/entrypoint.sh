@@ -23,6 +23,7 @@ if [[ ! -z $NETWORK_ID ]]; then
   case $NETWORK_ID in
     2020 )
       genesisPath="mainnet.json"
+      params="$params $RONIN_PARAMS"
       ;;
     2021 )
       genesisPath="testnet.json"
@@ -117,13 +118,13 @@ if [[ ! -z $ETHSTATS_ENDPOINT ]]; then
   params="$params --ethstats $ETHSTATS_ENDPOINT"
 fi
 
-#nodekey
+# nodekey
 if [[ ! -z $NODEKEY ]]; then
   echo $NODEKEY > $PWD/.nodekey
   params="$params --nodekey $PWD/.nodekey"
 fi
 
-#gasprice
+# gasprice
 if [[ ! -z $GASPRICE ]]; then
   params="$params --miner.gasprice $GASPRICE"
 fi
