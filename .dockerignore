@@ -8,3 +8,4 @@ bootnode
 geth-node
 monitor-fe
 monitor-be
+.idea/**
