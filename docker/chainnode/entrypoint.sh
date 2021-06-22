@@ -8,7 +8,7 @@
 # - SYNC_MODE (default to 'snap')
 # - NETWORK_ID (default to 2021)
 # - GASPRICE (default to 0)
-# - FORCE_INIT (default to 'false')
+# - FORCE_INIT (default to 'true')
 
 # constants
 DATA_DIR="/ronin/data"
