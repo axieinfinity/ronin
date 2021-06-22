@@ -24,7 +24,7 @@ if [[ ! -z $NETWORK_ID ]]; then
   case $NETWORK_ID in
     2020 )
       genesisPath="mainnet.json"
-      params="$parmas $RONIN_PARAMS"
+      params="$params $RONIN_PARAMS"
       ;;
     2021 )
       genesisPath="testnet.json"
