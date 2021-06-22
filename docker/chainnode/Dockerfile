@@ -22,6 +22,7 @@ ENV ETHSTATS_ENDPOINT ''
 ENV RPC_NODE ''
 ENV NODEKEY ''
 ENV FORCE_INIT 'false'
+ENV RONIN_PARAMS ''
 
 COPY --from=builder /opt/build/bin/ronin /usr/local/bin/ronin
 COPY --from=builder /opt/genesis/ ./
