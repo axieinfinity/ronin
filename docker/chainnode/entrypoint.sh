@@ -143,7 +143,7 @@ exec ronin $params \
   --keystore $KEYSTORE_DIR \
   --password $PASSWORD_FILE \
   --port 30303 \
-  --txpool.globalqueue 5000 \
+  --txpool.globalqueue 10000 \
   --txpool.globalslots 10000 \
   --http \
   --http.corsdomain "*" \
