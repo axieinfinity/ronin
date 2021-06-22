@@ -21,7 +21,7 @@ ENV NETWORK_ID '2021'
 ENV ETHSTATS_ENDPOINT ''
 ENV RPC_NODE ''
 ENV NODEKEY ''
-ENV FORCE_INIT 'false'
+ENV FORCE_INIT 'true'
 
 COPY --from=builder /opt/build/bin/ronin /usr/local/bin/ronin
 COPY --from=builder /opt/genesis/ ./
