@@ -8,7 +8,7 @@
 # - SYNC_MODE (default to 'snap')
 # - NETWORK_ID (default to 2021)
 # - GASPRICE (default to 0)
-# - FORCE_INIT (default to 'true')
+# - FORCE_INIT (default to 'false')
 
 # constants
 DATA_DIR="/ronin/data"
@@ -144,7 +144,7 @@ exec ronin $params \
   --password $PASSWORD_FILE \
   --port 30303 \
   --txpool.globalqueue 5000 \
-  --txpool.globalslots 5000 \
+  --txpool.globalslots 10000 \
   --http \
   --http.corsdomain "*" \
   --http.addr 0.0.0.0 \
