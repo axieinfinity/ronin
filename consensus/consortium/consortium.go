@@ -45,6 +45,8 @@ import (
 )
 
 const (
+	checkpointInterval = 1024 // Number of blocks after which to save the vote snapshot to the database
+	inmemorySnapshots  = 128  // Number of recent vote snapshots to keep in memory
 	inmemorySignatures = 4096 // Number of recent block signatures to keep in memory
 
 	wiggleTime = 500 * time.Millisecond // Random delay (per signer) to allow concurrent signers
@@ -165,6 +167,7 @@ type Consortium struct {
 	config *params.ConsortiumConfig // Consensus engine configuration parameters
 	db     ethdb.Database           // Database to store and retrieve snapshot checkpoints
 
+	recents    *lru.ARCCache // Snapshots for recent block to speed up reorgs
 	signatures *lru.ARCCache // Signatures of recent blocks to speed up mining
 
 	proposals map[common.Address]bool // Current list of proposals we are pushing
@@ -185,11 +188,13 @@ func New(config *params.ConsortiumConfig, db ethdb.Database) *Consortium {
 		conf.Epoch = epochLength
 	}
 	// Allocate the snapshot caches and create the engine
+	recents, _ := lru.NewARC(inmemorySnapshots)
 	signatures, _ := lru.NewARC(inmemorySignatures)
 
 	return &Consortium{
 		config:     &conf,
 		db:         db,
+		recents:    recents,
 		signatures: signatures,
 		proposals:  make(map[common.Address]bool),
 	}
@@ -311,23 +316,93 @@ func (c *Consortium) verifyCascadingFields(chain consensus.ChainHeaderReader, he
 	if parent.Time+c.config.Period > header.Time {
 		return ErrInvalidTimestamp
 	}
-	// If the block is a checkpoint block, verify the signer list
-	if number%c.config.Epoch == 0 {
-		validators, err := c.getValidatorsFromContract()
-		if err != nil {
-			return err
-		}
-		signers := make([]byte, len(validators)*common.AddressLength)
-		for i, signer := range validators {
-			copy(signers[i*common.AddressLength:], signer[:])
-		}
-		extraSuffix := len(header.Extra) - extraSeal
-		if !bytes.Equal(header.Extra[extraVanity:extraSuffix], signers) {
-			return errMismatchingCheckpointSigners
-		}
-	}
+
+	// Todo(Thor): If the block is a checkpoint block, verify the signer list
+
 	// All basic checks passed, verify the seal and return
 	return c.verifySeal(chain, header, parents)
+}
+
+// snapshot retrieves the authorization snapshot at a given point in time.
+func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, hash common.Hash, parents []*types.Header) (*Snapshot, error) {
+	// Search for a snapshot in memory or on disk for checkpoints
+	var (
+		headers []*types.Header
+		snap    *Snapshot
+	)
+	for snap == nil {
+		// If an in-memory snapshot was found, use that
+		if s, ok := c.recents.Get(hash); ok {
+			snap = s.(*Snapshot)
+			break
+		}
+		// If an on-disk checkpoint snapshot can be found, use that
+		if number%checkpointInterval == 0 {
+			if s, err := loadSnapshot(c.config, c.signatures, c.db, hash); err == nil {
+				log.Trace("Loaded snapshot from disk", "number", number, "hash", hash)
+				snap = s
+				break
+			}
+		}
+		// If we're at the genesis, snapshot the initial state. Alternatively if we're
+		// at a checkpoint block without a parent (light client CHT), or we have piled
+		// up more headers than allowed to be reorged (chain reinit from a freezer),
+		// consider the checkpoint trusted and snapshot it.
+		if number == 0 || (number%c.config.Epoch == 0 && (len(headers) > params.FullImmutabilityThreshold || chain.GetHeaderByNumber(number-1) == nil)) {
+			cpHeader := chain.GetHeaderByNumber(number)
+			if cpHeader != nil {
+				hash := cpHeader.Hash()
+
+				validators, err := c.getValidatorsFromContract()
+				if err != nil {
+					return nil, err
+				}
+
+				snap = newSnapshot(c.config, c.signatures, number, hash, validators)
+				if err := snap.store(c.db); err != nil {
+					return nil, err
+				}
+				log.Info("Stored checkpoint snapshot to disk", "number", number, "hash", hash)
+				break
+			}
+		}
+		// No snapshot for this header, gather the header and move backward
+		var header *types.Header
+		if len(parents) > 0 {
+			// If we have explicit parents, pick from there (enforced)
+			header = parents[len(parents)-1]
+			if header.Hash() != hash || header.Number.Uint64() != number {
+				return nil, consensus.ErrUnknownAncestor
+			}
+			parents = parents[:len(parents)-1]
+		} else {
+			// No explicit parents (or no more left), reach out to the database
+			header = chain.GetHeader(hash, number)
+			if header == nil {
+				return nil, consensus.ErrUnknownAncestor
+			}
+		}
+		headers = append(headers, header)
+		number, hash = number-1, header.ParentHash
+	}
+	// Previous snapshot found, apply any pending headers on top of it
+	for i := 0; i < len(headers)/2; i++ {
+		headers[i], headers[len(headers)-1-i] = headers[len(headers)-1-i], headers[i]
+	}
+	snap, err := snap.apply(chain, c, headers, parents)
+	if err != nil {
+		return nil, err
+	}
+	c.recents.Add(snap.Hash, snap)
+
+	// If we've generated a new checkpoint snapshot, save to disk
+	if snap.Number%checkpointInterval == 0 && len(headers) > 0 {
+		if err = snap.store(c.db); err != nil {
+			return nil, err
+		}
+		log.Trace("Stored voting snapshot to disk", "number", snap.Number, "hash", snap.Hash)
+	}
+	return snap, err
 }
 
 // VerifyUncles implements consensus.Engine, always returning an error for any
@@ -356,24 +431,29 @@ func (c *Consortium) verifySeal(chain consensus.ChainHeaderReader, header *types
 		return errUnknownBlock
 	}
 
+	// Verifying the genesis block is not supported
+	// Retrieve the snapshot needed to verify this header and cache it
+	snap, err := c.snapshot(chain, number-1, header.ParentHash, parents)
+	if err != nil {
+		return err
+	}
+
 	// Resolve the authorization key and check against signers
 	signer, err := ecrecover(header, c.signatures)
 	if err != nil {
 		return err
 	}
+
 	if signer != header.Coinbase {
 		return errWrongCoinbase
 	}
 
-	validators, err := c.getValidatorsFromLastCheckpoint(chain, number-1, parents)
-	if err != nil {
-		return err
-	}
-	if !signerInList(signer, validators) {
+	if _, ok := snap.SignerSet[signer]; !ok {
 		return errUnauthorizedSigner
 	}
 
 	// Ensure that the difficulty corresponds to the turn-ness of the signer
+	validators := snap.SignerList
 	inturn := c.signerInTurn(signer, header.Number.Uint64(), validators)
 	if inturn && header.Difficulty.Cmp(diffInTurn) != 0 {
 		return errWrongDifficulty
@@ -392,11 +472,11 @@ func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.He
 	header.Nonce = types.BlockNonce{}
 
 	number := header.Number.Uint64()
-	// Set the correct difficulty
 	validators, err := c.getValidatorsFromLastCheckpoint(chain, number-1, nil)
 	if err != nil {
 		return err
 	}
+	// Set the correct difficulty
 	header.Difficulty = c.doCalcDifficulty(c.signer, number, validators)
 
 	// Ensure the extra data has all its components
