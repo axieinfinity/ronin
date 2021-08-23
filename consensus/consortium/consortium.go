@@ -45,7 +45,6 @@ import (
 )
 
 const (
-	checkpointInterval = 1024 // Number of blocks after which to save the vote snapshot to the database
 	inmemorySnapshots  = 128  // Number of recent vote snapshots to keep in memory
 	inmemorySignatures = 4096 // Number of recent block signatures to keep in memory
 
@@ -337,7 +336,7 @@ func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, 
 			break
 		}
 		// If an on-disk checkpoint snapshot can be found, use that
-		if number%checkpointInterval == 0 {
+		if number%c.config.Epoch == 0 {
 			if s, err := loadSnapshot(c.config, c.signatures, c.db, hash); err == nil {
 				log.Trace("Loaded snapshot from disk", "number", number, "hash", hash)
 				snap = s
@@ -396,11 +395,11 @@ func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, 
 	c.recents.Add(snap.Hash, snap)
 
 	// If we've generated a new checkpoint snapshot, save to disk
-	if snap.Number%checkpointInterval == 0 && len(headers) > 0 {
+	if snap.Number%c.config.Epoch == 0 && len(headers) > 0 {
 		if err = snap.store(c.db); err != nil {
 			return nil, err
 		}
-		log.Trace("Stored voting snapshot to disk", "number", snap.Number, "hash", snap.Hash)
+		log.Info("Stored checkpoint snapshot to disk", "number", snap.Number, "hash", snap.Hash)
 	}
 	return snap, err
 }
