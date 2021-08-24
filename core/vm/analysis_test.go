@@ -73,3 +73,23 @@ func BenchmarkJumpdestHashing_1200k(bench *testing.B) {
 	}
 	bench.StopTimer()
 }
+
+func BenchmarkJumpdestOpAnalysis(bench *testing.B) {
+	var op OpCode
+	bencher := func(b *testing.B) {
+		code := make([]byte, 32*b.N)
+		for i := range code {
+			code[i] = byte(op)
+		}
+		bits := make(bitvec, len(code)/8+1+4)
+		b.ResetTimer()
+		codeBitmapInternal(code, bits)
+	}
+	for op = PUSH1; op <= PUSH32; op++ {
+		bench.Run(op.String(), bencher)
+	}
+	op = JUMPDEST
+	bench.Run(op.String(), bencher)
+	op = STOP
+	bench.Run(op.String(), bencher)
+}
