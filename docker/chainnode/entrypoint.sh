@@ -28,7 +28,7 @@ if [[ ! -z $NETWORK_ID ]]; then
       ;;
     2021 )
       genesisPath="testnet.json"
-      params="$params --gcmode archive --http.api eth,net,web3,debug,consortium"
+      params="$params $RONIN_PARAMS"
       ;;
     2022 )
       genesisPath="devnet.json"
