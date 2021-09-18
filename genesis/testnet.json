@@ -11,7 +11,7 @@
     "istanbulBlock": 1227300,
     "consortium": {
       "period": 3,
-      "epoch": 30
+      "epoch": 4096
     }
   },
   "alloc": {
