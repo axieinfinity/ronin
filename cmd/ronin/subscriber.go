@@ -107,7 +107,7 @@ var (
 	}
 )
 
-// RPCTransaction represents a transaction that will serialize to the RPC representation of a transaction
+// NewTransaction represents a transaction that will be published to message broker when new block has been mined
 type NewTransaction struct {
 	BlockHash        common.Hash     `json:"blockHash"`
 	BlockNumber      uint64          `json:"blockNumber"`
@@ -125,6 +125,7 @@ type NewTransaction struct {
 	S                *hexutil.Big    `json:"s"`
 }
 
+// NewBlock represents a block that will be published to message broker when new block has been mined
 type NewBlock struct {
 	Number           uint64         `json:"number"`
 	Hash             common.Hash    `json:"hash"`
@@ -144,8 +145,6 @@ type NewBlock struct {
 	ReceiptsRoot     common.Hash    `json:"receiptsRoot"`
 }
 
-// newRPCTransaction returns a transaction that will serialize to the RPC
-// representation, with the given location metadata set (if available).
 func newTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber uint64, index uint64) *NewTransaction {
 	var signer types.Signer = types.FrontierSigner{}
 	if tx.Protected() {
@@ -214,6 +213,8 @@ type Job struct {
 }
 
 type Worker struct {
+	id int
+
 	publishFn func(topic string, message []byte) error
 
 	// queue is passed from subscriber is used to add workerChan to queue
@@ -314,7 +315,7 @@ func NewSubscriber(eth ethapi.Backend, ctx *cli.Context) *Subscriber {
 
 	// init workers
 	for i := 0; i < workers; i++ {
-		subs.Workers = append(subs.Workers, NewWorker(subs.JobChan, subs.Queue, subs.eventPublisher.publish))
+		subs.Workers = append(subs.Workers, NewWorker(i, subs.JobChan, subs.Queue, subs.eventPublisher.publish))
 	}
 	return subs
 }
@@ -326,17 +327,18 @@ func (s *Subscriber) HandleNewBlock(block *types.Block) {
 	if block == nil || block.NumberU64() < s.FromHeight {
 		return
 	}
+	log.Info("handle new block event", "height", block.NumberU64())
 	if s.chainHeadEventTopic != "" {
 		blockData, err := json.Marshal(newBlock(block))
 		if err != nil {
-			log.Error("[HandleNewBlock]Marshal Block Data", "error", err)
+			log.Error("[HandleNewBlock]Marshal Block Data", "error", err, "blockHeight", block.NumberU64())
 			return
 		}
 		s.JobChan <- NewJob(s.chainHeadEventTopic, blockData, s.MaxRetry, s.BackOff)
 	}
 	if s.transactionsTopic != "" && block != nil {
 		for i, tx := range block.Transactions() {
-			txData, err := json.Marshal(newRPCTransaction(tx, block.Hash(), block.NumberU64(), uint64(i)))
+			txData, err := json.Marshal(newTransaction(tx, block.Hash(), block.NumberU64(), uint64(i)))
 			if err != nil {
 				log.Error("[HandleNewBlock]Marshal Transaction Data", "error", err, "blockHeight", block.NumberU64(), "index", i)
 				continue
@@ -356,8 +358,9 @@ func (s *Subscriber) Start() {
 			s.HandleNewBlock(evt.Block)
 		case job := <-s.JobChan:
 			// get a worker from queue
-			jobChan := <-s.Queue
-			jobChan <- job
+			workerCh := <-s.Queue
+			// push job to worker channel
+			workerCh <- job
 		case <-s.closeCh:
 			close(s.closeCh)
 			return
@@ -385,8 +388,9 @@ func NewJob(topic string, message []byte, maxTry, backOff int) Job {
 	}
 }
 
-func NewWorker(mainChan chan Job, queue chan chan Job, publishFn func(string, []byte) error) *Worker {
+func NewWorker(id int, mainChan chan Job, queue chan chan Job, publishFn func(string, []byte) error) *Worker {
 	return &Worker{
+		id:         id,
 		workerChan: make(chan Job),
 		mainChan:   mainChan,
 		queue:      queue,
@@ -401,6 +405,7 @@ func (w *Worker) start() {
 		select {
 		case job := <-w.workerChan:
 			if job.NextTry == 0 || job.NextTry <= time.Now().Second() {
+				log.Info("publishing message", "id", w.id, "topic", job.Topic, "message", string(job.Message))
 				if err := w.publishFn(job.Topic, job.Message); err != nil {
 					// check if this job reaches maxTry or not
 					// if it is not send it back to mainChan
@@ -409,6 +414,8 @@ func (w *Worker) start() {
 					}
 					job.RetryCount += 1
 					job.NextTry = time.Now().Second() + (job.RetryCount * job.BackOff)
+				} else {
+					continue
 				}
 			}
 			// push the job back to mainChan
