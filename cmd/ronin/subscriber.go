@@ -406,12 +406,13 @@ func (w *Worker) start() {
 		select {
 		case job := <-w.workerChan:
 			if job.NextTry == 0 || job.NextTry <= time.Now().Second() {
-				log.Info("publishing message", "id", w.id, "topic", job.Topic, "message", string(job.Message))
+				log.Info("publishing message", "id", w.id, "topic", job.Topic, "message", string(job.Message), "retryCount", job.RetryCount)
 				if err := w.publishFn(job.Topic, job.Message); err != nil {
 					// check if this job reaches maxTry or not
 					// if it is not send it back to mainChan
-					if job.RetryCount+1 >= job.MaxTry {
-						return
+					if job.RetryCount+1 > job.MaxTry {
+						log.Info("job reaches its maxTry", "message", string(job.Message), "topic", job.Topic)
+						continue
 					}
 					job.RetryCount += 1
 					job.NextTry = time.Now().Second() + (job.RetryCount * job.BackOff)
