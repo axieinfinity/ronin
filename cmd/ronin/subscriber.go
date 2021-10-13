@@ -13,6 +13,7 @@ import (
 	"github.com/segmentio/kafka-go/sasl/plain"
 	"github.com/segmentio/kafka-go/sasl/scram"
 	"gopkg.in/urfave/cli.v1"
+	"strings"
 	"time"
 )
 
@@ -84,7 +85,7 @@ var (
 	}
 	KafkaAuthenticationFlag = cli.StringFlag{
 		Name:  kafkaAuthentication,
-		Usage: "authentication type. eg: plain, sasl",
+		Usage: "authentication type. eg: PLAIN, SCRAM-SHA-256, SCRAM-SHA-512",
 	}
 	QueueSizeFlag = cli.IntFlag{
 		Name:  queueSize,
@@ -482,14 +483,16 @@ func (s *DefaultEventPublisher) conn(topic string) (*kafka.Conn, error) {
 	}
 	if s.Username != "" {
 		var err error
-		switch s.AuthenticationType {
+		switch strings.ToUpper(s.AuthenticationType) {
 		case scram.SHA512.Name():
 			dialer.SASLMechanism, err = scram.Mechanism(scram.SHA512, s.Username, s.Password)
-			if err != nil {
-				return nil, err
-			}
+		case scram.SHA256.Name():
+			dialer.SASLMechanism, err = scram.Mechanism(scram.SHA256, s.Username, s.Password)
 		default:
 			dialer.SASLMechanism = plain.Mechanism{Username: s.Username, Password: s.Password}
+		}
+		if err != nil {
+			return nil, err
 		}
 	}
 	return dialer.DialLeader(context.Background(), "tcp", s.URL, topic, s.Partition)
