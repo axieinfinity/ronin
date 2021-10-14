@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
@@ -18,8 +19,9 @@ import (
 )
 
 const (
-	chainHeadEventTopic   = "subscriber.blockEventTopic"
+	blockEventTopic       = "subscriber.blockEventTopic"
 	transactionEventTopic = "subscriber.txEventTopic"
+	logsEventTopic        = "subscriber.logsEventTopic"
 	kafkaPartition        = "subscriber.kafka.partition"
 	kafkaUrl              = "subscriber.kafka.url"
 	maxRetry              = "subscriber.maxRetry"
@@ -31,6 +33,8 @@ const (
 	kafkaPassword         = "subscriber.kafka.password"
 	kafkaAuthentication   = "subscriber.kafka.authentication"
 	queueSize             = "subscriber.queueSize"
+	statsDuration         = 30
+	defaultWorkers        = 20
 )
 
 var (
@@ -39,12 +43,16 @@ var (
 		Usage: "subscribes to blockchain event",
 	}
 	ChainHeadEventFlag = cli.StringFlag{
-		Name:  chainHeadEventTopic,
+		Name:  blockEventTopic,
 		Usage: "topic name that new block will be published to",
 	}
 	TransactionEventFlag = cli.StringFlag{
 		Name:  transactionEventTopic,
 		Usage: "topic name that new transactions will be published to",
+	}
+	LogsEventFlag = cli.StringFlag{
+		Name:  logsEventTopic,
+		Usage: "topic name that new logs will be published to",
 	}
 	KafkaPartitionFlag = cli.IntFlag{
 		Name:  kafkaPartition,
@@ -105,6 +113,7 @@ var (
 		BackOffFlag,
 		PublisherFlag,
 		FromHeightFlag,
+		LogsEventFlag,
 	}
 )
 
@@ -234,9 +243,10 @@ type Worker struct {
 // to publish message into targeted message broker.
 type Subscriber struct {
 	eventPublisher      Publisher
-	chainHeadEvent      chan core.ChainHeadEvent
-	chainHeadEventTopic string
+	chainEvent      	chan core.ChainEvent
+	chainEventTopic 	string
 	transactionsTopic   string
+	logsTopic           string
 	closeCh             chan struct{}
 	MaxRetry            int
 	BackOff             int
@@ -252,6 +262,8 @@ type Subscriber struct {
 
 	// JobChan receives new job
 	JobChan chan Job
+
+	MaxQueueSize int
 }
 
 type DefaultEventPublisher struct {
@@ -264,22 +276,23 @@ type DefaultEventPublisher struct {
 }
 
 func NewSubscriber(eth ethapi.Backend, ctx *cli.Context) *Subscriber {
-	workers := 1
+	workers := defaultWorkers
 	subs := &Subscriber{
-		chainHeadEvent: make(chan core.ChainHeadEvent, 1),
+		chainEvent: make(chan core.ChainEvent, 1),
 		closeCh:        make(chan struct{}, 1),
 		MaxRetry:       100,
 		BackOff:        5,
 		Workers:        make([]*Worker, 0),
-		Queue:          make(chan chan Job, 1000),
-		JobChan:        make(chan Job, 1000),
+		MaxQueueSize:   1000,
 	}
-
-	queueSize := ctx.GlobalInt(QueueSizeFlag.Name)
-	if queueSize > 0 {
-		subs.JobChan = make(chan Job, queueSize)
-		subs.Queue = make(chan chan Job, queueSize)
+	if ctx.GlobalIsSet(QueueSizeFlag.Name) {
+		queueSize := ctx.GlobalInt(QueueSizeFlag.Name)
+		if queueSize > 0 {
+			subs.MaxQueueSize = queueSize
+		}
 	}
+	subs.JobChan = make(chan Job, subs.MaxQueueSize)
+	subs.Queue = make(chan chan Job, subs.MaxQueueSize)
 
 	// set event publisher
 	handlerType := ctx.GlobalString(PublisherFlag.Name)
@@ -289,15 +302,21 @@ func NewSubscriber(eth ethapi.Backend, ctx *cli.Context) *Subscriber {
 	}
 
 	if ctx.GlobalIsSet(ChainHeadEventFlag.Name) {
-		subs.chainHeadEventTopic = ctx.GlobalString(ChainHeadEventFlag.Name)
-		eth.SubscribeChainHeadEvent(subs.chainHeadEvent)
-		if err := subs.eventPublisher.setConn(subs.chainHeadEventTopic); err != nil {
+		subs.chainEventTopic = ctx.GlobalString(ChainHeadEventFlag.Name)
+		eth.SubscribeChainEvent(subs.chainEvent)
+		if err := subs.eventPublisher.setConn(subs.chainEventTopic); err != nil {
 			panic(err)
 		}
 	}
 	if ctx.GlobalIsSet(TransactionEventFlag.Name) {
 		subs.transactionsTopic = ctx.GlobalString(TransactionEventFlag.Name)
 		if err := subs.eventPublisher.setConn(subs.transactionsTopic); err != nil {
+			panic(err)
+		}
+	}
+	if ctx.GlobalIsSet(LogsEventFlag.Name) {
+		subs.logsTopic = ctx.GlobalString(LogsEventFlag.Name)
+		if err := subs.eventPublisher.setConn(subs.logsTopic); err != nil {
 			panic(err)
 		}
 	}
@@ -316,28 +335,29 @@ func NewSubscriber(eth ethapi.Backend, ctx *cli.Context) *Subscriber {
 
 	// init workers
 	for i := 0; i < workers; i++ {
-		subs.Workers = append(subs.Workers, NewWorker(i, subs.JobChan, subs.Queue, subs.eventPublisher.publish))
+		subs.Workers = append(subs.Workers, NewWorker(i, subs.JobChan, subs.Queue, subs.eventPublisher.publish, subs.MaxQueueSize))
 	}
 	return subs
 }
 
 // HandleNewBlock handles mined block's data.
-// Block/Transaction data will be submitted to job channel and be handled by subscriber's workers
-func (s *Subscriber) HandleNewBlock(block *types.Block) {
+// Block/Transaction/Transaction's logs data will be submitted to job channel and be handled by subscriber's workers
+func (s *Subscriber) HandleNewBlock(evt core.ChainEvent) {
+	block, logs := evt.Block, evt.Logs
 	// if block's height is less than subscribed height then do nothing.
 	if block == nil || block.NumberU64() < s.FromHeight {
 		return
 	}
 	log.Info("handle new block event", "height", block.NumberU64())
-	if s.chainHeadEventTopic != "" {
+	if s.chainEventTopic != "" {
 		blockData, err := json.Marshal(newBlock(block))
 		if err != nil {
 			log.Error("[HandleNewBlock]Marshal Block Data", "error", err, "blockHeight", block.NumberU64())
 			return
 		}
-		s.JobChan <- NewJob(s.chainHeadEventTopic, blockData, s.MaxRetry, s.BackOff)
+		s.JobChan <- NewJob(s.chainEventTopic, blockData, s.MaxRetry, s.BackOff)
 	}
-	if s.transactionsTopic != "" && block != nil {
+	if s.transactionsTopic != "" {
 		for i, tx := range block.Transactions() {
 			txData, err := json.Marshal(newTransaction(tx, block.Hash(), block.NumberU64(), uint64(i)))
 			if err != nil {
@@ -347,24 +367,38 @@ func (s *Subscriber) HandleNewBlock(block *types.Block) {
 			s.JobChan <- NewJob(s.transactionsTopic, txData, s.MaxRetry, s.BackOff)
 		}
 	}
+	if s.logsTopic != "" {
+		for _, l := range logs {
+			logData, err := json.Marshal(l)
+			if err != nil {
+				log.Error("[HandleNewBlock]Marshal log data", "err", err, "blockHeight", block.NumberU64(), "index", l.TxIndex)
+				continue
+			}
+			s.JobChan <- NewJob(s.logsTopic, logData, s.MaxRetry, s.BackOff)
+		}
+	}
 }
 
 func (s *Subscriber) Start() {
 	for _, worker := range s.Workers {
 		go worker.start()
 	}
+	statsTicker := time.NewTicker(statsDuration * time.Second)
 	for {
 		select {
-		case evt := <-s.chainHeadEvent:
-			s.HandleNewBlock(evt.Block)
+		case evt := <-s.chainEvent:
+			s.HandleNewBlock(evt)
 		case job := <-s.JobChan:
-			// get a worker from queue
+			// get 1 workerCh from queue and push job to this channel
 			workerCh := <-s.Queue
-			// push job to worker channel
 			workerCh <- job
 		case <-s.closeCh:
 			close(s.closeCh)
+			close(s.Queue)
+			close(s.JobChan)
 			return
+		case <-statsTicker.C:
+			log.Info("subscriber stats", "WorkerQueueSize", len(s.Queue), "jobChan", len(s.JobChan), "workers", s.Workers)
 		}
 	}
 }
@@ -389,14 +423,18 @@ func NewJob(topic string, message []byte, maxTry, backOff int) Job {
 	}
 }
 
-func NewWorker(id int, mainChan chan Job, queue chan chan Job, publishFn func(string, []byte) error) *Worker {
+func NewWorker(id int, mainChan chan Job, queue chan chan Job, publishFn func(string, []byte) error, size int) *Worker {
 	return &Worker{
 		id:         id,
-		workerChan: make(chan Job),
+		workerChan: make(chan Job, size),
 		mainChan:   mainChan,
 		queue:      queue,
 		publishFn:  publishFn,
 	}
+}
+
+func (w *Worker) String() string {
+	return fmt.Sprintf("{ id: %d, currentSize: %d }", w.id, len(w.workerChan))
 }
 
 func (w *Worker) start() {
