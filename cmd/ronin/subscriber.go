@@ -114,6 +114,7 @@ var (
 		PublisherFlag,
 		FromHeightFlag,
 		LogsEventFlag,
+		QueueSizeFlag,
 	}
 )
 
@@ -384,6 +385,7 @@ func (s *Subscriber) Start() {
 		go worker.start()
 	}
 	statsTicker := time.NewTicker(statsDuration * time.Second)
+	queueStat   := time.NewTimer(time.Millisecond)
 	for {
 		select {
 		case evt := <-s.chainEvent:
@@ -392,13 +394,18 @@ func (s *Subscriber) Start() {
 			// get 1 workerCh from queue and push job to this channel
 			workerCh := <-s.Queue
 			workerCh <- job
+		case <-queueStat.C:
+			// fill up Queue to make sure Queue never get empty
+			for i:=0; i<len(s.Workers)-len(s.Queue); i++ {
+				s.Queue <- s.Workers[i].workerChan
+			}
 		case <-s.closeCh:
 			close(s.closeCh)
 			close(s.Queue)
 			close(s.JobChan)
 			return
 		case <-statsTicker.C:
-			log.Info("subscriber stats", "WorkerQueueSize", len(s.Queue), "jobChan", len(s.JobChan), "workers", s.Workers)
+			log.Info("subscriber stats", "WorkerQueueSize", len(s.Queue), "jobChan", len(s.JobChan))
 		}
 	}
 }
