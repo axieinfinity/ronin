@@ -14,6 +14,7 @@ import (
 	"github.com/segmentio/kafka-go/sasl/plain"
 	"github.com/segmentio/kafka-go/sasl/scram"
 	"gopkg.in/urfave/cli.v1"
+	"runtime"
 	"strings"
 	"time"
 )
@@ -209,14 +210,13 @@ func newBlock(b *types.Block) *NewBlock {
 
 // Publisher is used in subscriber to publish message to target message broker
 type Publisher interface {
-	publish(topic string, data []byte) error
-	setConn(topic string) error
+	publish(Job) error
+	newMessage(string, []byte) interface{}
 	close()
 }
 
 type Job struct {
-	Topic      string
-	Message    []byte
+	Message    []interface{}
 	RetryCount int
 	NextTry    int
 	MaxTry     int
@@ -224,9 +224,11 @@ type Job struct {
 }
 
 type Worker struct {
+	ctx context.Context
+
 	id int
 
-	publishFn func(topic string, message []byte) error
+	publishFn func(Job) error
 
 	// queue is passed from subscriber is used to add workerChan to queue
 	queue chan chan Job
@@ -243,14 +245,18 @@ type Worker struct {
 // Subscriber is used to subscribe blockchain event and organized workers
 // to publish message into targeted message broker.
 type Subscriber struct {
-	eventPublisher      Publisher
-	chainEvent      	chan core.ChainEvent
-	chainEventTopic 	string
-	transactionsTopic   string
-	logsTopic           string
-	closeCh             chan struct{}
-	MaxRetry            int
-	BackOff             int
+	ctx       context.Context
+	cancelCtx context.CancelFunc
+
+	eventPublisher    Publisher
+	chainEvent        chan core.ChainEvent
+	chainSideEvent    chan core.ChainSideEvent
+	chainEventTopic   string
+	chainSideTopic    string
+	transactionsTopic string
+	logsTopic         string
+	MaxRetry          int
+	BackOff           int
 
 	// start publishing from specific block's height
 	// this field is necessary when we don't want to handle data which is already existed.
@@ -273,18 +279,18 @@ type DefaultEventPublisher struct {
 	Username           string
 	Password           string
 	AuthenticationType string
-	Connections        map[string]*kafka.Conn
 }
 
 func NewSubscriber(eth ethapi.Backend, ctx *cli.Context) *Subscriber {
 	workers := defaultWorkers
+	subCtx, cancelCtx := context.WithCancel(context.Background())
 	subs := &Subscriber{
-		chainEvent: make(chan core.ChainEvent, 1),
-		closeCh:        make(chan struct{}, 1),
-		MaxRetry:       100,
-		BackOff:        5,
-		Workers:        make([]*Worker, 0),
-		MaxQueueSize:   1000,
+		ctx:          subCtx,
+		cancelCtx:    cancelCtx,
+		MaxRetry:     100,
+		BackOff:      5,
+		Workers:      make([]*Worker, 0),
+		MaxQueueSize: 1000,
 	}
 	if ctx.GlobalIsSet(QueueSizeFlag.Name) {
 		queueSize := ctx.GlobalInt(QueueSizeFlag.Name)
@@ -294,6 +300,8 @@ func NewSubscriber(eth ethapi.Backend, ctx *cli.Context) *Subscriber {
 	}
 	subs.JobChan = make(chan Job, subs.MaxQueueSize)
 	subs.Queue = make(chan chan Job, subs.MaxQueueSize)
+	subs.chainEvent = make(chan core.ChainEvent, subs.MaxQueueSize)
+	subs.chainSideEvent = make(chan core.ChainSideEvent, subs.MaxQueueSize)
 
 	// set event publisher
 	handlerType := ctx.GlobalString(PublisherFlag.Name)
@@ -305,21 +313,12 @@ func NewSubscriber(eth ethapi.Backend, ctx *cli.Context) *Subscriber {
 	if ctx.GlobalIsSet(ChainHeadEventFlag.Name) {
 		subs.chainEventTopic = ctx.GlobalString(ChainHeadEventFlag.Name)
 		eth.SubscribeChainEvent(subs.chainEvent)
-		if err := subs.eventPublisher.setConn(subs.chainEventTopic); err != nil {
-			panic(err)
-		}
 	}
 	if ctx.GlobalIsSet(TransactionEventFlag.Name) {
 		subs.transactionsTopic = ctx.GlobalString(TransactionEventFlag.Name)
-		if err := subs.eventPublisher.setConn(subs.transactionsTopic); err != nil {
-			panic(err)
-		}
 	}
 	if ctx.GlobalIsSet(LogsEventFlag.Name) {
 		subs.logsTopic = ctx.GlobalString(LogsEventFlag.Name)
-		if err := subs.eventPublisher.setConn(subs.logsTopic); err != nil {
-			panic(err)
-		}
 	}
 	if ctx.GlobalIsSet(MaxRetryFlag.Name) {
 		subs.MaxRetry = ctx.GlobalInt(MaxRetryFlag.Name)
@@ -336,7 +335,7 @@ func NewSubscriber(eth ethapi.Backend, ctx *cli.Context) *Subscriber {
 
 	// init workers
 	for i := 0; i < workers; i++ {
-		subs.Workers = append(subs.Workers, NewWorker(i, subs.JobChan, subs.Queue, subs.eventPublisher.publish, subs.MaxQueueSize))
+		subs.Workers = append(subs.Workers, NewWorker(subs.ctx, i, subs.JobChan, subs.Queue, subs.eventPublisher.publish, subs.MaxQueueSize))
 	}
 	return subs
 }
@@ -349,35 +348,57 @@ func (s *Subscriber) HandleNewBlock(evt core.ChainEvent) {
 	if block == nil || block.NumberU64() < s.FromHeight {
 		return
 	}
-	log.Info("handle new block event", "height", block.NumberU64())
+	txs := block.Transactions()
+	log.Info("handle new block event", "height", block.NumberU64(), "txs", len(txs), "logs", len(logs))
+
+	// init messages slice
+	messages := make([]interface{}, 0)
+
 	if s.chainEventTopic != "" {
 		blockData, err := json.Marshal(newBlock(block))
 		if err != nil {
 			log.Error("[HandleNewBlock]Marshal Block Data", "error", err, "blockHeight", block.NumberU64())
 			return
 		}
-		s.JobChan <- NewJob(s.chainEventTopic, blockData, s.MaxRetry, s.BackOff)
+		messages = append(messages, s.eventPublisher.newMessage(s.chainEventTopic, blockData))
 	}
+	messages = append(messages, s.HandleNewTransactions(block.Hash(), block.NumberU64(), txs)...)
+	messages = append(messages, s.HandleLogs(logs)...)
+
+	if len(messages) > 0 {
+		log.Info("[HandleNewBlock] sending messages to jobChan", "len", len(messages))
+		s.JobChan <- NewJob(messages, s.MaxRetry, s.BackOff)
+	}
+}
+
+func (s *Subscriber) HandleNewTransactions(hash common.Hash, number uint64, txs types.Transactions) []interface{} {
+	messages := make([]interface{}, 0)
 	if s.transactionsTopic != "" {
-		for i, tx := range block.Transactions() {
-			txData, err := json.Marshal(newTransaction(tx, block.Hash(), block.NumberU64(), uint64(i)))
+		for i, tx := range txs {
+			txData, err := json.Marshal(newTransaction(tx, hash, number, uint64(i)))
 			if err != nil {
-				log.Error("[HandleNewBlock]Marshal Transaction Data", "error", err, "blockHeight", block.NumberU64(), "index", i)
+				log.Error("[HandleNewBlock]Marshal Transaction Data", "error", err, "blockHeight", number, "index", i)
 				continue
 			}
-			s.JobChan <- NewJob(s.transactionsTopic, txData, s.MaxRetry, s.BackOff)
+			messages = append(messages, s.eventPublisher.newMessage(s.transactionsTopic, txData))
 		}
 	}
+	return messages
+}
+
+func (s *Subscriber) HandleLogs(logs []*types.Log) []interface{} {
+	messages := make([]interface{}, 0)
 	if s.logsTopic != "" {
 		for _, l := range logs {
 			logData, err := json.Marshal(l)
 			if err != nil {
-				log.Error("[HandleNewBlock]Marshal log data", "err", err, "blockHeight", block.NumberU64(), "index", l.TxIndex)
+				log.Error("[HandleNewBlock]Marshal log data", "err", err, "blockHeight", l.BlockNumber, "index", l.TxIndex)
 				continue
 			}
-			s.JobChan <- NewJob(s.logsTopic, logData, s.MaxRetry, s.BackOff)
+			messages = append(messages, s.eventPublisher.newMessage(s.logsTopic, logData))
 		}
 	}
+	return messages
 }
 
 func (s *Subscriber) Start() {
@@ -385,53 +406,51 @@ func (s *Subscriber) Start() {
 		go worker.start()
 	}
 	statsTicker := time.NewTicker(statsDuration * time.Second)
-	queueStat   := time.NewTimer(time.Millisecond)
+	queueStat := time.NewTimer(time.Millisecond)
 	for {
 		select {
 		case evt := <-s.chainEvent:
-			s.HandleNewBlock(evt)
+			go s.HandleNewBlock(evt)
 		case job := <-s.JobChan:
 			// get 1 workerCh from queue and push job to this channel
 			workerCh := <-s.Queue
 			workerCh <- job
 		case <-queueStat.C:
 			// fill up Queue to make sure Queue never get empty
-			for i:=0; i<len(s.Workers)-len(s.Queue); i++ {
+			for i := 0; i < len(s.Workers)-len(s.Queue); i++ {
 				s.Queue <- s.Workers[i].workerChan
 			}
-		case <-s.closeCh:
-			close(s.closeCh)
+		case <-s.ctx.Done():
 			close(s.Queue)
 			close(s.JobChan)
+			statsTicker.Stop()
 			return
 		case <-statsTicker.C:
-			log.Info("subscriber stats", "WorkerQueueSize", len(s.Queue), "jobChan", len(s.JobChan))
+			log.Info("subscriber stats",
+				"WorkerQueueSize", len(s.Queue),
+				"jobChan", len(s.JobChan),
+				"chainEvent", len(s.chainEvent),
+				"numberOfGoRoutines", runtime.NumGoroutine(),
+			)
 		}
 	}
 }
 
 func (s *Subscriber) Close() {
-	// close all workers
-	for _, worker := range s.Workers {
-		worker.close()
-	}
-	// close event publisher
-	s.eventPublisher.close()
-	// close listener
-	s.closeCh <- struct{}{}
+	s.cancelCtx()
 }
 
-func NewJob(topic string, message []byte, maxTry, backOff int) Job {
+func NewJob(message []interface{}, maxTry, backOff int) Job {
 	return Job{
-		Topic:   topic,
 		Message: message,
 		MaxTry:  maxTry,
 		BackOff: backOff,
 	}
 }
 
-func NewWorker(id int, mainChan chan Job, queue chan chan Job, publishFn func(string, []byte) error, size int) *Worker {
+func NewWorker(ctx context.Context, id int, mainChan chan Job, queue chan chan Job, publishFn func(job Job) error, size int) *Worker {
 	return &Worker{
+		ctx:        ctx,
 		id:         id,
 		workerChan: make(chan Job, size),
 		mainChan:   mainChan,
@@ -451,12 +470,12 @@ func (w *Worker) start() {
 		select {
 		case job := <-w.workerChan:
 			if job.NextTry == 0 || job.NextTry <= time.Now().Second() {
-				log.Info("publishing message", "id", w.id, "topic", job.Topic, "message", string(job.Message), "retryCount", job.RetryCount)
-				if err := w.publishFn(job.Topic, job.Message); err != nil {
+				log.Debug("publishing message", "id", w.id, "message", job.Message, "retryCount", job.RetryCount)
+				if err := w.publishFn(job); err != nil {
 					// check if this job reaches maxTry or not
 					// if it is not send it back to mainChan
 					if job.RetryCount+1 > job.MaxTry {
-						log.Info("job reaches its maxTry", "message", string(job.Message), "topic", job.Topic)
+						log.Info("job reaches its maxTry", "message", job.Message)
 						continue
 					}
 					job.RetryCount += 1
@@ -467,62 +486,39 @@ func (w *Worker) start() {
 			}
 			// push the job back to mainChan
 			w.mainChan <- job
-		case <-w.closeChan:
+		case <-w.ctx.Done():
 			close(w.workerChan)
-			close(w.closeChan)
 			return
 		}
 	}
 }
 
-func (w *Worker) close() {
-	w.closeChan <- struct{}{}
-}
-
 func NewDefaultEventPublisher(ctx *cli.Context) *DefaultEventPublisher {
 	return &DefaultEventPublisher{
-		Partition:   ctx.GlobalInt(KafkaPartitionFlag.Name),
-		URL:         ctx.GlobalString(KafkaUrlFlag.Name),
-		Connections: make(map[string]*kafka.Conn),
+		Partition: ctx.GlobalInt(KafkaPartitionFlag.Name),
+		URL:       ctx.GlobalString(KafkaUrlFlag.Name),
 	}
 }
 
-func (s *DefaultEventPublisher) publish(topic string, data []byte) error {
-	conn := s.Connections[topic]
-	if conn != nil {
-		if _, err := conn.WriteMessages(kafka.Message{
-			Value: data,
-		}); err != nil {
-			log.Error("[DefaultEventPublisher][publish]Write Message", "err", err, "data", string(data))
-			return err
-		}
+func (s *DefaultEventPublisher) publish(job Job) error {
+	var messages []kafka.Message
+	for _, message := range job.Message {
+		messages = append(messages, message.(kafka.Message))
 	}
-	return nil
+	w := &kafka.Writer{
+		Addr:        kafka.TCP(s.URL),
+		Compression: kafka.Snappy,
+		Balancer:    &kafka.RoundRobin{},
+	}
+	defer w.Close()
+	return w.WriteMessages(context.Background(), messages...)
 }
 
-// setConn inits connection for each topic
-func (s *DefaultEventPublisher) setConn(topic string) error {
-	// if connection exists then do nothing
-	if s.Connections[topic] == nil {
-		conn, err := s.conn(topic)
-		if err != nil {
-			log.Error("[DefaultEventPublisher][publish]Get kafka connection", "err", err, "topic", topic)
-			return err
-		}
-		s.Connections[topic] = conn
-	}
-	return nil
+func (s *DefaultEventPublisher) newMessage(topic string, data []byte) interface{} {
+	return kafka.Message{Topic: topic, Value: data}
 }
 
-func (s *DefaultEventPublisher) close() {
-	// close all connections
-	for _, conn := range s.Connections {
-		conn.Close()
-	}
-}
-
-// conn establishes a connection to kafka based on a specific topic
-func (s *DefaultEventPublisher) conn(topic string) (*kafka.Conn, error) {
+func (s *DefaultEventPublisher) getDialer() (*kafka.Dialer, error) {
 	dialer := &kafka.Dialer{
 		Timeout:   10 * time.Second,
 		DualStack: true,
@@ -541,5 +537,7 @@ func (s *DefaultEventPublisher) conn(topic string) (*kafka.Conn, error) {
 			return nil, err
 		}
 	}
-	return dialer.DialLeader(context.Background(), "tcp", s.URL, topic, s.Partition)
+	return dialer, nil
 }
+
+func (s *DefaultEventPublisher) close() {}
