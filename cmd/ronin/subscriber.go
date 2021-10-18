@@ -21,7 +21,9 @@ import (
 
 const (
 	blockEventTopic       = "subscriber.blockEventTopic"
+	reOrgBlockEventTopic  = "subscriber.reOrgBlockEventTopic"
 	transactionEventTopic = "subscriber.txEventTopic"
+	reorgTransactionEventTopic = "subscriber.reorgTxEventTopic"
 	logsEventTopic        = "subscriber.logsEventTopic"
 	kafkaPartition        = "subscriber.kafka.partition"
 	kafkaUrl              = "subscriber.kafka.url"
@@ -43,13 +45,21 @@ var (
 		Name:  "subscriber",
 		Usage: "subscribes to blockchain event",
 	}
-	ChainHeadEventFlag = cli.StringFlag{
+	ChainEventFlag = cli.StringFlag{
 		Name:  blockEventTopic,
 		Usage: "topic name that new block will be published to",
+	}
+	ChainSideEventFlag = cli.StringFlag{
+		Name:  reOrgBlockEventTopic,
+		Usage: "topic name that reorged block will be published to",
 	}
 	TransactionEventFlag = cli.StringFlag{
 		Name:  transactionEventTopic,
 		Usage: "topic name that new transactions will be published to",
+	}
+	ReorgTransactionEventFlag = cli.StringFlag{
+		Name:  reorgTransactionEventTopic,
+		Usage: "topic name that reorg transactions will be published to",
 	}
 	LogsEventFlag = cli.StringFlag{
 		Name:  logsEventTopic,
@@ -102,8 +112,10 @@ var (
 	}
 	SubscriberFlags = []cli.Flag{
 		SubscriberFlag,
-		ChainHeadEventFlag,
+		ChainEventFlag,
+		ChainSideEventFlag,
 		TransactionEventFlag,
+		ReorgTransactionEventFlag,
 		KafkaPartitionFlag,
 		KafkaUrlFlag,
 		KafkaAuthenticationFlag,
@@ -251,10 +263,15 @@ type Subscriber struct {
 	eventPublisher    Publisher
 	chainEvent        chan core.ChainEvent
 	chainSideEvent    chan core.ChainSideEvent
+
+	// topics params
 	chainEventTopic   string
 	chainSideTopic    string
 	transactionsTopic string
+	reorgTransactionsTopic string
 	logsTopic         string
+
+	// message backoff
 	MaxRetry          int
 	BackOff           int
 
@@ -290,7 +307,7 @@ func NewSubscriber(eth ethapi.Backend, ctx *cli.Context) *Subscriber {
 		MaxRetry:     100,
 		BackOff:      5,
 		Workers:      make([]*Worker, 0),
-		MaxQueueSize: 1000,
+		MaxQueueSize: 20,
 	}
 	if ctx.GlobalIsSet(QueueSizeFlag.Name) {
 		queueSize := ctx.GlobalInt(QueueSizeFlag.Name)
@@ -310,12 +327,19 @@ func NewSubscriber(eth ethapi.Backend, ctx *cli.Context) *Subscriber {
 		subs.eventPublisher = NewDefaultEventPublisher(ctx)
 	}
 
-	if ctx.GlobalIsSet(ChainHeadEventFlag.Name) {
-		subs.chainEventTopic = ctx.GlobalString(ChainHeadEventFlag.Name)
+	if ctx.GlobalIsSet(ChainEventFlag.Name) {
+		subs.chainEventTopic = ctx.GlobalString(ChainEventFlag.Name)
 		eth.SubscribeChainEvent(subs.chainEvent)
+	}
+	if ctx.GlobalIsSet(ChainSideEventFlag.Name) {
+		subs.chainSideTopic = ctx.GlobalString(ChainSideEventFlag.Name)
+		eth.SubscribeChainSideEvent(subs.chainSideEvent)
 	}
 	if ctx.GlobalIsSet(TransactionEventFlag.Name) {
 		subs.transactionsTopic = ctx.GlobalString(TransactionEventFlag.Name)
+	}
+	if ctx.GlobalIsSet(ReorgTransactionEventFlag.Name) {
+		subs.reorgTransactionsTopic = ctx.GlobalString(ReorgTransactionEventFlag.Name)
 	}
 	if ctx.GlobalIsSet(LogsEventFlag.Name) {
 		subs.logsTopic = ctx.GlobalString(LogsEventFlag.Name)
@@ -349,7 +373,6 @@ func (s *Subscriber) HandleNewBlock(evt core.ChainEvent) {
 		return
 	}
 	txs := block.Transactions()
-	log.Info("handle new block event", "height", block.NumberU64(), "txs", len(txs), "logs", len(logs))
 
 	// init messages slice
 	messages := make([]interface{}, 0)
@@ -362,16 +385,42 @@ func (s *Subscriber) HandleNewBlock(evt core.ChainEvent) {
 		}
 		messages = append(messages, s.eventPublisher.newMessage(s.chainEventTopic, blockData))
 	}
-	messages = append(messages, s.HandleNewTransactions(block.Hash(), block.NumberU64(), txs)...)
+	messages = append(messages, s.HandleNewTransactions(s.transactionsTopic, block.Hash(), block.NumberU64(), txs)...)
 	messages = append(messages, s.HandleLogs(logs)...)
 
 	if len(messages) > 0 {
-		log.Info("[HandleNewBlock] sending messages to jobChan", "len", len(messages))
+		log.Info("[HandleNewBlock] sending messages to jobChan", "messages", len(messages), "height", block.NumberU64(), "txs", len(txs), "logs", len(logs))
 		s.JobChan <- NewJob(messages, s.MaxRetry, s.BackOff)
 	}
 }
 
-func (s *Subscriber) HandleNewTransactions(hash common.Hash, number uint64, txs types.Transactions) []interface{} {
+func (s *Subscriber) HandleReorgBlock(evt core.ChainSideEvent) {
+	block := evt.Block
+	if block == nil {
+		return
+	}
+	txs := block.Transactions()
+
+	// init messages slice
+	messages := make([]interface{}, 0)
+
+	if s.chainSideTopic != "" {
+		blockData, err := json.Marshal(newBlock(block))
+		if err != nil {
+			log.Error("[HandleNewBlock]Marshal Block Data", "error", err, "blockHeight", block.NumberU64())
+			return
+		}
+		messages = append(messages, s.eventPublisher.newMessage(s.chainSideTopic, blockData))
+	}
+	messages = append(messages, s.HandleNewTransactions(s.reorgTransactionsTopic, block.Hash(), block.NumberU64(), txs)...)
+
+	if len(messages) > 0 {
+		log.Info("[HandleReorgBlock] sending messages to jobChan", "messages", len(messages), "height", block.NumberU64(), "txs", len(txs))
+		s.JobChan <- NewJob(messages, s.MaxRetry, s.BackOff)
+	}
+}
+
+func (s *Subscriber) HandleNewTransactions(topic string, hash common.Hash, number uint64, txs types.Transactions) []interface{} {
 	messages := make([]interface{}, 0)
 	if s.transactionsTopic != "" {
 		for i, tx := range txs {
@@ -380,7 +429,7 @@ func (s *Subscriber) HandleNewTransactions(hash common.Hash, number uint64, txs 
 				log.Error("[HandleNewBlock]Marshal Transaction Data", "error", err, "blockHeight", number, "index", i)
 				continue
 			}
-			messages = append(messages, s.eventPublisher.newMessage(s.transactionsTopic, txData))
+			messages = append(messages, s.eventPublisher.newMessage(topic, txData))
 		}
 	}
 	return messages
@@ -409,6 +458,8 @@ func (s *Subscriber) Start() {
 	queueStat := time.NewTimer(time.Millisecond)
 	for {
 		select {
+		case evt := <-s.chainSideEvent:
+			go s.HandleReorgBlock(evt)
 		case evt := <-s.chainEvent:
 			go s.HandleNewBlock(evt)
 		case job := <-s.JobChan:
