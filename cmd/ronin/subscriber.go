@@ -360,6 +360,8 @@ func NewSubscriber(eth ethapi.Backend, ctx *cli.Context) *Subscriber {
 	}
 	if ctx.GlobalIsSet(LogsEventFlag.Name) {
 		subs.logsTopic = ctx.GlobalString(LogsEventFlag.Name)
+		eth.SubscribeRemovedLogsEvent(subs.removeLogsEvent)
+		eth.SubscribeLogsEvent(subs.rebirthLogsEvent)
 	}
 	if ctx.GlobalIsSet(MaxRetryFlag.Name) {
 		subs.MaxRetry = ctx.GlobalInt(MaxRetryFlag.Name)
