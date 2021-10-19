@@ -20,24 +20,25 @@ import (
 )
 
 const (
-	blockEventTopic       = "subscriber.blockEventTopic"
-	reOrgBlockEventTopic  = "subscriber.reOrgBlockEventTopic"
-	transactionEventTopic = "subscriber.txEventTopic"
+	blockEventTopic            = "subscriber.blockEventTopic"
+	reOrgBlockEventTopic       = "subscriber.reOrgBlockEventTopic"
+	transactionEventTopic      = "subscriber.txEventTopic"
 	reorgTransactionEventTopic = "subscriber.reorgTxEventTopic"
-	logsEventTopic        = "subscriber.logsEventTopic"
-	kafkaPartition        = "subscriber.kafka.partition"
-	kafkaUrl              = "subscriber.kafka.url"
-	maxRetry              = "subscriber.maxRetry"
-	numberOfWorker        = "subscriber.workers"
-	backoff               = "subscriber.backoff"
-	publisherType         = "subscriber.publisher"
-	fromHeight            = "subscriber.fromHeight"
-	kafkaUsername         = "subscriber.kafka.username"
-	kafkaPassword         = "subscriber.kafka.password"
-	kafkaAuthentication   = "subscriber.kafka.authentication"
-	queueSize             = "subscriber.queueSize"
-	statsDuration         = 30
-	defaultWorkers        = 20
+	logsEventTopic             = "subscriber.logsEventTopic"
+	kafkaPartition             = "subscriber.kafka.partition"
+	kafkaUrl                   = "subscriber.kafka.url"
+	maxRetry                   = "subscriber.maxRetry"
+	numberOfWorker             = "subscriber.workers"
+	backoff                    = "subscriber.backoff"
+	publisherType              = "subscriber.publisher"
+	fromHeight                 = "subscriber.fromHeight"
+	kafkaUsername              = "subscriber.kafka.username"
+	kafkaPassword              = "subscriber.kafka.password"
+	kafkaAuthentication        = "subscriber.kafka.authentication"
+	queueSize                  = "subscriber.queueSize"
+	statsDuration              = 30
+	defaultWorkers             = 1024
+	defaultMaxQueueSize        = 2048
 )
 
 var (
@@ -136,8 +137,10 @@ type NewTransaction struct {
 	BlockHash        common.Hash     `json:"blockHash"`
 	BlockNumber      uint64          `json:"blockNumber"`
 	From             common.Address  `json:"from"`
+	Status           uint64          `json:"status"`
 	Gas              hexutil.Uint64  `json:"gas"`
 	GasPrice         *hexutil.Big    `json:"gasPrice"`
+	GasUsed          uint64          `json:"gasUsed"`
 	Hash             common.Hash     `json:"hash"`
 	Input            hexutil.Bytes   `json:"input"`
 	Nonce            hexutil.Uint64  `json:"nonce"`
@@ -169,7 +172,7 @@ type NewBlock struct {
 	ReceiptsRoot     common.Hash    `json:"receiptsRoot"`
 }
 
-func newTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber uint64, index uint64) *NewTransaction {
+func newTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber uint64, index int, receipts types.Receipts) *NewTransaction {
 	var signer types.Signer = types.FrontierSigner{}
 	if tx.Protected() {
 		signer = types.NewEIP155Signer(tx.ChainId())
@@ -194,6 +197,11 @@ func newTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber ui
 		result.BlockHash = blockHash
 		result.BlockNumber = blockNumber
 		result.TransactionIndex = hexutil.Uint(index)
+	}
+	if receipts != nil && len(receipts) > index {
+		receipt := receipts[index]
+		result.Status = receipt.Status
+		result.GasUsed = receipt.CumulativeGasUsed
 	}
 	return result
 }
@@ -260,20 +268,22 @@ type Subscriber struct {
 	ctx       context.Context
 	cancelCtx context.CancelFunc
 
-	eventPublisher    Publisher
-	chainEvent        chan core.ChainEvent
-	chainSideEvent    chan core.ChainSideEvent
+	eventPublisher   Publisher
+	chainEvent       chan core.ChainEvent
+	chainSideEvent   chan core.ChainSideEvent
+	removeLogsEvent  chan core.RemovedLogsEvent
+	rebirthLogsEvent chan []*types.Log
 
 	// topics params
-	chainEventTopic   string
-	chainSideTopic    string
-	transactionsTopic string
+	chainEventTopic        string
+	chainSideTopic         string
+	transactionsTopic      string
 	reorgTransactionsTopic string
-	logsTopic         string
+	logsTopic              string
 
 	// message backoff
-	MaxRetry          int
-	BackOff           int
+	MaxRetry int
+	BackOff  int
 
 	// start publishing from specific block's height
 	// this field is necessary when we don't want to handle data which is already existed.
@@ -307,7 +317,7 @@ func NewSubscriber(eth ethapi.Backend, ctx *cli.Context) *Subscriber {
 		MaxRetry:     100,
 		BackOff:      5,
 		Workers:      make([]*Worker, 0),
-		MaxQueueSize: 20,
+		MaxQueueSize: defaultMaxQueueSize,
 	}
 	if ctx.GlobalIsSet(QueueSizeFlag.Name) {
 		queueSize := ctx.GlobalInt(QueueSizeFlag.Name)
@@ -319,6 +329,8 @@ func NewSubscriber(eth ethapi.Backend, ctx *cli.Context) *Subscriber {
 	subs.Queue = make(chan chan Job, subs.MaxQueueSize)
 	subs.chainEvent = make(chan core.ChainEvent, subs.MaxQueueSize)
 	subs.chainSideEvent = make(chan core.ChainSideEvent, subs.MaxQueueSize)
+	subs.removeLogsEvent = make(chan core.RemovedLogsEvent, subs.MaxQueueSize)
+	subs.rebirthLogsEvent = make(chan []*types.Log, subs.MaxQueueSize)
 
 	// set event publisher
 	handlerType := ctx.GlobalString(PublisherFlag.Name)
@@ -367,7 +379,7 @@ func NewSubscriber(eth ethapi.Backend, ctx *cli.Context) *Subscriber {
 // HandleNewBlock handles mined block's data.
 // Block/Transaction/Transaction's logs data will be submitted to job channel and be handled by subscriber's workers
 func (s *Subscriber) HandleNewBlock(evt core.ChainEvent) {
-	block, logs := evt.Block, evt.Logs
+	block, logs, receipts := evt.Block, evt.Logs, evt.Receipts
 	// if block's height is less than subscribed height then do nothing.
 	if block == nil || block.NumberU64() < s.FromHeight {
 		return
@@ -385,8 +397,7 @@ func (s *Subscriber) HandleNewBlock(evt core.ChainEvent) {
 		}
 		messages = append(messages, s.eventPublisher.newMessage(s.chainEventTopic, blockData))
 	}
-	messages = append(messages, s.HandleNewTransactions(s.transactionsTopic, block.Hash(), block.NumberU64(), txs)...)
-	messages = append(messages, s.HandleLogs(logs)...)
+	messages = append(messages, s.HandleNewTransactions(s.transactionsTopic, block.Hash(), block.NumberU64(), txs, receipts)...)
 
 	if len(messages) > 0 {
 		log.Info("[HandleNewBlock] sending messages to jobChan", "messages", len(messages), "height", block.NumberU64(), "txs", len(txs), "logs", len(logs))
@@ -412,7 +423,7 @@ func (s *Subscriber) HandleReorgBlock(evt core.ChainSideEvent) {
 		}
 		messages = append(messages, s.eventPublisher.newMessage(s.chainSideTopic, blockData))
 	}
-	messages = append(messages, s.HandleNewTransactions(s.reorgTransactionsTopic, block.Hash(), block.NumberU64(), txs)...)
+	messages = append(messages, s.HandleNewTransactions(s.reorgTransactionsTopic, block.Hash(), block.NumberU64(), txs, nil)...)
 
 	if len(messages) > 0 {
 		log.Info("[HandleReorgBlock] sending messages to jobChan", "messages", len(messages), "height", block.NumberU64(), "txs", len(txs))
@@ -420,25 +431,33 @@ func (s *Subscriber) HandleReorgBlock(evt core.ChainSideEvent) {
 	}
 }
 
-func (s *Subscriber) HandleNewTransactions(topic string, hash common.Hash, number uint64, txs types.Transactions) []interface{} {
+func (s *Subscriber) HandleNewTransactions(topic string, hash common.Hash, number uint64, txs types.Transactions, receipts types.Receipts) []interface{} {
 	messages := make([]interface{}, 0)
 	if s.transactionsTopic != "" {
 		for i, tx := range txs {
-			txData, err := json.Marshal(newTransaction(tx, hash, number, uint64(i)))
+			transaction := newTransaction(tx, hash, number, i, receipts)
+			txData, err := json.Marshal(transaction)
 			if err != nil {
 				log.Error("[HandleNewBlock]Marshal Transaction Data", "error", err, "blockHeight", number, "index", i)
 				continue
 			}
 			messages = append(messages, s.eventPublisher.newMessage(topic, txData))
+			if receipts != nil && len(receipts) == len(txs) {
+				messages = append(messages, s.HandleLogs(hash, tx.Hash(), number, uint(i), receipts[i].Logs)...)
+			}
 		}
 	}
 	return messages
 }
 
-func (s *Subscriber) HandleLogs(logs []*types.Log) []interface{} {
+func (s *Subscriber) HandleLogs(hash, txHash common.Hash, number uint64, txIndex uint, logs []*types.Log) []interface{} {
 	messages := make([]interface{}, 0)
 	if s.logsTopic != "" {
 		for _, l := range logs {
+			l.TxHash = txHash
+			l.BlockHash = hash
+			l.BlockNumber = number
+			l.TxIndex = txIndex
 			logData, err := json.Marshal(l)
 			if err != nil {
 				log.Error("[HandleNewBlock]Marshal log data", "err", err, "blockHeight", l.BlockNumber, "index", l.TxIndex)
@@ -448,6 +467,24 @@ func (s *Subscriber) HandleLogs(logs []*types.Log) []interface{} {
 		}
 	}
 	return messages
+}
+
+func (s *Subscriber) HandleRemoveRebirthLogs(logs []*types.Log) {
+	messages := make([]interface{}, 0)
+	if s.logsTopic != "" {
+		for _, l := range logs {
+			logData, err := json.Marshal(l)
+			if err != nil {
+				log.Error("[HandleRemoveRebirthLogs]Marshal log data", "err", err, "blockHeight", l.BlockNumber, "index", l.TxIndex)
+				continue
+			}
+			messages = append(messages, s.eventPublisher.newMessage(s.logsTopic, logData))
+		}
+	}
+	if len(messages) > 0 {
+		log.Info("[HandleRemoveRebirthLogs] sending messages to jobChan", "messages", len(messages))
+		s.JobChan <- NewJob(messages, s.MaxRetry, s.BackOff)
+	}
 }
 
 func (s *Subscriber) Start() {
@@ -462,6 +499,10 @@ func (s *Subscriber) Start() {
 			go s.HandleReorgBlock(evt)
 		case evt := <-s.chainEvent:
 			go s.HandleNewBlock(evt)
+		case evt := <-s.removeLogsEvent:
+			go s.HandleRemoveRebirthLogs(evt.Logs)
+		case evt := <-s.rebirthLogsEvent:
+			go s.HandleRemoveRebirthLogs(evt)
 		case job := <-s.JobChan:
 			// get 1 workerCh from queue and push job to this channel
 			workerCh := <-s.Queue
