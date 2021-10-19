@@ -1239,6 +1239,9 @@ func (bc *BlockChain) InsertReceiptChain(blockChain types.Blocks, receiptChain [
 				rawdb.WriteTxLookupEntriesByBlock(batch, block)
 			}
 			stats.processed++
+
+			// Send chain event includes block data and logs
+			bc.sendNewBlockEvent(block, receiptChain[i])
 		}
 		// Flush all tx-lookup index data.
 		size += batch.ValueSize()
@@ -1333,6 +1336,9 @@ func (bc *BlockChain) InsertReceiptChain(blockChain types.Blocks, receiptChain [
 				batch.Reset()
 			}
 			stats.processed++
+
+			// Send chain event includes block data and logs
+			bc.sendNewBlockEvent(block, receiptChain[i])
 		}
 		// Write everything belongs to the blocks into the database. So that
 		// we can ensure all components of body is completed(body, receipts,
@@ -1389,6 +1395,15 @@ func (bc *BlockChain) InsertReceiptChain(blockChain types.Blocks, receiptChain [
 	log.Info("Imported new block receipts", context...)
 
 	return 0, nil
+}
+
+func (bc *BlockChain) sendNewBlockEvent(block *types.Block, receipts types.Receipts) {
+	logs := make([]*types.Log, 0)
+	for _, receipt := range receipts {
+		logs = append(logs, receipt.Logs...)
+	}
+	log.Info("send new block event", "height", block.NumberU64(), "txs", len(block.Transactions()), "logs", len(logs))
+	bc.chainFeed.Send(ChainEvent{Block: block, Hash: block.Hash(), Logs: logs, Receipts: receipts})
 }
 
 // SetTxLookupLimit is responsible for updating the txlookup limit to the
@@ -1568,7 +1583,7 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 	bc.futureBlocks.Remove(block.Hash())
 
 	if status == CanonStatTy {
-		bc.chainFeed.Send(ChainEvent{Block: block, Hash: block.Hash(), Logs: logs})
+		bc.chainFeed.Send(ChainEvent{Block: block, Hash: block.Hash(), Logs: logs, Receipts: receipts})
 		if len(logs) > 0 {
 			bc.logsFeed.Send(logs)
 		}
