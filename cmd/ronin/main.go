@@ -323,7 +323,8 @@ func geth(ctx *cli.Context) error {
 	if ctx.GlobalBool(SubscriberFlag.Name) {
 		subs := NewSubscriber(backend, ctx)
 		defer subs.Close()
-		go subs.Start()
+		// wait until subscriber finishes its initiation
+		<-subs.Start()
 	}
 
 	startNode(ctx, stack, backend)

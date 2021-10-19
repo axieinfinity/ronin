@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/segmentio/kafka-go"
 	"github.com/segmentio/kafka-go/sasl/plain"
 	"github.com/segmentio/kafka-go/sasl/scram"
@@ -267,9 +268,11 @@ type Worker struct {
 type Subscriber struct {
 	ctx       context.Context
 	cancelCtx context.CancelFunc
+	backend   ethapi.Backend
 
 	eventPublisher   Publisher
 	chainEvent       chan core.ChainEvent
+	resyncEvent      chan core.ChainEvent
 	chainSideEvent   chan core.ChainSideEvent
 	removeLogsEvent  chan core.RemovedLogsEvent
 	rebirthLogsEvent chan []*types.Log
@@ -312,6 +315,7 @@ func NewSubscriber(eth ethapi.Backend, ctx *cli.Context) *Subscriber {
 	workers := defaultWorkers
 	subCtx, cancelCtx := context.WithCancel(context.Background())
 	subs := &Subscriber{
+		backend:      eth,
 		ctx:          subCtx,
 		cancelCtx:    cancelCtx,
 		MaxRetry:     100,
@@ -331,6 +335,7 @@ func NewSubscriber(eth ethapi.Backend, ctx *cli.Context) *Subscriber {
 	subs.chainSideEvent = make(chan core.ChainSideEvent, subs.MaxQueueSize)
 	subs.removeLogsEvent = make(chan core.RemovedLogsEvent, subs.MaxQueueSize)
 	subs.rebirthLogsEvent = make(chan []*types.Log, subs.MaxQueueSize)
+	subs.resyncEvent = make(chan core.ChainEvent, subs.MaxQueueSize)
 
 	// set event publisher
 	handlerType := ctx.GlobalString(PublisherFlag.Name)
@@ -376,14 +381,17 @@ func NewSubscriber(eth ethapi.Backend, ctx *cli.Context) *Subscriber {
 	return subs
 }
 
+func (s *Subscriber) HandleNewBlockWithValidation(evt core.ChainEvent) {
+	if evt.Block == nil || evt.Block.NumberU64() < s.FromHeight {
+		return
+	}
+	s.HandleNewBlock(evt)
+}
+
 // HandleNewBlock handles mined block's data.
 // Block/Transaction/Transaction's logs data will be submitted to job channel and be handled by subscriber's workers
 func (s *Subscriber) HandleNewBlock(evt core.ChainEvent) {
 	block, logs, receipts := evt.Block, evt.Logs, evt.Receipts
-	// if block's height is less than subscribed height then do nothing.
-	if block == nil || block.NumberU64() < s.FromHeight {
-		return
-	}
 	txs := block.Transactions()
 
 	// init messages slice
@@ -405,6 +413,7 @@ func (s *Subscriber) HandleNewBlock(evt core.ChainEvent) {
 	}
 }
 
+// HandleReorgBlock handles reOrg block event and push relevant block and transactions to message brokers using eventPublisher
 func (s *Subscriber) HandleReorgBlock(evt core.ChainSideEvent) {
 	block := evt.Block
 	if block == nil {
@@ -431,6 +440,8 @@ func (s *Subscriber) HandleReorgBlock(evt core.ChainSideEvent) {
 	}
 }
 
+// HandleNewTransactions converts transaction to readable transaction (JSON) based on transactions list and receipts list and push them message broker.
+// if there is any topic within receipts call HandleLogs also to add all Logs to messages
 func (s *Subscriber) HandleNewTransactions(topic string, hash common.Hash, number uint64, txs types.Transactions, receipts types.Receipts) []interface{} {
 	messages := make([]interface{}, 0)
 	if s.transactionsTopic != "" {
@@ -450,6 +461,9 @@ func (s *Subscriber) HandleNewTransactions(topic string, hash common.Hash, numbe
 	return messages
 }
 
+// HandleLogs converts list of logs to binary and add to published messaged
+// When syncing using snap/fast mode, log does not contain txHash, blockHash, blockNumber and txIndex
+// Therefore we add these variables from params and update each log with these params.
 func (s *Subscriber) HandleLogs(hash, txHash common.Hash, number uint64, txIndex uint, logs []*types.Log) []interface{} {
 	messages := make([]interface{}, 0)
 	if s.logsTopic != "" {
@@ -469,6 +483,8 @@ func (s *Subscriber) HandleLogs(hash, txHash common.Hash, number uint64, txIndex
 	return messages
 }
 
+// HandleRemoveRebirthLogs handles removedLogsEvent from blockchain.
+// these logs are called when reorg occur and they need to be removed.
 func (s *Subscriber) HandleRemoveRebirthLogs(logs []*types.Log) {
 	messages := make([]interface{}, 0)
 	if s.logsTopic != "" {
@@ -487,44 +503,100 @@ func (s *Subscriber) HandleRemoveRebirthLogs(logs []*types.Log) {
 	}
 }
 
-func (s *Subscriber) Start() {
+// Start starts a subscriber which do the following:
+// - Starts all workers
+// - Resyncs if fromHeight is less than current backend's height
+// - Run all event handlers: ChainEvent, ChainSideEvent, NewBlock, RemovedLogsEvent, RebirthLogsEvent, ctx Done, etc.
+func (s *Subscriber) Start() chan struct{} {
+	done := make(chan struct{}, 1)
 	for _, worker := range s.Workers {
 		go worker.start()
 	}
-	statsTicker := time.NewTicker(statsDuration * time.Second)
-	queueStat := time.NewTimer(time.Millisecond)
-	for {
-		select {
-		case evt := <-s.chainSideEvent:
-			go s.HandleReorgBlock(evt)
-		case evt := <-s.chainEvent:
-			go s.HandleNewBlock(evt)
-		case evt := <-s.removeLogsEvent:
-			go s.HandleRemoveRebirthLogs(evt.Logs)
-		case evt := <-s.rebirthLogsEvent:
-			go s.HandleRemoveRebirthLogs(evt)
-		case job := <-s.JobChan:
-			// get 1 workerCh from queue and push job to this channel
-			workerCh := <-s.Queue
-			workerCh <- job
-		case <-queueStat.C:
-			// fill up Queue to make sure Queue never get empty
-			for i := 0; i < len(s.Workers)-len(s.Queue); i++ {
-				s.Queue <- s.Workers[i].workerChan
+	// run all events listeners
+	go func() {
+		statsTicker := time.NewTicker(statsDuration * time.Second)
+		queueStat := time.NewTimer(time.Millisecond)
+		for {
+			select {
+			case evt := <-s.chainSideEvent:
+				go s.HandleReorgBlock(evt)
+			case evt := <-s.resyncEvent:
+				s.HandleNewBlock(evt)
+			case evt := <-s.chainEvent:
+				go s.HandleNewBlockWithValidation(evt)
+			case evt := <-s.removeLogsEvent:
+				go s.HandleRemoveRebirthLogs(evt.Logs)
+			case evt := <-s.rebirthLogsEvent:
+				go s.HandleRemoveRebirthLogs(evt)
+			case job := <-s.JobChan:
+				// get 1 workerCh from queue and push job to this channel
+				workerCh := <-s.Queue
+				workerCh <- job
+			case <-queueStat.C:
+				// fill up Queue to make sure Queue never get empty
+				for i := 0; i < len(s.Workers)-len(s.Queue); i++ {
+					s.Queue <- s.Workers[i].workerChan
+				}
+			case <-s.ctx.Done():
+				close(s.Queue)
+				close(s.JobChan)
+				close(s.chainSideEvent)
+				close(s.chainEvent)
+				close(s.rebirthLogsEvent)
+				close(s.removeLogsEvent)
+				close(s.resyncEvent)
+				statsTicker.Stop()
+				break
+			case <-statsTicker.C:
+				log.Info("subscriber stats",
+					"WorkerQueueSize", len(s.Queue),
+					"jobChan", len(s.JobChan),
+					"chainEvent", len(s.chainEvent),
+					"numberOfGoRoutines", runtime.NumGoroutine(),
+				)
 			}
-		case <-s.ctx.Done():
-			close(s.Queue)
-			close(s.JobChan)
-			statsTicker.Stop()
-			return
-		case <-statsTicker.C:
-			log.Info("subscriber stats",
-				"WorkerQueueSize", len(s.Queue),
-				"jobChan", len(s.JobChan),
-				"chainEvent", len(s.chainEvent),
-				"numberOfGoRoutines", runtime.NumGoroutine(),
-			)
 		}
+	}()
+	// get past blocks if fromHeight < currentHeight
+	s.resync()
+	done <- struct{}{}
+	return done
+}
+
+// resync is used when we want to resync blocks that exist on stateDb for some reason.
+// Such as message broker is down and message cannot be published to services.
+func (s *Subscriber) resync() {
+	// if fromHeight is update to date or greater than currentHeight then do nothing
+	currentHeader := s.backend.CurrentHeader().Number.Uint64()
+	if s.FromHeight == 0 || s.FromHeight >= currentHeader {
+		return
+	}
+	// loop until
+	for s.FromHeight < currentHeader {
+		var (
+			err      error
+			block    *types.Block
+			receipts types.Receipts
+			logs     []*types.Log
+		)
+		block, err = s.backend.BlockByNumber(context.Background(), rpc.BlockNumber(s.FromHeight))
+		if err != nil {
+			log.Error("[Subscriber][resync]BlockByNumber", "err", err, "height", s.FromHeight)
+		}
+		if block == nil {
+			goto CONTINUE
+		}
+		receipts, err = s.backend.GetReceipts(context.Background(), block.Hash())
+		if err != nil {
+			log.Error("[Subscriber][resync]GetReceipts", "err", err, "height", s.FromHeight)
+		}
+		logs = make([]*types.Log, 0)
+		for _, receipt := range receipts {
+			logs = append(logs, receipt.Logs...)
+		}
+		s.resyncEvent <- core.ChainEvent{Block: block, Logs: logs, Receipts: receipts}
+	CONTINUE:
+		s.FromHeight++
 	}
 }
 
