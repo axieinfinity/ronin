@@ -13,7 +13,7 @@ services:
       - "30303:30303"
       - "30303:30303/udp"
     volumes:
-      - ~/.skymavis/chaindata:/ronin
+      - ~/.skymavis/chaindata:/opt/ronin/chaindata
     environment:
       - SYNC_MODE=snap
       - BOOTNODES=${BOOTNODES}
