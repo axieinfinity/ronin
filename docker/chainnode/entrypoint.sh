@@ -176,7 +176,7 @@ if [[ ! -z $PASSWORD_FILE ]]; then
   params="$params --password $PASSWORD_FILE"
 fi
 
-if [[ ! -z $MINE ]]; then
+if [ "$MINE" = "true" ]; then
   params="$param --mine"
 fi
 
