@@ -135,8 +135,9 @@ if [[ ! -z $GASPRICE ]]; then
   params="$params --miner.gasprice $GASPRICE"
 fi
 
+echo "checking subscriber=$SUBSCRIBER kafka_url=$KAFKA_URL"
 # subscriber
-if [[ ! -z $SUBSCRIBER ]]; then
+if [ "$SUBSCRIBER" = "true" ]; then
   params="$params --subscriber --subscriber.blockEventTopic block_event"
   params="$params --subscriber.txEventTopic txs_event"
   params="$params --subscriber.logsEventTopic logs_event"
@@ -149,18 +150,6 @@ if [[ ! -z $SUBSCRIBER ]]; then
 
   if [ ! -z $KAFKA_USERNAME ] && [ ! -z KAFKA_PASSWORD]; then
     params="$params --subscriber.kafka.username $KAFKA_USERNAME --subscriber.kafka.password $KAFKA_PASSWORD"
-  fi
-
-  if [[ ! -z $SUBSCRIBER_WORKERS ]]; then
-    params="$params --subscriber.workers $SUBSCRIBER_WORKERS"
-  fi
-
-  if [[ ! -z $SUBSCRIBER_MAX_RETRY ]]; then
-    params="$params --subscriber.maxRetry $SUBSCRIBER_MAX_RETRY"
-  fi
-
-  if [[ ! -z $SUBSCRIBER_BACK_OFF ]]; then
-    params="$params --subscriber.backoff $SUBSCRIBER_BACK_OFF"
   fi
 
   if [[ ! -z $KAFKA_AUTHENTICATION_TYPE ]]; then

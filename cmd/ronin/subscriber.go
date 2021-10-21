@@ -216,6 +216,7 @@ func newBlock(b *types.Block) *NewBlock {
 type Publisher interface {
 	publish(Job) error
 	newMessage(string, []byte) interface{}
+	checkConnection() error
 	close()
 }
 
@@ -326,7 +327,10 @@ func NewSubscriber(eth ethapi.Backend, ctx *cli.Context) *Subscriber {
 	default:
 		subs.eventPublisher = NewDefaultEventPublisher(ctx)
 	}
-
+	// check connection
+	if err := subs.eventPublisher.checkConnection(); err != nil {
+		panic(err)
+	}
 	if ctx.GlobalIsSet(ChainEventFlag.Name) {
 		subs.chainEventTopic = ctx.GlobalString(ChainEventFlag.Name)
 		eth.SubscribeChainEvent(subs.chainEvent)
@@ -665,6 +669,18 @@ func (s *DefaultEventPublisher) publish(job Job) error {
 
 func (s *DefaultEventPublisher) newMessage(topic string, data []byte) interface{} {
 	return kafka.Message{Topic: topic, Value: data}
+}
+
+func (s *DefaultEventPublisher) checkConnection() error {
+	dialer, err := s.getDialer()
+	if err != nil {
+		return err
+	}
+	conn, err := dialer.Dial("tcp", s.URL)
+	if err != nil {
+		return err
+	}
+	return conn.Close()
 }
 
 func (s *DefaultEventPublisher) getDialer() (*kafka.Dialer, error) {
