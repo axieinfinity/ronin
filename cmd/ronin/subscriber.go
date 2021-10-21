@@ -119,6 +119,7 @@ type NewTransaction struct {
 	BlockHash        common.Hash     `json:"blockHash"`
 	BlockNumber      uint64          `json:"blockNumber"`
 	From             common.Address  `json:"from"`
+	ContractAddress  common.Address  `json:"contractAddress"`
 	Status           uint64          `json:"status"`
 	Gas              hexutil.Uint64  `json:"gas"`
 	GasPrice         *hexutil.Big    `json:"gasPrice"`
@@ -184,6 +185,7 @@ func newTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber ui
 		receipt := receipts[index]
 		result.Status = receipt.Status
 		result.GasUsed = receipt.CumulativeGasUsed
+		result.ContractAddress = receipt.ContractAddress
 	}
 	return result
 }
