@@ -112,25 +112,6 @@ var (
 		Name:  queueSize,
 		Usage: "specify size of workers queue and jobs queue",
 	}
-	SubscriberFlags = []cli.Flag{
-		SubscriberFlag,
-		ChainEventFlag,
-		ChainSideEventFlag,
-		TransactionEventFlag,
-		ReorgTransactionEventFlag,
-		KafkaPartitionFlag,
-		KafkaUrlFlag,
-		KafkaAuthenticationFlag,
-		kafkaUsernameFlag,
-		kafkaPasswordFlag,
-		MaxRetryFlag,
-		NumberOfWorkerFlag,
-		BackOffFlag,
-		PublisherFlag,
-		FromHeightFlag,
-		LogsEventFlag,
-		QueueSizeFlag,
-	}
 )
 
 // NewTransaction represents a transaction that will be published to message broker when new block has been mined

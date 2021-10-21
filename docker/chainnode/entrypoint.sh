@@ -11,9 +11,9 @@
 # - FORCE_INIT (default to 'true')
 
 # constants
-DATA_DIR="/ronin/data"
-KEYSTORE_DIR="/ronin/keystore"
-PASSWORD_FILE="$KEYSTORE_DIR/password"
+# DATA_DIR="/ronin/data"
+# KEYSTORE_DIR="/ronin/keystore"
+# PASSWORD_FILE="$KEYSTORE_DIR/password"
 
 # variables
 genesisPath=""
@@ -93,14 +93,16 @@ if [[ $accountsCount -le 0 ]]; then
   fi
 fi
 
-account=$(
-  ronin account list --datadir $DATA_DIR  --keystore $KEYSTORE_DIR \
-  2> /dev/null \
-  | head -n 1 \
-  | cut -d"{" -f 2 | cut -d"}" -f 1
-)
-echo "Using account $account"
-params="$params --unlock $account"
+if [[ ! -z $KEYSTORE_DIR ]]; then
+  account=$(
+    ronin account list --datadir $DATA_DIR  --keystore $KEYSTORE_DIR \
+    2> /dev/null \
+    | head -n 1 \
+    | cut -d"{" -f 2 | cut -d"}" -f 1
+  )
+  echo "Using account $account"
+  params="$params --unlock $account"
+fi
 
 # bootnodes
 if [[ ! -z $BOOTNODES ]]; then
@@ -133,16 +135,72 @@ if [[ ! -z $GASPRICE ]]; then
   params="$params --miner.gasprice $GASPRICE"
 fi
 
+# subscriber
+if [[ ! -z $SUBSCRIBER ]]; then
+  params="$params --subscriber --subscriber.blockEventTopic block_event"
+  params="$params --subscriber.txEventTopic txs_event"
+  params="$params --subscriber.logsEventTopic logs_event"
+  params="$params --subscriber.reOrgBlockEventTopic reorg_event"
+  params="$params --subscriber.reorgTxEventTopic reorg_tx_event"
+
+  if [[ ! -z $KAFKA_URL ]]; then
+    params="$params --subscriber.kafka.url $KAFKA_URL"
+  fi
+
+  if [ ! -z $KAFKA_USERNAME ] && [ ! -z KAFKA_PASSWORD]; then
+    params="$params --subscriber.kafka.username $KAFKA_USERNAME --subscriber.kafka.password $KAFKA_PASSWORD"
+  fi
+
+  if [[ ! -z $SUBSCRIBER_WORKERS ]]; then
+    params="$params --subscriber.workers $SUBSCRIBER_WORKERS"
+  fi
+
+  if [[ ! -z $SUBSCRIBER_MAX_RETRY ]]; then
+    params="$params --subscriber.maxRetry $SUBSCRIBER_MAX_RETRY"
+  fi
+
+  if [[ ! -z $SUBSCRIBER_BACK_OFF ]]; then
+    params="$params --subscriber.backoff $SUBSCRIBER_BACK_OFF"
+  fi
+
+  if [[ ! -z $KAFKA_AUTHENTICATION_TYPE ]]; then
+    case $KAFKA_AUTHENTICATION_TYPE in
+      PLAIN|SCRAM-SHA-256|SCRAM-SHA-512 )
+        params="$params --subscriber.kafka.authentication $KAFKA_AUTHENTICATION_TYPE"
+        ;;
+      * )
+        params="$params --subscriber.kafka.authentication PLAIN"
+        ;;
+    esac
+  fi
+
+  if [[ ! -z $SUBSCRIBER_FROM_HEIGHT ]]; then
+    params="$params --subscriber.fromHeight $SUBSCRIBER_FROM_HEIGHT"
+  fi
+fi
+
+if [[ ! -z $KEYSTORE_DIR ]]; then
+  params="$params --keystore $KEYSTORE_DIR"
+fi
+
+if [[ ! -z $PASSWORD_FILE ]]; then
+  params="$params --password $PASSWORD_FILE"
+fi
+
+if [[ ! -z $MINE ]]; then
+  params="$param --mine"
+fi
+
 # dump
 echo "dump: $account $BOOTNODES"
 
 set -x
 
+echo "params: $params"
+
 exec ronin $params \
   --verbosity $VERBOSITY \
   --datadir $DATA_DIR \
-  --keystore $KEYSTORE_DIR \
-  --password $PASSWORD_FILE \
   --port 30303 \
   --txpool.globalqueue 10000 \
   --txpool.globalslots 10000 \
@@ -155,7 +213,6 @@ exec ronin $params \
   --ws.addr 0.0.0.0 \
   --ws.port 8546 \
   --ws.origins "*" \
-  --mine \
   --allow-insecure-unlock \
   --miner.gastarget "100000000" \
   "$@"
