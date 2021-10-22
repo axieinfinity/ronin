@@ -137,22 +137,23 @@ type NewTransaction struct {
 
 // NewBlock represents a block that will be published to message broker when new block has been mined
 type NewBlock struct {
-	Number           uint64         `json:"number"`
-	Hash             common.Hash    `json:"hash"`
-	ParentHash       common.Hash    `json:"parentHash"`
-	Nonce            uint64         `json:"nonce"`
-	MixHash          common.Hash    `json:"mixHash"`
-	LogsBloom        types.Bloom    `json:"logsBloom"`
-	StateRoot        common.Hash    `json:"stateRoot"`
-	Miner            common.Address `json:"coinbase"`
-	Difficulty       *hexutil.Big   `json:"difficulty"`
-	ExtraData        hexutil.Bytes  `json:"extraData"`
-	Size             hexutil.Uint64 `json:"size"`
-	GasLimit         hexutil.Uint64 `json:"gasLimit"`
-	GasUsed          hexutil.Uint64 `json:"gasUsed"`
-	TimeStamp        hexutil.Uint64 `json:"timestamp"`
-	TransactionsRoot common.Hash    `json:"transactionsRoot"`
-	ReceiptsRoot     common.Hash    `json:"receiptsRoot"`
+	Number               uint64         `json:"number"`
+	Hash                 common.Hash    `json:"hash"`
+	ParentHash           common.Hash    `json:"parentHash"`
+	NumberOfTransactions int            `json:"numberOfTransactions"`
+	Nonce                uint64         `json:"nonce"`
+	MixHash              common.Hash    `json:"mixHash"`
+	LogsBloom            types.Bloom    `json:"logsBloom"`
+	StateRoot            common.Hash    `json:"stateRoot"`
+	Miner                common.Address `json:"coinbase"`
+	Difficulty           *hexutil.Big   `json:"difficulty"`
+	ExtraData            hexutil.Bytes  `json:"extraData"`
+	Size                 hexutil.Uint64 `json:"size"`
+	GasLimit             hexutil.Uint64 `json:"gasLimit"`
+	GasUsed              hexutil.Uint64 `json:"gasUsed"`
+	TimeStamp            hexutil.Uint64 `json:"timestamp"`
+	TransactionsRoot     common.Hash    `json:"transactionsRoot"`
+	ReceiptsRoot         common.Hash    `json:"receiptsRoot"`
 }
 
 func newTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber uint64, index int, receipts types.Receipts) *NewTransaction {
@@ -193,22 +194,23 @@ func newTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber ui
 func newBlock(b *types.Block) *NewBlock {
 	head := b.Header()
 	return &NewBlock{
-		Number:           head.Number.Uint64(),
-		Hash:             b.Hash(),
-		ParentHash:       head.ParentHash,
-		Nonce:            head.Nonce.Uint64(),
-		MixHash:          head.MixDigest,
-		LogsBloom:        head.Bloom,
-		StateRoot:        head.Root,
-		Miner:            head.Coinbase,
-		Difficulty:       (*hexutil.Big)(head.Difficulty),
-		ExtraData:        head.Extra,
-		Size:             hexutil.Uint64(b.Size()),
-		GasLimit:         hexutil.Uint64(head.GasLimit),
-		GasUsed:          hexutil.Uint64(head.GasUsed),
-		TimeStamp:        hexutil.Uint64(head.Time),
-		TransactionsRoot: head.TxHash,
-		ReceiptsRoot:     head.ReceiptHash,
+		Number:               head.Number.Uint64(),
+		Hash:                 b.Hash(),
+		ParentHash:           head.ParentHash,
+		Nonce:                head.Nonce.Uint64(),
+		MixHash:              head.MixDigest,
+		LogsBloom:            head.Bloom,
+		StateRoot:            head.Root,
+		Miner:                head.Coinbase,
+		Difficulty:           (*hexutil.Big)(head.Difficulty),
+		ExtraData:            head.Extra,
+		Size:                 hexutil.Uint64(b.Size()),
+		GasLimit:             hexutil.Uint64(head.GasLimit),
+		GasUsed:              hexutil.Uint64(head.GasUsed),
+		TimeStamp:            hexutil.Uint64(head.Time),
+		TransactionsRoot:     head.TxHash,
+		ReceiptsRoot:         head.ReceiptHash,
+		NumberOfTransactions: b.Transactions().Len(),
 	}
 }
 
