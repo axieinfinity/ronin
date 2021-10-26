@@ -116,23 +116,24 @@ var (
 
 // NewTransaction represents a transaction that will be published to message broker when new block has been mined
 type NewTransaction struct {
-	BlockHash        common.Hash     `json:"blockHash"`
-	BlockNumber      uint64          `json:"blockNumber"`
-	From             common.Address  `json:"from"`
-	ContractAddress  common.Address  `json:"contractAddress"`
-	Status           uint64          `json:"status"`
-	Gas              hexutil.Uint64  `json:"gas"`
-	GasPrice         *hexutil.Big    `json:"gasPrice"`
-	GasUsed          uint64          `json:"gasUsed"`
-	Hash             common.Hash     `json:"hash"`
-	Input            hexutil.Bytes   `json:"input"`
-	Nonce            hexutil.Uint64  `json:"nonce"`
-	To               *common.Address `json:"to"`
-	TransactionIndex hexutil.Uint    `json:"transactionIndex"`
-	Value            *hexutil.Big    `json:"value"`
-	V                *hexutil.Big    `json:"v"`
-	R                *hexutil.Big    `json:"r"`
-	S                *hexutil.Big    `json:"s"`
+	BlockHash         common.Hash     `json:"blockHash"`
+	BlockNumber       uint64          `json:"blockNumber"`
+	From              common.Address  `json:"from"`
+	ContractAddress   common.Address  `json:"contractAddress"`
+	Status            uint64          `json:"status"`
+	Gas               hexutil.Uint64  `json:"gas"`
+	GasPrice          *hexutil.Big    `json:"gasPrice"`
+	GasUsed           uint64          `json:"gasUsed"`
+	CumulativeGasUsed uint64          `json:"cumulativeGasUsed"`
+	Hash              common.Hash     `json:"hash"`
+	Input             hexutil.Bytes   `json:"input"`
+	Nonce             hexutil.Uint64  `json:"nonce"`
+	To                *common.Address `json:"to"`
+	TransactionIndex  hexutil.Uint    `json:"transactionIndex"`
+	Value             *hexutil.Big    `json:"value"`
+	V                 *hexutil.Big    `json:"v"`
+	R                 *hexutil.Big    `json:"r"`
+	S                 *hexutil.Big    `json:"s"`
 }
 
 // NewBlock represents a block that will be published to message broker when new block has been mined
@@ -185,7 +186,8 @@ func newTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber ui
 	if receipts != nil && len(receipts) > index {
 		receipt := receipts[index]
 		result.Status = receipt.Status
-		result.GasUsed = receipt.CumulativeGasUsed
+		result.GasUsed = receipt.GasUsed
+		result.CumulativeGasUsed = receipt.CumulativeGasUsed
 		result.ContractAddress = receipt.ContractAddress
 	}
 	return result
