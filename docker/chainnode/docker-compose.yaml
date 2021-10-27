@@ -13,7 +13,7 @@ services:
       - "30303:30303"
       - "30303:30303/udp"
     volumes:
-      - ~/.skymavis/chaindata:/opt/ronin/chaindata
+      - ~/.skymavis/ronin:/opt/ronin
     environment:
       - SYNC_MODE=snap
       - BOOTNODES=${BOOTNODES}
@@ -27,4 +27,5 @@ services:
       - KAFKA_PASSWORD=${KAFKA_PASSWORD}
       - KAFKA_AUTHENTICATION_TYPE=${KAFKA_AUTHENTICATION_TYPE}
       - VERBOSITY=${VERBOSITY}
+      - RONIN_PARAMS=${RONIN_PARAMS}
     network_mode: bridge
