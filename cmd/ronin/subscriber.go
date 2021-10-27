@@ -409,7 +409,7 @@ func (s *Subscriber) HandleNewBlock(evt core.ChainEvent) {
 // HandleReorgBlock handles reOrg block event and push relevant block and transactions to message brokers using eventPublisher
 func (s *Subscriber) HandleReorgBlock(evt core.ChainSideEvent) {
 	block := evt.Block
-	if block == nil {
+	if block == nil || block.NumberU64() < s.FromHeight {
 		return
 	}
 	txs := block.Transactions()
@@ -461,6 +461,9 @@ func (s *Subscriber) HandleLogs(hash, txHash common.Hash, number uint64, txIndex
 	messages := make([]interface{}, 0)
 	if s.logsTopic != "" {
 		for _, l := range logs {
+			if l.BlockNumber < s.FromHeight {
+				return messages
+			}
 			l.TxHash = txHash
 			l.BlockHash = hash
 			l.BlockNumber = number
@@ -482,6 +485,9 @@ func (s *Subscriber) HandleRemoveRebirthLogs(logs []*types.Log) {
 	messages := make([]interface{}, 0)
 	if s.logsTopic != "" {
 		for _, l := range logs {
+			if l.BlockNumber < s.FromHeight {
+				return
+			}
 			logData, err := json.Marshal(l)
 			if err != nil {
 				log.Error("[HandleRemoveRebirthLogs]Marshal log data", "err", err, "blockHeight", l.BlockNumber, "index", l.TxIndex)
