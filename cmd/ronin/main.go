@@ -216,6 +216,10 @@ var (
 		FromHeightFlag,
 		LogsEventFlag,
 		QueueSizeFlag,
+		BlockConfirmedEventFlag,
+		TransactionConfirmedEventFlag,
+		LogsConfirmedEventFlag,
+		ConfirmBlockAtFlag,
 	}
 )
 

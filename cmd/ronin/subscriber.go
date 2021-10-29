@@ -21,25 +21,30 @@ import (
 )
 
 const (
-	blockEventTopic            = "subscriber.blockEventTopic"
-	reOrgBlockEventTopic       = "subscriber.reOrgBlockEventTopic"
-	transactionEventTopic      = "subscriber.txEventTopic"
-	reorgTransactionEventTopic = "subscriber.reorgTxEventTopic"
-	logsEventTopic             = "subscriber.logsEventTopic"
-	kafkaPartition             = "subscriber.kafka.partition"
-	kafkaUrl                   = "subscriber.kafka.url"
-	maxRetry                   = "subscriber.maxRetry"
-	numberOfWorker             = "subscriber.workers"
-	backoff                    = "subscriber.backoff"
-	publisherType              = "subscriber.publisher"
-	fromHeight                 = "subscriber.fromHeight"
-	kafkaUsername              = "subscriber.kafka.username"
-	kafkaPassword              = "subscriber.kafka.password"
-	kafkaAuthentication        = "subscriber.kafka.authentication"
-	queueSize                  = "subscriber.queueSize"
-	statsDuration              = 30
-	defaultWorkers             = 1024
-	defaultMaxQueueSize        = 2048
+	blockEventTopic                = "subscriber.blockEventTopic"
+	reOrgBlockEventTopic           = "subscriber.reOrgBlockEventTopic"
+	transactionEventTopic          = "subscriber.txEventTopic"
+	reorgTransactionEventTopic     = "subscriber.reorgTxEventTopic"
+	logsEventTopic                 = "subscriber.logsEventTopic"
+	blockConfirmedEventTopic       = "subscriber.blockConfirmedEventTopic"
+	transactionConfirmedEventTopic = "subscriber.transactionConfirmedEventTopic"
+	logsConfirmedEventTopic        = "subscriber.logsConfirmedEventTopic"
+	kafkaPartition                 = "subscriber.kafka.partition"
+	kafkaUrl                       = "subscriber.kafka.url"
+	maxRetry                       = "subscriber.maxRetry"
+	numberOfWorker                 = "subscriber.workers"
+	backoff                        = "subscriber.backoff"
+	publisherType                  = "subscriber.publisher"
+	fromHeight                     = "subscriber.fromHeight"
+	kafkaUsername                  = "subscriber.kafka.username"
+	kafkaPassword                  = "subscriber.kafka.password"
+	kafkaAuthentication            = "subscriber.kafka.authentication"
+	queueSize                      = "subscriber.queueSize"
+	confirmBlockAt                 = "subscriber.confirmBlockAt"
+	defaultConfirmAt               = 10
+	statsDuration                  = 30
+	defaultWorkers                 = 1024
+	defaultMaxQueueSize            = 2048
 )
 
 var (
@@ -66,6 +71,18 @@ var (
 	LogsEventFlag = cli.StringFlag{
 		Name:  logsEventTopic,
 		Usage: "topic name that new logs will be published to",
+	}
+	BlockConfirmedEventFlag = cli.StringFlag{
+		Name:  blockConfirmedEventTopic,
+		Usage: "topic name that confirmed block will be published to",
+	}
+	TransactionConfirmedEventFlag = cli.StringFlag{
+		Name:  transactionConfirmedEventTopic,
+		Usage: "topic name that confirmed transaction will be published to",
+	}
+	LogsConfirmedEventFlag = cli.StringFlag{
+		Name:  logsConfirmedEventTopic,
+		Usage: "topic name that confirmed logs will be published to",
 	}
 	KafkaPartitionFlag = cli.IntFlag{
 		Name:  kafkaPartition,
@@ -111,6 +128,10 @@ var (
 	QueueSizeFlag = cli.IntFlag{
 		Name:  queueSize,
 		Usage: "specify size of workers queue and jobs queue",
+	}
+	ConfirmBlockAtFlag = cli.IntFlag{
+		Name:  confirmBlockAt,
+		Usage: "confirm block that behind current block height (is sent to new block topic) `confirmAt` blocks",
 	}
 )
 
@@ -272,6 +293,10 @@ type Subscriber struct {
 	reorgTransactionsTopic string
 	logsTopic              string
 
+	confirmedBlockTopic       string
+	confirmedTransactionTopic string
+	confirmedLogsTopic       string
+
 	// message backoff
 	MaxRetry int
 	BackOff  int
@@ -289,6 +314,10 @@ type Subscriber struct {
 	JobChan chan Job
 
 	MaxQueueSize int
+
+	// confirmBlockAt is used to send confirmed block
+	// confirmed block is behind the current block `confirmBlockAt` height
+	confirmBlockAt int
 }
 
 type DefaultEventPublisher struct {
@@ -310,6 +339,7 @@ func NewSubscriber(eth ethapi.Backend, ctx *cli.Context) *Subscriber {
 		BackOff:      5,
 		Workers:      make([]*Worker, 0),
 		MaxQueueSize: defaultMaxQueueSize,
+		confirmBlockAt: defaultConfirmAt,
 	}
 	if ctx.GlobalIsSet(QueueSizeFlag.Name) {
 		queueSize := ctx.GlobalInt(QueueSizeFlag.Name)
@@ -349,6 +379,15 @@ func NewSubscriber(eth ethapi.Backend, ctx *cli.Context) *Subscriber {
 	if ctx.GlobalIsSet(ReorgTransactionEventFlag.Name) {
 		subs.reorgTransactionsTopic = ctx.GlobalString(ReorgTransactionEventFlag.Name)
 	}
+	if ctx.GlobalIsSet(BlockConfirmedEventFlag.Name) {
+		subs.confirmedBlockTopic = ctx.GlobalString(BlockConfirmedEventFlag.Name)
+	}
+	if ctx.GlobalIsSet(TransactionConfirmedEventFlag.Name) {
+		subs.confirmedTransactionTopic = ctx.GlobalString(TransactionConfirmedEventFlag.Name)
+	}
+	if ctx.GlobalIsSet(LogsConfirmedEventFlag.Name) {
+		subs.confirmedLogsTopic = ctx.GlobalString(LogsConfirmedEventFlag.Name)
+	}
 	if ctx.GlobalIsSet(LogsEventFlag.Name) {
 		subs.logsTopic = ctx.GlobalString(LogsEventFlag.Name)
 		eth.SubscribeRemovedLogsEvent(subs.removeLogsEvent)
@@ -366,12 +405,22 @@ func NewSubscriber(eth ethapi.Backend, ctx *cli.Context) *Subscriber {
 	if ctx.GlobalIsSet(FromHeightFlag.Name) {
 		subs.FromHeight = ctx.GlobalUint64(FromHeightFlag.Name)
 	}
+	if ctx.GlobalIsSet(ConfirmBlockAtFlag.Name) {
+		subs.confirmBlockAt = ctx.GlobalInt(ConfirmBlockAtFlag.Name)
+	}
 
 	// init workers
 	for i := 0; i < workers; i++ {
 		subs.Workers = append(subs.Workers, NewWorker(subs.ctx, i, subs.JobChan, subs.Queue, subs.eventPublisher.publish, subs.MaxQueueSize))
 	}
 	return subs
+}
+
+func (s *Subscriber) SendJob(messages ...interface{}) {
+	if len(messages) == 0 {
+		return
+	}
+	s.JobChan <- NewJob(messages, s.MaxRetry, s.BackOff)
 }
 
 func (s *Subscriber) HandleNewBlockWithValidation(evt core.ChainEvent) {
@@ -398,11 +447,49 @@ func (s *Subscriber) HandleNewBlock(evt core.ChainEvent) {
 		}
 		messages = append(messages, s.eventPublisher.newMessage(s.chainEventTopic, blockData))
 	}
-	messages = append(messages, s.HandleNewTransactions(s.transactionsTopic, block.Hash(), block.NumberU64(), txs, receipts)...)
+	// call send confirmed block with block behind with current block `confirmBlockAt` blocks
+	go s.SendConfirmedBlock(block.NumberU64()-uint64(s.confirmBlockAt))
 
-	if len(messages) > 0 {
-		log.Info("[HandleNewBlock] sending messages to jobChan", "messages", len(messages), "height", block.NumberU64(), "txs", len(txs), "logs", len(logs))
-		s.JobChan <- NewJob(messages, s.MaxRetry, s.BackOff)
+	// handle sending new transactions
+	messages = append(messages, s.HandleNewTransactions(s.transactionsTopic, s.logsTopic, block.Hash(), block.NumberU64(), txs, receipts)...)
+
+	log.Info("[HandleNewBlock] sending new block messages to jobChan", "messages", len(messages), "height", block.NumberU64(), "txs", len(txs), "logs", len(logs))
+	s.SendJob(messages...)
+}
+
+func (s *Subscriber) SendConfirmedBlock(height uint64) {
+	messages := make([]interface{}, 0)
+	if s.confirmedBlockTopic != "" {
+		// get block by number
+		block, err := s.backend.BlockByNumber(context.Background(), rpc.BlockNumber(height))
+		if err != nil {
+			log.Error("[Subscriber][HandleConfirmedBlock] BlockByNumber", "err", err, "height", height)
+			return
+		}
+		// get receipts by number
+		receipts, err := s.backend.GetReceipts(context.Background(), block.Hash())
+		if err != nil {
+			log.Error("[Subscriber][HandleConfirmedBlock] GetReceipts", "err", err, "height", height)
+			return
+		}
+		// marshal block
+		blockData, err := json.Marshal(newBlock(block))
+		if err != nil {
+			log.Error("[Subscriber][HandleConfirmedBlock] Marshal Block Data", "error", err, "height", height)
+			return
+		}
+		messages = append(messages, s.eventPublisher.newMessage(s.chainSideTopic, blockData))
+
+		if block.Transactions().Len() != len(receipts) {
+			log.Error("[Subscriber][HandleConfirmedBlock] mismatched txs len and receipts len",
+				"height", height, "txs len", block.Transactions().Len(), "receipts len", len(receipts))
+			return
+		}
+		messages = append(messages, s.HandleNewTransactions(s.confirmedTransactionTopic, s.confirmedLogsTopic,
+			block.Hash(), height, block.Transactions(), receipts)...)
+
+		log.Info("[HandleNewBlock] sending confirmed block messages to jobChan", "messages", len(messages), "height", height)
+		s.SendJob(messages...)
 	}
 }
 
@@ -420,34 +507,32 @@ func (s *Subscriber) HandleReorgBlock(evt core.ChainSideEvent) {
 	if s.chainSideTopic != "" {
 		blockData, err := json.Marshal(newBlock(block))
 		if err != nil {
-			log.Error("[HandleNewBlock]Marshal Block Data", "error", err, "blockHeight", block.NumberU64())
+			log.Error("[HandleReorgBlock]Marshal Block Data", "error", err, "blockHeight", block.NumberU64())
 			return
 		}
 		messages = append(messages, s.eventPublisher.newMessage(s.chainSideTopic, blockData))
 	}
-	messages = append(messages, s.HandleNewTransactions(s.reorgTransactionsTopic, block.Hash(), block.NumberU64(), txs, nil)...)
+	messages = append(messages, s.HandleNewTransactions(s.reorgTransactionsTopic, s.logsTopic, block.Hash(), block.NumberU64(), txs, nil)...)
 
-	if len(messages) > 0 {
-		log.Info("[HandleReorgBlock] sending messages to jobChan", "messages", len(messages), "height", block.NumberU64(), "txs", len(txs))
-		s.JobChan <- NewJob(messages, s.MaxRetry, s.BackOff)
-	}
+	log.Info("[HandleReorgBlock] sending reOrg block messages to jobChan", "messages", len(messages), "height", block.NumberU64(), "txs", len(txs))
+	s.SendJob(messages...)
 }
 
 // HandleNewTransactions converts transaction to readable transaction (JSON) based on transactions list and receipts list and push them message broker.
 // if there is any topic within receipts call HandleLogs also to add all Logs to messages
-func (s *Subscriber) HandleNewTransactions(topic string, hash common.Hash, number uint64, txs types.Transactions, receipts types.Receipts) []interface{} {
+func (s *Subscriber) HandleNewTransactions(topic, logsTopic string, hash common.Hash, number uint64, txs types.Transactions, receipts types.Receipts) []interface{} {
 	messages := make([]interface{}, 0)
-	if s.transactionsTopic != "" {
+	if topic != "" {
 		for i, tx := range txs {
 			transaction := newTransaction(tx, hash, number, i, receipts)
 			txData, err := json.Marshal(transaction)
 			if err != nil {
-				log.Error("[HandleNewBlock]Marshal Transaction Data", "error", err, "blockHeight", number, "index", i)
+				log.Error("[HandleNewTransactions]Marshal Transaction Data", "error", err, "blockHeight", number, "index", i)
 				continue
 			}
 			messages = append(messages, s.eventPublisher.newMessage(topic, txData))
 			if receipts != nil && len(receipts) == len(txs) {
-				messages = append(messages, s.HandleLogs(hash, tx.Hash(), number, uint(i), receipts[i].Logs)...)
+				messages = append(messages, s.HandleLogs(logsTopic, hash, tx.Hash(), number, uint(i), receipts[i].Logs)...)
 			}
 		}
 	}
@@ -457,9 +542,9 @@ func (s *Subscriber) HandleNewTransactions(topic string, hash common.Hash, numbe
 // HandleLogs converts list of logs to binary and add to published messaged
 // When syncing using snap/fast mode, log does not contain txHash, blockHash, blockNumber and txIndex
 // Therefore we add these variables from params and update each log with these params.
-func (s *Subscriber) HandleLogs(hash, txHash common.Hash, number uint64, txIndex uint, logs []*types.Log) []interface{} {
+func (s *Subscriber) HandleLogs(topic string, hash, txHash common.Hash, number uint64, txIndex uint, logs []*types.Log) []interface{} {
 	messages := make([]interface{}, 0)
-	if s.logsTopic != "" {
+	if topic != "" {
 		for _, l := range logs {
 			if l.BlockNumber < s.FromHeight {
 				return messages
@@ -470,10 +555,10 @@ func (s *Subscriber) HandleLogs(hash, txHash common.Hash, number uint64, txIndex
 			l.TxIndex = txIndex
 			logData, err := json.Marshal(l)
 			if err != nil {
-				log.Error("[HandleNewBlock]Marshal log data", "err", err, "blockHeight", l.BlockNumber, "index", l.TxIndex)
+				log.Error("[HandleLogs]Marshal log data", "err", err, "blockHeight", l.BlockNumber, "index", l.TxIndex)
 				continue
 			}
-			messages = append(messages, s.eventPublisher.newMessage(s.logsTopic, logData))
+			messages = append(messages, s.eventPublisher.newMessage(topic, logData))
 		}
 	}
 	return messages
@@ -496,10 +581,8 @@ func (s *Subscriber) HandleRemoveRebirthLogs(logs []*types.Log) {
 			messages = append(messages, s.eventPublisher.newMessage(s.logsTopic, logData))
 		}
 	}
-	if len(messages) > 0 {
-		log.Info("[HandleRemoveRebirthLogs] sending messages to jobChan", "messages", len(messages))
-		s.JobChan <- NewJob(messages, s.MaxRetry, s.BackOff)
-	}
+	log.Info("[HandleRemoveRebirthLogs] sending remove/rebirth logs messages to jobChan", "messages", len(messages))
+	s.SendJob(messages...)
 }
 
 // Start starts a subscriber which do the following:

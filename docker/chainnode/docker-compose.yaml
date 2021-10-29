@@ -15,7 +15,7 @@ services:
     volumes:
       - ~/.skymavis/ronin:/opt/ronin
     environment:
-      - SYNC_MODE=snap
+      - SYNC_MODE=${SYNC_MODE}
       - BOOTNODES=${BOOTNODES}
       - NETWORK_ID=${NETWORK_ID}
       - GENESIS_PATH=${GENESIS_PATH}
@@ -27,5 +27,6 @@ services:
       - KAFKA_PASSWORD=${KAFKA_PASSWORD}
       - KAFKA_AUTHENTICATION_TYPE=${KAFKA_AUTHENTICATION_TYPE}
       - VERBOSITY=${VERBOSITY}
+      - CONFIRM_BLOCK_AT=${CONFIRM_BLOCK_AT}
       - RONIN_PARAMS=${RONIN_PARAMS}
     network_mode: bridge

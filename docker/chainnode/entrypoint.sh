@@ -18,6 +18,7 @@
 # variables
 genesisPath=""
 params=""
+syncmode="snap"
 
 # networkid
 if [[ ! -z $NETWORK_ID ]]; then
@@ -111,7 +112,7 @@ fi
 
 # syncmode
 if [[ ! -z $SYNC_MODE ]]; then
-  params="$params --syncmode ${SYNC_MODE}"
+  syncmode="$SYNC_MODE"
 fi
 
 # debug mode - enable rpc and disable local transactions
@@ -138,11 +139,14 @@ fi
 echo "checking subscriber=$SUBSCRIBER kafka_url=$KAFKA_URL"
 # subscriber
 if [ "$SUBSCRIBER" = "true" ]; then
-  params="$params --subscriber --subscriber.blockEventTopic block_event"
-  params="$params --subscriber.txEventTopic txs_event"
-  params="$params --subscriber.logsEventTopic logs_event"
-  params="$params --subscriber.reOrgBlockEventTopic reorg_event"
-  params="$params --subscriber.reorgTxEventTopic reorg_tx_event"
+  params="$params --subscriber --subscriber.blockEventTopic subscriber.block"
+  params="$params --subscriber.txEventTopic subscriber.txs"
+  params="$params --subscriber.logsEventTopic subscriber.logs"
+  params="$params --subscriber.reOrgBlockEventTopic subscriber.block.reorg"
+  params="$params --subscriber.reorgTxEventTopic subscriber.txs.reorg"
+  params="$params --subscriber.blockConfirmedEventTopic subscriber.block.confirmed"
+  params="$params --subscriber.transactionConfirmedEventTopic subscriber.txs.confirmed"
+  params="$params --subscriber.logsConfirmedEventTopic subscriber.logs.confirmed"
 
   if [[ ! -z $KAFKA_URL ]]; then
     params="$params --subscriber.kafka.url $KAFKA_URL"
@@ -166,6 +170,10 @@ if [ "$SUBSCRIBER" = "true" ]; then
   if [[ ! -z $SUBSCRIBER_FROM_HEIGHT ]]; then
     params="$params --subscriber.fromHeight $SUBSCRIBER_FROM_HEIGHT"
   fi
+
+  if [[ ! -z $CONFIRM_BLOCK_AT ]]; then
+    params="$params --subscriber.confirmBlockAt $CONFIRM_BLOCK_AT"
+  fi
 fi
 
 if [[ ! -z $KEYSTORE_DIR ]]; then
@@ -188,6 +196,7 @@ set -x
 echo "params: $params"
 
 exec ronin $params \
+  --syncmode $syncmode \
   --verbosity $VERBOSITY \
   --datadir $DATA_DIR \
   --port 30303 \
