@@ -458,12 +458,19 @@ func (s *Subscriber) HandleNewBlock(evt core.ChainEvent) {
 }
 
 func (s *Subscriber) SendConfirmedBlock(height uint64) {
+	if height < 0 {
+		return
+	}
 	messages := make([]interface{}, 0)
 	if s.confirmedBlockTopic != "" {
 		// get block by number
 		block, err := s.backend.BlockByNumber(context.Background(), rpc.BlockNumber(height))
 		if err != nil {
 			log.Error("[Subscriber][HandleConfirmedBlock] BlockByNumber", "err", err, "height", height)
+			return
+		}
+		if block == nil {
+			log.Debug("[Subscriber][HandleConfirmedBlock] Could not find block", "height", height)
 			return
 		}
 		// get receipts by number

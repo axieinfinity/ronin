@@ -51,7 +51,7 @@ fi
 if [[ ! -d $DATA_DIR/ronin ]]; then
   echo "No blockchain data, creating genesis block."
   ronin init $genesisPath --datadir $DATA_DIR 2> /dev/null
-elif [[ $FORCE_INIT = 'true' ]]; then
+elif [ "$FORCE_INIT" = "true" ]; then
   echo "Forcing update chain config."
   ronin init $genesisPath --datadir $DATA_DIR 2> /dev/null
 fi
