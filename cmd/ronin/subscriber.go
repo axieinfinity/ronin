@@ -135,10 +135,24 @@ var (
 	}
 )
 
+type NewLog struct {
+	Address     common.Address `json:"address" gencodec:"required"`
+	Topics      []common.Hash  `json:"topics" gencodec:"required"`
+	Data        []byte         `json:"data" gencodec:"required"`
+	BlockNumber uint64         `json:"blockNumber"`
+	TxHash      common.Hash    `json:"transactionHash" gencodec:"required"`
+	TxIndex     uint           `json:"transactionIndex"`
+	BlockHash   common.Hash    `json:"blockHash"`
+	Index       uint           `json:"logIndex"`
+	Removed     bool           `json:"removed"`
+	TimeStamp   uint64         `json:"timestamp"`
+}
+
 // NewTransaction represents a transaction that will be published to message broker when new block has been mined
 type NewTransaction struct {
 	BlockHash         common.Hash     `json:"blockHash"`
 	BlockNumber       uint64          `json:"blockNumber"`
+	TimeStamp         uint64          `json:"timestamp"`
 	From              common.Address  `json:"from"`
 	ContractAddress   common.Address  `json:"contractAddress"`
 	Status            uint64          `json:"status"`
@@ -178,7 +192,7 @@ type NewBlock struct {
 	ReceiptsRoot         common.Hash    `json:"receiptsRoot"`
 }
 
-func newTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber uint64, index int, receipts types.Receipts) *NewTransaction {
+func newTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber, timestamp uint64, index int, receipts types.Receipts) *NewTransaction {
 	var signer types.Signer = types.FrontierSigner{}
 	if tx.Protected() {
 		signer = types.NewEIP155Signer(tx.ChainId())
@@ -187,17 +201,18 @@ func newTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber ui
 	v, r, s := tx.RawSignatureValues()
 
 	result := &NewTransaction{
-		From:     from,
-		Gas:      hexutil.Uint64(tx.Gas()),
-		GasPrice: (*hexutil.Big)(tx.GasPrice()),
-		Hash:     tx.Hash(),
-		Input:    hexutil.Bytes(tx.Data()),
-		Nonce:    hexutil.Uint64(tx.Nonce()),
-		To:       tx.To(),
-		Value:    (*hexutil.Big)(tx.Value()),
-		V:        (*hexutil.Big)(v),
-		R:        (*hexutil.Big)(r),
-		S:        (*hexutil.Big)(s),
+		From:      from,
+		TimeStamp: timestamp,
+		Gas:       hexutil.Uint64(tx.Gas()),
+		GasPrice:  (*hexutil.Big)(tx.GasPrice()),
+		Hash:      tx.Hash(),
+		Input:     hexutil.Bytes(tx.Data()),
+		Nonce:     hexutil.Uint64(tx.Nonce()),
+		To:        tx.To(),
+		Value:     (*hexutil.Big)(tx.Value()),
+		V:         (*hexutil.Big)(v),
+		R:         (*hexutil.Big)(r),
+		S:         (*hexutil.Big)(s),
 	}
 	if blockHash != (common.Hash{}) {
 		result.BlockHash = blockHash
@@ -234,6 +249,21 @@ func newBlock(b *types.Block) *NewBlock {
 		TransactionsRoot:     head.TxHash,
 		ReceiptsRoot:         head.ReceiptHash,
 		NumberOfTransactions: b.Transactions().Len(),
+	}
+}
+
+func newLog(log *types.Log, timestamp uint64) *NewLog {
+	return &NewLog{
+		Address:     log.Address,
+		Topics:      log.Topics,
+		Data:        log.Data,
+		BlockNumber: log.BlockNumber,
+		TxHash:      log.TxHash,
+		TxIndex:     log.TxIndex,
+		BlockHash:   log.BlockHash,
+		Index:       log.Index,
+		Removed:     log.Removed,
+		TimeStamp:   timestamp,
 	}
 }
 
@@ -295,7 +325,7 @@ type Subscriber struct {
 
 	confirmedBlockTopic       string
 	confirmedTransactionTopic string
-	confirmedLogsTopic       string
+	confirmedLogsTopic        string
 
 	// message backoff
 	MaxRetry int
@@ -332,13 +362,13 @@ func NewSubscriber(eth ethapi.Backend, ctx *cli.Context) *Subscriber {
 	workers := defaultWorkers
 	subCtx, cancelCtx := context.WithCancel(context.Background())
 	subs := &Subscriber{
-		backend:      eth,
-		ctx:          subCtx,
-		cancelCtx:    cancelCtx,
-		MaxRetry:     100,
-		BackOff:      5,
-		Workers:      make([]*Worker, 0),
-		MaxQueueSize: defaultMaxQueueSize,
+		backend:        eth,
+		ctx:            subCtx,
+		cancelCtx:      cancelCtx,
+		MaxRetry:       100,
+		BackOff:        5,
+		Workers:        make([]*Worker, 0),
+		MaxQueueSize:   defaultMaxQueueSize,
 		confirmBlockAt: defaultConfirmAt,
 	}
 	if ctx.GlobalIsSet(QueueSizeFlag.Name) {
@@ -448,10 +478,10 @@ func (s *Subscriber) HandleNewBlock(evt core.ChainEvent) {
 		messages = append(messages, s.eventPublisher.newMessage(s.chainEventTopic, blockData))
 	}
 	// call send confirmed block with block behind with current block `confirmBlockAt` blocks
-	go s.SendConfirmedBlock(block.NumberU64()-uint64(s.confirmBlockAt))
+	go s.SendConfirmedBlock(block.NumberU64() - uint64(s.confirmBlockAt))
 
 	// handle sending new transactions
-	messages = append(messages, s.HandleNewTransactions(s.transactionsTopic, s.logsTopic, block.Hash(), block.NumberU64(), txs, receipts)...)
+	messages = append(messages, s.HandleNewTransactions(s.transactionsTopic, s.logsTopic, block.Hash(), block.NumberU64(), block.Time(), txs, receipts)...)
 
 	log.Info("[HandleNewBlock] sending new block messages to jobChan", "messages", len(messages), "height", block.NumberU64(), "txs", len(txs), "logs", len(logs))
 	s.SendJob(messages...)
@@ -493,7 +523,7 @@ func (s *Subscriber) SendConfirmedBlock(height uint64) {
 			return
 		}
 		messages = append(messages, s.HandleNewTransactions(s.confirmedTransactionTopic, s.confirmedLogsTopic,
-			block.Hash(), height, block.Transactions(), receipts)...)
+			block.Hash(), height, block.Time(), block.Transactions(), receipts)...)
 
 		log.Info("[HandleNewBlock] sending confirmed block messages to jobChan", "messages", len(messages), "height", height)
 		s.SendJob(messages...)
@@ -519,7 +549,7 @@ func (s *Subscriber) HandleReorgBlock(evt core.ChainSideEvent) {
 		}
 		messages = append(messages, s.eventPublisher.newMessage(s.chainSideTopic, blockData))
 	}
-	messages = append(messages, s.HandleNewTransactions(s.reorgTransactionsTopic, s.logsTopic, block.Hash(), block.NumberU64(), txs, nil)...)
+	messages = append(messages, s.HandleNewTransactions(s.reorgTransactionsTopic, s.logsTopic, block.Hash(), block.NumberU64(), block.Time(), txs, nil)...)
 
 	log.Info("[HandleReorgBlock] sending reOrg block messages to jobChan", "messages", len(messages), "height", block.NumberU64(), "txs", len(txs))
 	s.SendJob(messages...)
@@ -527,11 +557,11 @@ func (s *Subscriber) HandleReorgBlock(evt core.ChainSideEvent) {
 
 // HandleNewTransactions converts transaction to readable transaction (JSON) based on transactions list and receipts list and push them message broker.
 // if there is any topic within receipts call HandleLogs also to add all Logs to messages
-func (s *Subscriber) HandleNewTransactions(topic, logsTopic string, hash common.Hash, number uint64, txs types.Transactions, receipts types.Receipts) []interface{} {
+func (s *Subscriber) HandleNewTransactions(topic, logsTopic string, hash common.Hash, number uint64, timestamp uint64, txs types.Transactions, receipts types.Receipts) []interface{} {
 	messages := make([]interface{}, 0)
 	if topic != "" {
 		for i, tx := range txs {
-			transaction := newTransaction(tx, hash, number, i, receipts)
+			transaction := newTransaction(tx, hash, number, timestamp, i, receipts)
 			txData, err := json.Marshal(transaction)
 			if err != nil {
 				log.Error("[HandleNewTransactions]Marshal Transaction Data", "error", err, "blockHeight", number, "index", i)
@@ -551,6 +581,7 @@ func (s *Subscriber) HandleNewTransactions(topic, logsTopic string, hash common.
 // Therefore we add these variables from params and update each log with these params.
 func (s *Subscriber) HandleLogs(topic string, hash, txHash common.Hash, number uint64, txIndex uint, logs []*types.Log) []interface{} {
 	messages := make([]interface{}, 0)
+	blockTimes := make(map[uint64]uint64)
 	if topic != "" {
 		for _, l := range logs {
 			if l.BlockNumber < s.FromHeight {
@@ -560,7 +591,16 @@ func (s *Subscriber) HandleLogs(topic string, hash, txHash common.Hash, number u
 			l.BlockHash = hash
 			l.BlockNumber = number
 			l.TxIndex = txIndex
-			logData, err := json.Marshal(l)
+			// block time at current number is not find then find it in database
+			if blockTimes[number] == 0 {
+				header, err := s.backend.HeaderByHash(context.Background(), hash)
+				if err != nil {
+					log.Error("[HandleLogs]Get Header by block height", "number", number, "err", err)
+					continue
+				}
+				blockTimes[number] = header.Time
+			}
+			logData, err := json.Marshal(newLog(l, blockTimes[number]))
 			if err != nil {
 				log.Error("[HandleLogs]Marshal log data", "err", err, "blockHeight", l.BlockNumber, "index", l.TxIndex)
 				continue
@@ -572,17 +612,27 @@ func (s *Subscriber) HandleLogs(topic string, hash, txHash common.Hash, number u
 }
 
 // HandleRemoveRebirthLogs handles removedLogsEvent from blockchain.
-// these logs are called when reorg occur and they need to be removed.
+// these logs are called when reorg occurs, and they need to be removed.
 func (s *Subscriber) HandleRemoveRebirthLogs(logs []*types.Log) {
 	messages := make([]interface{}, 0)
+	blockTimes := make(map[uint64]uint64)
 	if s.logsTopic != "" {
 		for _, l := range logs {
 			if l.BlockNumber < s.FromHeight {
 				return
 			}
-			logData, err := json.Marshal(l)
+			// block time at current number is not find then find it in database
+			if blockTimes[l.BlockNumber] == 0 {
+				header, err := s.backend.HeaderByHash(context.Background(), l.BlockHash)
+				if err != nil {
+					log.Error("[HandleRemoveRebirthLogs] Get Header by block height", "number", l.BlockNumber, "err", err)
+					continue
+				}
+				blockTimes[l.BlockNumber] = header.Time
+			}
+			logData, err := json.Marshal(newLog(l, blockTimes[l.BlockNumber]))
 			if err != nil {
-				log.Error("[HandleRemoveRebirthLogs]Marshal log data", "err", err, "blockHeight", l.BlockNumber, "index", l.TxIndex)
+				log.Error("[HandleRemoveRebirthLogs] Marshal log data", "err", err, "blockHeight", l.BlockNumber, "index", l.TxIndex)
 				continue
 			}
 			messages = append(messages, s.eventPublisher.newMessage(s.logsTopic, logData))
@@ -725,6 +775,7 @@ func (w *Worker) start() {
 			if job.NextTry == 0 || job.NextTry <= time.Now().Second() {
 				log.Debug("publishing message", "id", w.id, "message", job.Message, "retryCount", job.RetryCount)
 				if err := w.publishFn(job); err != nil {
+					log.Error("[worker][publishing]", "err", err)
 					// check if this job reaches maxTry or not
 					// if it is not send it back to mainChan
 					if job.RetryCount+1 > job.MaxTry {
@@ -759,9 +810,10 @@ func (s *DefaultEventPublisher) publish(job Job) error {
 		messages = append(messages, message.(kafka.Message))
 	}
 	w := &kafka.Writer{
-		Addr:        kafka.TCP(s.URL),
-		Compression: kafka.Snappy,
-		Balancer:    &kafka.RoundRobin{},
+		Addr:         kafka.TCP(s.URL),
+		Compression:  kafka.Snappy,
+		Balancer:     &kafka.RoundRobin{},
+		WriteTimeout: 10 * time.Second,
 	}
 	defer w.Close()
 	return w.WriteMessages(context.Background(), messages...)
