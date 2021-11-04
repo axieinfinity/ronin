@@ -515,7 +515,7 @@ func (s *Subscriber) SendConfirmedBlock(height uint64) {
 			log.Error("[Subscriber][HandleConfirmedBlock] Marshal Block Data", "error", err, "height", height)
 			return
 		}
-		messages = append(messages, s.eventPublisher.newMessage(s.chainSideTopic, blockData))
+		messages = append(messages, s.eventPublisher.newMessage(s.confirmedBlockTopic, blockData))
 
 		if block.Transactions().Len() != len(receipts) {
 			log.Error("[Subscriber][HandleConfirmedBlock] mismatched txs len and receipts len",
