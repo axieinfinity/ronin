@@ -773,7 +773,7 @@ func (w *Worker) start() {
 		select {
 		case job := <-w.workerChan:
 			if job.NextTry == 0 || job.NextTry <= time.Now().Second() {
-				log.Debug("publishing message", "id", w.id, "message", job.Message, "retryCount", job.RetryCount)
+				log.Debug("publishing message", "id", w.id, "messages", len(job.Message), "retryCount", job.RetryCount)
 				if err := w.publishFn(job); err != nil {
 					log.Error("[worker][publishing]", "err", err)
 					// check if this job reaches maxTry or not
@@ -812,7 +812,6 @@ func (s *DefaultEventPublisher) publish(job Job) error {
 	w := &kafka.Writer{
 		Addr:         kafka.TCP(s.URL),
 		Compression:  kafka.Snappy,
-		Balancer:     &kafka.RoundRobin{},
 		WriteTimeout: 10 * time.Second,
 	}
 	defer w.Close()
