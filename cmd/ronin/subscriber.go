@@ -96,14 +96,17 @@ var (
 	MaxRetryFlag = cli.IntFlag{
 		Name:  maxRetry,
 		Usage: "maximum retry time for a failed job",
+		Value: 100,
 	}
 	NumberOfWorkerFlag = cli.IntFlag{
 		Name:  numberOfWorker,
 		Usage: "number of concurrent workers",
+		Value: defaultWorkers,
 	}
 	BackOffFlag = cli.IntFlag{
 		Name:  backoff,
 		Usage: "the weighted number which is used for exponential backoff that handles failed job",
+		Value: 5,
 	}
 	PublisherFlag = cli.StringFlag{
 		Name:  publisherType,
@@ -128,10 +131,12 @@ var (
 	QueueSizeFlag = cli.IntFlag{
 		Name:  queueSize,
 		Usage: "specify size of workers queue and jobs queue",
+		Value: defaultMaxQueueSize,
 	}
 	ConfirmBlockAtFlag = cli.IntFlag{
 		Name:  confirmBlockAt,
 		Usage: "confirm block that behind current block height (is sent to new block topic) `confirmAt` blocks",
+		Value: defaultConfirmAt,
 	}
 )
 
