@@ -1745,11 +1745,6 @@ func (d *Downloader) importBlockResults(results []*fetchResult) error {
 	if index, err := d.blockchain.InsertChain(blocks); err != nil {
 		if index < len(results) {
 			log.Debug("Downloaded item processing failed", "number", results[index].Header.Number, "hash", results[index].Header.Hash(), "err", err)
-			// TODO(kiendn): implement mechanism to count number of errors happened (eg: BAD BLOCK)
-			//  and call the following code to reset blockchain's state to previous block
-			//if e := d.blockchain.FastSyncCommitHead(results[index].Header.ParentHash); e != nil {
-			//	log.Error("[importBlockResults] FastSyncCommitHead", "err", e)
-			//}
 		} else {
 			// The InsertChain method in blockchain.go will sometimes return an out-of-bounds index,
 			// when it needs to preprocess blocks to import a sidechain.
