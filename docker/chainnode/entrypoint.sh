@@ -11,14 +11,15 @@
 # - FORCE_INIT (default to 'true')
 
 # constants
-# DATA_DIR="/ronin/data"
-# KEYSTORE_DIR="/ronin/keystore"
-# PASSWORD_FILE="$KEYSTORE_DIR/password"
+DATA_DIR="/ronin/data"
+KEYSTORE_DIR="/ronin/keystore"
+PASSWORD_FILE="$KEYSTORE_DIR/password"
 
 # variables
 genesisPath=""
 params=""
 syncmode="snap"
+mine="true"
 
 # networkid
 if [[ ! -z $NETWORK_ID ]]; then
@@ -184,8 +185,12 @@ if [[ ! -z $PASSWORD_FILE ]]; then
   params="$params --password $PASSWORD_FILE"
 fi
 
-if [ "$MINE" = "true" ]; then
-  params="$param --mine"
+if [[ ! -z $MINE ]]; then
+  mine="$MINE"
+fi
+
+if [[ "$mine" = "true" ]]; then
+  params="$params --mine"
 fi
 
 # dump

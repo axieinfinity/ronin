@@ -28,8 +28,6 @@ COPY --from=builder /opt/build/bin/ronin /usr/local/bin/ronin
 COPY --from=builder /opt/genesis/ ./
 COPY --from=builder /opt/docker/chainnode/entrypoint.sh ./
 
-RUN mkdir ronin
-
 EXPOSE 8545 8546 30303 30303/udp
 
 ENTRYPOINT ["./entrypoint.sh"]
