@@ -11,7 +11,7 @@
 # - FORCE_INIT (default to 'true')
 
 # constants
-DATA_DIR="/ronin/data"
+datadir="/ronin/data"
 KEYSTORE_DIR="/ronin/keystore"
 PASSWORD_FILE="$KEYSTORE_DIR/password"
 
@@ -20,6 +20,10 @@ genesisPath=""
 params=""
 syncmode="snap"
 mine="true"
+
+if [[ ! -z $DATA_DIR ]]; then
+  datadir="$DATA_DIR"
+fi
 
 # networkid
 if [[ ! -z $NETWORK_ID ]]; then
@@ -49,12 +53,12 @@ if [[ ! -z $GENESIS_PATH ]]; then
 fi
 
 # data dir
-if [[ ! -d $DATA_DIR/ronin ]]; then
+if [[ ! -d $datadir/ronin ]]; then
   echo "No blockchain data, creating genesis block."
-  ronin init $genesisPath --datadir $DATA_DIR 2> /dev/null
+  ronin init $genesisPath --datadir $datadir 2> /dev/null
 elif [ "$FORCE_INIT" = "true" ]; then
   echo "Forcing update chain config."
-  ronin init $genesisPath --datadir $DATA_DIR 2> /dev/null
+  ronin init $genesisPath --datadir $datadir 2> /dev/null
 fi
 
 # password file
@@ -70,7 +74,7 @@ if [[ ! -f $PASSWORD_FILE ]]; then
 fi
 
 accountsCount=$(
-  ronin account list --datadir $DATA_DIR  --keystore $KEYSTORE_DIR \
+  ronin account list --datadir $datadir  --keystore $KEYSTORE_DIR \
   2> /dev/null \
   | wc -l
 )
@@ -82,14 +86,14 @@ if [[ $accountsCount -le 0 ]]; then
     echo "Creating account from private key"
     echo "$PRIVATE_KEY" > ./private_key
     ronin account import ./private_key \
-      --datadir $DATA_DIR \
+      --datadir $datadir \
       --keystore $KEYSTORE_DIR \
       --password $PASSWORD_FILE
     rm ./private_key
   else
     echo "Creating new account"
     ronin account new \
-      --datadir $DATA_DIR \
+      --datadir $datadir \
       --keystore $KEYSTORE_DIR \
       --password $PASSWORD_FILE
   fi
@@ -97,7 +101,7 @@ fi
 
 if [[ ! -z $KEYSTORE_DIR ]]; then
   account=$(
-    ronin account list --datadir $DATA_DIR  --keystore $KEYSTORE_DIR \
+    ronin account list --datadir $datadir  --keystore $KEYSTORE_DIR \
     2> /dev/null \
     | head -n 1 \
     | cut -d"{" -f 2 | cut -d"}" -f 1
@@ -203,7 +207,7 @@ echo "params: $params"
 exec ronin $params \
   --syncmode $syncmode \
   --verbosity $VERBOSITY \
-  --datadir $DATA_DIR \
+  --datadir $datadir \
   --port 30303 \
   --txpool.globalqueue 10000 \
   --txpool.globalslots 10000 \
