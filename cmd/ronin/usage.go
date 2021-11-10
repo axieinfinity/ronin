@@ -214,6 +214,10 @@ var AppHelpFlagGroups = []flags.FlagGroup{
 		}, debug.Flags...),
 	},
 	{
+		Name: "SUBSCRIBER",
+		Flags: subscriberFlags,
+	},
+	{
 		Name:  "METRICS AND STATS",
 		Flags: metricsFlags,
 	},

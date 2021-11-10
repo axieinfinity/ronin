@@ -11,13 +11,19 @@
 # - FORCE_INIT (default to 'true')
 
 # constants
-DATA_DIR="/ronin/data"
+datadir="/ronin/data"
 KEYSTORE_DIR="/ronin/keystore"
 PASSWORD_FILE="$KEYSTORE_DIR/password"
 
 # variables
 genesisPath=""
 params=""
+syncmode="snap"
+mine="true"
+
+if [[ ! -z $DATA_DIR ]]; then
+  datadir="$DATA_DIR"
+fi
 
 # networkid
 if [[ ! -z $NETWORK_ID ]]; then
@@ -47,12 +53,12 @@ if [[ ! -z $GENESIS_PATH ]]; then
 fi
 
 # data dir
-if [[ ! -d $DATA_DIR/ronin ]]; then
+if [[ ! -d $datadir/ronin ]]; then
   echo "No blockchain data, creating genesis block."
-  ronin init $genesisPath --datadir $DATA_DIR 2> /dev/null
-elif [[ $FORCE_INIT = 'true' ]]; then
+  ronin init $genesisPath --datadir $datadir 2> /dev/null
+elif [ "$FORCE_INIT" = "true" ]; then
   echo "Forcing update chain config."
-  ronin init $genesisPath --datadir $DATA_DIR 2> /dev/null
+  ronin init $genesisPath --datadir $datadir 2> /dev/null
 fi
 
 # password file
@@ -68,7 +74,7 @@ if [[ ! -f $PASSWORD_FILE ]]; then
 fi
 
 accountsCount=$(
-  ronin account list --datadir $DATA_DIR  --keystore $KEYSTORE_DIR \
+  ronin account list --datadir $datadir  --keystore $KEYSTORE_DIR \
   2> /dev/null \
   | wc -l
 )
@@ -80,27 +86,29 @@ if [[ $accountsCount -le 0 ]]; then
     echo "Creating account from private key"
     echo "$PRIVATE_KEY" > ./private_key
     ronin account import ./private_key \
-      --datadir $DATA_DIR \
+      --datadir $datadir \
       --keystore $KEYSTORE_DIR \
       --password $PASSWORD_FILE
     rm ./private_key
   else
     echo "Creating new account"
     ronin account new \
-      --datadir $DATA_DIR \
+      --datadir $datadir \
       --keystore $KEYSTORE_DIR \
       --password $PASSWORD_FILE
   fi
 fi
 
-account=$(
-  ronin account list --datadir $DATA_DIR  --keystore $KEYSTORE_DIR \
-  2> /dev/null \
-  | head -n 1 \
-  | cut -d"{" -f 2 | cut -d"}" -f 1
-)
-echo "Using account $account"
-params="$params --unlock $account"
+if [[ ! -z $KEYSTORE_DIR ]]; then
+  account=$(
+    ronin account list --datadir $datadir  --keystore $KEYSTORE_DIR \
+    2> /dev/null \
+    | head -n 1 \
+    | cut -d"{" -f 2 | cut -d"}" -f 1
+  )
+  echo "Using account $account"
+  params="$params --unlock $account"
+fi
 
 # bootnodes
 if [[ ! -z $BOOTNODES ]]; then
@@ -109,7 +117,7 @@ fi
 
 # syncmode
 if [[ ! -z $SYNC_MODE ]]; then
-  params="$params --syncmode ${SYNC_MODE}"
+  syncmode="$SYNC_MODE"
 fi
 
 # debug mode - enable rpc and disable local transactions
@@ -133,16 +141,70 @@ if [[ ! -z $GASPRICE ]]; then
   params="$params --miner.gasprice $GASPRICE"
 fi
 
+# subscriber
+if [ "$SUBSCRIBER" = "true" ]; then
+  params="$params --subscriber --subscriber.blockEventTopic subscriber.block"
+  params="$params --subscriber.txEventTopic subscriber.txs"
+  params="$params --subscriber.logsEventTopic subscriber.logs"
+  params="$params --subscriber.reOrgBlockEventTopic subscriber.block.reorg"
+  params="$params --subscriber.reorgTxEventTopic subscriber.txs.reorg"
+  params="$params --subscriber.blockConfirmedEventTopic subscriber.block.confirmed"
+  params="$params --subscriber.transactionConfirmedEventTopic subscriber.txs.confirmed"
+  params="$params --subscriber.logsConfirmedEventTopic subscriber.logs.confirmed"
+
+  if [[ ! -z $KAFKA_URL ]]; then
+    params="$params --subscriber.kafka.url $KAFKA_URL"
+  fi
+
+  if [ ! -z $KAFKA_USERNAME ] && [ ! -z KAFKA_PASSWORD]; then
+    params="$params --subscriber.kafka.username $KAFKA_USERNAME --subscriber.kafka.password $KAFKA_PASSWORD"
+  fi
+
+  if [[ ! -z $KAFKA_AUTHENTICATION_TYPE ]]; then
+    case $KAFKA_AUTHENTICATION_TYPE in
+      PLAIN|SCRAM-SHA-256|SCRAM-SHA-512 )
+        params="$params --subscriber.kafka.authentication $KAFKA_AUTHENTICATION_TYPE"
+        ;;
+      * )
+        params="$params --subscriber.kafka.authentication PLAIN"
+        ;;
+    esac
+  fi
+
+  if [[ ! -z $SUBSCRIBER_FROM_HEIGHT ]]; then
+    params="$params --subscriber.fromHeight $SUBSCRIBER_FROM_HEIGHT"
+  fi
+
+  if [[ ! -z $CONFIRM_BLOCK_AT ]]; then
+    params="$params --subscriber.confirmBlockAt $CONFIRM_BLOCK_AT"
+  fi
+fi
+
+if [[ ! -z $KEYSTORE_DIR ]]; then
+  params="$params --keystore $KEYSTORE_DIR"
+fi
+
+if [[ ! -z $PASSWORD_FILE ]]; then
+  params="$params --password $PASSWORD_FILE"
+fi
+
+if [[ ! -z $MINE ]]; then
+  mine="$MINE"
+fi
+
+if [[ "$mine" = "true" ]]; then
+  params="$params --mine"
+fi
+
 # dump
 echo "dump: $account $BOOTNODES"
 
 set -x
 
 exec ronin $params \
+  --syncmode $syncmode \
   --verbosity $VERBOSITY \
-  --datadir $DATA_DIR \
-  --keystore $KEYSTORE_DIR \
-  --password $PASSWORD_FILE \
+  --datadir $datadir \
   --port 30303 \
   --txpool.globalqueue 10000 \
   --txpool.globalslots 10000 \
@@ -155,7 +217,6 @@ exec ronin $params \
   --ws.addr 0.0.0.0 \
   --ws.port 8546 \
   --ws.origins "*" \
-  --mine \
   --allow-insecure-unlock \
   --miner.gastarget "100000000" \
   "$@"
