@@ -29,4 +29,5 @@ services:
       - VERBOSITY=${VERBOSITY}
       - CONFIRM_BLOCK_AT=${CONFIRM_BLOCK_AT}
       - RONIN_PARAMS=${RONIN_PARAMS}
+      - MINE=${MINE}
     network_mode: bridge

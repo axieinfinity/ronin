@@ -141,16 +141,17 @@ var (
 )
 
 type NewLog struct {
-	Address     common.Address `json:"address" gencodec:"required"`
-	Topics      []common.Hash  `json:"topics" gencodec:"required"`
-	Data        []byte         `json:"data" gencodec:"required"`
-	BlockNumber uint64         `json:"blockNumber"`
-	TxHash      common.Hash    `json:"transactionHash" gencodec:"required"`
-	TxIndex     uint           `json:"transactionIndex"`
-	BlockHash   common.Hash    `json:"blockHash"`
-	Index       uint           `json:"logIndex"`
-	Removed     bool           `json:"removed"`
-	TimeStamp   uint64         `json:"timestamp"`
+	Address       common.Address `json:"address" gencodec:"required"`
+	Topics        []common.Hash  `json:"topics" gencodec:"required"`
+	Data          []byte         `json:"data" gencodec:"required"`
+	BlockNumber   uint64         `json:"blockNumber"`
+	TxHash        common.Hash    `json:"transactionHash" gencodec:"required"`
+	TxIndex       uint           `json:"transactionIndex"`
+	BlockHash     common.Hash    `json:"blockHash"`
+	Index         uint           `json:"logIndex"`
+	Removed       bool           `json:"removed"`
+	TimeStamp     uint64         `json:"timestamp"`
+	PublishedTime int64          `json:"publishedTime"`
 }
 
 // NewTransaction represents a transaction that will be published to message broker when new block has been mined
@@ -174,6 +175,7 @@ type NewTransaction struct {
 	V                 *hexutil.Big    `json:"v"`
 	R                 *hexutil.Big    `json:"r"`
 	S                 *hexutil.Big    `json:"s"`
+	PublishedTime     int64           `json:"publishedTime"`
 }
 
 // NewBlock represents a block that will be published to message broker when new block has been mined
@@ -195,6 +197,7 @@ type NewBlock struct {
 	TimeStamp            hexutil.Uint64 `json:"timestamp"`
 	TransactionsRoot     common.Hash    `json:"transactionsRoot"`
 	ReceiptsRoot         common.Hash    `json:"receiptsRoot"`
+	PublishedTime        int64          `json:"publishedTime"`
 }
 
 func newTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber, timestamp uint64, index int, receipts types.Receipts) *NewTransaction {
@@ -206,18 +209,19 @@ func newTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber, t
 	v, r, s := tx.RawSignatureValues()
 
 	result := &NewTransaction{
-		From:      from,
-		TimeStamp: timestamp,
-		Gas:       hexutil.Uint64(tx.Gas()),
-		GasPrice:  (*hexutil.Big)(tx.GasPrice()),
-		Hash:      tx.Hash(),
-		Input:     hexutil.Bytes(tx.Data()),
-		Nonce:     hexutil.Uint64(tx.Nonce()),
-		To:        tx.To(),
-		Value:     (*hexutil.Big)(tx.Value()),
-		V:         (*hexutil.Big)(v),
-		R:         (*hexutil.Big)(r),
-		S:         (*hexutil.Big)(s),
+		From:          from,
+		TimeStamp:     timestamp,
+		Gas:           hexutil.Uint64(tx.Gas()),
+		GasPrice:      (*hexutil.Big)(tx.GasPrice()),
+		Hash:          tx.Hash(),
+		Input:         hexutil.Bytes(tx.Data()),
+		Nonce:         hexutil.Uint64(tx.Nonce()),
+		To:            tx.To(),
+		Value:         (*hexutil.Big)(tx.Value()),
+		V:             (*hexutil.Big)(v),
+		R:             (*hexutil.Big)(r),
+		S:             (*hexutil.Big)(s),
+		PublishedTime: time.Now().UnixNano(),
 	}
 	if blockHash != (common.Hash{}) {
 		result.BlockHash = blockHash
@@ -254,21 +258,23 @@ func newBlock(b *types.Block) *NewBlock {
 		TransactionsRoot:     head.TxHash,
 		ReceiptsRoot:         head.ReceiptHash,
 		NumberOfTransactions: b.Transactions().Len(),
+		PublishedTime:        time.Now().UnixNano(),
 	}
 }
 
 func newLog(log *types.Log, timestamp uint64) *NewLog {
 	return &NewLog{
-		Address:     log.Address,
-		Topics:      log.Topics,
-		Data:        log.Data,
-		BlockNumber: log.BlockNumber,
-		TxHash:      log.TxHash,
-		TxIndex:     log.TxIndex,
-		BlockHash:   log.BlockHash,
-		Index:       log.Index,
-		Removed:     log.Removed,
-		TimeStamp:   timestamp,
+		Address:       log.Address,
+		Topics:        log.Topics,
+		Data:          log.Data,
+		BlockNumber:   log.BlockNumber,
+		TxHash:        log.TxHash,
+		TxIndex:       log.TxIndex,
+		BlockHash:     log.BlockHash,
+		Index:         log.Index,
+		Removed:       log.Removed,
+		TimeStamp:     timestamp,
+		PublishedTime: time.Now().UnixNano(),
 	}
 }
 
