@@ -141,7 +141,6 @@ if [[ ! -z $GASPRICE ]]; then
   params="$params --miner.gasprice $GASPRICE"
 fi
 
-echo "checking subscriber=$SUBSCRIBER kafka_url=$KAFKA_URL"
 # subscriber
 if [ "$SUBSCRIBER" = "true" ]; then
   params="$params --subscriber --subscriber.blockEventTopic subscriber.block"
@@ -201,8 +200,6 @@ fi
 echo "dump: $account $BOOTNODES"
 
 set -x
-
-echo "params: $params"
 
 exec ronin $params \
   --syncmode $syncmode \
