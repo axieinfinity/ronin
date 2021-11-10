@@ -197,6 +197,30 @@ var (
 		utils.MetricsInfluxDBPasswordFlag,
 		utils.MetricsInfluxDBTagsFlag,
 	}
+
+	subscriberFlags = []cli.Flag{
+		SubscriberFlag,
+		ChainEventFlag,
+		ChainSideEventFlag,
+		TransactionEventFlag,
+		ReorgTransactionEventFlag,
+		KafkaPartitionFlag,
+		KafkaUrlFlag,
+		KafkaAuthenticationFlag,
+		kafkaUsernameFlag,
+		kafkaPasswordFlag,
+		MaxRetryFlag,
+		NumberOfWorkerFlag,
+		BackOffFlag,
+		PublisherFlag,
+		FromHeightFlag,
+		LogsEventFlag,
+		QueueSizeFlag,
+		BlockConfirmedEventFlag,
+		TransactionConfirmedEventFlag,
+		LogsConfirmedEventFlag,
+		ConfirmBlockAtFlag,
+	}
 )
 
 func init() {
@@ -236,6 +260,7 @@ func init() {
 		// See snapshot.go
 		snapshotCommand,
 	}
+
 	sort.Sort(cli.CommandsByName(app.Commands))
 
 	app.Flags = append(app.Flags, nodeFlags...)
@@ -243,6 +268,7 @@ func init() {
 	app.Flags = append(app.Flags, consoleFlags...)
 	app.Flags = append(app.Flags, debug.Flags...)
 	app.Flags = append(app.Flags, metricsFlags...)
+	app.Flags = append(app.Flags, subscriberFlags...)
 
 	app.Before = func(ctx *cli.Context) error {
 		return debug.Setup(ctx)
@@ -317,6 +343,14 @@ func geth(ctx *cli.Context) error {
 	prepare(ctx)
 	stack, backend := makeFullNode(ctx)
 	defer stack.Close()
+
+	// subscribe backend event if any
+	if ctx.GlobalBool(SubscriberFlag.Name) {
+		subs := NewSubscriber(backend, ctx)
+		defer subs.Close()
+		// wait until subscriber finishes its initiation
+		<-subs.Start()
+	}
 
 	startNode(ctx, stack, backend)
 	stack.Wait()
