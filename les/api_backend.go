@@ -232,6 +232,10 @@ func (b *LesApiBackend) SubscribeLogsEvent(ch chan<- []*types.Log) event.Subscri
 	return b.eth.blockchain.SubscribeLogsEvent(ch)
 }
 
+func (b *LesApiBackend) SubscribeReorgEvent(ch chan<- core.ReorgEvent) event.Subscription {
+	return b.eth.blockchain.SubscribeReorgEvent(ch)
+}
+
 func (b *LesApiBackend) SubscribePendingLogsEvent(ch chan<- []*types.Log) event.Subscription {
 	return event.NewSubscription(func(quit <-chan struct{}) error {
 		<-quit

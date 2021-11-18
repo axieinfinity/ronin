@@ -201,7 +201,7 @@ var (
 	subscriberFlags = []cli.Flag{
 		SubscriberFlag,
 		ChainEventFlag,
-		ChainSideEventFlag,
+		ReOrgBlockEventFlag,
 		TransactionEventFlag,
 		ReorgTransactionEventFlag,
 		KafkaPartitionFlag,

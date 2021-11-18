@@ -56,7 +56,7 @@ var (
 		Name:  blockEventTopic,
 		Usage: "topic name that new block will be published to",
 	}
-	ChainSideEventFlag = cli.StringFlag{
+	ReOrgBlockEventFlag = cli.StringFlag{
 		Name:  reOrgBlockEventTopic,
 		Usage: "topic name that reorged block will be published to",
 	}
@@ -143,7 +143,7 @@ var (
 type NewLog struct {
 	Address       common.Address `json:"address" gencodec:"required"`
 	Topics        []common.Hash  `json:"topics" gencodec:"required"`
-	Data          []byte         `json:"data" gencodec:"required"`
+	Data          hexutil.Bytes  `json:"data" gencodec:"required"`
 	BlockNumber   uint64         `json:"blockNumber"`
 	TxHash        common.Hash    `json:"transactionHash" gencodec:"required"`
 	TxIndex       uint           `json:"transactionIndex"`
@@ -323,7 +323,7 @@ type Subscriber struct {
 	eventPublisher   Publisher
 	chainEvent       chan core.ChainEvent
 	resyncEvent      chan core.ChainEvent
-	chainSideEvent   chan core.ChainSideEvent
+	reorgEvent   chan core.ReorgEvent
 	removeLogsEvent  chan core.RemovedLogsEvent
 	rebirthLogsEvent chan []*types.Log
 
@@ -391,7 +391,7 @@ func NewSubscriber(eth ethapi.Backend, ctx *cli.Context) *Subscriber {
 	subs.JobChan = make(chan Job, subs.MaxQueueSize)
 	subs.Queue = make(chan chan Job, subs.MaxQueueSize)
 	subs.chainEvent = make(chan core.ChainEvent, subs.MaxQueueSize)
-	subs.chainSideEvent = make(chan core.ChainSideEvent, subs.MaxQueueSize)
+	subs.reorgEvent = make(chan core.ReorgEvent, subs.MaxQueueSize)
 	subs.removeLogsEvent = make(chan core.RemovedLogsEvent, subs.MaxQueueSize)
 	subs.rebirthLogsEvent = make(chan []*types.Log, subs.MaxQueueSize)
 	subs.resyncEvent = make(chan core.ChainEvent, subs.MaxQueueSize)
@@ -410,9 +410,9 @@ func NewSubscriber(eth ethapi.Backend, ctx *cli.Context) *Subscriber {
 		subs.chainEventTopic = ctx.GlobalString(ChainEventFlag.Name)
 		eth.SubscribeChainEvent(subs.chainEvent)
 	}
-	if ctx.GlobalIsSet(ChainSideEventFlag.Name) {
-		subs.chainSideTopic = ctx.GlobalString(ChainSideEventFlag.Name)
-		eth.SubscribeChainSideEvent(subs.chainSideEvent)
+	if ctx.GlobalIsSet(ReOrgBlockEventFlag.Name) {
+		subs.chainSideTopic = ctx.GlobalString(ReOrgBlockEventFlag.Name)
+		eth.SubscribeReorgEvent(subs.reorgEvent)
 	}
 	if ctx.GlobalIsSet(TransactionEventFlag.Name) {
 		subs.transactionsTopic = ctx.GlobalString(TransactionEventFlag.Name)
@@ -542,7 +542,7 @@ func (s *Subscriber) SendConfirmedBlock(height uint64) {
 }
 
 // HandleReorgBlock handles reOrg block event and push relevant block and transactions to message brokers using eventPublisher
-func (s *Subscriber) HandleReorgBlock(evt core.ChainSideEvent) {
+func (s *Subscriber) HandleReorgBlock(evt core.ReorgEvent) {
 	block := evt.Block
 	if block == nil || block.NumberU64() < s.FromHeight {
 		return
@@ -668,7 +668,7 @@ func (s *Subscriber) Start() chan struct{} {
 		queueStat := time.NewTimer(time.Millisecond)
 		for {
 			select {
-			case evt := <-s.chainSideEvent:
+			case evt := <-s.reorgEvent:
 				go s.HandleReorgBlock(evt)
 			case evt := <-s.resyncEvent:
 				s.HandleNewBlock(evt)
@@ -690,7 +690,7 @@ func (s *Subscriber) Start() chan struct{} {
 			case <-s.ctx.Done():
 				close(s.Queue)
 				close(s.JobChan)
-				close(s.chainSideEvent)
+				close(s.reorgEvent)
 				close(s.chainEvent)
 				close(s.rebirthLogsEvent)
 				close(s.removeLogsEvent)
