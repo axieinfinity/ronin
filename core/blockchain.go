@@ -177,6 +177,8 @@ type BlockChain struct {
 	rmLogsFeed    event.Feed
 	chainFeed     event.Feed
 	chainSideFeed event.Feed
+	// reorgFeed is used when canonical turns into side
+	reorgFeed     event.Feed
 	chainHeadFeed event.Feed
 	logsFeed      event.Feed
 	blockProcFeed event.Feed
@@ -1177,6 +1179,7 @@ func (bc *BlockChain) writeBlockWithoutState(block *types.Block, td *big.Int) (e
 func (bc *BlockChain) writeKnownBlock(block *types.Block) error {
 	current := bc.CurrentBlock()
 	if block.ParentHash() != current.Hash() {
+		log.Info("[reorg][writeKnownBlock]", "current", current, "newBlock", block)
 		if err := bc.reorg(current, block); err != nil {
 			return err
 		}
@@ -1293,6 +1296,8 @@ func (bc *BlockChain) writeBlockAndSetHead(block *types.Block, receipts []*types
 	if reorg {
 		// Reorganise the chain if the parent is not the head block
 		if block.ParentHash() != currentBlock.Hash() {
+			log.Info("[reorg][writeBlockWithState]",
+				"currentBlock", currentBlock, "currentTD", localTd.Uint64(), "newBlock", block, "newTD", externTd.Uint64())
 			if err := bc.reorg(currentBlock, block); err != nil {
 				return NonStatTy, err
 			}
@@ -2010,8 +2015,8 @@ func (bc *BlockChain) reorg(oldBlock, newBlock *types.Block) error {
 			msg = "Large chain reorg detected"
 			logFn = log.Warn
 		}
-		logFn(msg, "number", commonBlock.Number(), "hash", commonBlock.Hash(),
-			"drop", len(oldChain), "dropfrom", oldChain[0].Hash(), "add", len(newChain), "addfrom", newChain[0].Hash())
+		logFn(msg, "number", commonBlock.Number(), "hash", commonBlock.Hash().Hex(),
+			"drop", len(oldChain), "dropfrom", oldChain[0].Hash().Hex(), "add", len(newChain), "addfrom", newChain[0].Hash().Hex())
 		blockReorgAddMeter.Mark(int64(len(newChain)))
 		blockReorgDropMeter.Mark(int64(len(oldChain)))
 		blockReorgMeter.Mark(1)
@@ -2070,6 +2075,7 @@ func (bc *BlockChain) reorg(oldBlock, newBlock *types.Block) error {
 	if len(oldChain) > 0 {
 		for i := len(oldChain) - 1; i >= 0; i-- {
 			bc.chainSideFeed.Send(ChainSideEvent{Block: oldChain[i]})
+			bc.reorgFeed.Send(ReorgEvent{Block: oldChain[i]})
 		}
 	}
 	return nil
@@ -2312,4 +2318,9 @@ func (bc *BlockChain) InsertHeaderChain(chain []*types.Header, checkFreq int) (i
 	defer bc.chainmu.Unlock()
 	_, err := bc.hc.InsertHeaderChain(chain, start, bc.forker)
 	return 0, err
+}
+
+// SubscribeReorgEvent registers a subscription of ReorgEvent
+func (bc *BlockChain) SubscribeReorgEvent(ch chan<- ReorgEvent) event.Subscription {
+	return bc.scope.Track(bc.reorgFeed.Subscribe(ch))
 }

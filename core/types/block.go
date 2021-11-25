@@ -337,6 +337,10 @@ func (b *Block) SanityCheck() error {
 	return b.header.SanityCheck()
 }
 
+func (b *Block) String() string {
+	return fmt.Sprintf("{Number: %v, Hash: %v, Parent: %v, Signer: %v}", b.NumberU64(), b.Hash().Hex(), b.ParentHash().Hex(), b.Coinbase().Hex())
+}
+
 type writeCounter common.StorageSize
 
 func (c *writeCounter) Write(b []byte) (int, error) {

@@ -597,6 +597,12 @@ func (lc *LightChain) SubscribeRemovedLogsEvent(ch chan<- core.RemovedLogsEvent)
 	return lc.scope.Track(new(event.Feed).Subscribe(ch))
 }
 
+// SubscribeReorgEvent implements the interface of subscribe reorg event
+// LightChain does not do reorg, so return an empty subscription.
+func (lc *LightChain) SubscribeReorgEvent(ch chan<- core.ReorgEvent) event.Subscription {
+	return lc.scope.Track(new(event.Feed).Subscribe(ch))
+}
+
 // DisableCheckFreq disables header validation. This is used for ultralight mode.
 func (lc *LightChain) DisableCheckFreq() {
 	atomic.StoreInt32(&lc.disableCheckFreq, 1)
