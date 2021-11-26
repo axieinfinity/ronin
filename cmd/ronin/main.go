@@ -220,6 +220,7 @@ var (
 		TransactionConfirmedEventFlag,
 		LogsConfirmedEventFlag,
 		ConfirmBlockAtFlag,
+		CoolDownDurationFlag,
 	}
 )
 

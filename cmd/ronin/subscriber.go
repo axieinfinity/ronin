@@ -41,10 +41,12 @@ const (
 	kafkaAuthentication            = "subscriber.kafka.authentication"
 	queueSize                      = "subscriber.queueSize"
 	confirmBlockAt                 = "subscriber.confirmBlockAt"
+	coolDownDuration              = "subscriber.coolDownDuration"
 	defaultConfirmAt               = 10
 	statsDuration                  = 30
 	defaultWorkers                 = 1024
 	defaultMaxQueueSize            = 2048
+	defaultCoolDownDuration        = 0
 )
 
 var (
@@ -137,6 +139,11 @@ var (
 		Name:  confirmBlockAt,
 		Usage: "confirm block that behind current block height (is sent to new block topic) `confirmAt` blocks",
 		Value: defaultConfirmAt,
+	}
+	CoolDownDurationFlag = cli.IntFlag{
+		Name:  coolDownDuration,
+		Usage: "coolDownDuration is used to sleep for a while when a channel reaches its size",
+		Value: defaultCoolDownDuration,
 	}
 )
 
@@ -342,6 +349,9 @@ type Subscriber struct {
 	MaxRetry int
 	BackOff  int
 
+	// coolDownDuration is used to sleep for a while when a channel reaches its size
+	coolDownDuration int
+
 	// start publishing from specific block's height
 	// this field is necessary when we don't want to handle data which is already existed.
 	FromHeight uint64
@@ -381,6 +391,7 @@ func NewSubscriber(eth ethapi.Backend, ctx *cli.Context) *Subscriber {
 		Workers:        make([]*Worker, 0),
 		MaxQueueSize:   defaultMaxQueueSize,
 		confirmBlockAt: defaultConfirmAt,
+		coolDownDuration: defaultCoolDownDuration,
 	}
 	if ctx.GlobalIsSet(QueueSizeFlag.Name) {
 		queueSize := ctx.GlobalInt(QueueSizeFlag.Name)
@@ -449,6 +460,9 @@ func NewSubscriber(eth ethapi.Backend, ctx *cli.Context) *Subscriber {
 	if ctx.GlobalIsSet(ConfirmBlockAtFlag.Name) {
 		subs.confirmBlockAt = ctx.GlobalInt(ConfirmBlockAtFlag.Name)
 	}
+	if ctx.GlobalIsSet(CoolDownDurationFlag.Name) {
+		subs.coolDownDuration = ctx.GlobalInt(CoolDownDurationFlag.Name)
+	}
 
 	// init workers
 	for i := 0; i < workers; i++ {
@@ -457,9 +471,19 @@ func NewSubscriber(eth ethapi.Backend, ctx *cli.Context) *Subscriber {
 	return subs
 }
 
+func (s *Subscriber) CoolDown() {
+	if s.coolDownDuration > 0 {
+		<-time.NewTicker(time.Duration(s.coolDownDuration) * time.Second).C
+	}
+}
+
 func (s *Subscriber) SendJob(messages ...interface{}) {
 	if len(messages) == 0 {
 		return
+	}
+	if len(s.JobChan) >= s.MaxQueueSize {
+		log.Info("JobChan has reached its limit, Sleeping...")
+		s.CoolDown()
 	}
 	s.JobChan <- NewJob(messages, s.MaxRetry, s.BackOff)
 }
@@ -489,7 +513,9 @@ func (s *Subscriber) HandleNewBlock(evt core.ChainEvent) {
 		messages = append(messages, s.eventPublisher.newMessage(s.chainEventTopic, blockData))
 	}
 	// call send confirmed block with block behind with current block `confirmBlockAt` blocks
-	go s.SendConfirmedBlock(block.NumberU64() - uint64(s.confirmBlockAt))
+	if s.confirmBlockAt > 0 {
+		go s.SendConfirmedBlock(block.NumberU64() - uint64(s.confirmBlockAt))
+	}
 
 	// handle sending new transactions
 	messages = append(messages, s.HandleNewTransactions(s.transactionsTopic, s.logsTopic, block.Hash(), block.NumberU64(), block.Time(), txs, receipts)...)
@@ -723,29 +749,7 @@ func (s *Subscriber) resync() {
 	}
 	// loop until
 	for s.FromHeight < currentHeader {
-		var (
-			err      error
-			block    *types.Block
-			receipts types.Receipts
-			logs     []*types.Log
-		)
-		block, err = s.backend.BlockByNumber(context.Background(), rpc.BlockNumber(s.FromHeight))
-		if err != nil {
-			log.Error("[Subscriber][resync]BlockByNumber", "err", err, "height", s.FromHeight)
-		}
-		if block == nil {
-			goto CONTINUE
-		}
-		receipts, err = s.backend.GetReceipts(context.Background(), block.Hash())
-		if err != nil {
-			log.Error("[Subscriber][resync]GetReceipts", "err", err, "height", s.FromHeight)
-		}
-		logs = make([]*types.Log, 0)
-		for _, receipt := range receipts {
-			logs = append(logs, receipt.Logs...)
-		}
-		s.resyncEvent <- core.ChainEvent{Block: block, Logs: logs, Receipts: receipts}
-	CONTINUE:
+		s.SendConfirmedBlock(s.FromHeight)
 		s.FromHeight++
 	}
 }
