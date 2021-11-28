@@ -106,6 +106,11 @@ type Downloader struct {
 	mode uint32         // Synchronisation mode defining the strategy used (per sync cycle), use d.getMode() to get the SyncMode
 	mux  *event.TypeMux // Event multiplexer to announce sync operation events
 
+	scope           event.SubscriptionScope
+	startEventFeed  event.Feed
+	doneEventFeed   event.Feed
+	failedEventFeed event.Feed
+
 	checkpoint uint64   // Checkpoint block number to enforce head against (e.g. fast sync)
 	genesis    uint64   // Genesis block number to limit sync to (e.g. light client CHT)
 	queue      *queue   // Scheduler for selecting the hashes to download
@@ -460,14 +465,14 @@ func (d *Downloader) getMode() SyncMode {
 // syncWithPeer starts a block synchronization based on the hash chain from the
 // specified peer and head hash.
 func (d *Downloader) syncWithPeer(p *peerConnection, hash common.Hash, td *big.Int) (err error) {
-	d.mux.Post(StartEvent{})
+	d.startEvent()
 	defer func() {
 		// reset on error
 		if err != nil {
-			d.mux.Post(FailedEvent{err})
+			d.failedEvent(err)
 		} else {
 			latest := d.lightchain.CurrentHeader()
-			d.mux.Post(DoneEvent{latest})
+			d.doneEvent(latest)
 		}
 	}()
 	if p.version < eth.ETH65 {
@@ -2105,4 +2110,31 @@ func (d *Downloader) requestTTL() time.Duration {
 		ttl = ttlLimit
 	}
 	return ttl
+}
+
+func (d *Downloader) SubscribeStartEvent(ch chan struct{}) {
+	d.scope.Track(d.startEventFeed.Subscribe(ch))
+}
+
+func (d *Downloader) SubscribeFailedEvent(ch chan error) {
+	d.scope.Track(d.failedEventFeed.Subscribe(ch))
+}
+
+func (d *Downloader) SubscribeDoneEvent(ch chan *types.Header) {
+	d.scope.Track(d.doneEventFeed.Subscribe(ch))
+}
+
+func (d *Downloader) startEvent() {
+	d.mux.Post(StartEvent{})
+	d.startEventFeed.Send(struct{}{})
+}
+
+func (d *Downloader) failedEvent(err error) {
+	d.mux.Post(FailedEvent{err})
+	d.failedEventFeed.Send(err)
+}
+
+func (d *Downloader) doneEvent(latest *types.Header) {
+	d.mux.Post(DoneEvent{latest})
+	d.doneEventFeed.Send(latest)
 }

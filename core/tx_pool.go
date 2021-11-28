@@ -87,6 +87,8 @@ var (
 
 	// ErrUnauthorizedDeployer is returned if a unauthorized address tries to deploy
 	ErrUnauthorizedDeployer = errors.New("unauthorized deployer")
+
+	ErrNodeIsBehind = errors.New("node is behind")
 )
 
 var (
@@ -256,6 +258,11 @@ type TxPool struct {
 	reorgDoneCh     chan chan struct{}
 	reorgShutdownCh chan struct{}  // requests shutdown of scheduleReorgLoop
 	wg              sync.WaitGroup // tracks loop, scheduleReorgLoop
+
+	isDownloading   bool // track whether node is in downloading mode or not, if it is add local node will be disabled
+	StartDownloadCh  chan struct{}
+	DownloadFailedCh chan error
+	DoneCh           chan *types.Header
 }
 
 type txpoolResetRequest struct {
@@ -285,6 +292,10 @@ func NewTxPool(config TxPoolConfig, chainconfig *params.ChainConfig, chain block
 		reorgDoneCh:     make(chan chan struct{}),
 		reorgShutdownCh: make(chan struct{}),
 		gasPrice:        new(big.Int).SetUint64(config.PriceLimit),
+		isDownloading:   false,
+		StartDownloadCh:  make(chan struct{}),
+		DownloadFailedCh: make(chan error),
+		DoneCh:           make(chan *types.Header),
 	}
 	pool.locals = newAccountSet(pool.signer)
 	for _, addr := range config.Locals {
@@ -391,8 +402,19 @@ func (pool *TxPool) loop() {
 				}
 				pool.mu.Unlock()
 			}
+		case <-pool.StartDownloadCh:
+			pool.SetIsDownloading(true)
+		case <-pool.DownloadFailedCh:
+		case <-pool.DoneCh:
+			pool.SetIsDownloading(false)
 		}
 	}
+}
+
+func (pool *TxPool) SetIsDownloading(isDownloading bool) {
+	pool.mu.Lock()
+	defer pool.mu.Unlock()
+	pool.isDownloading = isDownloading
 }
 
 // Stop terminates the transaction pool.
@@ -768,11 +790,18 @@ func (pool *TxPool) promoteTx(addr common.Address, hash common.Hash, tx *types.T
 // This method is used to add transactions from the RPC API and performs synchronous pool
 // reorganization and event propagation.
 func (pool *TxPool) AddLocals(txs []*types.Transaction) []error {
+	if pool.isDownloading {
+		errs := make([]error, len(txs))
+		for i := range errs {
+			errs[i] = ErrNodeIsBehind
+		}
+		return errs
+	}
 	return pool.addTxs(txs, !pool.config.NoLocals, true)
 }
 
 // AddLocal enqueues a single local transaction into the pool if it is valid. This is
-// a convenience wrapper aroundd AddLocals.
+// a convenience wrapper around AddLocals.
 func (pool *TxPool) AddLocal(tx *types.Transaction) error {
 	errs := pool.AddLocals([]*types.Transaction{tx})
 	return errs[0]
