@@ -240,7 +240,7 @@ func (h *handler) handleImmediate(msg *jsonrpcMessage) bool {
 		return false
 	case msg.isResponse():
 		h.handleResponse(msg)
-		h.log.Trace("Handled RPC response", "reqid", idForLog{msg.ID}, "t", time.Since(start))
+		h.log.Trace("Handled RPC response", "reqid", RawMsgForLog{msg.ID}, "t", time.Since(start))
 		return true
 	default:
 		return false
@@ -263,7 +263,7 @@ func (h *handler) handleSubscriptionResult(msg *jsonrpcMessage) {
 func (h *handler) handleResponse(msg *jsonrpcMessage) {
 	op := h.respWait[string(msg.ID)]
 	if op == nil {
-		h.log.Debug("Unsolicited RPC response", "reqid", idForLog{msg.ID})
+		h.log.Debug("Unsolicited RPC response", "reqid", RawMsgForLog{msg.ID})
 		return
 	}
 	delete(h.respWait, string(msg.ID))
@@ -297,7 +297,7 @@ func (h *handler) handleCallMsg(ctx *callProc, msg *jsonrpcMessage) *jsonrpcMess
 	case msg.isCall():
 		resp := h.handleCall(ctx, msg)
 		var ctx []interface{}
-		ctx = append(ctx, "reqid", idForLog{msg.ID}, "t", time.Since(start))
+		ctx = append(ctx, "elapsed", time.Since(start), "id", RawMsgForLog{msg.ID}, "params", RawMsgForLog{msg.Params})
 		if resp.Error != nil {
 			ctx = append(ctx, "err", resp.Error.Message)
 			if resp.Error.Data != nil {
@@ -407,11 +407,11 @@ func (h *handler) unsubscribe(ctx context.Context, id ID) (bool, error) {
 	return true, nil
 }
 
-type idForLog struct{ json.RawMessage }
+type RawMsgForLog struct{ json.RawMessage }
 
-func (id idForLog) String() string {
-	if s, err := strconv.Unquote(string(id.RawMessage)); err == nil {
+func (msg RawMsgForLog) String() string {
+	if s, err := strconv.Unquote(string(msg.RawMessage)); err == nil {
 		return s
 	}
-	return string(id.RawMessage)
+	return string(msg.RawMessage)
 }
