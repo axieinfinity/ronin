@@ -40,9 +40,9 @@ const (
 	kafkaPassword                  = "subscriber.kafka.password"
 	kafkaAuthentication            = "subscriber.kafka.authentication"
 	queueSize                      = "subscriber.queueSize"
-	confirmBlockAt                 = "subscriber.confirmBlockAt"
-	coolDownDuration              = "subscriber.coolDownDuration"
-	defaultConfirmAt               = 10
+	safeBlockRange                 = "subscriber.safeBlockRange"
+	coolDownDuration               = "subscriber.coolDownDuration"
+	defaultSafeBlockRange          = 10
 	statsDuration                  = 30
 	defaultWorkers                 = 1024
 	defaultMaxQueueSize            = 2048
@@ -135,10 +135,10 @@ var (
 		Usage: "specify size of workers queue and jobs queue",
 		Value: defaultMaxQueueSize,
 	}
-	ConfirmBlockAtFlag = cli.IntFlag{
-		Name:  confirmBlockAt,
+	SafeBlockRangeFlag = cli.IntFlag{
+		Name:  safeBlockRange,
 		Usage: "confirm block that behind current block height (is sent to new block topic) `confirmAt` blocks",
-		Value: defaultConfirmAt,
+		Value: defaultSafeBlockRange,
 	}
 	CoolDownDurationFlag = cli.IntFlag{
 		Name:  coolDownDuration,
@@ -330,7 +330,7 @@ type Subscriber struct {
 	eventPublisher   Publisher
 	chainEvent       chan core.ChainEvent
 	resyncEvent      chan core.ChainEvent
-	reorgEvent   chan core.ReorgEvent
+	reorgEvent       chan core.ReorgEvent
 	removeLogsEvent  chan core.RemovedLogsEvent
 	rebirthLogsEvent chan []*types.Log
 
@@ -366,9 +366,9 @@ type Subscriber struct {
 
 	MaxQueueSize int
 
-	// confirmBlockAt is used to send confirmed block
+	// safeBlockRange is used to send confirmed block
 	// confirmed block is behind the current block `confirmBlockAt` height
-	confirmBlockAt int
+	safeBlockRange int
 }
 
 type DefaultEventPublisher struct {
@@ -383,14 +383,14 @@ func NewSubscriber(eth ethapi.Backend, ctx *cli.Context) *Subscriber {
 	workers := defaultWorkers
 	subCtx, cancelCtx := context.WithCancel(context.Background())
 	subs := &Subscriber{
-		backend:        eth,
-		ctx:            subCtx,
-		cancelCtx:      cancelCtx,
-		MaxRetry:       100,
-		BackOff:        5,
-		Workers:        make([]*Worker, 0),
-		MaxQueueSize:   defaultMaxQueueSize,
-		confirmBlockAt: defaultConfirmAt,
+		backend:          eth,
+		ctx:              subCtx,
+		cancelCtx:        cancelCtx,
+		MaxRetry:         100,
+		BackOff:          5,
+		Workers:          make([]*Worker, 0),
+		MaxQueueSize:     defaultMaxQueueSize,
+		safeBlockRange:   defaultSafeBlockRange,
 		coolDownDuration: defaultCoolDownDuration,
 	}
 	if ctx.GlobalIsSet(QueueSizeFlag.Name) {
@@ -457,8 +457,8 @@ func NewSubscriber(eth ethapi.Backend, ctx *cli.Context) *Subscriber {
 	if ctx.GlobalIsSet(FromHeightFlag.Name) {
 		subs.FromHeight = ctx.GlobalUint64(FromHeightFlag.Name)
 	}
-	if ctx.GlobalIsSet(ConfirmBlockAtFlag.Name) {
-		subs.confirmBlockAt = ctx.GlobalInt(ConfirmBlockAtFlag.Name)
+	if ctx.GlobalIsSet(SafeBlockRangeFlag.Name) {
+		subs.safeBlockRange = ctx.GlobalInt(SafeBlockRangeFlag.Name)
 	}
 	if ctx.GlobalIsSet(CoolDownDurationFlag.Name) {
 		subs.coolDownDuration = ctx.GlobalInt(CoolDownDurationFlag.Name)
@@ -513,8 +513,8 @@ func (s *Subscriber) HandleNewBlock(evt core.ChainEvent) {
 		messages = append(messages, s.eventPublisher.newMessage(s.chainEventTopic, blockData))
 	}
 	// call send confirmed block with block behind with current block `confirmBlockAt` blocks
-	if s.confirmBlockAt > 0 {
-		go s.SendConfirmedBlock(block.NumberU64() - uint64(s.confirmBlockAt))
+	if s.safeBlockRange > 0 {
+		go s.SendConfirmedBlock(block.NumberU64() - uint64(s.safeBlockRange))
 	}
 
 	// handle sending new transactions
