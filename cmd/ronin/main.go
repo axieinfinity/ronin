@@ -219,7 +219,8 @@ var (
 		BlockConfirmedEventFlag,
 		TransactionConfirmedEventFlag,
 		LogsConfirmedEventFlag,
-		ConfirmBlockAtFlag,
+		SafeBlockRangeFlag,
+		CoolDownDurationFlag,
 	}
 )
 
