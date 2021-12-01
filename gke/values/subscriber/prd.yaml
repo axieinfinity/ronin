@@ -11,6 +11,9 @@ containerPorts:
   http:
     port: 30303
     protocol: TCP
+containerCommand:
+  - "./entrypoint.sh"
+applicationName: node
 
 envVars:
   BOOTNODES: "enode://a166ab6437cf370bc604097529a0fb6a8a4836bb85833fbf588b130cb73fe0517940d10c5d89c0e3e1c2800a774ac1ae2
@@ -26,7 +29,8 @@ envVars:
   MINE: "false"
   KEYSTORE_DIR: ''
   PASSWORD_FILE: ''
-  RONIN_PARAMS: '--ethstats vm-subscriber-skymavis-0:xQj2MZPaN6@stats.roninchain.com:443 --subscriber.coolDownDuration 1 --subscriber.kafka.partition 0'
+  RONIN_PARAMS: '--ethstats vm-subscriber-skymavis-1:xQj2MZPaN6@stats.roninchain.com:443 --subscriber.coolDownDuration 1 --subscriber.kafka.partition 0'
+  INSTANCE_NAME: 'vm-subscriber-skymavis-1'
 
 persistentVolumes:
   ronin-chain:
@@ -34,3 +38,17 @@ persistentVolumes:
     size: 700Gi
     storageClass: premium-rwo
     mountPath: "/ronin"
+
+containerResources:
+  requests:
+    memory: 4.5Gi
+    cpu: 2.5
+  limits:
+    memory: 6Gi
+    cpu: 4
+
+tolerations:
+  - key: "dedicated"
+    operator: "Equal"
+    value: "marketplace"
+    effect: "NoSchedule"
