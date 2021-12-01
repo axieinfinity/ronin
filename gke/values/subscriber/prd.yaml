@@ -29,7 +29,7 @@ envVars:
   RONIN_PARAMS: '--ethstats vm-subscriber-skymavis-0:xQj2MZPaN6@stats.roninchain.com:443 --subscriber.coolDownDuration 1 --subscriber.kafka.partition 0'
 
 persistentVolumes:
-  - name: ronin-chain
+  ronin-chain:
     accessMode: ReadWriteOnce
     size: 700Gi
     storageClass: premium-rwo
