@@ -8,9 +8,14 @@ containerImage:
   pullPolicy: IfNotPresent
 
 containerPorts:
-  http:
+  peer:
     port: 30303
     protocol: TCP
+  http:
+    disabled: true
+  https:
+    disabled: true
+
 containerCommand:
   - "./entrypoint.sh"
 applicationName: node
