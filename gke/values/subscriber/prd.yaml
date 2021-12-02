@@ -1,4 +1,10 @@
 replicaCount: 1
+deployment:
+  enabled: false
+
+service:
+  enabled: false
+
 statefulset:
   enabled: True
 
