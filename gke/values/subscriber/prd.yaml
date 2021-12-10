@@ -57,10 +57,12 @@ containerResources:
     memory: 6Gi
     cpu: 4
 
+nodeSelector:
+  ronin: "yes"
 tolerations:
-  - key: "dedicated"
+  - key: "ronin"
     operator: "Equal"
-    value: "marketplace"
+    value: "yes"
     effect: "NoSchedule"
 
 imagePullSecrets:
