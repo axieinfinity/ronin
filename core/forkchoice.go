@@ -104,5 +104,9 @@ func (f *ForkChoice) ReorgNeeded(current *types.Header, header *types.Header) (b
 			reorg = !currentPreserve && (externPreserve || f.rand.Float64() < 0.5)
 		}
 	}
+	if reorg {
+		log.Info("[reorg]",
+			"currentBlock", current.Number.Uint64(), "currentTD", localTD.Uint64(), "newBlock", header.Number.Uint64(), "newTD", externTd.Uint64())
+	}
 	return reorg, nil
 }

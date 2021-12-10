@@ -981,7 +981,7 @@ func (bc *BlockChain) InsertReceiptChain(blockChain types.Blocks, receiptChain [
 		// range. In this case, all tx indices of newly imported blocks should be
 		// generated.
 		var batch = bc.db.NewBatch()
-		for _, block := range blockChain {
+		for i, block := range blockChain {
 			if bc.txLookupLimit == 0 || ancientLimit <= bc.txLookupLimit || block.NumberU64() >= ancientLimit-bc.txLookupLimit {
 				rawdb.WriteTxLookupEntriesByBlock(batch, block)
 			} else if rawdb.ReadTxIndexTail(bc.db) != nil {
@@ -1296,8 +1296,6 @@ func (bc *BlockChain) writeBlockAndSetHead(block *types.Block, receipts []*types
 	if reorg {
 		// Reorganise the chain if the parent is not the head block
 		if block.ParentHash() != currentBlock.Hash() {
-			log.Info("[reorg][writeBlockWithState]",
-				"currentBlock", currentBlock, "currentTD", localTd.Uint64(), "newBlock", block, "newTD", externTd.Uint64())
 			if err := bc.reorg(currentBlock, block); err != nil {
 				return NonStatTy, err
 			}
