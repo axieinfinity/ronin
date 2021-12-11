@@ -355,7 +355,7 @@ func geth(ctx *cli.Context) error {
 		<-subs.Start()
 	}
 
-	startNode(ctx, stack, backend)
+	startNode(ctx, stack, backend, false)
 	stack.Wait()
 	return nil
 }
@@ -363,11 +363,11 @@ func geth(ctx *cli.Context) error {
 // startNode boots up the system node and all registered protocols, after which
 // it unlocks any requested accounts, and starts the RPC/IPC interfaces and the
 // miner.
-func startNode(ctx *cli.Context, stack *node.Node, backend ethapi.Backend) {
+func startNode(ctx *cli.Context, stack *node.Node, backend ethapi.Backend, isConsole bool) {
 	debug.Memsize.Add("node", stack)
 
 	// Start up the node itself
-	utils.StartNode(ctx, stack)
+	utils.StartNode(ctx, stack, isConsole)
 
 	// Unlock any account specifically requested
 	unlockAccounts(ctx, stack)
