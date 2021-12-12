@@ -1297,8 +1297,6 @@ func (bc *BlockChain) writeBlockAndSetHead(block *types.Block, receipts []*types
 	if reorg {
 		// Reorganise the chain if the parent is not the head block
 		if block.ParentHash() != currentBlock.Hash() {
-			log.Info("[reorg][writeBlockWithState]",
-				"currentBlock", currentBlock, "currentTD", localTd.Uint64(), "newBlock", block, "newTD", externTd.Uint64())
 			if err := bc.reorg(currentBlock, block); err != nil {
 				return NonStatTy, err
 			}
@@ -1954,6 +1952,7 @@ func (bc *BlockChain) reorg(oldBlock, newBlock *types.Block) error {
 		deletedLogs [][]*types.Log
 		rebirthLogs [][]*types.Log
 	)
+	log.Info("reorg", "currentBlock", oldBlock.NumberU64(), "newBlock", newBlock.NumberU64())
 	// Reduce the longer chain to the same number as the shorter one
 	if oldBlock.NumberU64() > newBlock.NumberU64() {
 		// Old chain is longer, gather all transactions and logs as deleted ones
