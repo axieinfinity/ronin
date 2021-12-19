@@ -148,12 +148,6 @@ func (s *Snapshot) apply(chain consensus.ChainHeaderReader, c *Consortium, heade
 			log.Info("Reconstructing snapshot", "processed", i, "total", len(headers), "elapsed", common.PrettyDuration(time.Since(start)))
 			logged = time.Now()
 		}
-
-		for _, recent := range snap.Recents {
-			if recent == signer {
-				return nil, errRecentlySigned
-			}
-		}
 		snap.Recents[number] = signer
 	}
 
