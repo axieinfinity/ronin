@@ -1,0 +1,8 @@
+apiVersion: snapshot.storage.k8s.io/v1beta1
+kind: VolumeSnapshot
+metadata:
+  name: my-snapshot # Replace
+spec:
+  volumeSnapshotClassName: rpc-ronin-snapclass
+  source:
+    persistentVolumeClaimName: ronin-chain-subscriber-node-1-0 # Replace

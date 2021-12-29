@@ -1,0 +1,102 @@
+# This yaml is example for creating an rpc node using snapshot pvc.
+# helm diff upgrade --install rpc-node  k8s-service/ -f ~/ronin/gke/values/rpc/prd.yaml
+
+replicaCount: 1
+
+deployment:
+  enabled: False
+
+ingress:
+  enabled: False
+
+service:
+  enabled: True
+  ports:
+    app:
+      port: 80
+      targetPort: rpc
+      protocol: TCP
+
+statefulset:
+  enabled: True
+
+containerImage:
+  repository: gcr.io/test-servers-256610/ronin_ronin
+  tag: v2.2.1-8e394bbb1
+  pullPolicy: IfNotPresent
+
+containerPorts:
+  peer:
+    port: 30303
+    protocol: TCP
+  http:
+    disabled: true
+  https:
+    disabled: true
+  metric:
+    port: 6060
+    protocol: TCP
+  rpc:
+    port: 8545
+    protocol: TCP
+
+containerCommand:
+  - "./entrypoint.sh"
+
+applicationName: rpc-node
+
+envVars:
+  BOOTNODES: "enode://a166ab6437cf370bc604097529a0fb6a8a4836bb85833fbf588b130cb73fe0517940d10c5d89c0e3e1c2800a774ac1ae2108d62cb4608556e41bc1fc4482241a@35.193.159.26:30303" # ronin-mainet-0
+  NETWORK_ID: 2020
+  VERBOSITY: "3"
+  PRIVATE_KEY: " "
+  PASSWORD: "123456"
+  SYNC_MODE: "snap"
+  GASPRICE: "1000000000"
+  RONIN_PARAMS: "--rpc.allow-unprotected-txs --http.api eth,web3,personal,txpool --metrics.addr 0.0.0.0 --metrics"
+  ETHSTATS_ENDPOINT: "$INSTANCE_NAME:xQj2MZPaN6@stats.roninchain.com:443"
+
+additionalContainerEnv:
+  - name: INSTANCE_NAME
+    valueFrom:
+      fieldRef:
+        fieldPath: metadata.name
+
+# Chaindata path: /ronin/data/ronin
+
+persistentVolumes:
+  ronin-chain:
+    accessMode: ReadWriteOnce
+    size: 700Gi
+    storageClass: premium-rwo
+    mountPath: "/ronin"
+#    dataSource: my-snapshot # Replace to the created snapshot.
+
+containerResources:
+  requests:
+    memory: 4Gi
+    cpu: 2
+  limits:
+    memory: 5Gi
+    cpu: 3
+
+nodeSelector:
+  cluster_name: "axs-ronin-gke"
+  node_pool: "pool-default-8"
+
+affinity:
+  podAntiAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+    - labelSelector:
+        matchExpressions:
+        - key: application
+          operator: In
+          values:
+          - subscriber
+      topologyKey: topology.kubernetes.io/zone
+
+imagePullSecrets:
+  - gcr-json-key
+
+additionalDeploymentLabels:
+  application: rpc-ronin
