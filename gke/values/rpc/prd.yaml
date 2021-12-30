@@ -20,6 +20,12 @@ service:
 statefulset:
   enabled: True
 
+podAnnotations:
+  "prometheus.io/scrape": "true"
+  "prometheus.io/path": "/debug/metrics/prometheus"
+  "prometheus.io/port": "6060"
+
+
 containerImage:
   repository: gcr.io/test-servers-256610/ronin_ronin
   tag: v2.2.1-8e394bbb1
