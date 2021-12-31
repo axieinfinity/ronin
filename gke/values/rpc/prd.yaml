@@ -7,7 +7,10 @@ deployment:
   enabled: False
 
 ingress:
-  enabled: False
+  enabled: true
+  ingressClassName: nginx-internal
+  path: /
+  servicePort: app
 
 service:
   enabled: True

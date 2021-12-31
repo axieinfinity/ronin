@@ -831,7 +831,10 @@ server:
   #   type: Recreate
 
   ## hostAliases allows adding entries to /etc/hosts inside the containers
-  hostAliases: []
+  hostAliases:
+    - ip: "35.223.253.169"
+      hostnames:
+        - "victoriametrics.skymavis.internal"
   #   - ip: "127.0.0.1"
   #     hostnames:
   #       - "example.com"
