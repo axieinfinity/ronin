@@ -1,4 +1,4 @@
-# helm diff upgrade --install  prometheus  prometheus-community/prometheus -f ~/ronin/gke/values/prometheus/prd.yaml -n monitoring
+# helm diff upgrade --install  prometheus  prometheus-community/prometheus -f ~/ronin/gke/values/prometheus/prd.yaml -n monitoring  --version 15.0.2
 rbac:
   create: true
 
@@ -724,11 +724,11 @@ server:
   ## https://prometheus.io/docs/prometheus/latest/configuration/configuration/#remote_write
   ##
   remoteWrite:
-    - url: "http://victoriametrics.skymavis.internal/api/v1/write"
-      queue_config:
-        max_samples_per_send: 10000
-        capacity: 20000
-        max_shards: 30
+  - url: "http://victoriametrics.skymavis.internal/api/v1/write"
+    queue_config:
+      max_samples_per_send: 10000
+      capacity: 20000
+      max_shards: 30
   ## https://prometheus.io/docs/prometheus/latest/configuration/configuration/#remote_read
   ##
   remoteRead: []

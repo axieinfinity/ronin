@@ -1,5 +1,5 @@
 # This yaml is example for creating an rpc node using snapshot pvc.
-# helm diff upgrade --install rpc-node   ~/axis/helm-kubernetes-services/charts/k8s-service/ -f ~/ronin/gke/values/rpc/prd.yaml
+# helm diff upgrade --install rpc-snapshot-node   ~/axis/helm-kubernetes-services/charts/k8s-service/ -f ~/ronin/gke/values/rpc/snapshot-prd.yaml
 
 replicaCount: 1
 
@@ -7,18 +7,10 @@ deployment:
   enabled: False
 
 ingress:
-  enabled: true
-  ingressClassName: nginx-internal
-  path: /
-  servicePort: app
+  enabled: false
 
 service:
-  enabled: True
-  ports:
-    app:
-      port: 80
-      targetPort: rpc
-      protocol: TCP
+  enabled: False
 
 statefulset:
   enabled: True
@@ -63,7 +55,7 @@ envVars:
   SYNC_MODE: "snap"
   GASPRICE: "1000000000"
   RONIN_PARAMS: "--rpc.allow-unprotected-txs --http.api eth,web3,personal,txpool --metrics.addr 0.0.0.0 --metrics"
-  ETHSTATS_ENDPOINT: "$INSTANCE_NAME:xQj2MZPaN6@stats.roninchain.com:443"
+  ETHSTATS_ENDPOINT: "$INSTANCE_NAME-snapshot:xQj2MZPaN6@stats.roninchain.com:443"
 
 additionalContainerEnv:
   - name: INSTANCE_NAME

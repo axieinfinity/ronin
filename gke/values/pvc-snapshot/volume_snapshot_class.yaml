@@ -1,4 +1,5 @@
-apiVersion: snapshot.storage.k8s.io/v1
+# kb apply -f ~/ronin/gke/values/pvc-snapshot/volume_snapshot_class.yaml
+apiVersion: snapshot.storage.k8s.io/v1beta1
 kind: VolumeSnapshotClass
 metadata:
   name: rpc-ronin-snapclass # Replace

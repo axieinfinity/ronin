@@ -1,8 +1,9 @@
+# kb apply -f ~/ronin/gke/values/pvc-snapshot/volume_snapshot.yaml
 apiVersion: snapshot.storage.k8s.io/v1beta1
 kind: VolumeSnapshot
 metadata:
-  name: my-snapshot # Replace
+  name: ronin-rpc-snapshot # Replace
 spec:
   volumeSnapshotClassName: rpc-ronin-snapclass
   source:
-    persistentVolumeClaimName: ronin-chain-subscriber-node-1-0 # Replace
+    persistentVolumeClaimName: ronin-chain-rpc-node-0  # Replace
