@@ -6,4 +6,4 @@ metadata:
 spec:
   volumeSnapshotClassName: rpc-ronin-snapclass
   source:
-    persistentVolumeClaimName: ronin-chain-rpc-node-0  # Replace
+    persistentVolumeClaimName: ronin-chain-rpc-snapshot-node-rpc-node-0  # Replace ronin-chain-rpc-node-0 for testing

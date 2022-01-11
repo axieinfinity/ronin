@@ -53,9 +53,9 @@ envVars:
   PRIVATE_KEY: " "
   PASSWORD: "123456"
   SYNC_MODE: "snap"
-  GASPRICE: "1000000000"
+  MINE: "false"
   RONIN_PARAMS: "--rpc.allow-unprotected-txs --http.api eth,web3,personal,txpool --metrics.addr 0.0.0.0 --metrics"
-  ETHSTATS_ENDPOINT: "$INSTANCE_NAME-snapshot:xQj2MZPaN6@stats.roninchain.com:443"
+  ETHSTATS_ENDPOINT: $(INSTANCE_NAME):xQj2MZPaN6@stats.roninchain.com:443
 
 additionalContainerEnv:
   - name: INSTANCE_NAME
@@ -78,7 +78,7 @@ containerResources:
     memory: 4Gi
     cpu: 2
   limits:
-    memory: 5Gi
+    memory: 8Gi
     cpu: 3
 
 nodeSelector:
@@ -101,3 +101,30 @@ imagePullSecrets:
 
 additionalDeploymentLabels:
   application: rpc-ronin
+
+configMaps:
+ prune-state-configmap:
+   as: volume
+   mountPath: /etc/prune-state
+   defaultMode: "0777"
+
+initContainers:
+  - name: prune-state
+    image: "gcr.io/test-servers-256610/ronin_ronin:v2.2.2.0-7bfba31d6"
+    imagePullPolicy: IfNotPresent
+    command:
+      - "/etc/prune-state/prune_state.sh"
+    volumeMounts:
+    - name: "ronin-chain"
+      mountPath: "/ronin"
+      readOnly: false
+    - name: prune-state-configmap-volume
+      mountPath: "/etc/prune-state"
+
+customPreStopCommand:
+  - "kill"
+  - "-INT"
+  - "1"
+
+shutdownDelay: 0
+terminationGracePeriodSeconds: 300

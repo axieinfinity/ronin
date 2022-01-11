@@ -1,7 +1,7 @@
 # This yaml is example for creating an rpc node using snapshot pvc.
 # helm diff upgrade --install rpc-node   ~/axis/helm-kubernetes-services/charts/k8s-service/ -f ~/ronin/gke/values/rpc/prd.yaml
 
-replicaCount: 1
+replicaCount: 2
 
 deployment:
   enabled: False
@@ -61,9 +61,9 @@ envVars:
   PRIVATE_KEY: " "
   PASSWORD: "123456"
   SYNC_MODE: "snap"
-  GASPRICE: "1000000000"
+  MINE: "false"
   RONIN_PARAMS: "--rpc.allow-unprotected-txs --http.api eth,web3,personal,txpool --metrics.addr 0.0.0.0 --metrics"
-  ETHSTATS_ENDPOINT: "$INSTANCE_NAME:xQj2MZPaN6@stats.roninchain.com:443"
+  ETHSTATS_ENDPOINT: $(INSTANCE_NAME):xQj2MZPaN6@stats.roninchain.com:443
 
 additionalContainerEnv:
   - name: INSTANCE_NAME
@@ -86,7 +86,7 @@ containerResources:
     memory: 4Gi
     cpu: 2
   limits:
-    memory: 5Gi
+    memory: 8Gi
     cpu: 3
 
 nodeSelector:
@@ -109,3 +109,11 @@ imagePullSecrets:
 
 additionalDeploymentLabels:
   application: rpc-ronin
+
+customPreStopCommand:
+  - "kill"
+  - "-INT"
+  - "1"
+
+shutdownDelay: 0
+terminationGracePeriodSeconds: 300

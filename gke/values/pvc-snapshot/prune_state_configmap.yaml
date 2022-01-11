@@ -1,0 +1,13 @@
+# kb apply -f ~/ronin/gke/values/pvc-snapshot/prune_state_configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prune-state-configmap
+  labels:
+    release: ronin-prune-state
+    app: ronin-snapshot
+data:
+  prune_state.sh: |-
+    #!/bin/sh
+    set -x
+    exec ronin snapshot prune-state --datadir "/ronin/data"
