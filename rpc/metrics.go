@@ -23,10 +23,11 @@ import (
 )
 
 var (
-	rpcRequestGauge        = metrics.NewRegisteredGauge("rpc/requests", nil)
-	successfulRequestGauge = metrics.NewRegisteredGauge("rpc/success", nil)
-	failedReqeustGauge     = metrics.NewRegisteredGauge("rpc/failure", nil)
-	rpcServingTimer        = metrics.NewRegisteredTimer("rpc/duration/all", nil)
+	rpcRequestGauge            = metrics.NewRegisteredGauge("rpc/requests", nil)
+	successfulRequestGauge     = metrics.NewRegisteredGauge("rpc/success", nil)
+	failedReqeustGauge         = metrics.NewRegisteredGauge("rpc/failure", nil)
+	rpcServingTimer            = metrics.NewRegisteredTimer("rpc/duration/all", nil)
+	rpcServingHourlyCounterMap = make(map[string]metrics.Counter)
 )
 
 func newRPCServingTimer(method string, valid bool) metrics.Timer {
@@ -38,7 +39,16 @@ func newRPCServingTimer(method string, valid bool) metrics.Timer {
 	return metrics.GetOrRegisterTimer(m, nil)
 }
 
-func newRPCServingCounter(method string) metrics.Counter {
-	counterName := fmt.Sprintf("rpc/duration/%s", method)
+func getRPCServingHourlyCounter(method string) metrics.Counter {
+	counter, ok := rpcServingHourlyCounterMap[method]
+	if !ok {
+		counter = newRPCServingHourlyCounter(method)
+		rpcServingHourlyCounterMap[method] = counter
+	}
+	return counter
+}
+
+func newRPCServingHourlyCounter(method string) metrics.Counter {
+	counterName := fmt.Sprintf("rpc/hourlyCounter/%s", method)
 	return metrics.GetOrRegisterCounter(counterName, nil)
 }
