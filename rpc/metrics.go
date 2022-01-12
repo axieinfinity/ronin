@@ -37,3 +37,8 @@ func newRPCServingTimer(method string, valid bool) metrics.Timer {
 	m := fmt.Sprintf("rpc/duration/%s/%s", method, flag)
 	return metrics.GetOrRegisterTimer(m, nil)
 }
+
+func newRPCServingCounter(method string) metrics.Counter {
+	counterName := fmt.Sprintf("rpc/duration/%s", method)
+	return metrics.GetOrRegisterCounter(counterName, nil)
+}
