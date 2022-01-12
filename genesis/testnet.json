@@ -9,6 +9,7 @@
     "constantinopleBlock": 0,
     "petersburgBlock": 0,
     "istanbulBlock": 0,
+    "wDBlock": 3261450,
     "consortium": {
       "period": 3,
       "epoch": 30

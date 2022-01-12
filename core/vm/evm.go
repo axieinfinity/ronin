@@ -419,6 +419,10 @@ func (c *codeAndHash) Hash() common.Hash {
 
 // create creates a new contract using code as deployment code.
 func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64, value *big.Int, address common.Address) ([]byte, common.Address, uint64, error) {
+	if evm.chainRules.IsWDFork && !evm.StateDB.ValidDeployer(caller.Address()) {
+		return nil, common.Address{}, gas, ErrExecutionReverted
+	}
+
 	// Depth check execution. Fail if we're trying to execute above the
 	// limit.
 	if evm.depth > int(params.CallCreateDepth) {
