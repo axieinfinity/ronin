@@ -17,7 +17,6 @@
 package core
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -98,10 +97,20 @@ func applyTransaction(msg types.Message, config *params.ChainConfig, bc ChainCon
 	if msg.To() == nil && config.Consortium != nil {
 		whitelistedDeployer := state.IsWhitelistedDeployer(statedb, msg.From())
 		if !whitelistedDeployer {
-			return nil, errors.New("unauthorized deployer")
+			return nil, ErrUnauthorizedDeployer
 		}
 	}
-	// Create a new context to be used in the EVM environment
+
+	// Check if sender and recipient are blacklisted
+	if config.Consortium != nil && config.IsWD(header.Number) {
+		blacklisted := state.IsAddressBlacklisted(statedb, config.BlacklistAddress, msg.From())
+		if !blacklisted && msg.To() != nil {
+			blacklisted = state.IsAddressBlacklisted(statedb, config.BlacklistAddress, *msg.To())
+		}
+		if blacklisted {
+			return nil, ErrAddressBlacklisted
+		}
+	}
 
 	// Apply the transaction to the current state (included in the env).
 	result, err := ApplyMessage(evm, msg, gp)
