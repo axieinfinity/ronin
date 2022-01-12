@@ -10,6 +10,7 @@
     "petersburgBlock": 0,
     "istanbulBlock": 4977778,
     "wDBlock": null,
+    "blacklistAddress": null,
     "consortium": {
       "period": 3,
       "epoch": 600
