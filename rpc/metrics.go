@@ -23,11 +23,10 @@ import (
 )
 
 var (
-	rpcRequestGauge            = metrics.NewRegisteredGauge("rpc/requests", nil)
-	successfulRequestGauge     = metrics.NewRegisteredGauge("rpc/success", nil)
-	failedReqeustGauge         = metrics.NewRegisteredGauge("rpc/failure", nil)
-	rpcServingTimer            = metrics.NewRegisteredTimer("rpc/duration/all", nil)
-	rpcServingHourlyCounterMap = make(map[string]metrics.Counter)
+	rpcRequestGauge        = metrics.NewRegisteredGauge("rpc/requests", nil)
+	successfulRequestGauge = metrics.NewRegisteredGauge("rpc/success", nil)
+	failedReqeustGauge     = metrics.NewRegisteredGauge("rpc/failure", nil)
+	rpcServingTimer        = metrics.NewRegisteredTimer("rpc/duration/all", nil)
 )
 
 func newRPCServingTimer(method string, valid bool) metrics.Timer {
@@ -39,12 +38,15 @@ func newRPCServingTimer(method string, valid bool) metrics.Timer {
 	return metrics.GetOrRegisterTimer(m, nil)
 }
 
+var rpcServingHourlyCounterMap = make(map[string]metrics.Counter)
+
 func getRPCServingHourlyCounter(method string) metrics.Counter {
 	counter, ok := rpcServingHourlyCounterMap[method]
 	if !ok {
 		counter = newRPCServingHourlyCounter(method)
 		rpcServingHourlyCounterMap[method] = counter
 	}
+
 	return counter
 }
 
