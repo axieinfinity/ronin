@@ -85,7 +85,7 @@ func NewPeriodCounter() Counter {
 	if !Enabled {
 		return NilCounter{}
 	}
-	return &PeriodCounter{&StandardCounter{0}, hourlyPeriodType, 0, false}
+	return &PeriodCounter{&StandardCounter{0}, hourlyPeriodType, Now().Hour(), false}
 }
 
 // GetOrRegisterPeriodCounter returns an existing Counter or constructs and registers

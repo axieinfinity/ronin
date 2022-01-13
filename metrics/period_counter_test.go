@@ -65,3 +65,18 @@ func TestResetIfBeginningOfPeriod(t *testing.T) {
 	assert.Equal(t, periodCounter.StoredPeriod, currentPeriod)
 	assert.True(t, periodCounter.CounterResetted)
 }
+
+func TestGetOrRegisterPeriodCounter(t *testing.T) {
+	Now = func() time.Time { return time.Date(2021, time.Month(2), 21, 1, 10, 30, 0, time.UTC) }
+	method := "testingMethod"
+	counter := GetOrRegisterPeriodCounter(method, nil)
+	periodCounter := counter.(*PeriodCounter)
+
+	assert.Equal(t, periodCounter.StandardCounter.count, int64(0))
+	assert.Equal(t, periodCounter.PeriodType, hourlyPeriodType)
+	assert.Equal(t, periodCounter.StoredPeriod, 1)
+	assert.False(t, periodCounter.CounterResetted)
+
+	newCounter := GetOrRegisterPeriodCounter(method, nil)
+	assert.Equal(t, counter, newCounter)
+}
