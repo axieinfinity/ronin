@@ -43,7 +43,7 @@ type (
 )
 
 func (evm *EVM) precompile(addr common.Address) (PrecompiledContract, bool) {
-	if c := evm.ChainConfig().BlacklistAddress; evm.chainRules.IsWDFork && evm.StateDB.Blacklisted(c, addr) {
+	if c := evm.ChainConfig().BlacklistAddress; evm.chainRules.IsWDFork && evm.StateDB.Blacklisted(c, &addr) {
 		return &blacklistedAddress{}, true
 	}
 

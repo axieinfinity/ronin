@@ -93,9 +93,11 @@ func applyTransaction(msg types.Message, config *params.ChainConfig, bc ChainCon
 	// Create a new context to be used in the EVM environment.
 	txContext := NewEVMTxContext(msg)
 	evm.Reset(txContext, statedb)
+	from := msg.From()
+
 	// Check if sender is authorized to deploy
 	if msg.To() == nil && config.Consortium != nil {
-		whitelistedDeployer := state.IsWhitelistedDeployer(statedb, msg.From())
+		whitelistedDeployer := state.IsWhitelistedDeployer(statedb, from)
 		if !whitelistedDeployer {
 			return nil, ErrUnauthorizedDeployer
 		}
@@ -103,11 +105,7 @@ func applyTransaction(msg types.Message, config *params.ChainConfig, bc ChainCon
 
 	// Check if sender and recipient are blacklisted
 	if config.Consortium != nil && config.IsWD(header.Number) {
-		blacklisted := state.IsAddressBlacklisted(statedb, config.BlacklistAddress, msg.From())
-		if !blacklisted && msg.To() != nil {
-			blacklisted = state.IsAddressBlacklisted(statedb, config.BlacklistAddress, *msg.To())
-		}
-		if blacklisted {
+		if state.IsAddressBlacklisted(statedb, config.BlacklistAddress, &from) || state.IsAddressBlacklisted(statedb, config.BlacklistAddress, msg.To()) {
 			return nil, ErrAddressBlacklisted
 		}
 	}

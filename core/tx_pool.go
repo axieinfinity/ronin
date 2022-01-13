@@ -586,11 +586,7 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	// Check if sender and recipient are blacklisted
 	if pool.chainconfig.Consortium != nil && pool.wd {
 		blacklistAddr := pool.chainconfig.BlacklistAddress
-		blacklisted := state.IsAddressBlacklisted(pool.currentState, blacklistAddr, from)
-		if !blacklisted && tx.To() != nil {
-			blacklisted = state.IsAddressBlacklisted(pool.currentState, blacklistAddr, *tx.To())
-		}
-		if blacklisted {
+		if state.IsAddressBlacklisted(pool.currentState, blacklistAddr, &from) || state.IsAddressBlacklisted(pool.currentState, blacklistAddr, tx.To()) {
 			return ErrAddressBlacklisted
 		}
 	}
