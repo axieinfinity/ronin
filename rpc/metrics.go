@@ -38,18 +38,6 @@ func newRPCServingTimer(method string, valid bool) metrics.Timer {
 	return metrics.GetOrRegisterTimer(m, nil)
 }
 
-var rpcServingHourlyCounterMap = make(map[string]metrics.Counter)
-
-func getRPCServingHourlyCounter(method string) metrics.Counter {
-	counter, ok := rpcServingHourlyCounterMap[method]
-	if !ok {
-		counter = newRPCServingHourlyCounter(method)
-		rpcServingHourlyCounterMap[method] = counter
-	}
-
-	return counter
-}
-
 func newRPCServingHourlyCounter(method string) metrics.Counter {
 	counterName := fmt.Sprintf("rpc/hourlyCounter/%s", method)
 	return metrics.GetOrRegisterCounter(counterName, nil)
