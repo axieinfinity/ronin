@@ -88,6 +88,9 @@ var (
 
 	// ErrUnauthorizedDeployer is returned if a unauthorized address tries to deploy
 	ErrUnauthorizedDeployer = errors.New("unauthorized deployer")
+
+	// ErrAddressBlacklisted is returned if a transaction is sent to blacklisted address
+	ErrAddressBlacklisted = errors.New("address is blacklisted")
 )
 
 var (
@@ -246,6 +249,7 @@ type TxPool struct {
 	istanbul bool // Fork indicator whether we are in the istanbul stage.
 	eip2718  bool // Fork indicator whether we are using EIP-2718 type transactions.
 	eip1559  bool // Fork indicator whether we are using EIP-1559 type transactions.
+	odysseus bool // Fork indicator whether we are in the Odysseus stage.
 
 	currentState  *state.StateDB // Current state in the blockchain head
 	pendingNonces *txNoncer      // Pending state tracking virtual nonces
@@ -654,6 +658,15 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 			return ErrUnauthorizedDeployer
 		}
 	}
+
+	// Check if sender and recipient are blacklisted
+	if pool.chainconfig.Consortium != nil && pool.odysseus {
+		contractAddr := pool.chainconfig.BlacklistContractAddress
+		if state.IsAddressBlacklisted(pool.currentState, contractAddr, &from) || state.IsAddressBlacklisted(pool.currentState, contractAddr, tx.To()) {
+			return ErrAddressBlacklisted
+		}
+	}
+
 	return nil
 }
 
@@ -1313,6 +1326,7 @@ func (pool *TxPool) reset(oldHead, newHead *types.Header) {
 	pool.istanbul = pool.chainconfig.IsIstanbul(next)
 	pool.eip2718 = pool.chainconfig.IsBerlin(next)
 	pool.eip1559 = pool.chainconfig.IsLondon(next)
+	pool.odysseus = pool.chainconfig.IsOdysseus(next)
 }
 
 // promoteExecutables moves transactions that have become processable from the
