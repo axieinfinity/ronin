@@ -47,7 +47,7 @@ type alethGenesisSpec struct {
 		ConstantinopleFixForkBlock *hexutil.Big           `json:"constantinopleFixForkBlock,omitempty"`
 		IstanbulForkBlock          *hexutil.Big           `json:"istanbulForkBlock,omitempty"`
 		WDForkBlock                *hexutil.Big           `json:"wDForkBlock,omitempty"`
-		BlacklistAddress           *common.Address        `json:"blacklistAddress,omitempty"`
+		BlacklistContractAddress   *common.Address        `json:"blacklistContractAddress,omitempty"`
 		MinGasLimit                hexutil.Uint64         `json:"minGasLimit"`
 		MaxGasLimit                hexutil.Uint64         `json:"maxGasLimit"`
 		TieBreakingGas             bool                   `json:"tieBreakingGas"`
@@ -140,8 +140,8 @@ func newAlethGenesisSpec(network string, genesis *core.Genesis) (*alethGenesisSp
 	if num := genesis.Config.WDBlock; num != nil {
 		spec.Params.WDForkBlock = (*hexutil.Big)(num)
 	}
-	if addr := genesis.Config.BlacklistAddress; addr != nil {
-		spec.Params.BlacklistAddress = (*common.Address)(addr)
+	if addr := genesis.Config.BlacklistContractAddress; addr != nil {
+		spec.Params.BlacklistContractAddress = (*common.Address)(addr)
 	}
 	spec.Params.NetworkID = (hexutil.Uint64)(genesis.Config.ChainID.Uint64())
 	spec.Params.ChainID = (hexutil.Uint64)(genesis.Config.ChainID.Uint64())

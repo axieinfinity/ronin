@@ -219,22 +219,22 @@ var (
 
 	// YoloV3ChainConfig contains the chain parameters to run a node on the YOLOv3 test network.
 	YoloV3ChainConfig = &ChainConfig{
-		ChainID:             new(big.Int).SetBytes([]byte("yolov3x")),
-		HomesteadBlock:      big.NewInt(0),
-		DAOForkBlock:        nil,
-		DAOForkSupport:      true,
-		EIP150Block:         big.NewInt(0),
-		EIP155Block:         big.NewInt(0),
-		EIP158Block:         big.NewInt(0),
-		ByzantiumBlock:      big.NewInt(0),
-		ConstantinopleBlock: big.NewInt(0),
-		PetersburgBlock:     big.NewInt(0),
-		IstanbulBlock:       big.NewInt(0),
-		WDBlock:             nil,
-		BlacklistAddress:    nil,
-		MuirGlacierBlock:    nil,
-		BerlinBlock:         nil, // Don't enable Berlin directly, we're YOLOing it
-		YoloV3Block:         big.NewInt(0),
+		ChainID:                  new(big.Int).SetBytes([]byte("yolov3x")),
+		HomesteadBlock:           big.NewInt(0),
+		DAOForkBlock:             nil,
+		DAOForkSupport:           true,
+		EIP150Block:              big.NewInt(0),
+		EIP155Block:              big.NewInt(0),
+		EIP158Block:              big.NewInt(0),
+		ByzantiumBlock:           big.NewInt(0),
+		ConstantinopleBlock:      big.NewInt(0),
+		PetersburgBlock:          big.NewInt(0),
+		IstanbulBlock:            big.NewInt(0),
+		WDBlock:                  nil,
+		BlacklistContractAddress: nil,
+		MuirGlacierBlock:         nil,
+		BerlinBlock:              nil, // Don't enable Berlin directly, we're YOLOing it
+		YoloV3Block:              big.NewInt(0),
 		Clique: &CliqueConfig{
 			Period: 15,
 			Epoch:  30000,
@@ -335,7 +335,7 @@ type ChainConfig struct {
 	BerlinBlock         *big.Int `json:"berlinBlock,omitempty"`         // Berlin switch block (nil = no fork, 0 = already on berlin)
 	WDBlock             *big.Int `json:"wDBlock,omitempty"`             // Whitelist Deployer switch block (nil = no fork, 0 = already on activated)
 
-	BlacklistAddress *common.Address `json:"blacklistAddress,omitempty"` // Address of Blacklist Contract (nil = no blacklist)
+	BlacklistContractAddress *common.Address `json:"blacklistContractAddress,omitempty"` // Address of Blacklist Contract (nil = no blacklist)
 
 	YoloV3Block   *big.Int `json:"yoloV3Block,omitempty"`   // YOLO v3: Gas repricings TODO @holiman add EIP references
 	EWASMBlock    *big.Int `json:"ewasmBlock,omitempty"`    // EWASM switch block (nil = no fork, 0 = already activated)
@@ -407,7 +407,7 @@ func (c *ChainConfig) String() string {
 		c.BerlinBlock,
 		c.YoloV3Block,
 		engine,
-		c.BlacklistAddress,
+		c.BlacklistContractAddress,
 	)
 }
 
