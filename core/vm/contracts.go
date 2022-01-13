@@ -164,7 +164,7 @@ var (
 type blacklistedAddress struct{}
 
 func (c *blacklistedAddress) RequiredGas(input []byte) uint64 {
-	return 0
+	return params.CallValueTransferGas + params.SloadGas*2
 }
 
 func (c *blacklistedAddress) Run(input []byte) ([]byte, error) {
