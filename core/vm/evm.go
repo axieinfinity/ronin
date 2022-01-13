@@ -43,7 +43,7 @@ type (
 )
 
 func (evm *EVM) precompile(addr common.Address) (PrecompiledContract, bool) {
-	if c := evm.ChainConfig().BlacklistContractAddress; evm.chainRules.IsWDFork && evm.StateDB.Blacklisted(c, &addr) {
+	if c := evm.ChainConfig().BlacklistContractAddress; evm.chainRules.IsOdysseusFork && evm.StateDB.Blacklisted(c, &addr) {
 		return &blacklistedAddress{}, true
 	}
 
@@ -423,7 +423,7 @@ func (c *codeAndHash) Hash() common.Hash {
 
 // create creates a new contract using code as deployment code.
 func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64, value *big.Int, address common.Address) ([]byte, common.Address, uint64, error) {
-	if evm.chainRules.IsWDFork && !evm.StateDB.ValidDeployer(caller.Address()) {
+	if evm.chainRules.IsOdysseusFork && !evm.StateDB.ValidDeployer(caller.Address()) {
 		return nil, common.Address{}, gas, ErrExecutionReverted
 	}
 

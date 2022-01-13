@@ -230,7 +230,7 @@ var (
 		ConstantinopleBlock:      big.NewInt(0),
 		PetersburgBlock:          big.NewInt(0),
 		IstanbulBlock:            big.NewInt(0),
-		WDBlock:                  nil,
+		OdysseusBlock:            nil,
 		BlacklistContractAddress: nil,
 		MuirGlacierBlock:         nil,
 		BerlinBlock:              nil, // Don't enable Berlin directly, we're YOLOing it
@@ -333,7 +333,7 @@ type ChainConfig struct {
 	IstanbulBlock       *big.Int `json:"istanbulBlock,omitempty"`       // Istanbul switch block (nil = no fork, 0 = already on istanbul)
 	MuirGlacierBlock    *big.Int `json:"muirGlacierBlock,omitempty"`    // Eip-2384 (bomb delay) switch block (nil = no fork, 0 = already activated)
 	BerlinBlock         *big.Int `json:"berlinBlock,omitempty"`         // Berlin switch block (nil = no fork, 0 = already on berlin)
-	WDBlock             *big.Int `json:"wDBlock,omitempty"`             // Whitelist Deployer switch block (nil = no fork, 0 = already on activated)
+	OdysseusBlock       *big.Int `json:"odysseusBlock,omitempty"`       // Odysseus switch block (nil = no fork, 0 = already on activated)
 
 	BlacklistContractAddress *common.Address `json:"blacklistContractAddress,omitempty"` // Address of Blacklist Contract (nil = no blacklist)
 
@@ -390,7 +390,7 @@ func (c *ChainConfig) String() string {
 	default:
 		engine = "unknown"
 	}
-	return fmt.Sprintf("{ChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v Petersburg: %v Istanbul: %v, Whitelist Deployer: %v, Muir Glacier: %v, Berlin: %v, YOLO v3: %v, Engine: %v, Blacklist Contract: %v}",
+	return fmt.Sprintf("{ChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v Petersburg: %v Istanbul: %v, Odysseus: %v, Muir Glacier: %v, Berlin: %v, YOLO v3: %v, Engine: %v, Blacklist Contract: %v}",
 		c.ChainID,
 		c.HomesteadBlock,
 		c.DAOForkBlock,
@@ -402,7 +402,7 @@ func (c *ChainConfig) String() string {
 		c.ConstantinopleBlock,
 		c.PetersburgBlock,
 		c.IstanbulBlock,
-		c.WDBlock,
+		c.OdysseusBlock,
 		c.MuirGlacierBlock,
 		c.BerlinBlock,
 		c.YoloV3Block,
@@ -478,9 +478,9 @@ func (c *ChainConfig) IsEWASM(num *big.Int) bool {
 	return isForked(c.EWASMBlock, num)
 }
 
-// IsWD returns whether the num is equals to or larger than the Whitelist Deployer fork block.
-func (c *ChainConfig) IsWD(num *big.Int) bool {
-	return isForked(c.WDBlock, num)
+// IsOdysseus returns whether the num is equals to or larger than the Odysseus fork block.
+func (c *ChainConfig) IsOdysseus(num *big.Int) bool {
+	return isForked(c.OdysseusBlock, num)
 }
 
 // CheckCompatible checks whether scheduled fork transitions have been imported
@@ -594,6 +594,9 @@ func (c *ChainConfig) checkCompatible(newcfg *ChainConfig, head *big.Int) *Confi
 	if isForkIncompatible(c.EWASMBlock, newcfg.EWASMBlock, head) {
 		return newCompatError("ewasm fork block", c.EWASMBlock, newcfg.EWASMBlock)
 	}
+	if isForkIncompatible(c.OdysseusBlock, newcfg.OdysseusBlock, head) {
+		return newCompatError("Odysseus fork block", c.OdysseusBlock, newcfg.OdysseusBlock)
+	}
 	return nil
 }
 
@@ -662,7 +665,7 @@ type Rules struct {
 	IsHomestead, IsEIP150, IsEIP155, IsEIP158               bool
 	IsByzantium, IsConstantinople, IsPetersburg, IsIstanbul bool
 	IsBerlin, IsCatalyst                                    bool
-	IsWDFork                                                bool
+	IsOdysseusFork                                          bool
 }
 
 // Rules ensures c's ChainID is not nil.
@@ -683,6 +686,6 @@ func (c *ChainConfig) Rules(num *big.Int) Rules {
 		IsIstanbul:       c.IsIstanbul(num),
 		IsBerlin:         c.IsBerlin(num),
 		IsCatalyst:       c.IsCatalyst(num),
-		IsWDFork:         c.IsWD(num),
+		IsOdysseusFork:   c.IsOdysseus(num),
 	}
 }

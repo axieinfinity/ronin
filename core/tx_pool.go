@@ -237,7 +237,7 @@ type TxPool struct {
 
 	istanbul bool // Fork indicator whether we are in the istanbul stage.
 	eip2718  bool // Fork indicator whether we are using EIP-2718 type transactions.
-	wd       bool // Fork indicator whether we are in the WD stage.
+	odysseus bool // Fork indicator whether we are in the Odysseus stage.
 
 	currentState  *state.StateDB // Current state in the blockchain head
 	pendingNonces *txNoncer      // Pending state tracking virtual nonces
@@ -584,7 +584,7 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	}
 
 	// Check if sender and recipient are blacklisted
-	if pool.chainconfig.Consortium != nil && pool.wd {
+	if pool.chainconfig.Consortium != nil && pool.odysseus {
 		contractAddr := pool.chainconfig.BlacklistContractAddress
 		if state.IsAddressBlacklisted(pool.currentState, contractAddr, &from) || state.IsAddressBlacklisted(pool.currentState, contractAddr, tx.To()) {
 			return ErrAddressBlacklisted
@@ -1227,7 +1227,7 @@ func (pool *TxPool) reset(oldHead, newHead *types.Header) {
 	next := new(big.Int).Add(newHead.Number, big.NewInt(1))
 	pool.istanbul = pool.chainconfig.IsIstanbul(next)
 	pool.eip2718 = pool.chainconfig.IsBerlin(next)
-	pool.wd = pool.chainconfig.IsWD(next)
+	pool.odysseus = pool.chainconfig.IsOdysseus(next)
 }
 
 // promoteExecutables moves transactions that have become processable from the
