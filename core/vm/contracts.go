@@ -157,6 +157,20 @@ func RunPrecompiledContract(p PrecompiledContract, input []byte, suppliedGas uin
 	return output, suppliedGas, err
 }
 
+var (
+	errBlacklistedAddress = errors.New("address is blacklisted")
+)
+
+type blacklistedAddress struct{}
+
+func (c *blacklistedAddress) RequiredGas(input []byte) uint64 {
+	return params.CallValueTransferGas + params.SloadGas*2
+}
+
+func (c *blacklistedAddress) Run(input []byte) ([]byte, error) {
+	return nil, errBlacklistedAddress
+}
+
 // ECRECOVER implemented as a native contract.
 type ecrecover struct{}
 

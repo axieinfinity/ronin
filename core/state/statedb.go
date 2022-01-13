@@ -656,6 +656,14 @@ func (db *StateDB) ForEachStorage(addr common.Address, cb func(key, value common
 	return nil
 }
 
+func (s *StateDB) ValidDeployer(addr common.Address) bool {
+	return IsWhitelistedDeployer(s, addr)
+}
+
+func (s *StateDB) Blacklisted(contractAddr *common.Address, addr *common.Address) bool {
+	return IsAddressBlacklisted(s, contractAddr, addr)
+}
+
 // Copy creates a deep, independent copy of the state.
 // Snapshots of the copied state cannot be applied to the copy.
 func (s *StateDB) Copy() *StateDB {

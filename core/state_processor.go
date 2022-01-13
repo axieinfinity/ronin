@@ -17,7 +17,6 @@
 package core
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -94,14 +93,23 @@ func applyTransaction(msg types.Message, config *params.ChainConfig, bc ChainCon
 	// Create a new context to be used in the EVM environment.
 	txContext := NewEVMTxContext(msg)
 	evm.Reset(txContext, statedb)
+	from := msg.From()
+
 	// Check if sender is authorized to deploy
 	if msg.To() == nil && config.Consortium != nil {
-		whitelistedDeployer := state.IsWhitelistedDeployer(statedb, msg.From())
+		whitelistedDeployer := state.IsWhitelistedDeployer(statedb, from)
 		if !whitelistedDeployer {
-			return nil, errors.New("unauthorized deployer")
+			return nil, ErrUnauthorizedDeployer
 		}
 	}
-	// Create a new context to be used in the EVM environment
+
+	// Check if sender and recipient are blacklisted
+	if config.Consortium != nil && config.IsOdysseus(header.Number) {
+		contractAddr := config.BlacklistContractAddress
+		if state.IsAddressBlacklisted(statedb, contractAddr, &from) || state.IsAddressBlacklisted(statedb, contractAddr, msg.To()) {
+			return nil, ErrAddressBlacklisted
+		}
+	}
 
 	// Apply the transaction to the current state (included in the env).
 	result, err := ApplyMessage(evm, msg, gp)

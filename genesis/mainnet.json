@@ -9,6 +9,8 @@
     "constantinopleBlock": 0,
     "petersburgBlock": 0,
     "istanbulBlock": 4977778,
+    "odysseusBlock": null,
+    "blacklistContractAddress": null,
     "consortium": {
       "period": 3,
       "epoch": 600
