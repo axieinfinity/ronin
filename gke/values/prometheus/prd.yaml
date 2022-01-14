@@ -856,7 +856,8 @@ server:
   ## Node labels for Prometheus server pod assignment
   ## Ref: https://kubernetes.io/docs/user-guide/node-selection/
   ##
-  nodeSelector: {}
+  nodeSelector:
+    node_pool: "pool-default-8"
 
   ## Pod affinity
   ##

@@ -1,6 +1,6 @@
 ## nginx configuration
 ## Ref: https://github.com/kubernetes/ingress-nginx/tree/main/charts/ingress-nginx
-## helm diff upgrade --install nginx-ingress-internal ingress-nginx/ingress-nginx -f gke/values/nginx-ingress/prd.yaml -n nginx-ingress-internal
+## helm diff upgrade --install nginx-ingress-internal ingress-nginx/ingress-nginx -f ~/ronin/gke/values/nginx-ingress/prd.yaml -n nginx-ingress-internal
 
 ## nginx configuration
 ## Ref: https://github.com/kubernetes/ingress-nginx/blob/main/docs/user-guide/nginx-configuration/index.md
@@ -213,7 +213,11 @@ controller:
   ## Node tolerations for server scheduling to nodes with taints
   ## Ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/
   ##
-  tolerations: []
+  tolerations:
+    - key: "node_pool"
+      operator: "Equal"
+      value: "pool-rpc-nodes"
+      effect: "NoSchedule"
   #  - key: "key"
   #    operator: "Equal|Exists"
   #    value: "value"
@@ -283,7 +287,7 @@ controller:
   ## Ref: https://kubernetes.io/docs/user-guide/node-selection/
   ##
   nodeSelector:
-    kubernetes.io/os: linux
+    node_pool: "pool-rpc-nodes"
 
   ## Liveness and readiness probe values
   ## Ref: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#container-probes
@@ -336,7 +340,7 @@ controller:
   ##
   podAnnotations: {}
 
-  replicaCount: 1
+  replicaCount: 4
 
   minAvailable: 1
 

@@ -75,15 +75,16 @@ persistentVolumes:
 
 containerResources:
   requests:
-    memory: 4Gi
+    memory: 3Gi
     cpu: 2
   limits:
-    memory: 8Gi
-    cpu: 3
+    memory: 10Gi
+    cpu: 4
 
 nodeSelector:
-  cluster_name: "axs-ronin-gke"
   node_pool: "pool-default-8"
+
+tolerations: []
 
 affinity:
   podAntiAffinity:
