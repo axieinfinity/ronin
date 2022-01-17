@@ -213,11 +213,7 @@ controller:
   ## Node tolerations for server scheduling to nodes with taints
   ## Ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/
   ##
-  tolerations:
-    - key: "node_pool"
-      operator: "Equal"
-      value: "pool-rpc-nodes"
-      effect: "NoSchedule"
+  tolerations: []
   #  - key: "key"
   #    operator: "Equal|Exists"
   #    value: "value"
@@ -226,7 +222,24 @@ controller:
   ## Affinity and anti-affinity
   ## Ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
   ##
-  affinity: {}
+  affinity:
+   podAntiAffinity:
+     requiredDuringSchedulingIgnoredDuringExecution:
+     - labelSelector:
+         matchExpressions:
+         - key: app.kubernetes.io/name
+           operator: In
+           values:
+           - ingress-nginx
+         - key: app.kubernetes.io/instance
+           operator: In
+           values:
+           - nginx-ingress-internal
+         - key: app.kubernetes.io/component
+           operator: In
+           values:
+           - controller
+       topologyKey: "kubernetes.io/hostname"
     # # An example of preferred pod anti-affinity, weight is in the range 1-100
     # podAntiAffinity:
     #   preferredDuringSchedulingIgnoredDuringExecution:
@@ -287,7 +300,7 @@ controller:
   ## Ref: https://kubernetes.io/docs/user-guide/node-selection/
   ##
   nodeSelector:
-    node_pool: "pool-rpc-nodes"
+    node_pool: "pool-default-8"
 
   ## Liveness and readiness probe values
   ## Ref: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#container-probes

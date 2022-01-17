@@ -23,7 +23,7 @@ podAnnotations:
 
 containerImage:
   repository: gcr.io/test-servers-256610/ronin_ronin
-  tag: v2.2.2.0-7bfba31d6
+  tag: master-f07cd8d1e
   pullPolicy: IfNotPresent
 
 containerPorts:
@@ -75,16 +75,20 @@ persistentVolumes:
 
 containerResources:
   requests:
-    memory: 3Gi
+    memory: 2.5Gi
     cpu: 2
   limits:
-    memory: 10Gi
-    cpu: 4
+    memory: 8Gi
+    cpu: 5
 
 nodeSelector:
-  node_pool: "pool-default-8"
+  node_pool: "pool-rpc-nodes"
 
-tolerations: []
+tolerations:
+- key: "node_pool"
+  operator: "Equal"
+  value: "pool-rpc-nodes"
+  effect: "NoSchedule"
 
 affinity:
   podAntiAffinity:
@@ -101,6 +105,9 @@ imagePullSecrets:
   - gcr-json-key
 
 additionalDeploymentLabels:
+  application: rpc-ronin
+
+additionalPodLabels:
   application: rpc-ronin
 
 configMaps:

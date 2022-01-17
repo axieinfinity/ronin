@@ -1,7 +1,7 @@
 # This yaml is example for creating an rpc node using snapshot pvc.
 # helm diff upgrade --install rpc-node   ~/axis/helm-kubernetes-services/charts/k8s-service/ -f ~/ronin/gke/values/rpc/prd.yaml
 
-replicaCount: 3
+replicaCount: 4
 
 deployment:
   enabled: False
@@ -31,7 +31,7 @@ podAnnotations:
 
 containerImage:
   repository: gcr.io/test-servers-256610/ronin_ronin
-  tag: v2.2.2.0-7bfba31d6
+  tag: master-f07cd8d1e
   pullPolicy: IfNotPresent
 
 containerPorts:
@@ -84,7 +84,7 @@ persistentVolumes:
 containerResources:
   requests:
     memory: 2.5Gi
-    cpu: 1.5
+    cpu: 2
   limits:
     memory: 7Gi
     cpu: 4
