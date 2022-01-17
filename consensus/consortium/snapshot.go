@@ -38,6 +38,7 @@ type Snapshot struct {
 	Hash       common.Hash                 `json:"hash"`       // Block hash where the snapshot was created
 	SignerSet  map[common.Address]struct{} `json:"signerSet"`  // Set of authorized signers at this moment
 	SignerList []common.Address            `json:"signerList"` // List of authorized signers at this moment
+	Recents    map[uint64]common.Address   `json:"recents"`    // Set of recent signers for spam protections
 }
 
 // newSnapshot creates a new snapshot with the specified startup parameters. This
@@ -51,6 +52,7 @@ func newSnapshot(config *params.ConsortiumConfig, sigcache *lru.ARCCache, number
 		Hash:       hash,
 		SignerSet:  make(map[common.Address]struct{}),
 		SignerList: make([]common.Address, 0, len(signers)),
+		Recents:    make(map[uint64]common.Address),
 	}
 
 	for _, signer := range signers {
@@ -95,11 +97,16 @@ func (s *Snapshot) copy() *Snapshot {
 		Hash:       s.Hash,
 		SignerSet:  make(map[common.Address]struct{}),
 		SignerList: make([]common.Address, 0, len(s.SignerList)),
+		Recents:    make(map[uint64]common.Address),
 	}
 
 	for _, signer := range s.SignerList {
 		cpy.SignerSet[signer] = struct{}{}
 		cpy.SignerList = append(cpy.SignerList, signer)
+	}
+
+	for block, signer := range s.Recents {
+		cpy.Recents[block] = signer
 	}
 
 	return cpy
@@ -121,6 +128,12 @@ func (s *Snapshot) apply(chain consensus.ChainHeaderReader, c *Consortium, heade
 		logged = time.Now()
 	)
 	for i, header := range headers {
+		number := header.Number.Uint64()
+		// Delete the oldest signer from the recent list to allow it signing again
+		if limit := uint64(len(snap.SignerSet)/2 + 1); number >= limit {
+			delete(snap.Recents, number-limit)
+		}
+
 		// Resolve the authorization key and check against signers
 		signer, err := ecrecover(header, s.sigcache)
 		if err != nil {
@@ -135,6 +148,7 @@ func (s *Snapshot) apply(chain consensus.ChainHeaderReader, c *Consortium, heade
 			log.Info("Reconstructing snapshot", "processed", i, "total", len(headers), "elapsed", common.PrettyDuration(time.Since(start)))
 			logged = time.Now()
 		}
+		snap.Recents[number] = signer
 	}
 
 	snap.Number += uint64(len(headers))
