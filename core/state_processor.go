@@ -107,7 +107,7 @@ func applyTransaction(msg types.Message, config *params.ChainConfig, bc ChainCon
 	}
 
 	// Check if sender and recipient are blacklisted
-	if config.Consortium != nil && config.IsOdysseus(header.Number) {
+	if config.Consortium != nil && config.IsOdysseus(blockNumber) {
 		contractAddr := config.BlacklistContractAddress
 		if state.IsAddressBlacklisted(statedb, contractAddr, &from) || state.IsAddressBlacklisted(statedb, contractAddr, msg.To()) {
 			return nil, ErrAddressBlacklisted
