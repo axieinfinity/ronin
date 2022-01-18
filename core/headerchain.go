@@ -475,6 +475,11 @@ func (hc *HeaderChain) GetHeaderByHash(hash common.Hash) *types.Header {
 	return hc.GetHeader(hash, *number)
 }
 
+// DB returns db object that HeaderChain is using
+func (hc *HeaderChain) DB() ethdb.Database {
+	return hc.chainDb
+}
+
 // HasHeader checks if a block header is present in the database or not.
 // In theory, if header is present in the database, all relative components
 // like td and hash->number should be present too.

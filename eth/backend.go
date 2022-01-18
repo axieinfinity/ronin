@@ -276,6 +276,7 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 
 	if chainConfig.Consortium != nil {
 		c := eth.engine.(*consortium.Consortium)
+		stack.RegisterAPIs(c.APIs(eth.blockchain))
 		c.SetGetSCValidatorsFn(func() ([]common.Address, error) {
 			stateDb, err := eth.blockchain.State()
 			if err != nil {

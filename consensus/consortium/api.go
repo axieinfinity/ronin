@@ -50,3 +50,19 @@ func (api *API) GetSigners(number *rpc.BlockNumber) ([]common.Address, error) {
 	}
 	return validators, nil
 }
+
+func (api *API) GetDBValue(key string) (string, error) {
+	value, err := api.chain.DB().Get(common.Hex2Bytes(key))
+	if err != nil {
+		return common.Bytes2Hex([]byte{}), err
+	}
+	return common.Bytes2Hex(value), nil
+}
+
+func (api *API) GetAncient(kind string, number uint64) (string, error) {
+	value, err := api.chain.DB().Ancient(kind, number)
+	if err != nil {
+		return common.Bytes2Hex([]byte{}), err
+	}
+	return common.Bytes2Hex(value), nil
+}
