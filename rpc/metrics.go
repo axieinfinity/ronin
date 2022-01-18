@@ -40,5 +40,5 @@ func newRPCServingTimer(method string, valid bool) metrics.Timer {
 
 func newRPCServingHourlyCounter(method string) metrics.Counter {
 	counterName := fmt.Sprintf("rpc/hourlyCounter/%s", method)
-	return metrics.GetOrRegisterCounter(counterName, nil)
+	return metrics.GetOrRegisterPeriodCounter(counterName, nil)
 }
