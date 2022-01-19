@@ -347,6 +347,7 @@ func (h *handler) handleCall(cp *callProc, msg *jsonrpcMessage) *jsonrpcMessage 
 		}
 		rpcServingTimer.UpdateSince(start)
 		newRPCServingTimer(msg.Method, answer.Error == nil).UpdateSince(start)
+		newRPCMethodCounter(msg.Method, answer.Error == nil).Inc(1)
 	}
 	return answer
 }
