@@ -29,6 +29,7 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
@@ -38,6 +39,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/ethereum/go-ethereum/signer/core/apitypes"
 )
 
 type SigFormat struct {
@@ -99,7 +101,8 @@ func (t *Type) isReferenceType() bool {
 		return false
 	}
 	// Reference types must have a leading uppercase character
-	return unicode.IsUpper([]rune(t.Type)[0])
+	r, _ := utf8.DecodeRuneInString(t.Type)
+	return unicode.IsUpper(r)
 }
 
 type Types map[string][]Type
@@ -323,7 +326,7 @@ func (api *SignerAPI) SignTypedData(ctx context.Context, addr common.MixedcaseAd
 // signTypedData is identical to the capitalized version, except that it also returns the hash (preimage)
 // - the signature preimage (hash)
 func (api *SignerAPI) signTypedData(ctx context.Context, addr common.MixedcaseAddress,
-	typedData TypedData, validationMessages *ValidationMessages) (hexutil.Bytes, hexutil.Bytes, error) {
+	typedData TypedData, validationMessages *apitypes.ValidationMessages) (hexutil.Bytes, hexutil.Bytes, error) {
 	domainSeparator, err := typedData.HashStruct("EIP712Domain", typedData.Domain.Map())
 	if err != nil {
 		return nil, nil, err

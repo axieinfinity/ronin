@@ -42,21 +42,27 @@ import (
 
 // FullNodeGPO contains default gasprice oracle settings for full node.
 var FullNodeGPO = gasprice.Config{
-	Blocks:     20,
-	Percentile: 60,
-	MaxPrice:   gasprice.DefaultMaxPrice,
+	Blocks:           20,
+	Percentile:       60,
+	MaxHeaderHistory: 1024,
+	MaxBlockHistory:  1024,
+	MaxPrice:         gasprice.DefaultMaxPrice,
+	IgnorePrice:      gasprice.DefaultIgnorePrice,
 }
 
 // LightClientGPO contains default gasprice oracle settings for light client.
 var LightClientGPO = gasprice.Config{
-	Blocks:     2,
-	Percentile: 60,
-	MaxPrice:   gasprice.DefaultMaxPrice,
+	Blocks:           2,
+	Percentile:       60,
+	MaxHeaderHistory: 300,
+	MaxBlockHistory:  5,
+	MaxPrice:         gasprice.DefaultMaxPrice,
+	IgnorePrice:      gasprice.DefaultIgnorePrice,
 }
 
 // Defaults contains default settings for use on the Ethereum main net.
 var Defaults = Config{
-	SyncMode: downloader.FastSync,
+	SyncMode: downloader.SnapSync,
 	Ethash: ethash.Config{
 		CacheDir:         "ethash",
 		CachesInMem:      2,
@@ -78,15 +84,15 @@ var Defaults = Config{
 	TrieTimeout:             60 * time.Minute,
 	SnapshotCache:           102,
 	Miner: miner.Config{
-		GasFloor: 8000000,
 		GasCeil:  8000000,
 		GasPrice: big.NewInt(params.GWei),
 		Recommit: 3 * time.Second,
 	},
-	TxPool:      core.DefaultTxPoolConfig,
-	RPCGasCap:   25000000,
-	GPO:         FullNodeGPO,
-	RPCTxFeeCap: 1, // 1 ether
+	TxPool:        core.DefaultTxPoolConfig,
+	RPCGasCap:     50000000,
+	RPCEVMTimeout: 5 * time.Second,
+	GPO:           FullNodeGPO,
+	RPCTxFeeCap:   1, // 1 ether
 }
 
 func init() {
@@ -181,14 +187,11 @@ type Config struct {
 	// Miscellaneous options
 	DocRoot string `toml:"-"`
 
-	// Type of the EWASM interpreter ("" for default)
-	EWASMInterpreter string
-
-	// Type of the EVM interpreter ("" for default)
-	EVMInterpreter string
-
 	// RPCGasCap is the global gas cap for eth-call variants.
 	RPCGasCap uint64
+
+	// RPCEVMTimeout is the global timeout for eth-call.
+	RPCEVMTimeout time.Duration
 
 	// RPCTxFeeCap is the global transaction fee(price * gaslimit) cap for
 	// send-transction variants. The unit is ether.
@@ -200,8 +203,8 @@ type Config struct {
 	// CheckpointOracle is the configuration for checkpoint oracle.
 	CheckpointOracle *params.CheckpointOracleConfig `toml:",omitempty"`
 
-	// Berlin block override (TODO: remove after the fork)
-	OverrideBerlin *big.Int `toml:",omitempty"`
+	// Arrow Glacier block override (TODO: remove after the fork)
+	OverrideArrowGlacier *big.Int `toml:",omitempty"`
 }
 
 // CreateConsensusEngine creates a consensus engine for the given chain configuration.

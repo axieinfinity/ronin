@@ -66,7 +66,7 @@ type txPool interface {
 
 	// Pending should return pending transactions.
 	// The slice should be modifiable by the caller.
-	Pending() (map[common.Address]types.Transactions, error)
+	Pending(enforceTips bool) map[common.Address]types.Transactions
 
 	// SubscribeNewTxsEvent should return an event subscription of
 	// NewTxsEvent and send events to the given channel.
@@ -117,7 +117,6 @@ type handler struct {
 	whitelist map[uint64]common.Hash
 
 	// channels for fetcher, syncer, txsyncLoop
-	txsyncCh chan *txsync
 	quitSync chan struct{}
 
 	chainSync *chainSyncer
@@ -140,7 +139,6 @@ func newHandler(config *handlerConfig) (*handler, error) {
 		chain:      config.Chain,
 		peers:      newPeerSet(),
 		whitelist:  config.Whitelist,
-		txsyncCh:   make(chan *txsync),
 		quitSync:   make(chan struct{}),
 	}
 	if config.Sync == downloader.FullSync {
@@ -287,7 +285,7 @@ func (h *handler) runEthPeer(peer *eth.Peer, handler eth.Handler) error {
 		peer.Log().Error("Ethereum peer registration failed", "err", err)
 		return err
 	}
-	defer h.removePeer(peer.ID())
+	defer h.unregisterPeer(peer.ID())
 
 	p := h.peers.peer(peer.ID())
 	if p == nil {
@@ -354,9 +352,16 @@ func (h *handler) runSnapExtension(peer *snap.Peer, handler snap.Handler) error 
 	return handler(peer)
 }
 
-// removePeer unregisters a peer from the downloader and fetchers, removes it from
-// the set of tracked peers and closes the network connection to it.
+// removePeer requests disconnection of a peer.
 func (h *handler) removePeer(id string) {
+	peer := h.peers.peer(id)
+	if peer != nil {
+		peer.Peer.Disconnect(p2p.DiscUselessPeer)
+	}
+}
+
+// unregisterPeer removes a peer from the downloader, fetchers and main peer set.
+func (h *handler) unregisterPeer(id string) {
 	// Create a custom logger to avoid printing the entire id
 	var logger log.Logger
 	if len(id) < 16 {
@@ -384,8 +389,6 @@ func (h *handler) removePeer(id string) {
 	if err := h.peers.unregisterPeer(id); err != nil {
 		logger.Error("Ethereum peer removal failed", "err", err)
 	}
-	// Hard disconnect at the networking layer
-	peer.Peer.Disconnect(p2p.DiscUselessPeer)
 }
 
 func (h *handler) Start(maxPeers int) {
@@ -403,9 +406,8 @@ func (h *handler) Start(maxPeers int) {
 	go h.minedBroadcastLoop()
 
 	// start sync handlers
-	h.wg.Add(2)
+	h.wg.Add(1)
 	go h.chainSync.loop()
-	go h.txsyncLoop64() // TODO(karalabe): Legacy initial tx echange, drop with eth/64.
 }
 
 func (h *handler) Stop() {

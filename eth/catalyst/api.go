@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/consensus/misc"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -38,10 +39,8 @@ import (
 // Register adds catalyst APIs to the node.
 func Register(stack *node.Node, backend *eth.Ethereum) error {
 	chainconfig := backend.BlockChain().Config()
-	if chainconfig.CatalystBlock == nil {
-		return errors.New("catalystBlock is not set in genesis config")
-	} else if chainconfig.CatalystBlock.Sign() != 0 {
-		return errors.New("catalystBlock of genesis config must be zero")
+	if chainconfig.TerminalTotalDifficulty == nil {
+		return errors.New("catalyst started without valid total difficulty")
 	}
 
 	log.Warn("Catalyst mode enabled")
@@ -79,8 +78,10 @@ type blockExecutionEnv struct {
 
 func (env *blockExecutionEnv) commitTransaction(tx *types.Transaction, coinbase common.Address) error {
 	vmconfig := *env.chain.GetVMConfig()
+	snap := env.state.Snapshot()
 	receipt, err := core.ApplyTransaction(env.chain.Config(), env.chain, &coinbase, env.gasPool, env.state, env.header, tx, &env.header.GasUsed, vmconfig)
 	if err != nil {
+		env.state.RevertToSnapshot(snap)
 		return err
 	}
 	env.txs = append(env.txs, tx)
@@ -125,10 +126,7 @@ func (api *consensusAPI) AssembleBlock(params assembleBlockParams) (*executableD
 		time.Sleep(wait)
 	}
 
-	pending, err := pool.Pending()
-	if err != nil {
-		return nil, err
-	}
+	pending := pool.Pending(true)
 
 	coinbase, err := api.eth.Etherbase()
 	if err != nil {
@@ -143,6 +141,9 @@ func (api *consensusAPI) AssembleBlock(params assembleBlockParams) (*executableD
 		Extra:      []byte{},
 		Time:       params.Timestamp,
 	}
+	if config := api.eth.BlockChain().Config(); config.IsLondon(header.Number) {
+		header.BaseFee = misc.CalcBaseFee(config, parent.Header())
+	}
 	err = api.eth.Engine().Prepare(bc, header)
 	if err != nil {
 		return nil, err
@@ -155,7 +156,7 @@ func (api *consensusAPI) AssembleBlock(params assembleBlockParams) (*executableD
 
 	var (
 		signer       = types.MakeSigner(bc.Config(), header.Number)
-		txHeap       = types.NewTransactionsByPriceAndNonce(signer, pending)
+		txHeap       = types.NewTransactionsByPriceAndNonce(signer, pending, nil)
 		transactions []*types.Transaction
 	)
 	for {
@@ -172,7 +173,7 @@ func (api *consensusAPI) AssembleBlock(params assembleBlockParams) (*executableD
 		from, _ := types.Sender(signer, tx)
 
 		// Execute the transaction
-		env.state.Prepare(tx.Hash(), common.Hash{}, env.tcount)
+		env.state.Prepare(tx.Hash(), env.tcount)
 		err = env.commitTransaction(tx, coinbase)
 		switch err {
 		case core.ErrGasLimitReached:
@@ -244,7 +245,7 @@ func decodeTransactions(enc [][]byte) ([]*types.Transaction, error) {
 	return txs, nil
 }
 
-func insertBlockParamsToBlock(params executableData) (*types.Block, error) {
+func insertBlockParamsToBlock(config *chainParams.ChainConfig, parent *types.Header, params executableData) (*types.Block, error) {
 	txs, err := decodeTransactions(params.Transactions)
 	if err != nil {
 		return nil, err
@@ -266,6 +267,9 @@ func insertBlockParamsToBlock(params executableData) (*types.Block, error) {
 		GasUsed:     params.GasUsed,
 		Time:        params.Timestamp,
 	}
+	if config.IsLondon(number) {
+		header.BaseFee = misc.CalcBaseFee(config, parent)
+	}
 	block := types.NewBlockWithHeader(header).WithBody(txs, nil /* uncles */)
 	return block, nil
 }
@@ -278,11 +282,10 @@ func (api *consensusAPI) NewBlock(params executableData) (*newBlockResponse, err
 	if parent == nil {
 		return &newBlockResponse{false}, fmt.Errorf("could not find parent %x", params.ParentHash)
 	}
-	block, err := insertBlockParamsToBlock(params)
+	block, err := insertBlockParamsToBlock(api.eth.BlockChain().Config(), parent.Header(), params)
 	if err != nil {
 		return nil, err
 	}
-
 	_, err = api.eth.BlockChain().InsertChainWithoutSealVerification(block)
 	return &newBlockResponse{err == nil}, err
 }

@@ -27,39 +27,15 @@ import (
 
 // Config are the configuration options for the Interpreter
 type Config struct {
-	Debug                   bool   // Enables debugging
-	Tracer                  Tracer // Opcode logger
-	NoRecursion             bool   // Disables call, callcode, delegate call and create
-	EnablePreimageRecording bool   // Enables recording of SHA3/keccak preimages
+	Debug                   bool      // Enables debugging
+	Tracer                  EVMLogger // Opcode logger
+	NoRecursion             bool      // Disables call, callcode, delegate call and create
+	NoBaseFee               bool      // Forces the EIP-1559 baseFee to 0 (needed for 0 price calls)
+	EnablePreimageRecording bool      // Enables recording of SHA3/keccak preimages
 
 	JumpTable [256]*operation // EVM instruction table, automatically populated if unset
 
-	EWASMInterpreter string // External EWASM interpreter options
-	EVMInterpreter   string // External EVM interpreter options
-
 	ExtraEips []int // Additional EIPS that are to be enabled
-}
-
-// Interpreter is used to run Ethereum based contracts and will utilise the
-// passed environment to query external sources for state information.
-// The Interpreter will run the byte code VM based on the passed
-// configuration.
-type Interpreter interface {
-	// Run loops and evaluates the contract's code with the given input data and returns
-	// the return byte-slice and an error if one occurred.
-	Run(contract *Contract, input []byte, static bool) ([]byte, error)
-	// CanRun tells if the contract, passed as an argument, can be
-	// run by the current interpreter. This is meant so that the
-	// caller can do something like:
-	//
-	// ```golang
-	// for _, interpreter := range interpreters {
-	//   if interpreter.CanRun(contract.code) {
-	//     interpreter.Run(contract.code, input)
-	//   }
-	// }
-	// ```
-	CanRun([]byte) bool
 }
 
 // ScopeContext contains the things that are per-call, such as stack and memory,
@@ -98,6 +74,8 @@ func NewEVMInterpreter(evm *EVM, cfg Config) *EVMInterpreter {
 	if cfg.JumpTable[STOP] == nil {
 		var jt JumpTable
 		switch {
+		case evm.chainRules.IsLondon:
+			jt = londonInstructionSet
 		case evm.chainRules.IsBerlin:
 			jt = berlinInstructionSet
 		case evm.chainRules.IsIstanbul:
@@ -174,9 +152,9 @@ func (in *EVMInterpreter) Run(contract *Contract, input []byte, readOnly bool) (
 		pc   = uint64(0) // program counter
 		cost uint64
 		// copies used by tracer
-		pcCopy  uint64 // needed for the deferred Tracer
-		gasCopy uint64 // for Tracer to log gas remaining before execution
-		logged  bool   // deferred Tracer should ignore already logged steps
+		pcCopy  uint64 // needed for the deferred EVMLogger
+		gasCopy uint64 // for EVMLogger to log gas remaining before execution
+		logged  bool   // deferred EVMLogger should ignore already logged steps
 		res     []byte // result of the opcode execution function
 	)
 	// Don't move this deferrred function, it's placed before the capturestate-deferred method,
@@ -191,9 +169,9 @@ func (in *EVMInterpreter) Run(contract *Contract, input []byte, readOnly bool) (
 		defer func() {
 			if err != nil {
 				if !logged {
-					in.cfg.Tracer.CaptureState(in.evm, pcCopy, op, gasCopy, cost, callContext, in.returnData, in.evm.depth, err)
+					in.cfg.Tracer.CaptureState(pcCopy, op, gasCopy, cost, callContext, in.returnData, in.evm.depth, err)
 				} else {
-					in.cfg.Tracer.CaptureFault(in.evm, pcCopy, op, gasCopy, cost, callContext, in.evm.depth, err)
+					in.cfg.Tracer.CaptureFault(pcCopy, op, gasCopy, cost, callContext, in.evm.depth, err)
 				}
 			}
 		}()
@@ -275,7 +253,7 @@ func (in *EVMInterpreter) Run(contract *Contract, input []byte, readOnly bool) (
 		}
 
 		if in.cfg.Debug {
-			in.cfg.Tracer.CaptureState(in.evm, pc, op, gasCopy, cost, callContext, in.returnData, in.evm.depth, err)
+			in.cfg.Tracer.CaptureState(pc, op, gasCopy, cost, callContext, in.returnData, in.evm.depth, err)
 			logged = true
 		}
 
@@ -284,7 +262,7 @@ func (in *EVMInterpreter) Run(contract *Contract, input []byte, readOnly bool) (
 		// if the operation clears the return data (e.g. it has returning data)
 		// set the last return to the result of the operation.
 		if operation.returns {
-			in.returnData = common.CopyBytes(res)
+			in.returnData = res
 		}
 
 		switch {
@@ -299,10 +277,4 @@ func (in *EVMInterpreter) Run(contract *Contract, input []byte, readOnly bool) (
 		}
 	}
 	return nil, nil
-}
-
-// CanRun tells if the contract, passed as an argument, can be
-// run by the current interpreter.
-func (in *EVMInterpreter) CanRun(code []byte) bool {
-	return true
 }

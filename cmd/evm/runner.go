@@ -108,15 +108,15 @@ func runCmd(ctx *cli.Context) error {
 	glogger.Verbosity(log.Lvl(ctx.GlobalInt(VerbosityFlag.Name)))
 	log.Root().SetHandler(glogger)
 	logconfig := &vm.LogConfig{
-		DisableMemory:     ctx.GlobalBool(DisableMemoryFlag.Name),
-		DisableStack:      ctx.GlobalBool(DisableStackFlag.Name),
-		DisableStorage:    ctx.GlobalBool(DisableStorageFlag.Name),
-		DisableReturnData: ctx.GlobalBool(DisableReturnDataFlag.Name),
-		Debug:             ctx.GlobalBool(DebugFlag.Name),
+		EnableMemory:     !ctx.GlobalBool(DisableMemoryFlag.Name),
+		DisableStack:     ctx.GlobalBool(DisableStackFlag.Name),
+		DisableStorage:   ctx.GlobalBool(DisableStorageFlag.Name),
+		EnableReturnData: !ctx.GlobalBool(DisableReturnDataFlag.Name),
+		Debug:            ctx.GlobalBool(DebugFlag.Name),
 	}
 
 	var (
-		tracer        vm.Tracer
+		tracer        vm.EVMLogger
 		debugLogger   *vm.StructLogger
 		statedb       *state.StateDB
 		chainConfig   *params.ChainConfig
@@ -211,9 +211,8 @@ func runCmd(ctx *cli.Context) error {
 		Coinbase:    genesisConfig.Coinbase,
 		BlockNumber: new(big.Int).SetUint64(genesisConfig.Number),
 		EVMConfig: vm.Config{
-			Tracer:         tracer,
-			Debug:          ctx.GlobalBool(DebugFlag.Name) || ctx.GlobalBool(MachineFlag.Name),
-			EVMInterpreter: ctx.GlobalString(EVMInterpreterFlag.Name),
+			Tracer: tracer,
+			Debug:  ctx.GlobalBool(DebugFlag.Name) || ctx.GlobalBool(MachineFlag.Name),
 		},
 	}
 
@@ -270,7 +269,7 @@ func runCmd(ctx *cli.Context) error {
 	if ctx.GlobalBool(DumpFlag.Name) {
 		statedb.Commit(true)
 		statedb.IntermediateRoot(true)
-		fmt.Println(string(statedb.Dump(false, false, true)))
+		fmt.Println(string(statedb.Dump(nil)))
 	}
 
 	if memProfilePath := ctx.GlobalString(MemProfileFlag.Name); memProfilePath != "" {
