@@ -44,5 +44,5 @@ func newRPCMethodCounter(method string, valid bool) metrics.Counter {
 		flag = "failure"
 	}
 	m := fmt.Sprintf("rpc/count/%s/%s", method, flag)
-	return metrics.NewRegisteredCounter(m, nil)
+	return metrics.GetOrRegisterCounter(m, nil)
 }
