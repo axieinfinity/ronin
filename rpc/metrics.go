@@ -37,3 +37,12 @@ func newRPCServingTimer(method string, valid bool) metrics.Timer {
 	m := fmt.Sprintf("rpc/duration/%s/%s", method, flag)
 	return metrics.GetOrRegisterTimer(m, nil)
 }
+
+func newRPCMethodCounter(method string, valid bool) metrics.Counter {
+	flag := "success"
+	if !valid {
+		flag = "failure"
+	}
+	m := fmt.Sprintf("rpc/count/%s/%s", method, flag)
+	return metrics.NewRegisteredCounter(m, nil)
+}
