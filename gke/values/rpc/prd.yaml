@@ -31,7 +31,7 @@ podAnnotations:
 
 containerImage:
   repository: gcr.io/test-servers-256610/ronin_ronin
-  tag: master-f07cd8d1e
+  tag: master-b8e047656
   pullPolicy: IfNotPresent
 
 containerPorts:
@@ -125,3 +125,13 @@ customPreStopCommand:
 
 shutdownDelay: 0
 terminationGracePeriodSeconds: 300
+
+livenessProbe:
+ httpGet:
+   path: /
+   port: rpc
+
+readinessProbe:
+  httpGet:
+    path: /
+    port: rpc

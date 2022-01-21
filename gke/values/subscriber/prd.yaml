@@ -11,7 +11,7 @@ statefulset:
 
 containerImage:
   repository: gcr.io/test-servers-256610/ronin_ronin
-  tag: master-60db565c2
+  tag: master-b8e047656
   pullPolicy: IfNotPresent
 
 containerPorts:

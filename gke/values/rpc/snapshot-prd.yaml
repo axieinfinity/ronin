@@ -23,7 +23,7 @@ podAnnotations:
 
 containerImage:
   repository: gcr.io/test-servers-256610/ronin_ronin
-  tag: master-f07cd8d1e
+  tag: master-b8e047656
   pullPolicy: IfNotPresent
 
 containerPorts:
@@ -98,8 +98,8 @@ affinity:
         - key: application
           operator: In
           values:
-          - subscriber
-      topologyKey: topology.kubernetes.io/zone
+          - rpc-ronin
+      topologyKey: kubernetes.io/hostname
 
 imagePullSecrets:
   - gcr-json-key
@@ -118,7 +118,7 @@ configMaps:
 
 initContainers:
   - name: prune-state
-    image: "gcr.io/test-servers-256610/ronin_ronin:v2.2.2.0-7bfba31d6"
+    image: "gcr.io/test-servers-256610/ronin_ronin:master-b8e047656"
     imagePullPolicy: IfNotPresent
     command:
       - "/etc/prune-state/prune_state.sh"
@@ -136,3 +136,13 @@ customPreStopCommand:
 
 shutdownDelay: 0
 terminationGracePeriodSeconds: 300
+
+livenessProbe:
+ httpGet:
+   path: /
+   port: rpc
+
+readinessProbe:
+  httpGet:
+    path: /
+    port: rpc

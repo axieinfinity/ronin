@@ -1,0 +1,45 @@
+# kb apply -f ~/ronin/gke/kubernetes_resources/cronjob_snapshot.yaml
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: rpc-snapshot-restart
+  namespace: default
+spec:
+  concurrencyPolicy: Forbid
+  schedule: '0 8 * * *' # cron spec of time, here, 8 o'clock
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: ronin-cronjob
+          restartPolicy: Never
+          containers:
+            - name: kubectl
+              image: bitnami/kubectl
+              command:
+                - sh
+                - "-c"
+                - |
+                  /bin/sh  <<'EOF'
+                  # Normal script content possible
+                  set -x
+                  echo "Delete snapshot"
+                  kubectl delete volumesnapshots ronin-rpc-snapshot
+                  echo "ScaleDown Statefulset"
+                  kubectl scale statefulset rpc-snapshot-node-rpc-node --replicas=0
+                  sleep 15
+                  echo "Create snapshot"
+                  kubectl apply -f /configmap/data
+                  sleep 15
+                  echo "Scale up again"
+                  kubectl scale statefulset rpc-snapshot-node-rpc-node --replicas=1
+                  sleep 5
+                  EOF
+              volumeMounts:
+              - name: rpc-snapshot
+                mountPath: /configmap
+          volumes:
+            - configMap:
+                name: rpc-snapshot
+                defaultMode: 511
+              name: rpc-snapshot
