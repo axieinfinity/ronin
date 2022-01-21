@@ -164,6 +164,7 @@ func (b *backend) UnprotectedAllowed() bool                           { return f
 
 // Blockchain API
 func (b *backend) SetHead(number uint64) {}
+
 func (b *backend) HeaderByNumber(ctx context.Context, number rpc.BlockNumber) (*types.Header, error) {
 	// Pending block is only known by the miner
 	if number == rpc.PendingBlockNumber {
@@ -179,15 +180,18 @@ func (b *backend) HeaderByNumber(ctx context.Context, number rpc.BlockNumber) (*
 	}
 	return b.hc.GetHeaderByNumber(uint64(number)), nil
 }
+
 func (b *backend) HeaderByHash(ctx context.Context, hash common.Hash) (*types.Header, error) {
 	return b.hc.GetHeaderByHash(hash), nil
 }
+
 func (b *backend) HeaderByNumberOrHash(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) (*types.Header, error) {
 	if blockNrOrHash.BlockNumber != nil {
 		return b.HeaderByNumber(ctx, *blockNrOrHash.BlockNumber)
 	}
 	return b.HeaderByHash(ctx, *blockNrOrHash.BlockHash)
 }
+
 func (b *backend) CurrentHeader() *types.Header {
 	num, err := b.getLatestBlockNumber()
 	if err != nil {
@@ -195,6 +199,7 @@ func (b *backend) CurrentHeader() *types.Header {
 	}
 	return b.hc.GetHeaderByNumber(num)
 }
+
 func (b *backend) CurrentBlock() *types.Block {
 	block, err := b.getBlockByNumber(-1)
 	if err != nil {
@@ -202,12 +207,15 @@ func (b *backend) CurrentBlock() *types.Block {
 	}
 	return block
 }
+
 func (b *backend) BlockByNumber(ctx context.Context, number rpc.BlockNumber) (*types.Block, error) {
 	return b.getBlockByNumber(number)
 }
+
 func (b *backend) BlockByHash(ctx context.Context, hash common.Hash) (*types.Block, error) {
 	return b.getBlockByHash(hash)
 }
+
 func (b *backend) BlockByNumberOrHash(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) (*types.Block, error) {
 	if blockNrOrHash.BlockHash != nil {
 		return b.BlockByHash(ctx, *blockNrOrHash.BlockHash)
@@ -217,6 +225,7 @@ func (b *backend) BlockByNumberOrHash(ctx context.Context, blockNrOrHash rpc.Blo
 	}
 	return nil, errors.New("invalid arguments; neither block nor hash specified")
 }
+
 func (b *backend) StateAndHeaderByNumber(ctx context.Context, number rpc.BlockNumber) (*state.StateDB, *types.Header, error) {
 	header, err := b.HeaderByNumber(ctx, number)
 	if err != nil {
@@ -228,6 +237,7 @@ func (b *backend) StateAndHeaderByNumber(ctx context.Context, number rpc.BlockNu
 	stateDb, err := state.New(header.Root, state.NewDatabaseWithConfig(b.db, nil), nil)
 	return stateDb, header, err
 }
+
 func (b *backend) StateAndHeaderByNumberOrHash(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) (*state.StateDB, *types.Header, error) {
 	if blockNr, ok := blockNrOrHash.Number(); ok {
 		return b.StateAndHeaderByNumber(ctx, blockNr)
@@ -248,6 +258,7 @@ func (b *backend) StateAndHeaderByNumberOrHash(ctx context.Context, blockNrOrHas
 	}
 	return nil, nil, errors.New("invalid arguments; neither block nor hash specified")
 }
+
 func (b *backend) GetReceipts(ctx context.Context, hash common.Hash) (types.Receipts, error) {
 	if receipts, ok := b.receiptsCache.Get(hash); ok {
 		return receipts.(types.Receipts), nil
@@ -263,6 +274,7 @@ func (b *backend) GetReceipts(ctx context.Context, hash common.Hash) (types.Rece
 	b.receiptsCache.Add(hash, receipts)
 	return receipts, nil
 }
+
 func (b *backend) GetTd(ctx context.Context, hash common.Hash) *big.Int {
 	number := b.hc.GetBlockNumber(hash)
 	if number == nil {
@@ -270,6 +282,7 @@ func (b *backend) GetTd(ctx context.Context, hash common.Hash) *big.Int {
 	}
 	return b.hc.GetTd(hash, *number)
 }
+
 func (b *backend) GetEVM(ctx context.Context, msg core.Message, state *state.StateDB, header *types.Header, vmConfig *vm.Config) (*vm.EVM, func() error, error) {
 	vmError := func() error { return nil }
 	if vmConfig == nil {
@@ -283,33 +296,32 @@ func (b *backend) GetEVM(ctx context.Context, msg core.Message, state *state.Sta
 	blockContext := core.NewEVMBlockContext(header, b, nil)
 	return vm.NewEVM(blockContext, txContext, state, &params.ChainConfig{}, *vmConfig), vmError, nil
 }
-func (b *backend) SubscribeChainEvent(ch chan<- core.ChainEvent) event.Subscription { return nil }
-func (b *backend) SubscribeChainHeadEvent(ch chan<- core.ChainHeadEvent) event.Subscription {
-	return nil
-}
-func (b *backend) SubscribeChainSideEvent(ch chan<- core.ChainSideEvent) event.Subscription {
-	return nil
-}
 
 // Transaction pool API
 func (b *backend) SendTx(ctx context.Context, signedTx *types.Transaction) error { return nil }
+
 func (b *backend) GetTransaction(ctx context.Context, txHash common.Hash) (*types.Transaction, common.Hash, uint64, uint64, error) {
 	tx, blockHash, blockNumber, index := rawdb.ReadTransaction(b.db, txHash)
 	return tx, blockHash, blockNumber, index, nil
 }
-func (b *backend) GetPoolTransactions() (types.Transactions, error)         { return nil, nil }
+
+func (b *backend) GetPoolTransactions() (types.Transactions, error) { return nil, nil }
+
 func (b *backend) GetPoolTransaction(txHash common.Hash) *types.Transaction { return nil }
-func (b *backend) GetPoolNonce(ctx context.Context, addr common.Address) (uint64, error) {
-	return 0, nil
-}
+
+func (b *backend) GetPoolNonce(ctx context.Context, addr common.Address) (uint64, error) { return 0, nil }
+
 func (b *backend) Stats() (pending int, queued int) { return -1, -1 }
+
 func (b *backend) TxPoolContent() (map[common.Address]types.Transactions, map[common.Address]types.Transactions) {
 	return nil, nil
 }
+
 func (b *backend) SubscribeNewTxsEvent(chan<- core.NewTxsEvent) event.Subscription { return nil }
 
 // Filter API
 func (b *backend) BloomStatus() (uint64, uint64) { return 0, 0 }
+
 func (b *backend) GetLogs(ctx context.Context, blockHash common.Hash) ([][]*types.Log, error) {
 	receipts, err := b.GetReceipts(ctx, blockHash)
 	if err != nil {
@@ -324,18 +336,24 @@ func (b *backend) GetLogs(ctx context.Context, blockHash common.Hash) ([][]*type
 	}
 	return logs, nil
 }
-func (b *backend) ServiceFilter(ctx context.Context, session *bloombits.MatcherSession) {}
-func (b *backend) SubscribeLogsEvent(ch chan<- []*types.Log) event.Subscription         { return nil }
-func (b *backend) SubscribePendingLogsEvent(ch chan<- []*types.Log) event.Subscription  { return nil }
-func (b *backend) SubscribeRemovedLogsEvent(ch chan<- core.RemovedLogsEvent) event.Subscription {
-	return nil
-}
-func (b *backend) SubscribeReorgEvent(ch chan<- core.ReorgEvent) event.Subscription { return nil }
 
-func (b *backend) ChainConfig() *params.ChainConfig { return &params.ChainConfig{} }
+func (b *backend) ChainConfig() *params.ChainConfig {
+	return &params.ChainConfig{}
+}
+
 func (b *backend) Engine() consensus.Engine {
 	return consortium.New(&params.ConsortiumConfig{}, b.db)
 }
+
 func (b *backend) GetHeader(hash common.Hash, number uint64) *types.Header {
 	return b.hc.GetHeader(hash, number)
 }
+
+func (b *backend) ServiceFilter(ctx context.Context, session *bloombits.MatcherSession)         {}
+func (b *backend) SubscribeChainEvent(ch chan<- core.ChainEvent) event.Subscription             { return nil }
+func (b *backend) SubscribeChainHeadEvent(ch chan<- core.ChainHeadEvent) event.Subscription     { return nil }
+func (b *backend) SubscribeChainSideEvent(ch chan<- core.ChainSideEvent) event.Subscription     { return nil }
+func (b *backend) SubscribeLogsEvent(ch chan<- []*types.Log) event.Subscription                 { return nil }
+func (b *backend) SubscribePendingLogsEvent(ch chan<- []*types.Log) event.Subscription          { return nil }
+func (b *backend) SubscribeRemovedLogsEvent(ch chan<- core.RemovedLogsEvent) event.Subscription { return nil }
+func (b *backend) SubscribeReorgEvent(ch chan<- core.ReorgEvent) event.Subscription             { return nil }
