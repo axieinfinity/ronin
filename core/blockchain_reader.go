@@ -17,6 +17,8 @@
 package core
 
 import (
+	"errors"
+	"github.com/ethereum/go-ethereum/crypto"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -384,4 +386,86 @@ func (bc *BlockChain) SubscribeLogsEvent(ch chan<- []*types.Log) event.Subscript
 // block processing has started while false means it has stopped.
 func (bc *BlockChain) SubscribeBlockProcessingEvent(ch chan<- bool) event.Subscription {
 	return bc.scope.Track(bc.blockProcFeed.Subscribe(ch))
+}
+
+// SubscribeReorgEvent registers a subscription of ReorgEvent
+func (bc *BlockChain) SubscribeReorgEvent(ch chan<- ReorgEvent) event.Subscription {
+	return bc.scope.Track(bc.reorgFeed.Subscribe(ch))
+}
+
+// SubscribeInternalTransactionEvent registers a subscription of internalTxEvent (transfer, call, contract creation)
+func (bc *BlockChain) SubscribeInternalTransactionEvent(ch chan<- types.InternalTransaction) event.Subscription {
+	return bc.scope.Track(bc.internalTxFeed.Subscribe(ch))
+}
+
+func (bc *BlockChain) OpEvents() []*vm.PublishEvent {
+	return []*vm.PublishEvent{
+		{
+			OpCode: vm.CALL,
+			Event: &InternalTransferOrSmcCallEvent{
+				feed: &bc.internalTxFeed,
+			},
+		},
+		{
+			OpCode: vm.CREATE,
+			Event: &InternalTransactionContractCreation{
+				feed: &bc.internalTxFeed,
+			},
+		},
+	}
+}
+
+type InternalTransferOrSmcCallEvent struct {
+	feed *event.Feed
+}
+
+func (tx *InternalTransferOrSmcCallEvent) Publish(stateDB vm.StateDB, hash common.Hash, from, to common.Address, value *big.Int, input []byte, err error) error {
+	// check if this is internal transaction or not by getting code from `from`
+	if stateDB.GetCodeHash(from) == crypto.Keccak256Hash(nil) {
+		return errors.New("this is not internal transaction")
+	}
+	internal := types.InternalTransaction{
+		TransactionHash: hash,
+		Type:            types.InternalTransactionContractCall,
+		Value:           value,
+		Input:           input,
+		From:            from,
+		To:              to,
+		Success:         err == nil,
+		Error:           "",
+	}
+	if value.Cmp(big.NewInt(0)) > 0 && (input == nil || len(input) == 0) {
+		internal.Type = types.InternalTransactionTransfer
+	}
+	if err != nil {
+		internal.Error = err.Error()
+	}
+	tx.feed.Send(internal)
+	return nil
+}
+
+type InternalTransactionContractCreation struct {
+	feed *event.Feed
+}
+
+func (tx *InternalTransactionContractCreation) Publish(stateDB vm.StateDB, hash common.Hash, from, to common.Address, value *big.Int, input []byte, err error) error {
+	// check if this is internal transaction or not by getting code from `from`
+	if stateDB.GetCodeHash(from) == crypto.Keccak256Hash(nil) {
+		return errors.New("this is not internal transaction")
+	}
+	internal := &types.InternalTransaction{
+		TransactionHash: hash,
+		Type:            types.InternalTransactionContractCreation,
+		Value:           value,
+		Input:           input,
+		From:            from,
+		To:              to,
+		Success:         err == nil,
+		Error:           "",
+	}
+	if err != nil {
+		internal.Error = err.Error()
+	}
+	tx.feed.Send(internal)
+	return nil
 }
