@@ -36,7 +36,7 @@ type ChainContext interface {
 }
 
 // NewEVMBlockContext creates a new context for use in the EVM.
-func NewEVMBlockContext(header *types.Header, chain ChainContext, author *common.Address) vm.BlockContext {
+func NewEVMBlockContext(header *types.Header, chain ChainContext, author *common.Address, events ...*vm.PublishEvent) vm.BlockContext {
 	var (
 		beneficiary common.Address
 		baseFee     *big.Int
@@ -51,10 +51,11 @@ func NewEVMBlockContext(header *types.Header, chain ChainContext, author *common
 	if header.BaseFee != nil {
 		baseFee = new(big.Int).Set(header.BaseFee)
 	}
-	return vm.BlockContext{
+	ctx := vm.BlockContext{
 		CanTransfer: CanTransfer,
 		Transfer:    Transfer,
 		GetHash:     GetHashFn(header, chain),
+		PublishEvents: make(map[vm.OpCode]vm.OpEvent),
 		Coinbase:    beneficiary,
 		BlockNumber: new(big.Int).Set(header.Number),
 		Time:        new(big.Int).SetUint64(header.Time),
@@ -62,6 +63,13 @@ func NewEVMBlockContext(header *types.Header, chain ChainContext, author *common
 		BaseFee:     baseFee,
 		GasLimit:    header.GasLimit,
 	}
+	// update publishEvents if `events` is not empty
+	if len(events) > 0 {
+		for _, evt := range events {
+			ctx.PublishEvents[evt.OpCode] = evt.Event
+		}
+	}
+	return ctx
 }
 
 // NewEVMTxContext creates a new transaction context for a single transaction.
