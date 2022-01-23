@@ -29,6 +29,7 @@ const (
 	blockConfirmedEventTopic       = "subscriber.blockConfirmedEventTopic"
 	transactionConfirmedEventTopic = "subscriber.transactionConfirmedEventTopic"
 	logsConfirmedEventTopic        = "subscriber.logsConfirmedEventTopic"
+	internalTransactionEventTopic  = "subscriber.internalTransactionEventTopic"
 	kafkaPartition                 = "subscriber.kafka.partition"
 	kafkaUrl                       = "subscriber.kafka.url"
 	maxRetry                       = "subscriber.maxRetry"
@@ -85,6 +86,10 @@ var (
 	LogsConfirmedEventFlag = cli.StringFlag{
 		Name:  logsConfirmedEventTopic,
 		Usage: "topic name that confirmed logs will be published to",
+	}
+	InternalTxEventFlag = cli.StringFlag{
+		Name: internalTransactionEventTopic,
+		Usage: "topic name that internal transaction message will be published to",
 	}
 	KafkaPartitionFlag = cli.IntFlag{
 		Name:  kafkaPartition,
@@ -207,6 +212,18 @@ type NewBlock struct {
 	PublishedTime        int64          `json:"publishedTime"`
 }
 
+type InternalTransaction struct {
+	TransactionHash common.Hash			`json:"transactionHash"`
+	Hash 			common.Hash			`json:"hash"`
+	Type            string				`json:"type"`
+	Value           *hexutil.Big		`json:"value"`
+	Input           hexutil.Bytes 		`json:"input"`
+	From            common.Address		`json:"from"`
+	To              common.Address		`json:"to"`
+	Success         bool				`json:"success"`
+	Error           string				`json:"reason"`
+}
+
 func newTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber, timestamp uint64, index int, receipts types.Receipts) *NewTransaction {
 	var signer types.Signer = types.FrontierSigner{}
 	if tx.Protected() {
@@ -285,6 +302,20 @@ func newLog(log *types.Log, timestamp uint64) *NewLog {
 	}
 }
 
+func newInternalTx(tx types.InternalTransaction) *InternalTransaction {
+	return &InternalTransaction{
+		TransactionHash: tx.TransactionHash,
+		Hash:            tx.Hash(),
+		Type:            tx.Type,
+		Value: 			(*hexutil.Big)(tx.Value),
+		Input:           tx.Input,
+		From:            tx.From,
+		To:              tx.From,
+		Success:         tx.Success,
+		Error:           tx.Error,
+	}
+}
+
 // Publisher is used in subscriber to publish message to target message broker
 type Publisher interface {
 	publish(Job) error
@@ -333,6 +364,7 @@ type Subscriber struct {
 	reorgEvent       chan core.ReorgEvent
 	removeLogsEvent  chan core.RemovedLogsEvent
 	rebirthLogsEvent chan []*types.Log
+	internalTxEvent  chan types.InternalTransaction
 
 	// topics params
 	chainEventTopic        string
@@ -340,6 +372,7 @@ type Subscriber struct {
 	transactionsTopic      string
 	reorgTransactionsTopic string
 	logsTopic              string
+	internalTxTopic        string
 
 	confirmedBlockTopic       string
 	confirmedTransactionTopic string
@@ -406,6 +439,7 @@ func NewSubscriber(eth ethapi.Backend, ctx *cli.Context) *Subscriber {
 	subs.removeLogsEvent = make(chan core.RemovedLogsEvent, subs.MaxQueueSize)
 	subs.rebirthLogsEvent = make(chan []*types.Log, subs.MaxQueueSize)
 	subs.resyncEvent = make(chan core.ChainEvent, subs.MaxQueueSize)
+	subs.internalTxEvent = make(chan types.InternalTransaction, subs.MaxQueueSize)
 
 	// set event publisher
 	handlerType := ctx.GlobalString(PublisherFlag.Name)
@@ -444,6 +478,10 @@ func NewSubscriber(eth ethapi.Backend, ctx *cli.Context) *Subscriber {
 		subs.logsTopic = ctx.GlobalString(LogsEventFlag.Name)
 		eth.SubscribeRemovedLogsEvent(subs.removeLogsEvent)
 		eth.SubscribeLogsEvent(subs.rebirthLogsEvent)
+	}
+	if ctx.GlobalIsSet(InternalTxEventFlag.Name) {
+		subs.internalTxTopic = ctx.GlobalString(InternalTxEventFlag.Name)
+		eth.SubscribeInternalTransactionEvent(subs.internalTxEvent)
 	}
 	if ctx.GlobalIsSet(MaxRetryFlag.Name) {
 		subs.MaxRetry = ctx.GlobalInt(MaxRetryFlag.Name)
@@ -679,6 +717,19 @@ func (s *Subscriber) HandleRemoveRebirthLogs(logs []*types.Log) {
 	s.SendJob(messages...)
 }
 
+func (s *Subscriber) HandleInternalTransactionEvent(tx types.InternalTransaction) {
+	if s.internalTxTopic != "" {
+		internalTx := newInternalTx(tx)
+		data, err := json.Marshal(internalTx)
+		if err != nil {
+			log.Error("[HandleInternalTransactionEvent] Marshal data", "err", err)
+			return
+		}
+		log.Info("[HandleInternalTransactionEvent] sending internal tx message to jobChan")
+		s.SendJob(s.eventPublisher.newMessage(s.internalTxTopic, data))
+	}
+}
+
 // Start starts a subscriber which do the following:
 // - Starts all workers
 // - Resyncs if fromHeight is less than current backend's height
@@ -704,6 +755,8 @@ func (s *Subscriber) Start() chan struct{} {
 				go s.HandleRemoveRebirthLogs(evt.Logs)
 			case evt := <-s.rebirthLogsEvent:
 				go s.HandleRemoveRebirthLogs(evt)
+			case evt := <-s.internalTxEvent:
+				go s.HandleInternalTransactionEvent(evt)
 			case job := <-s.JobChan:
 				// get 1 workerCh from queue and push job to this channel
 				workerCh := <-s.Queue
@@ -720,6 +773,7 @@ func (s *Subscriber) Start() chan struct{} {
 				close(s.chainEvent)
 				close(s.rebirthLogsEvent)
 				close(s.removeLogsEvent)
+				close(s.internalTxEvent)
 				close(s.resyncEvent)
 				statsTicker.Stop()
 				break

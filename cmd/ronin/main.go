@@ -225,6 +225,7 @@ var (
 		LogsConfirmedEventFlag,
 		SafeBlockRangeFlag,
 		CoolDownDurationFlag,
+		InternalTxEventFlag,
 	}
 )
 
