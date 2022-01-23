@@ -151,6 +151,7 @@ if [ "$SUBSCRIBER" = "true" ]; then
   params="$params --subscriber.blockConfirmedEventTopic subscriber.block.confirmed"
   params="$params --subscriber.transactionConfirmedEventTopic subscriber.txs.confirmed"
   params="$params --subscriber.logsConfirmedEventTopic subscriber.logs.confirmed"
+  params="$params --subscriber.internalTransactionEventTopic subscriber.txs.internal"
 
   if [[ ! -z $KAFKA_URL ]]; then
     params="$params --subscriber.kafka.url $KAFKA_URL"
