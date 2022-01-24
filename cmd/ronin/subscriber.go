@@ -88,7 +88,7 @@ var (
 		Usage: "topic name that confirmed logs will be published to",
 	}
 	InternalTxEventFlag = cli.StringFlag{
-		Name: internalTransactionEventTopic,
+		Name:  internalTransactionEventTopic,
 		Usage: "topic name that internal transaction message will be published to",
 	}
 	KafkaPartitionFlag = cli.IntFlag{
@@ -213,15 +213,15 @@ type NewBlock struct {
 }
 
 type InternalTransaction struct {
-	TransactionHash common.Hash			`json:"transactionHash"`
-	Hash 			common.Hash			`json:"hash"`
-	Type            string				`json:"type"`
-	Value           *hexutil.Big		`json:"value"`
-	Input           hexutil.Bytes 		`json:"input"`
-	From            common.Address		`json:"from"`
-	To              common.Address		`json:"to"`
-	Success         bool				`json:"success"`
-	Error           string				`json:"reason"`
+	TransactionHash common.Hash    `json:"transactionHash"`
+	Hash            common.Hash    `json:"hash"`
+	Type            string         `json:"type"`
+	Value           *hexutil.Big   `json:"value"`
+	Input           hexutil.Bytes  `json:"input"`
+	From            common.Address `json:"from"`
+	To              common.Address `json:"to"`
+	Success         bool           `json:"success"`
+	Error           string         `json:"reason"`
 }
 
 func newTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber, timestamp uint64, index int, receipts types.Receipts) *NewTransaction {
@@ -307,7 +307,7 @@ func newInternalTx(tx types.InternalTransaction) *InternalTransaction {
 		TransactionHash: tx.TransactionHash,
 		Hash:            tx.Hash(),
 		Type:            tx.Type,
-		Value: 			(*hexutil.Big)(tx.Value),
+		Value:           (*hexutil.Big)(tx.Value),
 		Input:           tx.Input,
 		From:            tx.From,
 		To:              tx.From,
