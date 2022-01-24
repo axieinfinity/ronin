@@ -453,7 +453,7 @@ func (tx *InternalTransactionContractCreation) Publish(stateDB vm.StateDB, hash 
 	if stateDB.GetCodeHash(from) == crypto.Keccak256Hash(nil) {
 		return errors.New("this is not internal transaction")
 	}
-	internal := &types.InternalTransaction{
+	internal := types.InternalTransaction{
 		TransactionHash: hash,
 		Type:            types.InternalTransactionContractCreation,
 		Value:           value,
