@@ -643,6 +643,8 @@ const (
 )
 
 type InternalTransaction struct {
+	ProgramCounter  uint64
+	Opcode          string
 	TransactionHash common.Hash
 	Type            string
 	Value           *big.Int
