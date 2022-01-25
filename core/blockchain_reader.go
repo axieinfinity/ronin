@@ -419,16 +419,16 @@ type InternalTransferOrSmcCallEvent struct {
 
 func (tx *InternalTransferOrSmcCallEvent) Publish(opcode vm.OpCode, pc uint64, stateDB vm.StateDB, hash common.Hash, from, to common.Address, value *big.Int, input []byte, err error) error {
 	internal := types.InternalTransaction{
-		Opcode: 			opcode.String(),
-		ProgramCounter:  	pc,
-		TransactionHash: 	hash,
-		Type:            	types.InternalTransactionContractCall,
-		Value:           	value,
-		Input:           	input,
-		From:            	from,
-		To:              	to,
-		Success:         	err == nil,
-		Error:           	"",
+		Opcode:          opcode.String(),
+		ProgramCounter:  pc,
+		TransactionHash: hash,
+		Type:            types.InternalTransactionContractCall,
+		Value:           value,
+		Input:           input,
+		From:            from,
+		To:              to,
+		Success:         err == nil,
+		Error:           "",
 	}
 	if value.Cmp(big.NewInt(0)) > 0 && (input == nil || len(input) == 0) {
 		internal.Type = types.InternalTransactionTransfer
@@ -446,16 +446,16 @@ type InternalTransactionContractCreation struct {
 
 func (tx *InternalTransactionContractCreation) Publish(opcode vm.OpCode, pc uint64, stateDB vm.StateDB, hash common.Hash, from, to common.Address, value *big.Int, input []byte, err error) error {
 	internal := types.InternalTransaction{
-		Opcode: 			opcode.String(),
-		ProgramCounter:  	pc,
-		TransactionHash: 	hash,
-		Type:            	types.InternalTransactionContractCreation,
-		Value:           	value,
-		Input:           	input,
-		From:            	from,
-		To:              	to,
-		Success:         	err == nil,
-		Error:           	"",
+		Opcode:          opcode.String(),
+		ProgramCounter:  pc,
+		TransactionHash: hash,
+		Type:            types.InternalTransactionContractCreation,
+		Value:           value,
+		Input:           input,
+		From:            from,
+		To:              to,
+		Success:         err == nil,
+		Error:           "",
 	}
 	if err != nil {
 		internal.Error = err.Error()
