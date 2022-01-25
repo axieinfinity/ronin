@@ -34,7 +34,7 @@ import (
 var emptyCodeHash = crypto.Keccak256Hash(nil)
 
 type OpEvent interface {
-	Publish(StateDB, common.Hash, common.Address, common.Address, *big.Int, []byte, error) error
+	Publish(OpCode, uint64, StateDB, common.Hash, common.Address, common.Address, *big.Int, []byte, error) error
 }
 
 type (
@@ -49,7 +49,7 @@ type (
 	PublishEventsMap map[OpCode]OpEvent
 	// PublishEvent is used to pass in NewVM as a list of PublishEvent to init PublishEventsMap
 	PublishEvent struct {
-		OpCode OpCode
+		OpCodes []OpCode
 		Event  OpEvent
 	}
 )
@@ -263,8 +263,6 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 		//} else {
 		//	evm.StateDB.DiscardSnapshot(snapshot)
 	}
-	// call publish event to publish CALL event if any
-	evm.PublishEvent(CALL, caller.Address(), addr, value, input, err)
 	return ret, gas, err
 }
 
@@ -533,8 +531,6 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 			evm.Config.Tracer.CaptureExit(ret, gas-contract.Gas, err)
 		}
 	}
-	// call publish event to publish CREATE event if any
-	evm.PublishEvent(CREATE, caller.Address(), address, value, codeAndHash.code, err)
 	return ret, address, contract.Gas, err
 }
 
@@ -558,17 +554,18 @@ func (evm *EVM) Create2(caller ContractRef, code []byte, gas uint64, endowment *
 func (evm *EVM) ChainConfig() *params.ChainConfig { return evm.chainConfig }
 
 // PublishEvent executes Publish function from OpEvent if OpCode is found in Context.PublishEvents
-func (evm *EVM) PublishEvent(opCode OpCode, caller, callee common.Address, value *big.Int, input []byte, err error) {
+func (evm *EVM) PublishEvent(opCode OpCode, pc uint64, caller, callee common.Address, value *big.Int, input []byte, err error) {
 	context := evm.Context
 	if context.CurrentTransaction == nil {
 		log.Debug("[EVM] PublishEvent - Transaction is nil", "height", context.BlockNumber.Int64())
+		return
 	}
 	log.Info("[EVM] PublishEvent",
-		"transaction", context.CurrentTransaction.Hash().Hex(), "opCode", CALL.String(),
+		"transaction", context.CurrentTransaction.Hash().Hex(), "opCode", opCode.String(),
 		"caller", caller.Hash().Hex())
 	if event, ok := evm.Context.PublishEvents[opCode]; ok {
-		if eventErr := event.Publish(evm.StateDB, context.CurrentTransaction.Hash(), caller, callee, value, input, err); eventErr != nil {
-			log.Error("[EVM] PublishEvent", "err", err)
+		if eventErr := event.Publish(opCode, pc, evm.StateDB, context.CurrentTransaction.Hash(), caller, callee, value, input, err); eventErr != nil {
+			log.Error("[EVM] PublishEvent", "err", eventErr)
 		}
 	}
 }

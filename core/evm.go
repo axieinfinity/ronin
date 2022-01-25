@@ -66,7 +66,9 @@ func NewEVMBlockContext(header *types.Header, chain ChainContext, author *common
 	// update publishEvents if `events` is not empty
 	if len(events) > 0 {
 		for _, evt := range events {
-			ctx.PublishEvents[evt.OpCode] = evt.Event
+			for _, opcode := range evt.OpCodes {
+				ctx.PublishEvents[opcode] = evt.Event
+			}
 		}
 	}
 	return ctx
