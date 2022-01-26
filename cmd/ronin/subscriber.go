@@ -214,7 +214,7 @@ type NewBlock struct {
 
 type InternalTransaction struct {
 	Opcode          string         `json:"opcode"`
-	ProgramCounter  uint64         `json:"programCounter"`
+	Order           uint64         `json:"order"`
 	TransactionHash common.Hash    `json:"transactionHash"`
 	Hash            common.Hash    `json:"hash"`
 	Type            string         `json:"type"`
@@ -307,7 +307,7 @@ func newLog(log *types.Log, timestamp uint64) *NewLog {
 func newInternalTx(tx types.InternalTransaction) *InternalTransaction {
 	return &InternalTransaction{
 		Opcode:          tx.Opcode,
-		ProgramCounter:  tx.ProgramCounter,
+		Order:           tx.Order,
 		TransactionHash: tx.TransactionHash,
 		Hash:            tx.Hash(),
 		Type:            tx.Type,

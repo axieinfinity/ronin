@@ -94,6 +94,10 @@ type BlockContext struct {
 	Time        *big.Int       // Provides information for TIME
 	Difficulty  *big.Int       // Provides information for DIFFICULTY
 	BaseFee     *big.Int       // Provides information for BASEFEE
+
+	// Counter is used to call number of opcodes called in a transaction
+	Counter 	uint64
+	// CurrentTransaction stores current processing transaction
 	CurrentTransaction *types.Transaction
 }
 
@@ -554,7 +558,7 @@ func (evm *EVM) Create2(caller ContractRef, code []byte, gas uint64, endowment *
 func (evm *EVM) ChainConfig() *params.ChainConfig { return evm.chainConfig }
 
 // PublishEvent executes Publish function from OpEvent if OpCode is found in Context.PublishEvents
-func (evm *EVM) PublishEvent(opCode OpCode, pc uint64, caller, callee common.Address, value *big.Int, input []byte, err error) {
+func (evm *EVM) PublishEvent(opCode OpCode, counter uint64, caller, callee common.Address, value *big.Int, input []byte, err error) {
 	context := evm.Context
 	if context.CurrentTransaction == nil {
 		log.Debug("[EVM] PublishEvent - Transaction is nil", "height", context.BlockNumber.Int64())
@@ -564,7 +568,7 @@ func (evm *EVM) PublishEvent(opCode OpCode, pc uint64, caller, callee common.Add
 		"transaction", context.CurrentTransaction.Hash().Hex(), "opCode", opCode.String(),
 		"caller", caller.Hash().Hex())
 	if event, ok := evm.Context.PublishEvents[opCode]; ok {
-		if eventErr := event.Publish(opCode, pc, evm.StateDB, context.CurrentTransaction.Hash(), caller, callee, value, input, err); eventErr != nil {
+		if eventErr := event.Publish(opCode, counter, evm.StateDB, context.CurrentTransaction.Hash(), caller, callee, value, input, err); eventErr != nil {
 			log.Error("[EVM] PublishEvent", "err", eventErr)
 		}
 	}

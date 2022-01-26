@@ -417,10 +417,10 @@ type InternalTransferOrSmcCallEvent struct {
 	feed *event.Feed
 }
 
-func (tx *InternalTransferOrSmcCallEvent) Publish(opcode vm.OpCode, pc uint64, stateDB vm.StateDB, hash common.Hash, from, to common.Address, value *big.Int, input []byte, err error) error {
+func (tx *InternalTransferOrSmcCallEvent) Publish(opcode vm.OpCode, order uint64, stateDB vm.StateDB, hash common.Hash, from, to common.Address, value *big.Int, input []byte, err error) error {
 	internal := types.InternalTransaction{
 		Opcode:          opcode.String(),
-		ProgramCounter:  pc,
+		Order:           order,
 		TransactionHash: hash,
 		Type:            types.InternalTransactionContractCall,
 		Value:           value,
@@ -444,10 +444,10 @@ type InternalTransactionContractCreation struct {
 	feed *event.Feed
 }
 
-func (tx *InternalTransactionContractCreation) Publish(opcode vm.OpCode, pc uint64, stateDB vm.StateDB, hash common.Hash, from, to common.Address, value *big.Int, input []byte, err error) error {
+func (tx *InternalTransactionContractCreation) Publish(opcode vm.OpCode, order uint64, stateDB vm.StateDB, hash common.Hash, from, to common.Address, value *big.Int, input []byte, err error) error {
 	internal := types.InternalTransaction{
 		Opcode:          opcode.String(),
-		ProgramCounter:  pc,
+		Order:           order,
 		TransactionHash: hash,
 		Type:            types.InternalTransactionContractCreation,
 		Value:           value,

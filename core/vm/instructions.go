@@ -601,7 +601,7 @@ func opCreate(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]b
 		return res, nil
 	}
 	// call publish event to publish CREATE event if any
-	interpreter.evm.PublishEvent(CREATE, *pc, scope.Contract.Address(), addr, bigVal, input, suberr)
+	interpreter.evm.PublishEvent(CREATE, interpreter.evm.Context.Counter, scope.Contract.Address(), addr, bigVal, input, suberr)
 	return nil, nil
 }
 
@@ -639,7 +639,7 @@ func opCreate2(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]
 		return res, nil
 	}
 	// call publish event to publish CREATE event if any
-	interpreter.evm.PublishEvent(CREATE2, *pc, scope.Contract.Address(), addr, bigEndowment, input, suberr)
+	interpreter.evm.PublishEvent(CREATE2, interpreter.evm.Context.Counter, scope.Contract.Address(), addr, bigEndowment, input, suberr)
 	return nil, nil
 }
 
@@ -678,7 +678,7 @@ func opCall(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byt
 	}
 	scope.Contract.Gas += returnGas
 	// call publish event to publish CALL event if any
-	interpreter.evm.PublishEvent(CALL, *pc, scope.Contract.Address(), toAddr, bigVal, args, err)
+	interpreter.evm.PublishEvent(CALL, interpreter.evm.Context.Counter, scope.Contract.Address(), toAddr, bigVal, args, err)
 	return ret, nil
 }
 

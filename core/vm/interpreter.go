@@ -198,6 +198,8 @@ func (in *EVMInterpreter) Run(contract *Contract, input []byte, readOnly bool) (
 		if operation == nil {
 			return nil, &ErrInvalidOpCode{opcode: op}
 		}
+		// increase context's counter
+		in.evm.Context.Counter++
 		// Validate stack
 		if sLen := stack.len(); sLen < operation.minStack {
 			return nil, &ErrStackUnderflow{stackLen: sLen, required: operation.minStack}
