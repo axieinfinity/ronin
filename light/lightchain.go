@@ -567,6 +567,10 @@ func (lc *LightChain) SubscribeReorgEvent(ch chan<- core.ReorgEvent) event.Subsc
 	return lc.scope.Track(new(event.Feed).Subscribe(ch))
 }
 
+func (lc *LightChain) SubscribeInternalTransactionEvent(ch chan<- types.InternalTransaction) event.Subscription {
+	return lc.scope.Track(new(event.Feed).Subscribe(ch))
+}
+
 // DisableCheckFreq disables header validation. This is used for ultralight mode.
 func (lc *LightChain) DisableCheckFreq() {
 	atomic.StoreInt32(&lc.disableCheckFreq, 1)

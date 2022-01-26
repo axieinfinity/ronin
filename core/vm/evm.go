@@ -17,6 +17,8 @@
 package vm
 
 import (
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/log"
 	"math/big"
 	"sync/atomic"
 	"time"
@@ -31,6 +33,10 @@ import (
 // deployed contract addresses (relevant after the account abstraction).
 var emptyCodeHash = crypto.Keccak256Hash(nil)
 
+type OpEvent interface {
+	Publish(OpCode, uint64, StateDB, common.Hash, common.Address, common.Address, *big.Int, []byte, error) error
+}
+
 type (
 	// CanTransferFunc is the signature of a transfer guard function
 	CanTransferFunc func(StateDB, common.Address, *big.Int) bool
@@ -39,6 +45,13 @@ type (
 	// GetHashFunc returns the n'th block hash in the blockchain
 	// and is used by the BLOCKHASH EVM op code.
 	GetHashFunc func(uint64) common.Hash
+	// PublishEventsMap contains a map of function that publish event when opcode matches with key in map
+	PublishEventsMap map[OpCode]OpEvent
+	// PublishEvent is used to pass in NewVM as a list of PublishEvent to init PublishEventsMap
+	PublishEvent struct {
+		OpCodes []OpCode
+		Event  OpEvent
+	}
 )
 
 func (evm *EVM) precompile(addr common.Address) (PrecompiledContract, bool) {
@@ -71,6 +84,8 @@ type BlockContext struct {
 	Transfer TransferFunc
 	// GetHash returns the hash corresponding to n
 	GetHash GetHashFunc
+	// PublishEvents contains a map of function that publish event when opcode matches with key in map
+	PublishEvents PublishEventsMap
 
 	// Block information
 	Coinbase    common.Address // Provides information for COINBASE
@@ -79,6 +94,7 @@ type BlockContext struct {
 	Time        *big.Int       // Provides information for TIME
 	Difficulty  *big.Int       // Provides information for DIFFICULTY
 	BaseFee     *big.Int       // Provides information for BASEFEE
+	CurrentTransaction *types.Transaction
 }
 
 // TxContext provides the EVM with information about a transaction.
@@ -536,3 +552,20 @@ func (evm *EVM) Create2(caller ContractRef, code []byte, gas uint64, endowment *
 
 // ChainConfig returns the environment's chain configuration
 func (evm *EVM) ChainConfig() *params.ChainConfig { return evm.chainConfig }
+
+// PublishEvent executes Publish function from OpEvent if OpCode is found in Context.PublishEvents
+func (evm *EVM) PublishEvent(opCode OpCode, pc uint64, caller, callee common.Address, value *big.Int, input []byte, err error) {
+	context := evm.Context
+	if context.CurrentTransaction == nil {
+		log.Debug("[EVM] PublishEvent - Transaction is nil", "height", context.BlockNumber.Int64())
+		return
+	}
+	log.Info("[EVM] PublishEvent",
+		"transaction", context.CurrentTransaction.Hash().Hex(), "opCode", opCode.String(),
+		"caller", caller.Hash().Hex())
+	if event, ok := evm.Context.PublishEvents[opCode]; ok {
+		if eventErr := event.Publish(opCode, pc, evm.StateDB, context.CurrentTransaction.Hash(), caller, callee, value, input, err); eventErr != nil {
+			log.Error("[EVM] PublishEvent", "err", eventErr)
+		}
+	}
+}

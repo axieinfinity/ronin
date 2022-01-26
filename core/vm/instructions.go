@@ -600,6 +600,8 @@ func opCreate(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]b
 	if suberr == ErrExecutionReverted {
 		return res, nil
 	}
+	// call publish event to publish CREATE event if any
+	interpreter.evm.PublishEvent(CREATE, *pc, scope.Contract.Address(), addr, bigVal, input, suberr)
 	return nil, nil
 }
 
@@ -636,6 +638,8 @@ func opCreate2(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]
 	if suberr == ErrExecutionReverted {
 		return res, nil
 	}
+	// call publish event to publish CREATE event if any
+	interpreter.evm.PublishEvent(CREATE2, *pc, scope.Contract.Address(), addr, bigEndowment, input, suberr)
 	return nil, nil
 }
 
@@ -673,7 +677,8 @@ func opCall(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byt
 		scope.Memory.Set(retOffset.Uint64(), retSize.Uint64(), ret)
 	}
 	scope.Contract.Gas += returnGas
-
+	// call publish event to publish CALL event if any
+	interpreter.evm.PublishEvent(CALL, *pc, scope.Contract.Address(), toAddr, bigVal, args, err)
 	return ret, nil
 }
 

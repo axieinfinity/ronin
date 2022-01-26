@@ -635,3 +635,26 @@ func copyAddressPtr(a *common.Address) *common.Address {
 	cpy := *a
 	return &cpy
 }
+
+const (
+	InternalTransactionTransfer         = "transfer"
+	InternalTransactionContractCall     = "call"
+	InternalTransactionContractCreation = "create"
+)
+
+type InternalTransaction struct {
+	ProgramCounter  uint64
+	Opcode          string
+	TransactionHash common.Hash
+	Type            string
+	Value           *big.Int
+	Input           []byte
+	From            common.Address
+	To              common.Address
+	Success         bool
+	Error           string
+}
+
+func (internal *InternalTransaction) Hash() common.Hash {
+	return rlpHash(internal)
+}
