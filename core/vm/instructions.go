@@ -597,7 +597,7 @@ func opCreate(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]b
 	scope.Stack.push(&stackvalue)
 	scope.Contract.Gas += returnGas
 
-	// call publish event to publish CREATE event if any
+	// call publish event to publish CREATE event
 	interpreter.evm.PublishEvent(CREATE, counter, scope.Contract.Address(), addr, bigVal, input, suberr)
 
 	if suberr == ErrExecutionReverted {
@@ -637,7 +637,7 @@ func opCreate2(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]
 	scope.Stack.push(&stackvalue)
 	scope.Contract.Gas += returnGas
 
-	// call publish event to publish CREATE event if any
+	// call publish event to publish CREATE2 event
 	interpreter.evm.PublishEvent(CREATE2, counter, scope.Contract.Address(), addr, bigEndowment, input, suberr)
 
 	if suberr == ErrExecutionReverted {
@@ -680,7 +680,7 @@ func opCall(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byt
 		scope.Memory.Set(retOffset.Uint64(), retSize.Uint64(), ret)
 	}
 	scope.Contract.Gas += returnGas
-	// call publish event to publish CALL event if any
+	// call publish event to publish CALL event
 	interpreter.evm.PublishEvent(CALL, counter, scope.Contract.Address(), toAddr, bigVal, args, err)
 	return ret, nil
 }
