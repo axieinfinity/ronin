@@ -643,12 +643,12 @@ const (
 )
 
 type InternalTransaction struct {
-	Order   uint64 `rlp:"-"`
 	Opcode  string `rlp:"-"`
 	Type    string `rlp:"-"`
 	Success bool   `rlp:"-"`
 	Error   string `rlp:"-"`
 
+	Order           uint64
 	TransactionHash common.Hash
 	Value           *big.Int
 	Input           []byte
