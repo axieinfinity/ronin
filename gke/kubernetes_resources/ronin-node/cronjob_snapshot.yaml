@@ -1,12 +1,12 @@
 # kb apply -f ~/ronin/gke/kubernetes_resources/cronjob_snapshot.yaml
-apiVersion: batch/v1beta1
+apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: rpc-snapshot-restart
   namespace: default
 spec:
   concurrencyPolicy: Forbid
-  schedule: '0 8 * * *' # cron spec of time, here, 8 o'clock
+  schedule: '0 */12 * * *'
   jobTemplate:
     spec:
       template:

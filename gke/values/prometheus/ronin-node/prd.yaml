@@ -857,7 +857,7 @@ server:
   ## Ref: https://kubernetes.io/docs/user-guide/node-selection/
   ##
   nodeSelector:
-    node_pool: "pool-default-8"
+    node_pool: "pool-default"
 
   ## Pod affinity
   ##

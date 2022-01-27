@@ -1,5 +1,5 @@
 # This yaml is example for creating an rpc node using snapshot pvc.
-# helm diff upgrade --install rpc-snapshot-node   ~/axis/helm-kubernetes-services/charts/k8s-service/ -f ~/ronin/gke/values/rpc/snapshot-prd.yaml
+# helm diff upgrade --install rpc-snapshot-node   ~/axis/helm-kubernetes-services/charts/k8s-service/ -f ~/ronin/gke/values/rpc/ronin-node/snapshot-prd.yaml
 
 replicaCount: 1
 
@@ -82,12 +82,12 @@ containerResources:
     cpu: 5
 
 nodeSelector:
-  node_pool: "pool-rpc-nodes"
+  node_pool: "pool-rpc-nodes-snapshot"
 
 tolerations:
 - key: "node_pool"
   operator: "Equal"
-  value: "pool-rpc-nodes"
+  value: "pool-rpc-nodes-snapshot"
   effect: "NoSchedule"
 
 affinity:

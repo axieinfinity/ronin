@@ -1,0 +1,74 @@
+# Testnet Chain - Prod
+# helm diff upgrade --install subscriber-node-testnet  ~/axis/helm-kubernetes-services/charts/k8s-service/ -f ~/ronin/gke/values/subscriber/development/stg.yaml
+replicaCount: 1
+deployment:
+  enabled: false
+
+service:
+  enabled: false
+
+statefulset:
+  enabled: True
+
+containerImage:
+  repository: gcr.io/test-servers-256610/ronin_ronin
+  tag: master-a0f59d765
+  pullPolicy: IfNotPresent
+
+containerPorts:
+  peer:
+    port: 30303
+    protocol: TCP
+  http:
+    disabled: true
+  https:
+    disabled: true
+  metric:
+    port: 6060
+    protocol: TCP
+
+containerCommand:
+  - "./entrypoint.sh"
+
+applicationName: node
+
+envVars:
+  BOOTNODES: "enode://a95732b6ffa0ac3a40a14f09510aa8f1ce5de677cb370552830acb42288b3764baab607244ad5f9d1d22aa1bd2bf88b347133f69335919d3abdedc1cce62c504@35.224.154.93:30303" #vm-ronin-testnet-1
+  NETWORK_ID: 2021
+  SUBSCRIBER: "true"
+  KAFKA_URL: "kafka-explorer-testnet:9092"
+  RPC_NODE: "true"
+  SYNC_MODE: "snap"
+  VERBOSITY: "3"
+  DATA_DIR: "/node"
+  MINE: "false"
+  KEYSTORE_DIR: ''
+  PASSWORD_FILE: ''
+  RONIN_PARAMS: "--ethstats subscriber-node-testnet:6EBcWWmSIh@testnet.skymavis.one:443 --subscriber.coolDownDuration 1 --metrics.addr 0.0.0.0 --metrics"
+  PRIVATE_KEY: "ca161d48a4563e6591c1eba4b932a3513006cb5bcd1a6f69c32295d0096e4d62"
+
+persistentVolumes:
+  ronin-chain:
+    accessMode: ReadWriteOnce
+    size: 400Gi
+    storageClass: premium-rwo
+    mountPath: "/node"
+
+containerResources:
+  requests:
+    memory: 4.5Gi
+    cpu: 2.5
+  limits:
+    memory: 6Gi
+    cpu: 4
+
+imagePullSecrets:
+  - gcr-json-key
+
+customPreStopCommand:
+  - "kill"
+  - "-INT"
+  - "1"
+
+shutdownDelay: 0
+terminationGracePeriodSeconds: 300
