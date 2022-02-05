@@ -20,6 +20,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"github.com/ethereum/go-ethereum/proxy"
 	"math/big"
 	"os"
 	"reflect"
@@ -329,4 +330,41 @@ func setAccountManagerBackends(stack *node.Node) error {
 	}
 
 	return nil
+}
+
+func makeProxyServer(ctx *cli.Context) (*proxy.Server, error) {
+	// init proxy server config
+	serverConfig := &proxy.Config{}
+	// Load defaults.
+	cfg := gethConfig{
+		Eth:     ethconfig.Defaults,
+		Node:    defaultNodeConfig(),
+		Metrics: metrics.DefaultConfig,
+	}
+	// Apply flags.
+	utils.SetNodeConfig(ctx, &cfg.Node)
+	if ctx.GlobalIsSet(utils.RPCGlobalGasCapFlag.Name) {
+		cfg.Eth.RPCGasCap = ctx.GlobalUint64(utils.RPCGlobalGasCapFlag.Name)
+	}
+	if cfg.Eth.RPCGasCap != 0 {
+		log.Info("Set global gas cap", "cap", cfg.Eth.RPCGasCap)
+	} else {
+		log.Info("Global gas cap disabled")
+	}
+	if ctx.GlobalIsSet(utils.RPCGlobalEVMTimeoutFlag.Name) {
+		cfg.Eth.RPCEVMTimeout = ctx.GlobalDuration(utils.RPCGlobalEVMTimeoutFlag.Name)
+	}
+	if ctx.GlobalIsSet(utils.RPCGlobalTxFeeCapFlag.Name) {
+		cfg.Eth.RPCTxFeeCap = ctx.GlobalFloat64(utils.RPCGlobalTxFeeCapFlag.Name)
+	}
+	if ctx.GlobalIsSet(utils.RPCUrlFlag.Name) {
+		serverConfig.RPC = ctx.GlobalString(utils.RPCUrlFlag.Name)
+	}
+	if ctx.GlobalIsSet(utils.FreeGasProxyUrlFlag.Name) {
+		serverConfig.FreeGasProxy = ctx.GlobalString(utils.FreeGasProxyUrlFlag.Name)
+	}
+	if ctx.GlobalIsSet(utils.DBCacheSizeLimitFlag.Name) {
+		serverConfig.DBCachedSize = ctx.GlobalInt(utils.DBCacheSizeLimitFlag.Name)
+	}
+	return proxy.NewServer(serverConfig, &cfg.Eth, &cfg.Node)
 }

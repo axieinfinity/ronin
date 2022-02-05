@@ -802,6 +802,21 @@ var (
 		Name:  "catalyst",
 		Usage: "Catalyst mode (eth2 integration testing)",
 	}
+
+	RPCUrlFlag = cli.StringFlag{
+		Name:  "rpcUrl",
+		Usage: "rpcUrl is used in Proxy mode to forward rpc requests",
+	}
+
+	FreeGasProxyUrlFlag = cli.StringFlag{
+		Name:  "freeGasProxyUrl",
+		Usage: "freeGasProxyUrl is used in Proxy mode to forward free gas transaction",
+	}
+
+	DBCacheSizeLimitFlag = cli.IntFlag{
+		Name:  "dbCacheSizeLimit",
+		Usage: "dbCacheSizeLimit is used in Proxy mode to set cache size limit of the database",
+	}
 )
 
 // MakeDataDir retrieves the currently requested data directory, terminating

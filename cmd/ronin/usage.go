@@ -236,6 +236,14 @@ var AppHelpFlagGroups = []flags.FlagGroup{
 			utils.CatalystFlag,
 		},
 	},
+	{
+		Name: "PROXY NODE",
+		Flags: []cli.Flag{
+			utils.RPCUrlFlag,
+			utils.FreeGasProxyUrlFlag,
+			utils.DBCacheSizeLimitFlag,
+		},
+	},
 }
 
 func init() {
