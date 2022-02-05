@@ -5,17 +5,17 @@ import (
 	"fmt"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethdb"
-	"github.com/ethereum/go-ethereum/ethdb/memorydb"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
-	"sync"
-	"time"
+	lru "github.com/hashicorp/golang-lru"
 )
 
 const (
-	GET = "consortium_getDBValue"
-	ANCIENT = "consortium_ancient"
+	GET               = "consortium_getDBValue"
+	ANCIENT           = "consortium_getAncient"
+	defaultCachedSize = 1024
 )
+
 var notfoundErr = errors.New("not found")
 
 func query(client *rpc.Client, method string, params ...interface{}) ([]byte, error) {
@@ -26,21 +26,27 @@ func query(client *rpc.Client, method string, params ...interface{}) ([]byte, er
 	return common.Hex2Bytes(res), nil
 }
 
-// DB is a read only database which is used to query data from other nodes by using consortium's rpc 'consortium_getDBValue'
-// it also caches return values to memorydb and use them lately search without RPC calling everytime.
+// DB is a read only database which is used to query data from other nodes by using consortium's rpc 'consortium_getDBValue' and 'consortium_getAncient'
+// it also caches return values using lru cache to get data immediately without RPC calling everytime.
 // DB only supports Get and Has function which query data from other nodes.
 type DB struct {
-	client *rpc.Client
-	db     *memorydb.Database
-	items  []string
-	caches map[string]int64
-	ttl    time.Duration
-	interval time.Duration
-	cancel chan struct{}
-	lock sync.Mutex
+	client      *rpc.Client
+	cachedItems *lru.Cache
 }
 
-func NewDB(rpcUrl string, interval, ttl time.Duration) *DB {
+func (db *DB) AncientRange(kind string, start, count, maxBytes uint64) ([][]byte, error) {
+	panic("implement me")
+}
+
+func (db *DB) ReadAncients(fn func(ethdb.AncientReader) error) (err error) {
+	return fn(db)
+}
+
+func (db *DB) ModifyAncients(f func(ethdb.AncientWriteOp) error) (int64, error) {
+	panic("implement me")
+}
+
+func NewDB(rpcUrl string, cachedSize int) *DB {
 	client, err := rpc.DialHTTP(rpcUrl)
 	if err != nil {
 		log.Error("[httpdb] NewDB", "err", err)
@@ -48,99 +54,45 @@ func NewDB(rpcUrl string, interval, ttl time.Duration) *DB {
 	}
 	db := &DB{
 		client: client,
-		db:     memorydb.New(),
-		items:  make([]string, 0),
-		caches: make(map[string]int64),
-		ttl: ttl,
-		interval: interval,
-		cancel: make(chan struct{}),
 	}
-	go db.cleanup()
+	if cachedSize > 0 {
+		db.cachedItems, _ = lru.New(cachedSize)
+	} else {
+		db.cachedItems, _ = lru.New(defaultCachedSize)
+	}
 	return db
 }
 
 func (db *DB) Close() error {
-	db.cancel <- struct{}{}
-	return db.db.Close()
+	return nil
 }
 
 func (db *DB) Has(key []byte) (bool, error) {
-	res, err := db.db.Has(key)
+	if db.cachedItems.Contains(key) {
+		return true, nil
+	}
+	// try to get data from rpc if data cannot be found in cached items
+	_, err := db.Get(key)
 	if err != nil {
 		return false, err
-	}
-	// try to get data from rpc if res is false
-	if !res {
-		val, err := query(db.client, GET, common.Bytes2Hex(key))
-		if err != nil {
-			return false, err
-		}
-		if len(val) == 0 {
-			return false, notfoundErr
-		}
-		// store val to memory db for later use
-		db.store(key, val)
 	}
 	return true, nil
 }
 
-func (db *DB) store(key, value []byte) {
-	// TODO: only store key in specific cases
-	if err := db.db.Put(key, value); err != nil {
-		log.Error("[httpDB] store error", "err", err, "key", common.Bytes2Hex(key))
-		return
-	}
-
-	db.lock.Lock()
-	defer db.lock.Unlock()
-
-	db.items = append(db.items, string(key))
-	db.caches[string(key)] = time.Now().Add(db.ttl).UnixNano()
-}
-
-func (db *DB) cleanup() {
-	ticker := time.NewTicker(db.interval)
-	for {
-		 select {
-		 case <-db.cancel:
-			 return
-		 case <-ticker.C:
-			 db.lock.Lock()
-			 for i, key := range db.items {
-				 // delete until cached time in list is less than now
-				 if db.caches[key] < time.Now().UnixNano() {
-					 break
-				 }
-				 if i + 1 < len(db.items) {
-					 db.items = db.items[i+1:]
-				 } else {
-					 db.items = make([]string, 0)
-				 }
-				 delete(db.caches, key)
-				 db.db.Delete([]byte(key))
-			 }
-			 db.lock.Unlock()
-		 }
-	}
-}
-
 func (db *DB) Get(key []byte) (val []byte, err error) {
-	res, err := db.db.Get(key)
-	if err != nil && err.Error() != notfoundErr.Error() {
-		return nil, err
+	if res, ok := db.cachedItems.Get(common.Bytes2Hex(key)); ok {
+		return res.([]byte), nil
 	}
 	// try to get data from rpc if res is nil
-	if res == nil {
-		val, err = query(db.client, GET, common.Bytes2Hex(key))
-		if err != nil {
-			return nil, err
-		}
-		if len(val) == 0 {
-			return nil, notfoundErr
-		}
-		// store val to memory db for later use
-		db.store(key, val)
+	val, err = query(db.client, GET, common.Bytes2Hex(key))
+	if err != nil {
+		return nil, err
 	}
+	if len(val) == 0 {
+		return nil, notfoundErr
+	}
+	// store val to memory db for later use
+	db.cachedItems.Add(common.Bytes2Hex(key), val)
 	return val, nil
 }
 
@@ -178,38 +130,29 @@ func (db *DB) Compact(start []byte, limit []byte) error {
 // ancient store.
 func (db *DB) HasAncient(kind string, number uint64) (bool, error) {
 	key := ancientKey(kind, number)
-	has, err := db.db.Has([]byte(key))
-	if err != nil {
-		return false, err
+	if db.cachedItems.Contains(key) {
+		return true, nil
 	}
-	if !has {
-		data, err := query(db.client, ANCIENT, kind, number)
-		if err != nil {
-			return false, err
-		}
-		if len(data) == 0 {
-			return false, notfoundErr
-		}
-		db.store([]byte(key), data)
+	if _, err := db.Ancient(kind, number); err != nil {
+		return false, err
 	}
 	return true, nil
 }
 
 // Ancient retrieves an ancient binary blob from the append-only immutable files.
-func (db *DB) Ancient(kind string, number uint64) (data []byte, err error) {
+func (db *DB) Ancient(kind string, number uint64) ([]byte, error) {
 	key := ancientKey(kind, number)
-	if data, err = db.db.Get([]byte(key)); err != nil && err.Error() != notfoundErr.Error() {
+	if data, ok := db.cachedItems.Get(key); ok {
+		return data.([]byte), nil
+	}
+	data, err := query(db.client, ANCIENT, kind, number)
+	if err != nil {
 		return nil, err
 	}
-	if data == nil {
-		if data, err = query(db.client, ANCIENT, kind, number); err != nil {
-			return nil, err
-		}
-		if len(data) == 0 {
-			return nil, notfoundErr
-		}
-		db.store([]byte(key), data)
+	if len(data) == 0 {
+		return nil, notfoundErr
 	}
+	db.cachedItems.Add(key, data)
 	return data, nil
 }
 
