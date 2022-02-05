@@ -5,7 +5,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/ethdb/httpdb"
 	"github.com/ethereum/go-ethereum/node"
-	"time"
+	"github.com/ethereum/go-ethereum/rpc"
 )
 
 // Server is a proxy server that simulates rpc structures,
@@ -21,11 +21,9 @@ type Server struct {
 }
 
 type Config struct {
-	Port int
 	RPC  string
 	FreeGasProxy string
-	Interval time.Duration
-	TTL time.Duration
+	DBCachedSize int
 }
 
 func NewServer(config *Config, ethConfig *ethconfig.Config, nodeConfig *node.Config) (*Server, error) {
@@ -36,23 +34,30 @@ func NewServer(config *Config, ethConfig *ethconfig.Config, nodeConfig *node.Con
 	return &Server{
 		rpc: config.RPC,
 		freeGasProxy: config.FreeGasProxy,
-		db: httpdb.NewDB(config.RPC, config.Interval, config.TTL),
+		db: httpdb.NewDB(config.RPC, config.DBCachedSize),
 		ethConfig: ethConfig,
 		node: n,
 	}, nil
 }
 
 func (s *Server) Start() {
-	//var apis = []rpc.API{
-	//	{
-	//		Namespace: "eth",
-	//		Version:   "1.0",
-	//		Service:   NewPublicEthereumAPI(s),
-	//		Public:    true,
-	//	}
-	//}
-	//s.node.RegisterAPIs()
-
+	backend, err := newBackend(s.db, s.ethConfig, s.rpc, s.freeGasProxy)
+	if err != nil {
+		panic(err)
+	}
+	var apis = []rpc.API{
+		{
+			Namespace: "eth",
+			Version:   "1.0",
+			Service:   newAPI(backend),
+			Public:    true,
+		},
+	}
+	s.node.RegisterAPIs(apis)
+	if err = s.node.StartRPC(); err != nil {
+		panic(err)
+	}
+	s.node.Wait()
 }
 
 func (s *Server) Close() {
