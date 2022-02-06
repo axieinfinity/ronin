@@ -2,7 +2,6 @@ package httpdb
 
 import (
 	"errors"
-	"fmt"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
@@ -12,7 +11,6 @@ import (
 
 const (
 	GET               = "consortium_getDBValue"
-	ANCIENT           = "consortium_getAncient"
 	defaultCachedSize = 1024
 )
 
@@ -104,9 +102,7 @@ func (db *DB) Delete(key []byte) error {
 	return nil
 }
 
-func (db *DB) Stats() {
-
-}
+func (db *DB) Stats() {}
 
 func (db *DB) NewBatch() ethdb.Batch {
 	return nil
@@ -129,31 +125,12 @@ func (db *DB) Compact(start []byte, limit []byte) error {
 // HasAncient returns an indicator whether the specified data exists in the
 // ancient store.
 func (db *DB) HasAncient(kind string, number uint64) (bool, error) {
-	key := ancientKey(kind, number)
-	if db.cachedItems.Contains(key) {
-		return true, nil
-	}
-	if _, err := db.Ancient(kind, number); err != nil {
-		return false, err
-	}
-	return true, nil
+	return false, nil
 }
 
 // Ancient retrieves an ancient binary blob from the append-only immutable files.
 func (db *DB) Ancient(kind string, number uint64) ([]byte, error) {
-	key := ancientKey(kind, number)
-	if data, ok := db.cachedItems.Get(key); ok {
-		return data.([]byte), nil
-	}
-	data, err := query(db.client, ANCIENT, kind, number)
-	if err != nil {
-		return nil, err
-	}
-	if len(data) == 0 {
-		return nil, notfoundErr
-	}
-	db.cachedItems.Add(key, data)
-	return data, nil
+	return []byte{}, nil
 }
 
 // Ancients returns the ancient item numbers in the ancient store.
@@ -171,7 +148,3 @@ func (db *DB) TruncateAncients(n uint64) error { return nil }
 
 // Sync flushes all in-memory ancient store data to disk.
 func (db *DB) Sync() error { return nil }
-
-func ancientKey(kind string, number uint64) string {
-	return fmt.Sprintf("ancient-%s%d", kind, number)
-}

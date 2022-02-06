@@ -85,6 +85,10 @@ type backend struct {
 	fgpClient   *ethclient.Client
 }
 
+func (b *backend) SubscribeInternalTransactionEvent(ch chan<- types.InternalTransaction) event.Subscription {
+	panic("implement me")
+}
+
 func (b *backend) SyncProgress() ethereum.SyncProgress {
 	panic("implement me")
 }
