@@ -643,16 +643,17 @@ const (
 )
 
 type InternalTransaction struct {
-	ProgramCounter  uint64
-	Opcode          string
+	Opcode  string `rlp:"-"`
+	Type    string `rlp:"-"`
+	Success bool   `rlp:"-"`
+	Error   string `rlp:"-"`
+
+	Order           uint64
 	TransactionHash common.Hash
-	Type            string
 	Value           *big.Int
 	Input           []byte
 	From            common.Address
 	To              common.Address
-	Success         bool
-	Error           string
 }
 
 func (internal *InternalTransaction) Hash() common.Hash {

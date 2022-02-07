@@ -581,7 +581,7 @@ func opCreate(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]b
 	if !value.IsZero() {
 		bigVal = value.ToBig()
 	}
-
+	counter := interpreter.evm.Context.Counter
 	res, addr, returnGas, suberr := interpreter.evm.Create(scope.Contract, input, gas, bigVal)
 	// Push item on the stack based on the returned error. If the ruleset is
 	// homestead we must check for CodeStoreOutOfGasError (homestead only
@@ -597,11 +597,12 @@ func opCreate(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]b
 	scope.Stack.push(&stackvalue)
 	scope.Contract.Gas += returnGas
 
+	// call publish event to publish CREATE event
+	interpreter.evm.PublishEvent(CREATE, counter, scope.Contract.Address(), addr, bigVal, input, suberr)
+
 	if suberr == ErrExecutionReverted {
 		return res, nil
 	}
-	// call publish event to publish CREATE event if any
-	interpreter.evm.PublishEvent(CREATE, *pc, scope.Contract.Address(), addr, bigVal, input, suberr)
 	return nil, nil
 }
 
@@ -624,6 +625,7 @@ func opCreate2(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]
 	if !endowment.IsZero() {
 		bigEndowment = endowment.ToBig()
 	}
+	counter := interpreter.evm.Context.Counter
 	res, addr, returnGas, suberr := interpreter.evm.Create2(scope.Contract, input, gas,
 		bigEndowment, &salt)
 	// Push item on the stack based on the returned error.
@@ -635,11 +637,12 @@ func opCreate2(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]
 	scope.Stack.push(&stackvalue)
 	scope.Contract.Gas += returnGas
 
+	// call publish event to publish CREATE2 event
+	interpreter.evm.PublishEvent(CREATE2, counter, scope.Contract.Address(), addr, bigEndowment, input, suberr)
+
 	if suberr == ErrExecutionReverted {
 		return res, nil
 	}
-	// call publish event to publish CREATE event if any
-	interpreter.evm.PublishEvent(CREATE2, *pc, scope.Contract.Address(), addr, bigEndowment, input, suberr)
 	return nil, nil
 }
 
@@ -663,7 +666,7 @@ func opCall(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byt
 		gas += params.CallStipend
 		bigVal = value.ToBig()
 	}
-
+	counter := interpreter.evm.Context.Counter
 	ret, returnGas, err := interpreter.evm.Call(scope.Contract, toAddr, args, gas, bigVal)
 
 	if err != nil {
@@ -677,8 +680,8 @@ func opCall(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byt
 		scope.Memory.Set(retOffset.Uint64(), retSize.Uint64(), ret)
 	}
 	scope.Contract.Gas += returnGas
-	// call publish event to publish CALL event if any
-	interpreter.evm.PublishEvent(CALL, *pc, scope.Contract.Address(), toAddr, bigVal, args, err)
+	// call publish event to publish CALL event
+	interpreter.evm.PublishEvent(CALL, counter, scope.Contract.Address(), toAddr, bigVal, args, err)
 	return ret, nil
 }
 
