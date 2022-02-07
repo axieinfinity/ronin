@@ -31,47 +31,6 @@ const (
 	receiptsCacheLimit = 128
 )
 
-// RPCBlock represents a block that will serialize to the RPC representation of a block
-type RPCBlock struct {
-	Number           string            `json:"number"`
-	Hash             string            `json:"hash"`
-	ParentHash       string            `json:"parentHash"`
-	Nonce            string            `json:"nonce"`
-	MixHash          string            `json:"mixHash"`
-	LogsBloom        string            `json:"logsBloom"`
-	StateRoot        string            `json:"stateRoot"`
-	Miner            string            `json:"coinbase"`
-	Difficulty       string            `json:"difficulty"`
-	ExtraData        string            `json:"extraData"`
-	Size             string            `json:"size"`
-	GasLimit         string            `json:"gasLimit"`
-	GasUsed          string            `json:"gasUsed"`
-	TimeStamp        string            `json:"timestamp"`
-	TransactionsRoot string            `json:"transactionsRoot"`
-	ReceiptsRoot     string            `json:"receiptsRoot"`
-	Uncles           []string          `json:"uncles"`
-	Sha3Uncles       string            `json:"sha3Uncles"`
-	Transactions     []*RPCTransaction `json:"transactions"`
-}
-
-// RPCTransaction represents a transaction that will serialize to the RPC representation of a transaction
-type RPCTransaction struct {
-	BlockHash        string `json:"blockHash"`
-	BlockNumber      string `json:"blockNumber"`
-	From             string `json:"from"`
-	Gas              string `json:"gas"`
-	GasPrice         string `json:"gasPrice"`
-	Hash             string `json:"hash"`
-	Input            string `json:"input"`
-	Nonce            string `json:"nonce"`
-	To               string `json:"to"`
-	TransactionIndex string `json:"transactionIndex"`
-	Value            string `json:"value"`
-	V                string `json:"v"`
-	R                string `json:"r"`
-	S                string `json:"s"`
-}
-
 // backend implements interface ethapi.Backend which is used to init new VM
 type backend struct {
 	db        ethdb.Database

@@ -12,7 +12,7 @@ import (
 
 // Server is a proxy server that simulates rpc structures,
 // it uses http database which remotely connects to other rpc nodes to get and cache data if needed
-// it can be used to get data from rpc and cache them with ttl
+// it can be used to get data from rpc and cache them
 // it also provides a VM that can process some calculation that needs VM such as: eth_estimateGas, eth_call.
 type Server struct {
 	rpc string
