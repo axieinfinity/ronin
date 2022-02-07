@@ -527,10 +527,10 @@ func (ec *Client) SendTransaction(ctx context.Context, tx *types.Transaction) er
 }
 
 func toBlockNumArg(number *big.Int) string {
-	if number == nil {
+	if number == nil || number.Cmp(big.NewInt(-1)) == 0 {
 		return "latest"
 	}
-	pending := big.NewInt(-1)
+	pending := big.NewInt(-2)
 	if number.Cmp(pending) == 0 {
 		return "pending"
 	}
