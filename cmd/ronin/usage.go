@@ -228,20 +228,20 @@ var AppHelpFlagGroups = []flags.FlagGroup{
 		},
 	},
 	{
+		Name: "PROXY NODE",
+		Flags: []cli.Flag{
+			utils.RPCUrlFlag,
+			utils.FreeGasProxyUrlFlag,
+			utils.DBCacheSizeLimitFlag,
+		},
+	},
+	{
 		Name: "MISC",
 		Flags: []cli.Flag{
 			utils.SnapshotFlag,
 			utils.BloomFilterSizeFlag,
 			cli.HelpFlag,
 			utils.CatalystFlag,
-		},
-	},
-	{
-		Name: "PROXY NODE",
-		Flags: []cli.Flag{
-			utils.RPCUrlFlag,
-			utils.FreeGasProxyUrlFlag,
-			utils.DBCacheSizeLimitFlag,
 		},
 	},
 }
