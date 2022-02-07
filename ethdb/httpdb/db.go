@@ -24,7 +24,7 @@ func query(client *rpc.Client, method string, params ...interface{}) ([]byte, er
 	return common.Hex2Bytes(res), nil
 }
 
-// DB is a read only database which is used to query data from other nodes by using consortium's rpc 'consortium_getDBValue' and 'consortium_getAncient'
+// DB is a read only database which is used to query data from other nodes by using consortium's rpc 'consortium_getDBValue'
 // it also caches return values using lru cache to get data immediately without RPC calling everytime.
 // DB only supports Get and Has function which query data from other nodes.
 type DB struct {

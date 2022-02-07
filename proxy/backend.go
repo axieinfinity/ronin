@@ -27,8 +27,8 @@ import (
 )
 
 const (
-	blocksCacheLimit   = 32
-	receiptsCacheLimit = 32
+	blocksCacheLimit   = 128
+	receiptsCacheLimit = 128
 )
 
 // RPCBlock represents a block that will serialize to the RPC representation of a block
