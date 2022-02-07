@@ -50,7 +50,7 @@ import (
 var (
 	headBlockGauge     = metrics.NewRegisteredGauge("chain/head/block", nil)
 	headHeaderGauge    = metrics.NewRegisteredGauge("chain/head/header", nil)
-	headFastBlockGauge = metrics.NewRegisteredGauge("chain/head/receipt", nil)
+	HeadFastBlockGauge = metrics.NewRegisteredGauge("chain/head/receipt", nil) // need to export.
 
 	accountReadTimer   = metrics.NewRegisteredTimer("chain/account/reads", nil)
 	accountHashTimer   = metrics.NewRegisteredTimer("chain/account/hashes", nil)
@@ -457,12 +457,12 @@ func (bc *BlockChain) loadLastState() error {
 
 	// Restore the last known head fast block
 	bc.currentFastBlock.Store(currentBlock)
-	headFastBlockGauge.Update(int64(currentBlock.NumberU64()))
+	HeadFastBlockGauge.Update(int64(currentBlock.NumberU64()))
 
 	if head := rawdb.ReadHeadFastBlockHash(bc.db); head != (common.Hash{}) {
 		if block := bc.GetBlockByHash(head); block != nil {
 			bc.currentFastBlock.Store(block)
-			headFastBlockGauge.Update(int64(block.NumberU64()))
+			HeadFastBlockGauge.Update(int64(block.NumberU64()))
 		}
 	}
 	// Issue a status log for the user
@@ -577,7 +577,7 @@ func (bc *BlockChain) setHeadBeyondRoot(head uint64, root common.Hash, repair bo
 			// last step, however the direction of SetHead is from high
 			// to low, so it's safe the update in-memory markers directly.
 			bc.currentFastBlock.Store(newHeadFastBlock)
-			headFastBlockGauge.Update(int64(newHeadFastBlock.NumberU64()))
+			HeadFastBlockGauge.Update(int64(newHeadFastBlock.NumberU64()))
 		}
 		head := bc.CurrentBlock().NumberU64()
 
@@ -696,7 +696,7 @@ func (bc *BlockChain) ResetWithGenesisBlock(genesis *types.Block) error {
 	bc.hc.SetGenesis(bc.genesisBlock.Header())
 	bc.hc.SetCurrentHeader(bc.genesisBlock.Header())
 	bc.currentFastBlock.Store(bc.genesisBlock)
-	headFastBlockGauge.Update(int64(bc.genesisBlock.NumberU64()))
+	HeadFastBlockGauge.Update(int64(bc.genesisBlock.NumberU64()))
 	return nil
 }
 
@@ -763,7 +763,7 @@ func (bc *BlockChain) writeHeadBlock(block *types.Block) {
 	if updateHeads {
 		bc.hc.SetCurrentHeader(block.Header())
 		bc.currentFastBlock.Store(block)
-		headFastBlockGauge.Update(int64(block.NumberU64()))
+		HeadFastBlockGauge.Update(int64(block.NumberU64()))
 	}
 	bc.currentBlock.Store(block)
 	headBlockGauge.Update(int64(block.NumberU64()))
@@ -935,7 +935,7 @@ func (bc *BlockChain) InsertReceiptChain(blockChain types.Blocks, receiptChain [
 			if bc.GetTd(currentFastBlock.Hash(), currentFastBlock.NumberU64()).Cmp(td) < 0 {
 				rawdb.WriteHeadFastBlockHash(bc.db, head.Hash())
 				bc.currentFastBlock.Store(head)
-				headFastBlockGauge.Update(int64(head.NumberU64()))
+				HeadFastBlockGauge.Update(int64(head.NumberU64()))
 				return true
 			}
 		}

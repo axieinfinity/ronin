@@ -623,7 +623,19 @@ var (
 		Name:  "rpc.allow-unprotected-txs",
 		Usage: "Allow for unprotected (non EIP155 signed) transactions to be submitted via RPC",
 	}
-
+	ReadinessEnabledFlag = cli.BoolFlag{
+		Name:  "readiness",
+		Usage: "Enable Readiness on the HTTP-RPC server. Note that Readiness can only be started if an HTTP server is started as well.",
+	}
+	ReadinessPrometheusEndpointFlag = cli.StringFlag{
+		Name:  "readiness.prometheus",
+		Usage: "Prometheus address for collecting metric",
+	}
+	ReadinessBlockLagFlag = cli.IntFlag{
+	    Name: "readiness.block.lag",
+	    Usage: "The block lag for deciding the readiness is success or fail",
+	    Value: 50,
+	}
 	// Network Settings
 	MaxPeersFlag = cli.IntFlag{
 		Name:  "maxpeers",
@@ -981,6 +993,7 @@ func setGraphQL(ctx *cli.Context, cfg *node.Config) {
 	}
 }
 
+
 // setWS creates the WebSocket RPC listener interface string from the set
 // command line flags, returning empty if the HTTP endpoint is disabled.
 func setWS(ctx *cli.Context, cfg *node.Config) {
@@ -1238,6 +1251,12 @@ func SetNodeConfig(ctx *cli.Context, cfg *node.Config) {
 	}
 	if ctx.GlobalIsSet(InsecureUnlockAllowedFlag.Name) {
 		cfg.InsecureUnlockAllowed = ctx.GlobalBool(InsecureUnlockAllowedFlag.Name)
+	}
+	if ctx.GlobalIsSet(ReadinessPrometheusEndpointFlag.Name) {
+	    cfg.ReadinessPrometheusEndpoint = ctx.GlobalString(ReadinessPrometheusEndpointFlag.Name)
+	}
+	if ctx.GlobalIsSet(ReadinessBlockLagFlag.Name) {
+	    cfg.ReadinessBlockLag = ctx.GlobalInt(ReadinessBlockLagFlag.Name)
 	}
 }
 
@@ -1741,6 +1760,12 @@ func RegisterGraphQLService(stack *node.Node, backend ethapi.Backend, cfg node.C
 	if err := graphql.New(stack, backend, cfg.GraphQLCors, cfg.GraphQLVirtualHosts); err != nil {
 		Fatalf("Failed to register the GraphQL service: %v", err)
 	}
+}
+
+func RegisterReadinessService(stack *node.Node, backend ethapi.Backend, cfg node.Config) {
+    if err := New(stack, backend, []string{"*"}, []string{"*"}, cfg.ReadinessPrometheusEndpoint, cfg.ReadinessBlockLag); err != nil {
+        Fatalf("Failed to register the Readiness service: %v", err)
+    }
 }
 
 func SetupMetrics(ctx *cli.Context) {

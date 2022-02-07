@@ -175,6 +175,11 @@ func makeFullNode(ctx *cli.Context) (*node.Node, ethapi.Backend) {
 	if ctx.GlobalIsSet(utils.GraphQLEnabledFlag.Name) {
 		utils.RegisterGraphQLService(stack, backend, cfg.Node)
 	}
+
+	// Configure health check if requested
+	if ctx.GlobalIsSet(utils.ReadinessEnabledFlag.Name) {
+	    utils.RegisterReadinessService(stack, backend, cfg.Node)
+	}
 	// Add the Ethereum Stats daemon if requested.
 	if cfg.Ethstats.URL != "" {
 		utils.RegisterEthStatsService(stack, backend, cfg.Ethstats.URL)
