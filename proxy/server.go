@@ -4,7 +4,9 @@ import (
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/ethdb/httpdb"
+	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"github.com/ethereum/go-ethereum/node"
+	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
@@ -51,6 +53,12 @@ func (s *Server) Start() {
 			Version:   "1.0",
 			Service:   newAPI(backend),
 			Public:    true,
+		},
+		{
+			Namespace: "net",
+			Version: "1.0",
+			Service: ethapi.NewPublicNetAPI(&p2p.Server{}, s.ethConfig.NetworkId),
+			Public: true,
 		},
 	}
 	s.node.RegisterAPIs(apis)
