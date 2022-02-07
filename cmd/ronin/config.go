@@ -351,6 +351,9 @@ func makeProxyServer(ctx *cli.Context) (*proxy.Server, error) {
 	} else {
 		log.Info("Global gas cap disabled")
 	}
+	if ctx.GlobalIsSet(utils.NetworkIdFlag.Name) {
+		cfg.Eth.NetworkId = ctx.GlobalUint64(utils.NetworkIdFlag.Name)
+	}
 	if ctx.GlobalIsSet(utils.RPCGlobalEVMTimeoutFlag.Name) {
 		cfg.Eth.RPCEVMTimeout = ctx.GlobalDuration(utils.RPCGlobalEVMTimeoutFlag.Name)
 	}
