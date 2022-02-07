@@ -83,30 +83,35 @@ type backend struct {
 	blocksCache *lru.Cache
 	client      *ethclient.Client
 	fgpClient   *ethclient.Client
+	chainConfig *params.ChainConfig
+}
+
+func (b *backend) PendingBlockAndReceipts() (*types.Block, types.Receipts) {
+	return nil, nil
 }
 
 func (b *backend) SubscribeInternalTransactionEvent(ch chan<- types.InternalTransaction) event.Subscription {
-	panic("implement me")
+	return nil
 }
 
 func (b *backend) SyncProgress() ethereum.SyncProgress {
-	panic("implement me")
+	return ethereum.SyncProgress{}
 }
 
 func (b *backend) SuggestGasTipCap(ctx context.Context) (*big.Int, error) {
-	panic("implement me")
+	return nil, nil
 }
 
 func (b *backend) FeeHistory(ctx context.Context, blockCount int, lastBlock rpc.BlockNumber, rewardPercentiles []float64) (*big.Int, [][]*big.Int, []*big.Int, []float64, error) {
-	panic("implement me")
+	return nil, nil, nil, nil, nil
 }
 
 func (b *backend) RPCEVMTimeout() time.Duration {
-	panic("implement me")
+	return b.ethConfig.RPCEVMTimeout
 }
 
 func (b *backend) TxPoolContentFrom(addr common.Address) (types.Transactions, types.Transactions) {
-	panic("implement me")
+	return nil, nil
 }
 
 func newBackend(db ethdb.Database, ethConfig *ethconfig.Config, rpcUrl, fgp string) (*backend, error) {
@@ -116,13 +121,24 @@ func newBackend(db ethdb.Database, ethConfig *ethconfig.Config, rpcUrl, fgp stri
 	if err != nil {
 		return nil, err
 	}
-	b := &backend{db: db, ethConfig: ethConfig, receiptsCache: receiptsCache, blocksCache: blocksCache, client: client}
+	chainConfig, _, err := core.SetupGenesisBlockWithOverride(db, nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	b := &backend{
+		db: db,
+		ethConfig: ethConfig,
+		receiptsCache: receiptsCache,
+		blocksCache: blocksCache,
+		client: client,
+		chainConfig: chainConfig,
+	}
 	if fgp != "" {
 		if b.fgpClient, err = ethclient.Dial(fgp); err != nil {
 			return nil, err
 		}
 	}
-	b.hc, err = core.NewHeaderChain(db, &params.ChainConfig{}, &consortium.Consortium{}, nil)
+	b.hc, err = core.NewHeaderChain(db, b.ChainConfig(), &consortium.Consortium{}, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -260,7 +276,7 @@ func (b *backend) GetReceipts(ctx context.Context, hash common.Hash) (types.Rece
 	if number == nil {
 		return nil, nil
 	}
-	receipts := rawdb.ReadReceipts(b.db, hash, *number, &params.ChainConfig{})
+	receipts := rawdb.ReadReceipts(b.db, hash, *number, b.ChainConfig())
 	if receipts == nil {
 		return nil, nil
 	}
@@ -285,7 +301,7 @@ func (b *backend) GetEVM(ctx context.Context, msg core.Message, state *state.Sta
 	}
 	txContext := core.NewEVMTxContext(msg)
 	blockContext := core.NewEVMBlockContext(header, b, nil)
-	return vm.NewEVM(blockContext, txContext, state, &params.ChainConfig{}, *vmConfig), vmError, nil
+	return vm.NewEVM(blockContext, txContext, state, b.ChainConfig(), *vmConfig), vmError, nil
 }
 
 func (b *backend) SendTx(ctx context.Context, signedTx *types.Transaction) error {
@@ -331,7 +347,7 @@ func (b *backend) GetLogs(ctx context.Context, blockHash common.Hash) ([][]*type
 }
 
 func (b *backend) ChainConfig() *params.ChainConfig {
-	return &params.ChainConfig{}
+	return b.chainConfig
 }
 
 func (b *backend) Engine() consensus.Engine {
