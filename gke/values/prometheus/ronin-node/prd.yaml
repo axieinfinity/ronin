@@ -1,4 +1,4 @@
-# helm diff upgrade --install  prometheus  prometheus-community/prometheus -f ~/ronin/gke/values/prometheus/prd.yaml -n monitoring  --version 15.0.2
+# helm diff upgrade --install  prometheus  prometheus-community/prometheus -f ~/ronin/gke/values/prometheus/ronin-node/prd.yaml -n monitoring  --version 15.0.2
 rbac:
   create: true
 
@@ -530,7 +530,11 @@ nodeExporter:
   ## Node tolerations for node-exporter scheduling to nodes with taints
   ## Ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/
   ##
-  tolerations: []
+  tolerations:
+  - key: "node_pool"
+    operator: "Equal"
+    value: "pool-monitoring"
+    effect: "NoSchedule"
     # - key: "key"
     #   operator: "Equal|Exists"
     #   value: "value"
@@ -539,7 +543,8 @@ nodeExporter:
   ## Node labels for node-exporter pod assignment
   ## Ref: https://kubernetes.io/docs/user-guide/node-selection/
   ##
-  nodeSelector: {}
+  nodeSelector:
+    node_pool: "pool-monitoring"
 
   ## Annotations to be added to node-exporter pods
   ##
@@ -847,7 +852,11 @@ server:
   ## Node tolerations for server scheduling to nodes with taints
   ## Ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/
   ##
-  tolerations: []
+  tolerations:
+  - key: "node_pool"
+    operator: "Equal"
+    value: "pool-monitoring"
+    effect: "NoSchedule"
     # - key: "key"
     #   operator: "Equal|Exists"
     #   value: "value"
@@ -857,7 +866,7 @@ server:
   ## Ref: https://kubernetes.io/docs/user-guide/node-selection/
   ##
   nodeSelector:
-    node_pool: "pool-default"
+    node_pool: "pool-monitoring"
 
   ## Pod affinity
   ##
@@ -1182,7 +1191,11 @@ pushgateway:
   ## Node tolerations for pushgateway scheduling to nodes with taints
   ## Ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/
   ##
-  tolerations: []
+  tolerations:
+  - key: "node_pool"
+    operator: "Equal"
+    value: "pool-monitoring"
+    effect: "NoSchedule"
     # - key: "key"
     #   operator: "Equal|Exists"
     #   value: "value"
@@ -1191,7 +1204,8 @@ pushgateway:
   ## Node labels for pushgateway pod assignment
   ## Ref: https://kubernetes.io/docs/user-guide/node-selection/
   ##
-  nodeSelector: {}
+  nodeSelector:
+    node_pool: "pool-monitoring"
 
   ## Annotations to be added to pushgateway pods
   ##
