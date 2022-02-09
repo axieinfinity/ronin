@@ -23,6 +23,7 @@ import (
 	"github.com/ethereum/go-ethereum/rpc"
 	lru "github.com/hashicorp/golang-lru"
 	"math/big"
+	"sync/atomic"
 	"time"
 )
 
@@ -40,6 +41,9 @@ type backend struct {
 	receiptsCache *lru.Cache
 	// Cache for the most recent block
 	blocksCache *lru.Cache
+	// Cache for most recent block number
+	numbersCache *lru.Cache
+	currentBlock *atomic.Value
 	client      *ethclient.Client
 	fgpClient   *ethclient.Client
 	chainConfig *params.ChainConfig
@@ -76,6 +80,7 @@ func (b *backend) TxPoolContentFrom(addr common.Address) (types.Transactions, ty
 func newBackend(db ethdb.Database, ethConfig *ethconfig.Config, rpcUrl, fgp string) (*backend, error) {
 	receiptsCache, _ := lru.New(receiptsCacheLimit)
 	blocksCache, _ := lru.New(blocksCacheLimit)
+	numbersCache, _ := lru.New(blocksCacheLimit)
 	client, err := ethclient.Dial(rpcUrl)
 	if err != nil {
 		return nil, err
@@ -89,8 +94,10 @@ func newBackend(db ethdb.Database, ethConfig *ethconfig.Config, rpcUrl, fgp stri
 		ethConfig: ethConfig,
 		receiptsCache: receiptsCache,
 		blocksCache: blocksCache,
+		numbersCache: numbersCache,
 		client: client,
 		chainConfig: chainConfig,
+		currentBlock: &atomic.Value{},
 	}
 	if fgp != "" {
 		if b.fgpClient, err = ethclient.Dial(fgp); err != nil {
@@ -145,29 +152,70 @@ func (b *backend) CurrentHeader() *types.Header {
 	if block == nil {
 		return nil
 	}
-	return b.hc.GetHeaderByNumber(block.NumberU64())
+	return block.Header()
+}
+
+func (b *backend) cacheBlock(block *types.Block) {
+	b.blocksCache.Add(block.Hash(), block)
+	b.numbersCache.Add(block.NumberU64(), block.Hash())
+
+	// check if previous hashes were reorged or not
+	go func() {
+		parentHash := block.ParentHash()
+		number := block.NumberU64() - 1
+		for number > 0 {
+			// loop until mismatch found or number does not exist
+			hash, ok := b.numbersCache.Get(number)
+			if ok {
+				// there are 2 conditions:
+				// - hash is matched with parentHash => continue with previous block
+				// - hash is not matched with parentHash => it might be reorged => call get block by parentHash and end the loop to prevent overlapping cacheBlock
+				if parentHash.Hex() == hash.(common.Hash).Hex() {
+					prevBlock, exist := b.blocksCache.Get(parentHash)
+					if exist {
+						parentHash = prevBlock.(*types.Block).ParentHash()
+						number--
+						continue
+					}
+				}
+				_, err := b.BlockByHash(context.Background(), parentHash)
+				if err != nil {
+					log.Error("error while getting block in double check", "err", err, "hash", parentHash.Hex())
+				}
+			}
+			// block height does not exist in cache
+			return
+		}
+	}()
 }
 
 func (b *backend) CurrentBlock() *types.Block {
+	currentBlock := b.currentBlock.Load()
+	if currentBlock != nil && currentBlock.(*types.Block).Time() + b.ChainConfig().Consortium.Period > uint64(time.Now().Unix()) {
+		return currentBlock.(*types.Block)
+	}
 	log.Trace("calling rpc client to get current block")
 	block, err := b.client.BlockByNumber(context.Background(), nil)
 	if err != nil {
 		return nil
 	}
-	b.blocksCache.Add(block.NumberU64(), block)
+	b.currentBlock.Store(block)
+	b.cacheBlock(block)
 	return block
 }
 
 func (b *backend) BlockByNumber(ctx context.Context, number rpc.BlockNumber) (*types.Block, error) {
-	if block, ok := b.blocksCache.Get(uint64(number)); ok {
-		return block.(*types.Block), nil
+	if hash, ok := b.numbersCache.Get(uint64(number)); ok {
+		if block, exist := b.blocksCache.Get(hash.(common.Hash)); exist {
+			return block.(*types.Block), nil
+		}
 	}
 	log.Trace("block number cannot be found in cache, calling rpc client", "number", number)
 	block, err := b.client.BlockByNumber(ctx, big.NewInt(int64(number)))
 	if err != nil {
 		return nil, err
 	}
-	b.blocksCache.Add(block.NumberU64(), block)
+	b.cacheBlock(block)
 	return block, nil
 }
 
@@ -180,7 +228,7 @@ func (b *backend) BlockByHash(ctx context.Context, hash common.Hash) (*types.Blo
 	if err != nil {
 		return nil, err
 	}
-	b.blocksCache.Add(hash, block)
+	b.cacheBlock(block)
 	return block, nil
 }
 
