@@ -121,23 +121,19 @@ func (b *backend) UnprotectedAllowed() bool          { return false }           
 func (b *backend) SetHead(number uint64) {}
 
 func (b *backend) HeaderByNumber(ctx context.Context, number rpc.BlockNumber) (*types.Header, error) {
-	// Pending block is only known by the miner
-	if number == rpc.PendingBlockNumber {
-		return nil, nil
+	block, err := b.BlockByNumber(ctx, number)
+	if err != nil {
+		return nil, err
 	}
-	// Otherwise resolve and return the block
-	if number == rpc.LatestBlockNumber {
-		block := b.CurrentBlock()
-		if block == nil {
-			return nil, errors.New("cannot find current block")
-		}
-		number = rpc.BlockNumber(block.NumberU64())
-	}
-	return b.hc.GetHeaderByNumber(uint64(number)), nil
+	return block.Header(), nil
 }
 
 func (b *backend) HeaderByHash(ctx context.Context, hash common.Hash) (*types.Header, error) {
-	return b.hc.GetHeaderByHash(hash), nil
+	block, err := b.BlockByHash(ctx, hash)
+	if err != nil {
+		return nil, err
+	}
+	return block.Header(), nil
 }
 
 func (b *backend) HeaderByNumberOrHash(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) (*types.Header, error) {
@@ -168,8 +164,8 @@ func (b *backend) cacheBlock(block *types.Block) {
 			hash, ok := b.numbersCache.Get(number)
 			if ok {
 				// there are 2 conditions:
-				// - hash is matched with parentHash => continue with previous block
-				// - hash is not matched with parentHash => it might be reorged => call get block by parentHash and end the loop to prevent overlapping cacheBlock
+				// - hash matches with parentHash => continue with previous block
+				// - hash does not match with parentHash => it might be reorged => call get block by parentHash and end the loop to prevent overlapping cacheBlock
 				if parentHash.Hex() == hash.(common.Hash).Hex() {
 					prevBlock, exist := b.blocksCache.Get(parentHash)
 					if exist {
@@ -178,6 +174,8 @@ func (b *backend) cacheBlock(block *types.Block) {
 						continue
 					}
 				}
+				// remove canonical cache from db if any
+				rawdb.DeleteCanonicalHash(b.db, number)
 				_, err := b.BlockByHash(context.Background(), parentHash)
 				if err != nil {
 					log.Error("error while getting block in double check", "err", err, "hash", parentHash.Hex())
@@ -292,11 +290,15 @@ func (b *backend) GetReceipts(ctx context.Context, hash common.Hash) (types.Rece
 }
 
 func (b *backend) GetTd(ctx context.Context, hash common.Hash) *big.Int {
-	number := b.hc.GetBlockNumber(hash)
-	if number == nil {
+	block, err := b.BlockByHash(ctx, hash)
+	if err != nil {
+		log.Error("[GetTd] error while getting block by hash", "err", err, "hash", hash.Hex())
 		return nil
 	}
-	return b.hc.GetTd(hash, *number)
+	if block == nil {
+		return nil
+	}
+	return b.hc.GetTd(hash, block.NumberU64())
 }
 
 func (b *backend) GetEVM(ctx context.Context, msg core.Message, state *state.StateDB, header *types.Header, vmConfig *vm.Config) (*vm.EVM, func() error, error) {
