@@ -1,5 +1,5 @@
 # This yaml is example for creating an rpc node using snapshot pvc.
-# helm diff upgrade --install rpc-node   ~/axis/helm-kubernetes-services/charts/k8s-service/ -f ~/ronin/gke/values/rpc/prd.yaml
+# helm diff upgrade --install rpc-node   ~/axis/helm-kubernetes-services/charts/k8s-service/ -f ~/ronin/gke/values/rpc/ronin-node/prd.yaml
 
 replicaCount: 4
 
@@ -125,11 +125,6 @@ customPreStopCommand:
 
 shutdownDelay: 0
 terminationGracePeriodSeconds: 300
-
-livenessProbe:
- httpGet:
-   path: /
-   port: rpc
 
 readinessProbe:
   httpGet:
