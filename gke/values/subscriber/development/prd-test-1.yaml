@@ -1,0 +1,67 @@
+# Mainnet Chain - Test
+# helm  diff upgrade --install subscriber-node-mainnet-test-1  ~/axis/helm-kubernetes-services/charts/k8s-service/ -f ~/ronin/gke/values/subscriber/development/prd-test.yaml
+replicaCount: 1
+deployment:
+  enabled: false
+
+service:
+  enabled: false
+
+statefulset:
+  enabled: True
+
+containerImage:
+  repository: gcr.io/test-servers-256610/ronin_ronin
+  tag: PR-57-e85acc57f
+  pullPolicy: IfNotPresent
+
+containerPorts:
+  peer:
+    port: 30303
+    protocol: TCP
+  http:
+    disabled: true
+  https:
+    disabled: true
+  metric:
+    port: 6060
+    protocol: TCP
+
+containerCommand:
+  - "./entrypoint.sh"
+
+applicationName: node
+
+envVars:
+  BOOTNODES: "enode://a166ab6437cf370bc604097529a0fb6a8a4836bb85833fbf588b130cb73fe0517940d10c5d89c0e3e1c2800a774ac1ae2108d62cb4608556e41bc1fc4482241a@35.193.159.26:30303" # ronin-mainet-0
+  NETWORK_ID: 2020
+  SUBSCRIBER: "true"
+  KAFKA_URL: "dev-server.c.test-servers-256610.internal:39092"
+  RPC_NODE: "true"
+  SYNC_MODE: "snap"
+  VERBOSITY: "3"
+  DATA_DIR: "/node"
+  GENESIS_PATH: "./mainnet.json"
+  MINE: "false"
+  KEYSTORE_DIR: ''
+  PASSWORD_FILE: ''
+  RONIN_PARAMS: "--ethstats subscriber-skymavis-mainnet-test-1:xQj2MZPaN6@stats.roninchain.com:443 --subscriber.coolDownDuration 1 --metrics.addr 0.0.0.0 --metrics"
+  INSTANCE_NAME: 'subscriber-skymavis-mainnet-test-1'
+
+persistentVolumes:
+  ronin-chain:
+    accessMode: ReadWriteOnce
+    size: 700Gi
+    storageClass: premium-rwo
+    mountPath: "/node"
+
+containerResources:
+  requests:
+    memory: 4.5Gi
+    cpu: 2.5
+  limits:
+    memory: 6Gi
+    cpu: 4
+
+imagePullSecrets:
+  - gcr-json-key
