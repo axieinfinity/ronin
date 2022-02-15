@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/node"
 )
@@ -35,14 +34,17 @@ type Response struct {
 
 type handler struct {
 	prometheus string
-	block_lag  int
+	blockLag  int64
 }
 
 func respond(w http.ResponseWriter, body []byte, code int) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.WriteHeader(code)
-	_, _ = w.Write(body)
+	_, err := w.Write(body)
+	if err != nil {
+		log.Error("[Readiness] Failed to write", "body", body, "error", err)
+	}
 }
 
 func errorJSON(msg string) []byte {
@@ -62,14 +64,9 @@ func (h handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		respond(w, errorJSON("only GET requests are supported"), http.StatusMethodNotAllowed)
 		return
 	}
-	var threshold_lag int64
-	threshold_lag = int64(h.block_lag)
 
-	now := time.Now()
-	sec := now.Unix()
-
-	queryParam := url.QueryEscape("max(chain_head_block) by job")
-	query := fmt.Sprintf("http://%s/api/v1/query?query=%s&time=%d", h.prometheus, queryParam, strconv.FormatInt(sec, 10))
+	queryParam := url.QueryEscape("max(chain_head_block) by (job)")
+	query := fmt.Sprintf("http://%s/api/v1/query?query=%s&time=%d", h.prometheus, queryParam, strconv.FormatInt(time.Now().Unix(),10))
 	resp, err := http.Get(query)
 	if err != nil {
 		log.Error("[Readiness] Failed to query to prometheus", "query", query, "error", err)
@@ -89,23 +86,23 @@ func (h handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	err = json.Unmarshal(body, &response)
 
 	if response.Status != "success" {
-		log.Error("[Readiness] Process query to prometheus", "status", response.Status)
+		log.Error("[Readiness] Process query to prometheus", "status", response.Status, "query", query)
 		respond(w, errorJSON("Error when connecting to prometheus"), http.StatusOK)
 		return
 	}
 
 	// Convert from string to int64
-	max_head, err := strconv.ParseInt(response.Data.Result[0].Value[1], 10, 64)
+	maxHead, err := strconv.ParseInt(response.Data.Result[0].Value[1], 10, 64)
 	if err != nil {
 		log.Error("[Readiness] Failed to convert string to int64", "error", err)
 		respond(w, errorJSON("Failed to convert string to int64"), http.StatusOK)
 		return
 	}
-	current_block_lag := max_head - core.HeadFastBlockGauge.Value()
+	currentBlockLag := maxHead - core.HeadFastBlockGauge.Value()
 
-	log.Info("[Readiness] Current block number statics", "Max head", max_head, "Current Block", core.HeadFastBlockGauge.Value(), "current Lag", current_block_lag)
+	log.Info("[Readiness] Current block number statics", "Max head", maxHead, "Current Block", core.HeadFastBlockGauge.Value(), "current Lag", currentBlockLag)
 
-	if current_block_lag > threshold_lag {
+	if currentBlockLag > h.blockLag {
 		respond(w, errorJSON("Block lag is larger than threshold"), http.StatusInternalServerError)
 		return
 	}
@@ -114,19 +111,16 @@ func (h handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // New constructs a new Readiness service instance.
-func NewReadinessHandler(stack *node.Node, backend ethapi.Backend, cors, vhosts []string, prometheus string, block_lag int) error {
-	if backend == nil {
-		panic("missing backend")
-	}
+func NewReadinessHandler(stack *node.Node, cors, vhosts []string, prometheus string, blockLag int64) error {
 	// check if http server with given endpoint exists and enable Readiness on it
-	return newHandler(stack, backend, cors, vhosts, prometheus, block_lag)
+	return newHandler(stack, cors, vhosts, prometheus, blockLag)
 }
 
 // newHandler returns a new `http.Handler` that will answer Readiness requests.
-func newHandler(stack *node.Node, backend ethapi.Backend, cors, vhosts []string, prometheus string, block_lag int) error {
+func newHandler(stack *node.Node, cors, vhosts []string, prometheus string, blockLag int64) error {
 	h := handler{
 		prometheus: prometheus,
-		block_lag:  block_lag,
+		blockLag:  blockLag,
 	}
 	handler := node.NewHTTPHandlerStack(h, cors, vhosts)
 	stack.RegisterHandler("readiness", "/readiness", handler)

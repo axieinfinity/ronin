@@ -50,7 +50,7 @@ import (
 var (
 	headBlockGauge     = metrics.NewRegisteredGauge("chain/head/block", nil)
 	headHeaderGauge    = metrics.NewRegisteredGauge("chain/head/header", nil)
-	HeadFastBlockGauge = metrics.NewRegisteredGauge("chain/head/receipt", nil) // need to export.
+	HeadFastBlockGauge = metrics.NewRegisteredGauge("chain/head/receipt", nil)
 
 	accountReadTimer   = metrics.NewRegisteredTimer("chain/account/reads", nil)
 	accountHashTimer   = metrics.NewRegisteredTimer("chain/account/hashes", nil)

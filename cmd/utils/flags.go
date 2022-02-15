@@ -630,8 +630,9 @@ var (
 	ReadinessPrometheusEndpointFlag = cli.StringFlag{
 		Name:  "readiness.prometheus",
 		Usage: "Prometheus address for collecting metric",
+		Value: "localhost:9090",
 	}
-	ReadinessBlockLagFlag = cli.IntFlag{
+	ReadinessBlockLagFlag = cli.Int64Flag{
     Name: "readiness.block.lag",
     Usage: "The block lag for deciding the readiness is success or fail",
     Value: 50,
@@ -1251,12 +1252,6 @@ func SetNodeConfig(ctx *cli.Context, cfg *node.Config) {
 	if ctx.GlobalIsSet(InsecureUnlockAllowedFlag.Name) {
 		cfg.InsecureUnlockAllowed = ctx.GlobalBool(InsecureUnlockAllowedFlag.Name)
 	}
-	if ctx.GlobalIsSet(ReadinessPrometheusEndpointFlag.Name) {
-	    cfg.ReadinessPrometheusEndpoint = ctx.GlobalString(ReadinessPrometheusEndpointFlag.Name)
-	}
-	if ctx.GlobalIsSet(ReadinessBlockLagFlag.Name) {
-	    cfg.ReadinessBlockLag = ctx.GlobalInt(ReadinessBlockLagFlag.Name)
-	}
 }
 
 func setSmartCard(ctx *cli.Context, cfg *node.Config) {
@@ -1762,8 +1757,8 @@ func RegisterGraphQLService(stack *node.Node, backend ethapi.Backend, cfg node.C
 }
 
 // RegisterGraphQLService is a utility function to construct a new service and register it against a node.
-func RegisterReadinessService(stack *node.Node, backend ethapi.Backend, cfg node.Config) {
-    if err := NewReadinessHandler(stack, backend, []string{"*"}, []string{"*"}, cfg.ReadinessPrometheusEndpoint, cfg.ReadinessBlockLag); err != nil {
+func RegisterReadinessService(stack *node.Node, ctx *cli.Context) {
+    if err := NewReadinessHandler(stack, []string{"*"}, []string{"*"}, ctx.GlobalString(ReadinessPrometheusEndpointFlag.Name), ctx.GlobalInt64(ReadinessBlockLagFlag.Name)); err != nil {
         Fatalf("Failed to register the Readiness service: %v", err)
     }
 }
