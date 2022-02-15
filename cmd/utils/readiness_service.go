@@ -111,17 +111,16 @@ func (h handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	respond(w, successJSON("Block lag catchs up"), http.StatusOK)
 }
 
-// New constructs a new GraphQL service instance.
-func New(stack *node.Node, backend ethapi.Backend, cors, vhosts []string, prometheus string, block_lag int) error {
+// New constructs a new Readiness service instance.
+func NewReadinessHandler(stack *node.Node, backend ethapi.Backend, cors, vhosts []string, prometheus string, block_lag int) error {
 	if backend == nil {
 		panic("missing backend")
 	}
-	// check if http server with given endpoint exists and enable graphQL on it
+	// check if http server with given endpoint exists and enable Readiness on it
 	return newHandler(stack, backend, cors, vhosts, prometheus, block_lag)
 }
 
-// newHandler returns a new `http.Handler` that will answer GraphQL queries.
-// It additionally exports an interactive query browser on the / endpoint.
+// newHandler returns a new `http.Handler` that will answer Readiness requests.
 func newHandler(stack *node.Node, backend ethapi.Backend, cors, vhosts []string, prometheus string, block_lag int) error {
 
 	h := handler{

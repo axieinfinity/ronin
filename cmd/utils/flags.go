@@ -1763,7 +1763,7 @@ func RegisterGraphQLService(stack *node.Node, backend ethapi.Backend, cfg node.C
 }
 
 func RegisterReadinessService(stack *node.Node, backend ethapi.Backend, cfg node.Config) {
-    if err := New(stack, backend, []string{"*"}, []string{"*"}, cfg.ReadinessPrometheusEndpoint, cfg.ReadinessBlockLag); err != nil {
+    if err := NewReadinessHandler(stack, backend, []string{"*"}, []string{"*"}, cfg.ReadinessPrometheusEndpoint, cfg.ReadinessBlockLag); err != nil {
         Fatalf("Failed to register the Readiness service: %v", err)
     }
 }
