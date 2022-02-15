@@ -632,9 +632,9 @@ var (
 		Usage: "Prometheus address for collecting metric",
 	}
 	ReadinessBlockLagFlag = cli.IntFlag{
-	    Name: "readiness.block.lag",
-	    Usage: "The block lag for deciding the readiness is success or fail",
-	    Value: 50,
+    Name: "readiness.block.lag",
+    Usage: "The block lag for deciding the readiness is success or fail",
+    Value: 50,
 	}
 	// Network Settings
 	MaxPeersFlag = cli.IntFlag{
@@ -992,7 +992,6 @@ func setGraphQL(ctx *cli.Context, cfg *node.Config) {
 		cfg.GraphQLVirtualHosts = SplitAndTrim(ctx.GlobalString(GraphQLVirtualHostsFlag.Name))
 	}
 }
-
 
 // setWS creates the WebSocket RPC listener interface string from the set
 // command line flags, returning empty if the HTTP endpoint is disabled.
@@ -1762,6 +1761,7 @@ func RegisterGraphQLService(stack *node.Node, backend ethapi.Backend, cfg node.C
 	}
 }
 
+// RegisterGraphQLService is a utility function to construct a new service and register it against a node.
 func RegisterReadinessService(stack *node.Node, backend ethapi.Backend, cfg node.Config) {
     if err := NewReadinessHandler(stack, backend, []string{"*"}, []string{"*"}, cfg.ReadinessPrometheusEndpoint, cfg.ReadinessBlockLag); err != nil {
         Fatalf("Failed to register the Readiness service: %v", err)

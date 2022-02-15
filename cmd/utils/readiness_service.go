@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"strconv"
 	"time"
 
@@ -67,7 +68,8 @@ func (h handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	now := time.Now()
 	sec := now.Unix()
 
-	query := "http://" + h.prometheus + "/api/v1/query?query=max%28chain_head_block%29+by%28job%29&time=" + strconv.FormatInt(sec, 10)
+	queryParam := url.QueryEscape("max(chain_head_block) by job")
+	query := fmt.Sprintf("http://%s/api/v1/query?query=%s&time=%d", h.prometheus, queryParam, strconv.FormatInt(sec, 10))
 	resp, err := http.Get(query)
 	if err != nil {
 		log.Error("[Readiness] Failed to query to prometheus", "query", query, "error", err)
@@ -122,14 +124,11 @@ func NewReadinessHandler(stack *node.Node, backend ethapi.Backend, cors, vhosts 
 
 // newHandler returns a new `http.Handler` that will answer Readiness requests.
 func newHandler(stack *node.Node, backend ethapi.Backend, cors, vhosts []string, prometheus string, block_lag int) error {
-
 	h := handler{
 		prometheus: prometheus,
 		block_lag:  block_lag,
 	}
 	handler := node.NewHTTPHandlerStack(h, cors, vhosts)
-
 	stack.RegisterHandler("readiness", "/readiness", handler)
-
 	return nil
 }
