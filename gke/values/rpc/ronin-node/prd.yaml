@@ -31,7 +31,7 @@ podAnnotations:
 
 containerImage:
   repository: gcr.io/test-servers-256610/ronin_ronin
-  tag: master-b8e047656
+  tag: master-c4a4a7936
   pullPolicy: IfNotPresent
 
 containerPorts:
@@ -62,7 +62,7 @@ envVars:
   PASSWORD: "123456"
   SYNC_MODE: "snap"
   MINE: "false"
-  RONIN_PARAMS: "--rpc.allow-unprotected-txs --http.api eth,web3,personal,txpool --metrics.addr 0.0.0.0 --metrics"
+  RONIN_PARAMS: "--rpc.allow-unprotected-txs --http.api eth,web3,personal,txpool --metrics.addr 0.0.0.0 --metrics --readiness --readiness.prometheus prometheus-server.monitoring.svc.cluster.local --cache 2048"
   ETHSTATS_ENDPOINT: $(INSTANCE_NAME):xQj2MZPaN6@stats.roninchain.com:443
 
 additionalContainerEnv:
@@ -128,5 +128,8 @@ terminationGracePeriodSeconds: 300
 
 readinessProbe:
   httpGet:
-    path: /
+    path: /readiness
     port: rpc
+  initialDelaySeconds: 60
+  timeoutSeconds: 5
+  periodSeconds: 30
