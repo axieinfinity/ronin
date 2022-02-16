@@ -183,6 +183,9 @@ var (
 		utils.RPCGlobalEVMTimeoutFlag,
 		utils.RPCGlobalTxFeeCapFlag,
 		utils.AllowUnprotectedTxs,
+		utils.ReadinessEnabledFlag,
+		utils.ReadinessPrometheusEndpointFlag,
+		utils.ReadinessBlockLagFlag,
 	}
 
 	metricsFlags = []cli.Flag{

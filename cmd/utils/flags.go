@@ -623,7 +623,20 @@ var (
 		Name:  "rpc.allow-unprotected-txs",
 		Usage: "Allow for unprotected (non EIP155 signed) transactions to be submitted via RPC",
 	}
-
+	ReadinessEnabledFlag = cli.BoolFlag{
+		Name:  "readiness",
+		Usage: "Enable Readiness on the HTTP-RPC server. Note that Readiness can only be started if an HTTP server is started as well.",
+	}
+	ReadinessPrometheusEndpointFlag = cli.StringFlag{
+		Name:  "readiness.prometheus",
+		Usage: "Prometheus address for collecting metric",
+		Value: "localhost:9090",
+	}
+	ReadinessBlockLagFlag = cli.Int64Flag{
+    Name: "readiness.block.lag",
+    Usage: "The block lag for deciding the readiness is success or fail",
+    Value: 50,
+	}
 	// Network Settings
 	MaxPeersFlag = cli.IntFlag{
 		Name:  "maxpeers",
@@ -1741,6 +1754,13 @@ func RegisterGraphQLService(stack *node.Node, backend ethapi.Backend, cfg node.C
 	if err := graphql.New(stack, backend, cfg.GraphQLCors, cfg.GraphQLVirtualHosts); err != nil {
 		Fatalf("Failed to register the GraphQL service: %v", err)
 	}
+}
+
+// RegisterGraphQLService is a utility function to construct a new service and register it against a node.
+func RegisterReadinessService(stack *node.Node, ctx *cli.Context) {
+    if err := NewReadinessHandler(stack, []string{"*"}, []string{"*"}, ctx.GlobalString(ReadinessPrometheusEndpointFlag.Name), ctx.GlobalInt64(ReadinessBlockLagFlag.Name)); err != nil {
+        Fatalf("Failed to register the Readiness service: %v", err)
+    }
 }
 
 func SetupMetrics(ctx *cli.Context) {
