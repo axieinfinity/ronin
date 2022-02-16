@@ -62,7 +62,7 @@ require (
 	github.com/tyler-smith/go-bip39 v1.1.0
 	github.com/urfave/cli/v2 v2.27.1
 	golang.org/x/crypto v0.21.0
-	golang.org/x/sync v0.1.0
+	golang.org/x/sync v0.5.0
 	golang.org/x/sys v0.18.0
 	golang.org/x/text v0.14.0
 	golang.org/x/time v0.0.0-20220922220347-f3bd1da661af
@@ -81,6 +81,7 @@ require (
 	github.com/supranational/blst v0.3.11
 	github.com/wealdtech/go-eth2-wallet-encryptor-keystorev4 v1.3.1
 	golang.org/x/exp v0.0.0-20240103183307-be819d1f06fc
+	golang.org/x/tools v0.16.0
 )
 
 require (
@@ -131,6 +132,7 @@ require (
 	github.com/tklauser/numcpus v0.6.0 // indirect
 	github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 // indirect
 	github.com/yusufpapurcu/wmi v1.2.2 // indirect
+	golang.org/x/mod v0.14.0 // indirect
 	golang.org/x/net v0.23.0 // indirect
 	golang.org/x/term v0.18.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
