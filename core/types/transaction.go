@@ -654,6 +654,7 @@ type InternalTransaction struct {
 	Input           []byte
 	From            common.Address
 	To              common.Address
+	Timestamp       uint64
 }
 
 func (internal *InternalTransaction) Hash() common.Hash {
