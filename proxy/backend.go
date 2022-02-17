@@ -189,8 +189,11 @@ func (b *backend) cacheBlock(block *types.Block) {
 
 func (b *backend) CurrentBlock() *types.Block {
 	currentBlock := b.currentBlock.Load()
-	if currentBlock != nil && currentBlock.(*types.Block).Time() + b.ChainConfig().Consortium.Period > uint64(time.Now().Unix()) {
-		return currentBlock.(*types.Block)
+	if currentBlock != nil {
+		now := uint64(time.Now().Unix())
+		if currentBlock.(*types.Block).Time()+b.ChainConfig().Consortium.Period > now {
+			return currentBlock.(*types.Block)
+		}
 	}
 	log.Trace("calling rpc client to get current block")
 	block, err := b.client.BlockByNumber(context.Background(), nil)
@@ -203,6 +206,9 @@ func (b *backend) CurrentBlock() *types.Block {
 }
 
 func (b *backend) BlockByNumber(ctx context.Context, number rpc.BlockNumber) (*types.Block, error) {
+	if number == rpc.LatestBlockNumber || number == rpc.PendingBlockNumber {
+		return b.CurrentBlock(), nil
+	}
 	if hash, ok := b.numbersCache.Get(uint64(number)); ok {
 		if block, exist := b.blocksCache.Get(hash.(common.Hash)); exist {
 			return block.(*types.Block), nil
