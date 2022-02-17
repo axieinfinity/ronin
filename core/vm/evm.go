@@ -34,7 +34,7 @@ import (
 var emptyCodeHash = crypto.Keccak256Hash(nil)
 
 type OpEvent interface {
-	Publish(OpCode, uint64, StateDB, common.Hash, common.Address, common.Address, *big.Int, []byte, error) error
+	Publish(OpCode, uint64, uint64, StateDB, common.Hash, common.Address, common.Address, *big.Int, []byte, error) error
 }
 
 type (
@@ -568,7 +568,7 @@ func (evm *EVM) PublishEvent(opCode OpCode, counter uint64, caller, callee commo
 		"transaction", context.CurrentTransaction.Hash().Hex(), "opCode", opCode.String(),
 		"caller", caller.Hash().Hex())
 	if event, ok := evm.Context.PublishEvents[opCode]; ok {
-		if eventErr := event.Publish(opCode, counter, evm.StateDB, context.CurrentTransaction.Hash(), caller, callee, value, input, err); eventErr != nil {
+		if eventErr := event.Publish(opCode, evm.Context.BlockNumber.Uint64(), counter, evm.StateDB, context.CurrentTransaction.Hash(), caller, callee, value, input, err); eventErr != nil {
 			log.Error("[EVM] PublishEvent", "err", eventErr)
 		}
 	}
