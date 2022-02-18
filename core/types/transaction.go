@@ -654,7 +654,11 @@ type InternalTransaction struct {
 	Input           []byte
 	From            common.Address
 	To              common.Address
+
+	// block info
 	Height          uint64
+	BlockHash       common.Hash
+	BlockTime       uint64
 }
 
 func (internal *InternalTransaction) Hash() common.Hash {
