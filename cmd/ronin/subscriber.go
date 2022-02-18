@@ -225,6 +225,8 @@ type InternalTransaction struct {
 	Success         bool           `json:"success"`
 	Error           string         `json:"reason"`
 	Height          uint64         `json:"height"`
+	BlockHash       common.Hash    `json:"blockHash"`
+	BlockTime       uint64         `json:"blockTime"`
 }
 
 func newTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber, timestamp uint64, index int, receipts types.Receipts) *NewTransaction {
@@ -319,6 +321,8 @@ func newInternalTx(tx types.InternalTransaction) *InternalTransaction {
 		Success:         tx.Success,
 		Error:           tx.Error,
 		Height:          tx.Height,
+		BlockHash:       tx.BlockHash,
+		BlockTime:       tx.BlockTime,
 	}
 }
 

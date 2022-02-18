@@ -417,7 +417,8 @@ type InternalTransferOrSmcCallEvent struct {
 	feed *event.Feed
 }
 
-func (tx *InternalTransferOrSmcCallEvent) Publish(opcode vm.OpCode, blockHeight, order uint64, stateDB vm.StateDB, hash common.Hash, from, to common.Address, value *big.Int, input []byte, err error) error {
+func (tx *InternalTransferOrSmcCallEvent) Publish(opcode vm.OpCode, order uint64, stateDB vm.StateDB, blockHeight uint64,
+	blockHash common.Hash, blockTime uint64, hash common.Hash, from, to common.Address, value *big.Int, input []byte, err error) error {
 	internal := types.InternalTransaction{
 		Opcode:          opcode.String(),
 		Order:           order,
@@ -429,7 +430,9 @@ func (tx *InternalTransferOrSmcCallEvent) Publish(opcode vm.OpCode, blockHeight,
 		To:              to,
 		Success:         err == nil,
 		Error:           "",
-		Height:       blockHeight,
+		Height:          blockHeight,
+		BlockHash:       blockHash,
+		BlockTime:       blockTime,
 	}
 	if value.Cmp(big.NewInt(0)) > 0 && (input == nil || len(input) == 0) {
 		internal.Type = types.InternalTransactionTransfer
@@ -445,7 +448,8 @@ type InternalTransactionContractCreation struct {
 	feed *event.Feed
 }
 
-func (tx *InternalTransactionContractCreation) Publish(opcode vm.OpCode, blockHeight, order uint64, stateDB vm.StateDB, hash common.Hash, from, to common.Address, value *big.Int, input []byte, err error) error {
+func (tx *InternalTransactionContractCreation) Publish(opcode vm.OpCode, order uint64, stateDB vm.StateDB, blockHeight uint64,
+	blockHash common.Hash, blockTime uint64, hash common.Hash, from, to common.Address, value *big.Int, input []byte, err error) error {
 	internal := types.InternalTransaction{
 		Opcode:          opcode.String(),
 		Order:           order,
@@ -457,7 +461,9 @@ func (tx *InternalTransactionContractCreation) Publish(opcode vm.OpCode, blockHe
 		To:              to,
 		Success:         err == nil,
 		Error:           "",
-		Height:       blockHeight,
+		Height:          blockHeight,
+		BlockHash:       blockHash,
+		BlockTime:       blockTime,
 	}
 	if err != nil {
 		internal.Error = err.Error()

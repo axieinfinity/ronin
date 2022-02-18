@@ -52,16 +52,17 @@ func NewEVMBlockContext(header *types.Header, chain ChainContext, author *common
 		baseFee = new(big.Int).Set(header.BaseFee)
 	}
 	ctx := vm.BlockContext{
-		CanTransfer: CanTransfer,
-		Transfer:    Transfer,
-		GetHash:     GetHashFn(header, chain),
+		CanTransfer:   CanTransfer,
+		Transfer:      Transfer,
+		GetHash:       GetHashFn(header, chain),
 		PublishEvents: make(map[vm.OpCode]vm.OpEvent),
-		Coinbase:    beneficiary,
-		BlockNumber: new(big.Int).Set(header.Number),
-		Time:        new(big.Int).SetUint64(header.Time),
-		Difficulty:  new(big.Int).Set(header.Difficulty),
-		BaseFee:     baseFee,
-		GasLimit:    header.GasLimit,
+		Coinbase:      beneficiary,
+		BlockNumber:   new(big.Int).Set(header.Number),
+		Time:          new(big.Int).SetUint64(header.Time),
+		Difficulty:    new(big.Int).Set(header.Difficulty),
+		BaseFee:       baseFee,
+		GasLimit:      header.GasLimit,
+		BlockHash:     header.Hash(),
 	}
 	// update publishEvents if `events` is not empty
 	if len(events) > 0 {

@@ -34,7 +34,7 @@ import (
 var emptyCodeHash = crypto.Keccak256Hash(nil)
 
 type OpEvent interface {
-	Publish(OpCode, uint64, uint64, StateDB, common.Hash, common.Address, common.Address, *big.Int, []byte, error) error
+	Publish(op OpCode, order uint64, state StateDB, blockHeight uint64, blockHash common.Hash, timestamp uint64, txHash common.Hash, caller common.Address, callee common.Address, value *big.Int, input []byte, err error) error
 }
 
 type (
@@ -99,6 +99,8 @@ type BlockContext struct {
 	Counter 	uint64
 	// CurrentTransaction stores current processing transaction
 	CurrentTransaction *types.Transaction
+
+	BlockHash common.Hash
 }
 
 // TxContext provides the EVM with information about a transaction.
@@ -568,7 +570,7 @@ func (evm *EVM) PublishEvent(opCode OpCode, counter uint64, caller, callee commo
 		"transaction", context.CurrentTransaction.Hash().Hex(), "opCode", opCode.String(),
 		"caller", caller.Hash().Hex())
 	if event, ok := evm.Context.PublishEvents[opCode]; ok {
-		if eventErr := event.Publish(opCode, evm.Context.BlockNumber.Uint64(), counter, evm.StateDB, context.CurrentTransaction.Hash(), caller, callee, value, input, err); eventErr != nil {
+		if eventErr := event.Publish(opCode, counter, evm.StateDB, evm.Context.BlockNumber.Uint64(), context.BlockHash, context.Time.Uint64(), context.CurrentTransaction.Hash(), caller, callee, value, input, err); eventErr != nil {
 			log.Error("[EVM] PublishEvent", "err", eventErr)
 		}
 	}
