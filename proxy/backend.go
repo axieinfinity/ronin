@@ -3,6 +3,7 @@ package proxy
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
@@ -21,32 +22,20 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
-	lru "github.com/hashicorp/golang-lru"
 	"math/big"
 	"sync/atomic"
 	"time"
 )
 
-const (
-	blocksCacheLimit   = 128
-	receiptsCacheLimit = 128
-)
-
 // backend implements interface ethapi.Backend which is used to init new VM
 type backend struct {
-	db        ethdb.Database
-	ethConfig *ethconfig.Config
-	hc        *core.HeaderChain
-	// Cache for the most recent receipts per block
-	receiptsCache *lru.Cache
-	// Cache for the most recent block
-	blocksCache *lru.Cache
-	// Cache for most recent block number
-	numbersCache *lru.Cache
+	db           ethdb.Database
+	ethConfig    *ethconfig.Config
+	hc           *core.HeaderChain
 	currentBlock *atomic.Value
-	client      *ethclient.Client
-	fgpClient   *ethclient.Client
-	chainConfig *params.ChainConfig
+	client       *ethclient.Client
+	fgpClient    *ethclient.Client
+	chainConfig  *params.ChainConfig
 }
 
 func (b *backend) PendingBlockAndReceipts() (*types.Block, types.Receipts) {
@@ -78,9 +67,6 @@ func (b *backend) TxPoolContentFrom(addr common.Address) (types.Transactions, ty
 }
 
 func newBackend(db ethdb.Database, ethConfig *ethconfig.Config, rpcUrl, fgp string) (*backend, error) {
-	receiptsCache, _ := lru.New(receiptsCacheLimit)
-	blocksCache, _ := lru.New(blocksCacheLimit)
-	numbersCache, _ := lru.New(blocksCacheLimit)
 	client, err := ethclient.Dial(rpcUrl)
 	if err != nil {
 		return nil, err
@@ -92,9 +78,6 @@ func newBackend(db ethdb.Database, ethConfig *ethconfig.Config, rpcUrl, fgp stri
 	b := &backend{
 		db: db,
 		ethConfig: ethConfig,
-		receiptsCache: receiptsCache,
-		blocksCache: blocksCache,
-		numbersCache: numbersCache,
 		client: client,
 		chainConfig: chainConfig,
 		currentBlock: &atomic.Value{},
@@ -151,37 +134,44 @@ func (b *backend) CurrentHeader() *types.Header {
 	return block.Header()
 }
 
-func (b *backend) cacheBlock(block *types.Block) {
-	b.blocksCache.Add(block.Hash(), block)
-	b.numbersCache.Add(block.NumberU64(), block.Hash())
-
+func (b *backend) writeBlock(block *types.Block) {
+	// cache current block and relevant fields
+	rawdb.WriteCanonicalHash(b.db, block.Hash(), block.NumberU64())
+	rawdb.WriteBlock(b.db, block)
+	rawdb.WriteHeaderNumber(b.db, block.Hash(), block.NumberU64())
+	rawdb.WriteHeader(b.db, block.Header())
 	// check if previous hashes were reorged or not
 	go func() {
 		parentHash := block.ParentHash()
 		number := block.NumberU64() - 1
-		for number > 0 {
+		// checkPoint is to make sure the loop won't loop from millions of blocks to 0
+		checkPoint := block.NumberU64() - 10
+		for number > checkPoint {
 			// loop until mismatch found or number does not exist
-			hash, ok := b.numbersCache.Get(number)
-			if ok {
-				// there are 2 conditions:
-				// - hash matches with parentHash => continue with previous block
-				// - hash does not match with parentHash => it might be reorged => call get block by parentHash and end the loop to prevent overlapping cacheBlock
-				if parentHash.Hex() == hash.(common.Hash).Hex() {
-					prevBlock, exist := b.blocksCache.Get(parentHash)
-					if exist {
-						parentHash = prevBlock.(*types.Block).ParentHash()
-						number--
-						continue
-					}
-				}
-				// remove canonical cache from db if any
-				rawdb.DeleteCanonicalHash(b.db, number)
-				_, err := b.BlockByHash(context.Background(), parentHash)
-				if err != nil {
-					log.Error("error while getting block in double check", "err", err, "hash", parentHash.Hex())
+			hash := rawdb.ReadCanonicalHash(b.db, number)
+			// there are 2 conditions:
+			// - hash matches with parentHash => continue with previous block
+			// - hash does not match with parentHash => it might be reorged => call get block by parentHash and end the loop to prevent overlapping writeBlock
+			if parentHash.Hex() == hash.Hex() {
+				prevBlock := rawdb.ReadBlock(b.db, parentHash, number)
+				if prevBlock != nil {
+					parentHash = prevBlock.ParentHash()
+					number--
+					continue
 				}
 			}
-			// block height does not exist in cache
+			// remove block and receipts cached in db if any
+			rawdb.DeleteCanonicalHash(b.db, number)
+			rawdb.DeleteBlock(b.db, parentHash, number)
+			rawdb.DeleteReceipts(b.db, parentHash, number)
+			rawdb.DeleteHeaderNumber(b.db, parentHash)
+			rawdb.DeleteHeader(b.db, parentHash, number)
+
+			// start getting block's data from parentHash
+			_, err := b.BlockByHash(context.Background(), parentHash)
+			if err != nil {
+				log.Error("error while getting block in double check", "err", err, "hash", parentHash.Hex())
+			}
 			return
 		}
 	}()
@@ -201,7 +191,7 @@ func (b *backend) CurrentBlock() *types.Block {
 		return nil
 	}
 	b.currentBlock.Store(block)
-	b.cacheBlock(block)
+	b.writeBlock(block)
 	return block
 }
 
@@ -209,31 +199,15 @@ func (b *backend) BlockByNumber(ctx context.Context, number rpc.BlockNumber) (*t
 	if number == rpc.LatestBlockNumber || number == rpc.PendingBlockNumber {
 		return b.CurrentBlock(), nil
 	}
-	if hash, ok := b.numbersCache.Get(uint64(number)); ok {
-		if block, exist := b.blocksCache.Get(hash.(common.Hash)); exist {
-			return block.(*types.Block), nil
-		}
-	}
-	log.Trace("block number cannot be found in cache, calling rpc client", "number", number)
-	block, err := b.client.BlockByNumber(ctx, big.NewInt(int64(number)))
-	if err != nil {
-		return nil, err
-	}
-	b.cacheBlock(block)
-	return block, nil
+	return rawdb.ReadBlock(b.db, rawdb.ReadCanonicalHash(b.db, uint64(number)), uint64(number)), nil
 }
 
 func (b *backend) BlockByHash(ctx context.Context, hash common.Hash) (*types.Block, error) {
-	if block, ok := b.blocksCache.Get(hash); ok {
-		return block.(*types.Block), nil
+	blockNumber := rawdb.ReadHeaderNumber(b.db, hash)
+	if blockNumber == nil {
+		return nil, errors.New(fmt.Sprintf("block not found by hash: %s", hash.Hex()))
 	}
-	log.Trace("block hash cannot be found in cache, calling rpc client", "hash", hash.Hex())
-	block, err := b.client.BlockByHash(ctx, hash)
-	if err != nil {
-		return nil, err
-	}
-	b.cacheBlock(block)
-	return block, nil
+	return rawdb.ReadBlock(b.db, hash, *blockNumber), nil
 }
 
 func (b *backend) BlockByNumberOrHash(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) (*types.Block, error) {
@@ -280,19 +254,15 @@ func (b *backend) StateAndHeaderByNumberOrHash(ctx context.Context, blockNrOrHas
 }
 
 func (b *backend) GetReceipts(ctx context.Context, hash common.Hash) (types.Receipts, error) {
-	if receipts, ok := b.receiptsCache.Get(hash); ok {
-		return receipts.(types.Receipts), nil
+	block, err := b.BlockByHash(ctx, hash)
+	if err != nil {
+		return nil, err
 	}
-	number := rawdb.ReadHeaderNumber(b.db, hash)
-	if number == nil {
-		return nil, nil
+	receipts := rawdb.ReadReceipts(b.db, block.Hash(), block.NumberU64(), b.ChainConfig())
+	if receipts != nil {
+		return receipts, nil
 	}
-	receipts := rawdb.ReadReceipts(b.db, hash, *number, b.ChainConfig())
-	if receipts == nil {
-		return nil, nil
-	}
-	b.receiptsCache.Add(hash, receipts)
-	return receipts, nil
+	return nil, errors.New(fmt.Sprintf("receipts not found by hash:%s numer:%s", block.Hash().Hex(), block.NumberU64()))
 }
 
 func (b *backend) GetTd(ctx context.Context, hash common.Hash) *big.Int {

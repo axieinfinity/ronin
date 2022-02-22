@@ -90,11 +90,11 @@ func (db *DB) Get(key []byte) (val []byte, err error) {
 		return nil, notfoundErr
 	}
 	// store val to memory db for later use
-	db.cachedItems.Add(common.Bytes2Hex(key), val)
-	return val, nil
+	return val, db.Put(key, val)
 }
 
 func (db *DB) Put(key, value []byte) error {
+	db.cachedItems.Add(common.Bytes2Hex(key), value)
 	return nil
 }
 
