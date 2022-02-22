@@ -24,6 +24,7 @@ import (
 	"math/big"
 	"os"
 	"reflect"
+	"time"
 	"unicode"
 
 	"gopkg.in/urfave/cli.v1"
@@ -369,5 +370,13 @@ func makeProxyServer(ctx *cli.Context) (*proxy.Server, error) {
 	if ctx.GlobalIsSet(utils.DBCacheSizeLimitFlag.Name) {
 		serverConfig.DBCachedSize = ctx.GlobalInt(utils.DBCacheSizeLimitFlag.Name)
 	}
+
+	applyMetricConfig(ctx, &cfg)
+	// Start metrics export if enabled
+	utils.SetupMetrics(ctx)
+
+	// Start system runtime metrics collection
+	go metrics.CollectProcessMetrics(3 * time.Second)
+
 	return proxy.NewServer(serverConfig, &cfg.Eth, &cfg.Node)
 }

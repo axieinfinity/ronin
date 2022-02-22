@@ -5,6 +5,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/rpc"
 	lru "github.com/hashicorp/golang-lru"
 )
@@ -14,7 +15,13 @@ const (
 	defaultCachedSize = 1024
 )
 
-var notfoundErr = errors.New("not found")
+var (
+	notfoundErr           = errors.New("not found")
+	requestCounter        = metrics.NewRegisteredCounter("cache/request", nil)
+	cacheHitCounter       = metrics.NewRegisteredCounter("cache/request/hit", nil)
+	cacheItemsCounter     = metrics.NewRegisteredCounter("cache/items", nil)
+	cacheItemsSizeCounter = metrics.NewRegisteredCounter("cache/items/size", nil)
+)
 
 func query(client *rpc.Client, method string, params ...interface{}) ([]byte, error) {
 	var res string
@@ -44,6 +51,11 @@ func (db *DB) ModifyAncients(f func(ethdb.AncientWriteOp) error) (int64, error) 
 	panic("implement me")
 }
 
+func onEvicted(key, value interface{}) {
+	cacheItemsCounter.Dec(1)
+	cacheItemsSizeCounter.Dec(int64(len(value.([]byte))))
+}
+
 func NewDB(rpcUrl string, cachedSize int) *DB {
 	client, err := rpc.DialHTTP(rpcUrl)
 	if err != nil {
@@ -54,9 +66,9 @@ func NewDB(rpcUrl string, cachedSize int) *DB {
 		client: client,
 	}
 	if cachedSize > 0 {
-		db.cachedItems, _ = lru.New(cachedSize)
+		db.cachedItems, _ = lru.NewWithEvict(cachedSize, onEvicted)
 	} else {
-		db.cachedItems, _ = lru.New(defaultCachedSize)
+		db.cachedItems, _ = lru.NewWithEvict(defaultCachedSize, onEvicted)
 	}
 	return db
 }
@@ -78,7 +90,9 @@ func (db *DB) Has(key []byte) (bool, error) {
 }
 
 func (db *DB) Get(key []byte) (val []byte, err error) {
+	requestCounter.Inc(1)
 	if res, ok := db.cachedItems.Get(common.Bytes2Hex(key)); ok {
+		cacheHitCounter.Inc(1)
 		return res.([]byte), nil
 	}
 	// try to get data from rpc if res is nil
@@ -94,6 +108,8 @@ func (db *DB) Get(key []byte) (val []byte, err error) {
 }
 
 func (db *DB) Put(key, value []byte) error {
+	cacheItemsCounter.Inc(1)
+	cacheItemsSizeCounter.Inc(int64(len(value)))
 	db.cachedItems.Add(common.Bytes2Hex(key), value)
 	return nil
 }
