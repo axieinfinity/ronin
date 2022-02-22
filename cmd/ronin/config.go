@@ -370,6 +370,9 @@ func makeProxyServer(ctx *cli.Context) (*proxy.Server, error) {
 	if ctx.GlobalIsSet(utils.DBCacheSizeLimitFlag.Name) {
 		serverConfig.DBCachedSize = ctx.GlobalInt(utils.DBCacheSizeLimitFlag.Name)
 	}
+	if ctx.GlobalIsSet(utils.SafeBlockRangeFlag.Name) {
+		serverConfig.SafeBlockRange = ctx.GlobalUint(utils.SafeBlockRangeFlag.Name)
+	}
 
 	applyMetricConfig(ctx, &cfg)
 	// Start metrics export if enabled

@@ -804,18 +804,24 @@ var (
 	}
 
 	RPCUrlFlag = cli.StringFlag{
-		Name:  "rpcUrl",
+		Name:  "proxy.rpcUrl",
 		Usage: "rpcUrl is used in Proxy mode to forward rpc requests",
 	}
 
 	FreeGasProxyUrlFlag = cli.StringFlag{
-		Name:  "freeGasProxyUrl",
+		Name:  "proxy.freeGasProxyUrl",
 		Usage: "freeGasProxyUrl is used in Proxy mode to forward free gas transaction",
 	}
 
 	DBCacheSizeLimitFlag = cli.IntFlag{
-		Name:  "dbCacheSizeLimit",
+		Name:  "proxy.dbCacheSizeLimit",
 		Usage: "dbCacheSizeLimit is used in Proxy mode to set cache size limit of the database",
+	}
+
+	SafeBlockRangeFlag = cli.UintFlag{
+		Name:  "proxy.safeBlockRange",
+		Usage: "safeBlockRange is used in Proxy mode to set safe range on checking reorg",
+		Value: 10,
 	}
 )
 

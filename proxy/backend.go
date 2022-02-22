@@ -18,6 +18,7 @@ import (
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/ethdb"
+	"github.com/ethereum/go-ethereum/ethdb/httpdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
@@ -27,15 +28,18 @@ import (
 	"time"
 )
 
+const defaultSafeBlockRange = 10
+
 // backend implements interface ethapi.Backend which is used to init new VM
 type backend struct {
-	db           ethdb.Database
-	ethConfig    *ethconfig.Config
-	hc           *core.HeaderChain
-	currentBlock *atomic.Value
-	client       *ethclient.Client
-	fgpClient    *ethclient.Client
-	chainConfig  *params.ChainConfig
+	db             ethdb.Database
+	ethConfig      *ethconfig.Config
+	hc             *core.HeaderChain
+	currentBlock   *atomic.Value
+	client         *ethclient.Client
+	fgpClient      *ethclient.Client
+	chainConfig    *params.ChainConfig
+	safeBlockRange uint
 }
 
 func (b *backend) PendingBlockAndReceipts() (*types.Block, types.Receipts) {
@@ -66,8 +70,9 @@ func (b *backend) TxPoolContentFrom(addr common.Address) (types.Transactions, ty
 	return nil, nil
 }
 
-func newBackend(db ethdb.Database, ethConfig *ethconfig.Config, rpcUrl, fgp string) (*backend, error) {
-	client, err := ethclient.Dial(rpcUrl)
+func newBackend(cfg *Config, ethConfig *ethconfig.Config) (*backend, error) {
+	db := httpdb.NewDB(cfg.RPC, cfg.DBCachedSize)
+	client, err := ethclient.Dial(cfg.RPC)
 	if err != nil {
 		return nil, err
 	}
@@ -81,11 +86,15 @@ func newBackend(db ethdb.Database, ethConfig *ethconfig.Config, rpcUrl, fgp stri
 		client: client,
 		chainConfig: chainConfig,
 		currentBlock: &atomic.Value{},
+		safeBlockRange: defaultSafeBlockRange,
 	}
-	if fgp != "" {
-		if b.fgpClient, err = ethclient.Dial(fgp); err != nil {
+	if cfg.FreeGasProxy != "" {
+		if b.fgpClient, err = ethclient.Dial(cfg.FreeGasProxy); err != nil {
 			return nil, err
 		}
+	}
+	if cfg.SafeBlockRange > 0 {
+		b.safeBlockRange = cfg.SafeBlockRange
 	}
 	b.hc, err = core.NewHeaderChain(db, b.ChainConfig(), &consortium.Consortium{}, nil)
 	if err != nil {
@@ -145,7 +154,7 @@ func (b *backend) writeBlock(block *types.Block) {
 		parentHash := block.ParentHash()
 		number := block.NumberU64() - 1
 		// checkPoint is to make sure the loop won't loop from millions of blocks to 0
-		checkPoint := block.NumberU64() - 10
+		checkPoint := block.NumberU64() - uint64(b.safeBlockRange)
 		for number > checkPoint {
 			// loop until mismatch found or number does not exist
 			hash := rawdb.ReadCanonicalHash(b.db, number)

@@ -233,6 +233,7 @@ var AppHelpFlagGroups = []flags.FlagGroup{
 			utils.RPCUrlFlag,
 			utils.FreeGasProxyUrlFlag,
 			utils.DBCacheSizeLimitFlag,
+			utils.SafeBlockRangeFlag,
 		},
 	},
 	{

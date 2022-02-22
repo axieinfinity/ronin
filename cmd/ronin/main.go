@@ -189,6 +189,7 @@ var (
 		utils.RPCUrlFlag,
 		utils.FreeGasProxyUrlFlag,
 		utils.DBCacheSizeLimitFlag,
+		utils.SafeBlockRangeFlag,
 	}
 
 	metricsFlags = []cli.Flag{

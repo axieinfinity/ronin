@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"errors"
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/ethdb/httpdb"
@@ -15,27 +16,29 @@ import (
 // it can be used to get data from rpc and cache them
 // it also provides a VM that can process some calculation that needs VM such as: eth_estimateGas, eth_call.
 type Server struct {
-	rpc string
-	freeGasProxy string
+	config *Config
 	db ethdb.Database
 	ethConfig *ethconfig.Config
 	node *node.Node
 }
 
 type Config struct {
-	RPC  string
-	FreeGasProxy string
-	DBCachedSize int
+	RPC            string
+	FreeGasProxy   string
+	DBCachedSize   int
+	SafeBlockRange uint
 }
 
 func NewServer(config *Config, ethConfig *ethconfig.Config, nodeConfig *node.Config) (*Server, error) {
+	if config.RPC == "" {
+		return nil, errors.New("--proxy.rpcUrl must be set")
+	}
 	n, err := node.New(nodeConfig)
 	if err != nil {
 		return nil, err
 	}
 	return &Server{
-		rpc: config.RPC,
-		freeGasProxy: config.FreeGasProxy,
+		config: config,
 		db: httpdb.NewDB(config.RPC, config.DBCachedSize),
 		ethConfig: ethConfig,
 		node: n,
@@ -43,7 +46,7 @@ func NewServer(config *Config, ethConfig *ethconfig.Config, nodeConfig *node.Con
 }
 
 func (s *Server) Start() {
-	backend, err := newBackend(s.db, s.ethConfig, s.rpc, s.freeGasProxy)
+	backend, err := newBackend(s.config, s.ethConfig)
 	if err != nil {
 		panic(err)
 	}
