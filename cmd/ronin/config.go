@@ -20,6 +20,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/proxy"
 	"github.com/go-redis/redis/v8"
 	gopsutil "github.com/shirou/gopsutil/mem"
@@ -161,19 +162,19 @@ func makeConfigNode(ctx *cli.Context) (*node.Node, gethConfig) {
 }
 
 // makeFullNode loads geth configuration and creates the Ethereum backend.
-func makeFullNode(ctx *cli.Context) (*node.Node, ethapi.Backend) {
+func makeFullNode(ctx *cli.Context) (*node.Node, ethapi.Backend, *eth.Ethereum) {
 	stack, cfg := makeConfigNode(ctx)
 	if ctx.GlobalIsSet(utils.OverrideArrowGlacierFlag.Name) {
 		cfg.Eth.OverrideArrowGlacier = new(big.Int).SetUint64(ctx.GlobalUint64(utils.OverrideArrowGlacierFlag.Name))
 	}
-	backend, eth := utils.RegisterEthService(stack, &cfg.Eth)
+	backend, ethereum := utils.RegisterEthService(stack, &cfg.Eth)
 
 	// Configure catalyst.
 	if ctx.GlobalBool(utils.CatalystFlag.Name) {
-		if eth == nil {
+		if ethereum == nil {
 			utils.Fatalf("Catalyst does not work in light client mode.")
 		}
-		if err := catalyst.Register(stack, eth); err != nil {
+		if err := catalyst.Register(stack, ethereum); err != nil {
 			utils.Fatalf("%v", err)
 		}
 	}
@@ -191,7 +192,7 @@ func makeFullNode(ctx *cli.Context) (*node.Node, ethapi.Backend) {
 	if cfg.Ethstats.URL != "" {
 		utils.RegisterEthStatsService(stack, backend, cfg.Ethstats.URL)
 	}
-	return stack, backend
+	return stack, backend, ethereum
 }
 
 // dumpConfig is the dumpconfig command.
