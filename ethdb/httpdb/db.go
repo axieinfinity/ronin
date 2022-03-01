@@ -12,6 +12,7 @@ import (
 
 const (
 	GET               = "consortium_getDBValue"
+	ANCIENT           = "consortium_getAncientValue"
 	defaultCachedSize = 1024
 )
 
@@ -147,7 +148,7 @@ func (db *DB) HasAncient(kind string, number uint64) (bool, error) {
 
 // Ancient retrieves an ancient binary blob from the append-only immutable files.
 func (db *DB) Ancient(kind string, number uint64) ([]byte, error) {
-	return []byte{}, nil
+	return query(db.client, ANCIENT, kind, number)
 }
 
 // Ancients returns the ancient item numbers in the ancient store.
