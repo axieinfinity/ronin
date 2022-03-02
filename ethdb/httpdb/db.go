@@ -2,6 +2,7 @@ package httpdb
 
 import (
 	"errors"
+	"fmt"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
@@ -23,6 +24,10 @@ var (
 	cacheItemsCounter     = metrics.NewRegisteredCounter("cache/items", nil)
 	cacheItemsSizeCounter = metrics.NewRegisteredCounter("cache/items/size", nil)
 )
+
+func getAncientKey(kind string, number uint64) []byte {
+	return []byte(fmt.Sprintf("ancient-%s-%d", kind, number))
+}
 
 func query(client *rpc.Client, method string, params ...interface{}) ([]byte, error) {
 	var res string
@@ -102,6 +107,7 @@ func (db *DB) Get(key []byte) (val []byte, err error) {
 		return nil, err
 	}
 	if len(val) == 0 {
+		log.Error("value not found", "key", common.Bytes2Hex(key))
 		return nil, notfoundErr
 	}
 	// store val to memory db for later use
@@ -148,7 +154,20 @@ func (db *DB) HasAncient(kind string, number uint64) (bool, error) {
 
 // Ancient retrieves an ancient binary blob from the append-only immutable files.
 func (db *DB) Ancient(kind string, number uint64) ([]byte, error) {
-	return query(db.client, ANCIENT, kind, number)
+	key := getAncientKey(kind, number)
+	requestCounter.Inc(1)
+	if res, ok := db.cachedItems.Get(common.Bytes2Hex(key)); ok {
+		cacheHitCounter.Inc(1)
+		return res.([]byte), nil
+	}
+	val, err := query(db.client, ANCIENT, kind, number)
+	if err != nil {
+		return nil, err
+	}
+	if err = db.Put(key, val); err != nil {
+		return nil, err
+	}
+	return val, nil
 }
 
 // Ancients returns the ancient item numbers in the ancient store.
