@@ -7,11 +7,15 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/eth"
+	"github.com/ethereum/go-ethereum/ethdb"
+	"github.com/ethereum/go-ethereum/ethdb/httpdb"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/segmentio/kafka-go"
 	"github.com/segmentio/kafka-go/sasl/plain"
@@ -45,6 +49,7 @@ const (
 	queueSize                      = "subscriber.queueSize"
 	safeBlockRange                 = "subscriber.safeBlockRange"
 	coolDownDuration               = "subscriber.coolDownDuration"
+	rpcUrl                         = "subscriber.rpcUrl"
 	defaultSafeBlockRange          = 10
 	statsDuration                  = 30
 	defaultWorkers                 = 1024
@@ -151,6 +156,10 @@ var (
 		Name:  coolDownDuration,
 		Usage: "coolDownDuration is used to sleep for a while when a channel reaches its size",
 		Value: defaultCoolDownDuration,
+	}
+	RPCUrlFlag = cli.StringFlag{
+		Name: rpcUrl,
+		Usage: "rpcUrl is used in httpdb to reprocess block in case local db (leveldb) cannot find root key",
 	}
 )
 
@@ -381,6 +390,7 @@ type Subscriber struct {
 	cancelCtx context.CancelFunc
 	backend   ethapi.Backend
 	ethereum  *eth.Ethereum
+	db        ethdb.Database
 
 	eventPublisher   Publisher
 	chainEvent       chan core.ChainEvent
@@ -424,7 +434,7 @@ type Subscriber struct {
 	MaxQueueSize int
 
 	// safeBlockRange is used to send confirmed block
-	// confirmed block is behind the current block `confirmBlockAt` height
+	// confirmed block is before the current block `confirmBlockAt` blocks
 	safeBlockRange int
 }
 
@@ -526,6 +536,9 @@ func NewSubscriber(ethereum *eth.Ethereum, backend ethapi.Backend, ctx *cli.Cont
 	if ctx.GlobalIsSet(CoolDownDurationFlag.Name) {
 		subs.coolDownDuration = ctx.GlobalInt(CoolDownDurationFlag.Name)
 	}
+	if ctx.GlobalIsSet(RPCUrlFlag.Name) {
+		subs.db = httpdb.NewDB(ctx.GlobalString(RPCUrlFlag.Name), 0)
+	}
 
 	// init workers
 	for i := 0; i < workers; i++ {
@@ -610,7 +623,7 @@ func (s *Subscriber) SendConfirmedBlock(height uint64) {
 			return
 		}
 		// load execution results
-		results, err := s.reprocessTransactions(block)
+		results, err := s.reprocessBlock(block)
 		if err != nil {
 			log.Error("[Subscriber][HandleConfirmedBlock] GetExecutionResults", "err", err, "hash", block.Hash().Hex())
 		}
@@ -622,7 +635,7 @@ func (s *Subscriber) SendConfirmedBlock(height uint64) {
 		}
 		messages = append(messages, s.eventPublisher.newMessage(s.confirmedBlockTopic, blockData))
 
-		if block.Transactions().Len() != len(receipts) || len(results) != len(receipts) {
+		if block.Transactions().Len() != len(receipts) {
 			log.Error("[Subscriber][HandleConfirmedBlock] mismatched txs len, receipts len or execution results len",
 				"height", height, "txs len", block.Transactions().Len(), "receipts len", len(receipts))
 			return
@@ -838,39 +851,8 @@ func (s *Subscriber) resync() {
 	}
 }
 
-func (s *Subscriber) reprocessTransactions(block *types.Block) ([]*core.ExecutionResult, error) {
-	var (
-		results     []*core.ExecutionResult
-		usedGas     = new(uint64)
-		header      = block.Header()
-		blockHash   = block.Hash()
-		blockNumber = block.Number()
-		gp          = new(core.GasPool).AddGas(block.GasLimit())
-	)
-	blockContext := core.NewEVMBlockContext(header, s.ethereum.BlockChain(), nil, s.ethereum.BlockChain().OpEvents()...)
-	statedb, _, err := s.backend.StateAndHeaderByNumber(context.Background(), rpc.BlockNumber(block.NumberU64()))
-	if err != nil {
-		return nil, err
-	}
-	vmenv := vm.NewEVM(blockContext, vm.TxContext{}, statedb, s.backend.ChainConfig(), vm.Config{})
-	// Iterate over and process the individual transactions
-	for i, tx := range block.Transactions() {
-		// set current transaction in block context to each transaction
-		vmenv.Context.CurrentTransaction = tx
-		// reset counter to start counting opcodes in new transaction
-		vmenv.Context.Counter = 0
-		msg, err := tx.AsMessage(types.MakeSigner(s.backend.ChainConfig(), header.Number), header.BaseFee)
-		if err != nil {
-			return nil, fmt.Errorf("could not apply tx %d [%v]: %w", i, tx.Hash().Hex(), err)
-		}
-		statedb.Prepare(tx.Hash(), i)
-		_, result, err := core.ApplyTransactionWithVMContext(msg, s.backend.ChainConfig(), s.ethereum.BlockChain(), nil, gp, statedb, blockNumber, blockHash, tx, usedGas, vmenv)
-		if err != nil {
-			return nil, fmt.Errorf("could not apply tx %d [%v]: %w", i, tx.Hash().Hex(), err)
-		}
-		results = append(results, result)
-	}
-	return results, nil
+func (s *Subscriber) reprocessBlock(block *types.Block) ([]*core.ExecutionResult, error) {
+	return reprocessBlock(s.ethereum.BlockChain(), block.Header(), block.Transactions(), s.backend.ChainConfig(), s.db, s.ethereum.BlockChain().OpEvents()...)
 }
 
 func (s *Subscriber) Close() {
@@ -991,3 +973,40 @@ func (s *DefaultEventPublisher) getDialer() (*kafka.Dialer, error) {
 }
 
 func (s *DefaultEventPublisher) close() {}
+
+func reprocessBlock(bc core.ChainContext, header *types.Header, txs types.Transactions, chainConfig *params.ChainConfig, db ethdb.Database, events ...*vm.PublishEvent) ([]*core.ExecutionResult, error) {
+	var (
+		results     []*core.ExecutionResult
+		usedGas     = new(uint64)
+		gp          = new(core.GasPool).AddGas(header.GasLimit)
+	)
+	blockContext := core.NewEVMBlockContext(header, bc, nil, events...)
+	if db == nil {
+		return nil, nil
+	}
+	statedb, err := state.New(header.Root, state.NewDatabaseWithConfig(db, nil), nil)
+	if err != nil {
+		return nil, err
+	}
+	vmenv := vm.NewEVM(blockContext, vm.TxContext{}, statedb, chainConfig, vm.Config{})
+	// Iterate over and process the individual transactions
+	for i, tx := range txs {
+		// set current transaction in block context to each transaction
+		vmenv.Context.CurrentTransaction = tx
+		// reset counter to start counting opcodes in new transaction
+		vmenv.Context.Counter = 0
+		msg, err := tx.AsMessage(types.MakeSigner(chainConfig, header.Number), header.BaseFee)
+		if err != nil {
+			return nil, fmt.Errorf("could not apply tx %d [%v]: %w", i, tx.Hash().Hex(), err)
+		}
+		// re-init message as fake message to bypass nonce check
+		msg = types.NewMessage(msg.From(), msg.To(), msg.Nonce(), msg.Value(), msg.Gas(), msg.GasPrice(), msg.GasFeeCap(), msg.GasTipCap(), msg.Data(), msg.AccessList(), true)
+		statedb.Prepare(tx.Hash(), i)
+		_, result, err := core.ApplyTransactionWithVMContext(msg, chainConfig, nil, nil, gp, statedb, header.Number, header.Hash(), tx, usedGas, vmenv)
+		if err != nil {
+			return nil, fmt.Errorf("could not apply tx %d [%v]: %w", i, tx.Hash().Hex(), err)
+		}
+		results = append(results, result)
+	}
+	return results, nil
+}
