@@ -72,6 +72,12 @@ func StartNode(ctx *cli.Context, stack *node.Node) {
 	if err := stack.Start(); err != nil {
 		Fatalf("Error starting protocol stack: %v", err)
 	}
+	// check if any trusted node is set, add all into stack
+	if len(stack.Config().TrustedNodes()) > 0 {
+		for _, n := range stack.Config().TrustedNodes() {
+			stack.Server().AddTrustedPeer(n)
+		}
+	}
 	go func() {
 		sigc := make(chan os.Signal, 1)
 		signal.Notify(sigc, syscall.SIGINT, syscall.SIGTERM)
