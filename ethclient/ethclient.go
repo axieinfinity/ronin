@@ -58,6 +58,10 @@ func (ec *Client) Close() {
 	ec.c.Close()
 }
 
+func (ec *Client) RpcClient() *rpc.Client {
+	return ec.c
+}
+
 // Blockchain Access
 
 // ChainID retrieves the current chain ID for transaction replay protection.

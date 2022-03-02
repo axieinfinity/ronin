@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"context"
+	"errors"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -90,4 +91,15 @@ func (api *API) GetTransactionCount(ctx context.Context, address common.Address,
 	}
 	nonce := state.GetNonce(address)
 	return (*hexutil.Uint64)(&nonce), state.Error()
+}
+
+func (api *API) GetFreeGasRequests(ctx context.Context, address common.Address) (int64, error) {
+	if api.b.fgpClient == nil {
+		return -1, errors.New("eth_getFreeGasRequests does not exist")
+	}
+	var result int64
+	if err := api.b.fgpClient.RpcClient().Call(&result, "eth_getFreeGasRequests", address); err != nil {
+		return -1, err
+	}
+	return result, nil
 }
