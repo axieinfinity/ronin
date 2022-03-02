@@ -3,10 +3,12 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
@@ -852,7 +854,11 @@ func (s *Subscriber) resync() {
 }
 
 func (s *Subscriber) reprocessBlock(block *types.Block) ([]*core.ExecutionResult, error) {
-	return reprocessBlock(s.ethereum.BlockChain(), block.Header(), block.Transactions(), s.backend.ChainConfig(), s.db, s.ethereum.BlockChain().OpEvents()...)
+	parent := rawdb.ReadBlock(s.db, block.ParentHash(), block.NumberU64()-1)
+	if parent == nil {
+		return nil, errors.New(fmt.Sprintf("parent not found, blockHash:%s, blockHeight:%d", block.Hash().Hex(), block.NumberU64()))
+	}
+	return reprocessBlock(s.ethereum.BlockChain(), parent.Root(), block.Header(), block.Transactions(), s.backend.ChainConfig(), s.db, s.ethereum.BlockChain().OpEvents()...)
 }
 
 func (s *Subscriber) Close() {
@@ -974,7 +980,7 @@ func (s *DefaultEventPublisher) getDialer() (*kafka.Dialer, error) {
 
 func (s *DefaultEventPublisher) close() {}
 
-func reprocessBlock(bc core.ChainContext, header *types.Header, txs types.Transactions, chainConfig *params.ChainConfig, db ethdb.Database, events ...*vm.PublishEvent) ([]*core.ExecutionResult, error) {
+func reprocessBlock(bc core.ChainContext, parentRoot common.Hash, header *types.Header, txs types.Transactions, chainConfig *params.ChainConfig, db ethdb.Database, events ...*vm.PublishEvent) ([]*core.ExecutionResult, error) {
 	var (
 		results     []*core.ExecutionResult
 		usedGas     = new(uint64)
@@ -984,7 +990,7 @@ func reprocessBlock(bc core.ChainContext, header *types.Header, txs types.Transa
 	if db == nil {
 		return nil, nil
 	}
-	statedb, err := state.New(header.Root, state.NewDatabaseWithConfig(db, nil), nil)
+	statedb, err := state.New(parentRoot, state.NewDatabaseWithConfig(db, nil), nil)
 	if err != nil {
 		return nil, err
 	}

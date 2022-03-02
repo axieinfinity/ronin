@@ -5,6 +5,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/consortium"
 	"github.com/ethereum/go-ethereum/core/rawdb"
+	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
 	"github.com/ethereum/go-ethereum/ethdb"
@@ -20,11 +21,21 @@ func TestReprocessTransaction(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	block := rawdb.ReadBlock(backend.ChainDb(), common.HexToHash("0x280978a4362eb0391547a28b46a8ac1df344d024d0b2a5c2d0ff653167a3b7a0"), 10000000)
+	block := rawdb.ReadBlock(backend.ChainDb(), common.HexToHash("0xccc6dc29e86b3ceaf2f08e04ccf71641bc4d2223fb142707b4e0699d63743698"), 10000017)
 	if block == nil {
 		t.Fatal("cannot find block")
 	}
-	result, err := reprocessBlock(&chainContext{backend.ChainDb()}, block.Header(), block.Transactions(), backend.ChainConfig(), backend.ChainDb())
+	parentBlock := rawdb.ReadBlock(backend.ChainDb(), block.ParentHash(), 10000016)
+	if parentBlock == nil {
+		t.Fatal("cannot find block")
+	}
+	statedb, err := state.New(parentBlock.Header().Root, state.NewDatabaseWithConfig(backend.ChainDb(), nil), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	balance := statedb.GetBalance(common.HexToAddress("0x3D20380A3815Ff52CB41c032A4Fe93877a2AD614"))
+	println(balance.String())
+	result, err := reprocessBlock(&chainContext{backend.ChainDb()}, parentBlock.Root(), block.Header(), block.Transactions(), backend.ChainConfig(), backend.ChainDb())
 	if err != nil {
 		t.Fatal(err)
 	}

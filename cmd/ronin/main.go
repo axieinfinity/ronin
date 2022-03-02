@@ -241,6 +241,7 @@ var (
 		SafeBlockRangeFlag,
 		CoolDownDurationFlag,
 		InternalTxEventFlag,
+		RPCUrlFlag,
 	}
 )
 
