@@ -1,5 +1,5 @@
 # Mainnet Chain- Prod
-# helm upgrade --install subscriber-node-1  ~/axis/helm-kubernetes-services/charts/k8s-service/ -f ~/ronin/gke/values/subscriber/product-cluster/prd.yaml
+# helm diff upgrade --install subscriber-node-1  ~/axis/helm-kubernetes-services/charts/k8s-service/ -f ~/ronin/gke/values/subscriber/product-cluster/prd.yaml
 replicaCount: 1
 deployment:
   enabled: false
@@ -12,7 +12,7 @@ statefulset:
 
 containerImage:
   repository: gcr.io/test-servers-256610/ronin_ronin
-  tag: master-a0f59d765
+  tag: master-c73d5112a
   pullPolicy: IfNotPresent
 
 containerPorts:
@@ -59,7 +59,7 @@ containerResources:
     memory: 4.5Gi
     cpu: 2.5
   limits:
-    memory: 6Gi
+    memory: 11Gi
     cpu: 4
 
 nodeSelector:

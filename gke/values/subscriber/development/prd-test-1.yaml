@@ -1,5 +1,5 @@
 # Mainnet Chain - Test
-# helm  diff upgrade --install subscriber-node-mainnet-test-1  ~/axis/helm-kubernetes-services/charts/k8s-service/ -f ~/ronin/gke/values/subscriber/development/prd-test.yaml
+# helm diff upgrade --install subscriber-node-mainnet-test-1  ~/axis/helm-kubernetes-services/charts/k8s-service/ -f ~/ronin/gke/values/subscriber/development/prd-test-1.yaml
 replicaCount: 1
 deployment:
   enabled: false
@@ -12,7 +12,7 @@ statefulset:
 
 containerImage:
   repository: gcr.io/test-servers-256610/ronin_ronin
-  tag: PR-57-e85acc57f
+  tag: master-c73d5112a
   pullPolicy: IfNotPresent
 
 containerPorts:
@@ -60,8 +60,12 @@ containerResources:
     memory: 4.5Gi
     cpu: 2.5
   limits:
-    memory: 6Gi
+    memory: 10Gi
     cpu: 4
 
+customPreStopCommand:
+  - "kill"
+  - "-INT"
+  - "1"
 imagePullSecrets:
   - gcr-json-key

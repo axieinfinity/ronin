@@ -1,0 +1,107 @@
+# This yaml is example for creating proxy nodes
+# helm diff upgrade --install proxy-node   ~/axis/helm-kubernetes-services/charts/k8s-service/ -f ~/ronin/gke/values/proxy/axs-ronin/prd.yaml
+
+replicaCount: 4
+
+deployment:
+  enabled: True
+
+ingress:
+  enabled: true
+  ingressClassName: nginx-proxy-internal
+  path: /
+  servicePort: app
+
+service:
+  enabled: True
+  ports:
+    app:
+      port: 80
+      targetPort: rpc
+      protocol: TCP
+
+statefulset:
+  enabled: False
+
+podAnnotations:
+  "prometheus.io/scrape": "true"
+  "prometheus.io/path": "/debug/metrics/prometheus"
+  "prometheus.io/port": "6060"
+
+
+containerImage:
+  repository: gcr.io/test-servers-256610/ronin_ronin
+  tag: PR-52-73ce25a3e
+  pullPolicy: IfNotPresent
+
+containerPorts:
+  http:
+    disabled: true
+  https:
+    disabled: true
+  metric:
+    port: 6060
+    protocol: TCP
+  rpc:
+    port: 8545
+    protocol: TCP
+
+containerCommand:
+  - "./entrypoint.sh"
+
+applicationName: proxy-node
+
+envVars:
+  NETWORK_ID: 2020
+  VERBOSITY: "3"
+  SYNC_MODE: "proxy"
+  MINE: "false"
+  RONIN_PARAMS: "--metrics.addr 0.0.0.0 --metrics --proxy.rpcUrl http://10.3.0.35"
+
+containerResources:
+  requests:
+    memory: 1Gi
+    cpu: 0.5
+  limits:
+    memory: 4.7Gi
+    cpu: 1.5
+
+nodeSelector:
+  node_pool: "pool-proxy"
+
+tolerations:
+- key: "node_pool"
+  operator: "Equal"
+  value: "pool-proxy"
+  effect: "NoSchedule"
+
+affinity:
+  podAntiAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+    - labelSelector:
+        matchExpressions:
+        - key: application
+          operator: In
+          values:
+          - proxy-ronin
+      topologyKey: kubernetes.io/hostname
+
+imagePullSecrets:
+  - gcr-json-key
+
+additionalDeploymentLabels:
+  application: proxy-ronin
+
+additionalPodLabels:
+  application: proxy-ronin
+
+shutdownDelay: 0
+terminationGracePeriodSeconds: 300
+
+readinessProbe:
+  httpGet:
+    path: /
+    port: rpc
+  initialDelaySeconds: 15
+  timeoutSeconds: 5
+  periodSeconds: 20

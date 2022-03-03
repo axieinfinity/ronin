@@ -12,7 +12,7 @@ statefulset:
 
 containerImage:
   repository: gcr.io/test-servers-256610/ronin_ronin
-  tag: master-a0f59d765
+  tag: master-c73d5112a
   pullPolicy: IfNotPresent
 
 containerPorts:
@@ -59,8 +59,13 @@ containerResources:
     memory: 4.5Gi
     cpu: 2.5
   limits:
-    memory: 6Gi
+    memory: 10Gi
     cpu: 4
+
+customPreStopCommand:
+  - "kill"
+  - "-INT"
+  - "1"
 
 imagePullSecrets:
   - gcr-json-key

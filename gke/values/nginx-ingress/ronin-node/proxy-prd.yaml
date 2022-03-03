@@ -1,6 +1,6 @@
 ## nginx configuration
 ## Ref: https://github.com/kubernetes/ingress-nginx/tree/main/charts/ingress-nginx
-## helm diff upgrade --install nginx-ingress-internal ingress-nginx/ingress-nginx -f ~/ronin/gke/values/nginx-ingress/ronin-node/prd.yaml -n nginx-ingress-internal  --version 4.0.13
+## helm diff upgrade --install nginx-ingress-proxy-internal ingress-nginx/ingress-nginx -f ~/ronin/gke/values/nginx-ingress/ronin-node/proxy-prd.yaml -n nginx-ingress-proxy-internal --version 4.0.13
 
 ## nginx configuration
 ## Ref: https://github.com/kubernetes/ingress-nginx/blob/main/docs/user-guide/nginx-configuration/index.md
@@ -100,10 +100,10 @@ controller:
   # This section refers to the creation of the IngressClass resource
   # IngressClass resources are supported since k8s >= 1.18 and required since k8s >= 1.19
   ingressClassResource:
-    name: nginx-internal
+    name: nginx-proxy-internal
     enabled: true
     default: false
-    controllerValue: "k8s.io/ingress-nginx"
+    controllerValue: "k8s.io/ingress-proxy-nginx"
 
     # Parameters is a link to a custom resource containing additional
     # configuration for the controller. This is optional if the controller
@@ -234,7 +234,7 @@ controller:
          - key: app.kubernetes.io/instance
            operator: In
            values:
-           - nginx-ingress-internal
+           - nginx-ingress-proxy-internal
          - key: app.kubernetes.io/component
            operator: In
            values:
@@ -371,9 +371,9 @@ controller:
 
   # Mutually exclusive with keda autoscaling
   autoscaling:
-    enabled: false
-    minReplicas: 1
-    maxReplicas: 11
+    enabled: true
+    minReplicas: 4
+    maxReplicas: 8
     targetCPUUtilizationPercentage: 50
     targetMemoryUtilizationPercentage: 50
     behavior: {}

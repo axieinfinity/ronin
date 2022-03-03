@@ -1,4 +1,4 @@
-# kb apply -f ~/ronin/gke/kubernetes_resources/cronjob_snapshot.yaml
+# kb apply -f ~/ronin/gke/kubernetes_resources/ronin-node/cronjob_snapshot.yaml
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -6,7 +6,7 @@ metadata:
   namespace: default
 spec:
   concurrencyPolicy: Forbid
-  schedule: '0 */12 * * *'
+  schedule: '0 */6 * * *'
   jobTemplate:
     spec:
       template:
