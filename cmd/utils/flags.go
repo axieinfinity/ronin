@@ -805,7 +805,12 @@ var (
 
 	RPCUrlFlag = cli.StringFlag{
 		Name:  "proxy.rpcUrl",
-		Usage: "rpcUrl is used in Proxy mode to forward rpc requests",
+		Usage: "rpcUrl is used in Proxy mode to forward rpc requests or query for data",
+	}
+
+	ArchiveUrlFlag = cli.StringFlag{
+		Name:  "proxy.archiveUrl",
+		Usage: "archiveUrl is used in Proxy mode to query for data when rpcUrl cannot find data",
 	}
 
 	FreeGasProxyUrlFlag = cli.StringFlag{

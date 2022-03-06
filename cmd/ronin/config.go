@@ -362,7 +362,10 @@ func makeProxyServer(ctx *cli.Context) (*proxy.Server, error) {
 		cfg.Eth.RPCTxFeeCap = ctx.GlobalFloat64(utils.RPCGlobalTxFeeCapFlag.Name)
 	}
 	if ctx.GlobalIsSet(utils.RPCUrlFlag.Name) {
-		serverConfig.RPC = ctx.GlobalString(utils.RPCUrlFlag.Name)
+		serverConfig.RpcUrl = ctx.GlobalString(utils.RPCUrlFlag.Name)
+	}
+	if ctx.GlobalIsSet(utils.ArchiveUrlFlag.Name) {
+		serverConfig.ArchiveUrl = ctx.GlobalString(utils.ArchiveUrlFlag.Name)
 	}
 	if ctx.GlobalIsSet(utils.FreeGasProxyUrlFlag.Name) {
 		serverConfig.FreeGasProxy = ctx.GlobalString(utils.FreeGasProxyUrlFlag.Name)

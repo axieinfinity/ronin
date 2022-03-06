@@ -187,6 +187,7 @@ var (
 		utils.ReadinessPrometheusEndpointFlag,
 		utils.ReadinessBlockLagFlag,
 		utils.RPCUrlFlag,
+		utils.ArchiveUrlFlag,
 		utils.FreeGasProxyUrlFlag,
 		utils.DBCacheSizeLimitFlag,
 		utils.SafeBlockRangeFlag,

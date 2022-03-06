@@ -63,7 +63,7 @@ func (api *API) EstimateGas(ctx context.Context, args ethapi.TransactionArgs, bl
 }
 
 func (api *API) GasPrice(ctx context.Context) (*hexutil.Big, error) {
-	gp, err := api.b.client.SuggestGasPrice(ctx)
+	gp, err := api.b.rpc.SuggestGasPrice(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +78,7 @@ func (api *API) ChainId() (*hexutil.Big, error) {
 func (api *API) GetTransactionCount(ctx context.Context, address common.Address, blockNrOrHash rpc.BlockNumberOrHash) (*hexutil.Uint64, error) {
 	// Ask transaction pool for the nonce which includes pending transactions
 	if blockNr, ok := blockNrOrHash.Number(); ok && blockNr == rpc.PendingBlockNumber {
-		nonce, err := api.b.client.NonceAt(ctx, address, big.NewInt(int64(blockNr)))
+		nonce, err := api.b.rpc.NonceAt(ctx, address, big.NewInt(int64(blockNr)))
 		if err != nil {
 			return nil, err
 		}

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/metrics"
@@ -17,19 +18,32 @@ const (
 	defaultCachedSize = 1024
 )
 
+type IClient interface {
+	Call(result interface{}, method string, args ...interface{}) error
+}
+
 var (
 	notfoundErr           = errors.New("not found")
+	requestCounter        metrics.Counter
+	cacheHitCounter       metrics.Counter
+	cacheItemsCounter     metrics.Counter
+	cacheItemsSizeCounter metrics.Counter
+	evictedCallCounter    metrics.Counter
+)
+
+func initMetrics() {
 	requestCounter        = metrics.NewRegisteredCounter("cache/request", nil)
 	cacheHitCounter       = metrics.NewRegisteredCounter("cache/request/hit", nil)
 	cacheItemsCounter     = metrics.NewRegisteredCounter("cache/items", nil)
 	cacheItemsSizeCounter = metrics.NewRegisteredCounter("cache/items/size", nil)
-)
+	evictedCallCounter    = metrics.NewRegisteredCounter("cache/items/evicted", nil)
+}
 
 func getAncientKey(kind string, number uint64) []byte {
 	return []byte(fmt.Sprintf("ancient-%s-%d", kind, number))
 }
 
-func query(client *rpc.Client, method string, params ...interface{}) ([]byte, error) {
+func query(client IClient, method string, params ...interface{}) ([]byte, error) {
 	var res string
 	if err := client.Call(&res, method, params...); err != nil {
 		return nil, err
@@ -41,8 +55,8 @@ func query(client *rpc.Client, method string, params ...interface{}) ([]byte, er
 // it also caches return values using lru cache to get data immediately without RPC calling everytime.
 // DB only supports Get and Has function which query data from other nodes.
 type DB struct {
-	client      *rpc.Client
-	cachedItems *lru.Cache
+	client, archive IClient
+	cachedItems     *lru.Cache
 }
 
 func (db *DB) AncientRange(kind string, start, count, maxBytes uint64) ([][]byte, error) {
@@ -58,24 +72,32 @@ func (db *DB) ModifyAncients(f func(ethdb.AncientWriteOp) error) (int64, error) 
 }
 
 func onEvicted(key, value interface{}) {
+	evictedCallCounter.Inc(1)
 	cacheItemsCounter.Dec(1)
 	cacheItemsSizeCounter.Dec(int64(len(value.([]byte))))
 }
 
-func NewDB(rpcUrl string, cachedSize int) *DB {
+func NewDB(rpcUrl, archive string, cachedSize int) *DB {
 	client, err := rpc.DialHTTP(rpcUrl)
 	if err != nil {
-		log.Error("[httpdb] NewDB", "err", err)
+		log.Error("[httpdb][NewDB] Dial RPC", "err", err)
 		return nil
 	}
 	db := &DB{
 		client: client,
+	}
+	if archive != "" {
+		if db.archive, err = rpc.DialHTTP(archive); err != nil {
+			log.Error("[httpdb][NewDB] Dial Archive", "err", err)
+			return nil
+		}
 	}
 	if cachedSize > 0 {
 		db.cachedItems, _ = lru.NewWithEvict(cachedSize, onEvicted)
 	} else {
 		db.cachedItems, _ = lru.NewWithEvict(defaultCachedSize, onEvicted)
 	}
+	initMetrics()
 	return db
 }
 
@@ -101,13 +123,21 @@ func (db *DB) Get(key []byte) (val []byte, err error) {
 		cacheHitCounter.Inc(1)
 		return res.([]byte), nil
 	}
+	hexKey := common.Bytes2Hex(key)
 	// try to get data from rpc if res is nil
-	val, err = query(db.client, GET, common.Bytes2Hex(key))
+	val, err = query(db.client, GET, hexKey)
 	if err != nil {
-		return nil, err
+		// try to get data from archive if it is not nil
+		if db.archive == nil {
+			return nil, err
+		}
+		val, err = query(db.archive, GET, hexKey)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if len(val) == 0 {
-		log.Error("value not found", "key", common.Bytes2Hex(key))
+		log.Error("value not found", "key", hexKey)
 		return nil, notfoundErr
 	}
 	// store val to memory db for later use
@@ -122,7 +152,7 @@ func (db *DB) Put(key, value []byte) error {
 }
 
 func (db *DB) Delete(key []byte) error {
-	db.cachedItems.Remove(common.Bytes2Hex(key))
+	db.cachedItems.Remove(key)
 	return nil
 }
 
@@ -160,9 +190,18 @@ func (db *DB) Ancient(kind string, number uint64) ([]byte, error) {
 		cacheHitCounter.Inc(1)
 		return res.([]byte), nil
 	}
-	val, err := query(db.client, ANCIENT, kind, number)
+	hexData := hexutil.EncodeUint64(number)
+	val, err := query(db.client, ANCIENT, kind, hexData)
 	if err != nil {
-		return nil, err
+		// try to get data from archive if it is not nil
+		if db.archive == nil {
+			return nil, err
+		}
+		log.Debug("calling ancient via archive", "key", common.Bytes2Hex([]byte(kind)), "number", hexData)
+		val, err = query(db.archive, ANCIENT, kind, hexData)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if err = db.Put(key, val); err != nil {
 		return nil, err

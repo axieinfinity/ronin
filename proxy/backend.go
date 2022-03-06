@@ -36,7 +36,7 @@ type backend struct {
 	ethConfig      *ethconfig.Config
 	hc             *core.HeaderChain
 	currentBlock   *atomic.Value
-	client         *ethclient.Client
+	rpc            *ethclient.Client
 	fgpClient      *ethclient.Client
 	chainConfig    *params.ChainConfig
 	safeBlockRange uint
@@ -71,8 +71,8 @@ func (b *backend) TxPoolContentFrom(addr common.Address) (types.Transactions, ty
 }
 
 func newBackend(cfg *Config, ethConfig *ethconfig.Config) (*backend, error) {
-	db := httpdb.NewDB(cfg.RPC, cfg.DBCachedSize)
-	client, err := ethclient.Dial(cfg.RPC)
+	db := httpdb.NewDB(cfg.RpcUrl, cfg.ArchiveUrl, cfg.DBCachedSize)
+	rpcClient, err := ethclient.Dial(cfg.RpcUrl)
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +83,7 @@ func newBackend(cfg *Config, ethConfig *ethconfig.Config) (*backend, error) {
 	b := &backend{
 		db: db,
 		ethConfig: ethConfig,
-		client: client,
+		rpc: rpcClient,
 		chainConfig: chainConfig,
 		currentBlock: &atomic.Value{},
 		safeBlockRange: defaultSafeBlockRange,
@@ -116,6 +116,10 @@ func (b *backend) HeaderByNumber(ctx context.Context, number rpc.BlockNumber) (*
 	block, err := b.BlockByNumber(ctx, number)
 	if err != nil {
 		return nil, err
+	}
+	if block == nil {
+		log.Error("[proxy][backend][HeaderByNumber] block not found", "number", number.Int64())
+		return nil, errors.New(fmt.Sprintf("block %d not found", number.Int64()))
 	}
 	return block.Header(), nil
 }
@@ -195,7 +199,7 @@ func (b *backend) CurrentBlock() *types.Block {
 		}
 	}
 	log.Trace("calling rpc client to get current block")
-	block, err := b.client.BlockByNumber(context.Background(), nil)
+	block, err := b.rpc.BlockByNumber(context.Background(), nil)
 	if err != nil {
 		return nil
 	}
@@ -208,7 +212,10 @@ func (b *backend) BlockByNumber(ctx context.Context, number rpc.BlockNumber) (*t
 	if number == rpc.LatestBlockNumber || number == rpc.PendingBlockNumber {
 		return b.CurrentBlock(), nil
 	}
-	return rawdb.ReadBlock(b.db, rawdb.ReadCanonicalHash(b.db, uint64(number)), uint64(number)), nil
+	// getting hash from number
+	hash := rawdb.ReadCanonicalHash(b.db, uint64(number))
+	log.Debug("[proxy][backend][BlockByNumber] getting block from hash and number", "hash", hash.Hex(), "number", number)
+	return rawdb.ReadBlock(b.db, hash, uint64(number)), nil
 }
 
 func (b *backend) BlockByHash(ctx context.Context, hash common.Hash) (*types.Block, error) {
@@ -271,7 +278,7 @@ func (b *backend) GetReceipts(ctx context.Context, hash common.Hash) (types.Rece
 	if receipts != nil {
 		return receipts, nil
 	}
-	return nil, errors.New(fmt.Sprintf("receipts not found by hash:%s numer:%s", block.Hash().Hex(), block.NumberU64()))
+	return nil, errors.New(fmt.Sprintf("receipts not found by hash:%s number:%d", block.Hash().Hex(), block.NumberU64()))
 }
 
 func (b *backend) GetTd(ctx context.Context, hash common.Hash) *big.Int {
@@ -299,7 +306,7 @@ func (b *backend) GetEVM(ctx context.Context, msg core.Message, state *state.Sta
 }
 
 func (b *backend) SendTx(ctx context.Context, signedTx *types.Transaction) error {
-	return b.client.SendTransaction(ctx, signedTx)
+	return b.rpc.SendTransaction(ctx, signedTx)
 }
 
 func (b *backend) GetTransaction(ctx context.Context, txHash common.Hash) (*types.Transaction, common.Hash, uint64, uint64, error) {
