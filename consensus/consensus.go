@@ -48,6 +48,9 @@ type ChainHeaderReader interface {
 
 	// DB returns currently using db object
 	DB() ethdb.Database
+
+	// StateCache returns currently using stateCache
+	StateCache() state.Database
 }
 
 // ChainReader defines a small collection of methods needed to access the local

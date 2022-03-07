@@ -20,6 +20,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
@@ -54,7 +55,10 @@ func (api *API) GetSigners(number *rpc.BlockNumber) ([]common.Address, error) {
 func (api *API) GetDBValue(key string) (string, error) {
 	value, err := api.chain.DB().Get(common.Hex2Bytes(key))
 	if err != nil {
-		return common.Bytes2Hex([]byte{}), err
+		log.Debug("Get value in DB failed, try to get it from trie node", "key", key)
+		if value, err = api.chain.StateCache().TrieDB().Node(common.HexToHash(key)); err != nil {
+			return common.Bytes2Hex([]byte{}), err
+		}
 	}
 	return common.Bytes2Hex(value), nil
 }
