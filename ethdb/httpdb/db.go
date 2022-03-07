@@ -15,7 +15,8 @@ import (
 const (
 	GET               = "consortium_getDBValue"
 	ANCIENT           = "consortium_getAncientValue"
-	defaultCachedSize = 1024
+	defaultCachedItems = 1024
+	allowedCachedSized = 128 * 1024 * 1024 // 128 MB
 )
 
 type IClient interface {
@@ -95,7 +96,7 @@ func NewDB(rpcUrl, archive string, cachedSize int) *DB {
 	if cachedSize > 0 {
 		db.cachedItems, _ = lru.NewWithEvict(cachedSize, onEvicted)
 	} else {
-		db.cachedItems, _ = lru.NewWithEvict(defaultCachedSize, onEvicted)
+		db.cachedItems, _ = lru.NewWithEvict(defaultCachedItems, onEvicted)
 	}
 	initMetrics()
 	return db
@@ -148,6 +149,13 @@ func (db *DB) Put(key, value []byte) error {
 	cacheItemsCounter.Inc(1)
 	cacheItemsSizeCounter.Inc(int64(len(value)))
 	db.cachedItems.Add(common.Bytes2Hex(key), value)
+	// check cacheItemsSizeCounter to clear the oldest if it passes the limit size
+	go func() {
+		for cacheItemsCounter.Count() > allowedCachedSized {
+			db.cachedItems.RemoveOldest()
+		}
+	}()
+
 	return nil
 }
 
