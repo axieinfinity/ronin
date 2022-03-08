@@ -52,6 +52,7 @@ const (
 	safeBlockRange                 = "subscriber.safeBlockRange"
 	coolDownDuration               = "subscriber.coolDownDuration"
 	rpcUrl                         = "subscriber.rpcUrl"
+	archiveUrl                     = "subscriber.archiveUrl"
 	defaultSafeBlockRange          = 10
 	statsDuration                  = 30
 	defaultWorkers                 = 1024
@@ -162,6 +163,10 @@ var (
 	RPCUrlFlag = cli.StringFlag{
 		Name: rpcUrl,
 		Usage: "rpcUrl is used in httpdb to reprocess block in case local db (leveldb) cannot find root key",
+	}
+	ArchiveUrlFlag = cli.StringFlag{
+		Name: archiveUrl,
+		Usage: "archiveUrl is used in httpdb in case rpc url cannot find data",
 	}
 )
 
@@ -539,7 +544,7 @@ func NewSubscriber(ethereum *eth.Ethereum, backend ethapi.Backend, ctx *cli.Cont
 		subs.coolDownDuration = ctx.GlobalInt(CoolDownDurationFlag.Name)
 	}
 	if ctx.GlobalIsSet(RPCUrlFlag.Name) {
-		subs.db = httpdb.NewDB(ctx.GlobalString(RPCUrlFlag.Name), 0)
+		subs.db = httpdb.NewDB(ctx.GlobalString(RPCUrlFlag.Name), ctx.GlobalString(ArchiveUrlFlag.Name), 0)
 	}
 
 	// init workers

@@ -242,6 +242,7 @@ var (
 		CoolDownDurationFlag,
 		InternalTxEventFlag,
 		RPCUrlFlag,
+		ArchiveUrlFlag,
 	}
 )
 
