@@ -27,7 +27,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/rlp"
 )
 
 var ErrCommitDisabled = errors.New("no database for committing")
@@ -399,65 +398,62 @@ func (st *StackTrie) hash(path []byte) {
 	// The 'hasher' is taken from a pool, but we don't actually
 	// claim an instance until all children are done with their hashing,
 	// and we actually need one
-	var h *hasher
+	var (
+		h           *hasher
+		encodedNode []byte
+	)
 
 	switch st.nodeType {
 	case branchNode:
-		var nodes [17]node
+		var node fullNode
 		for i, child := range st.children {
 			if child == nil {
-				nodes[i] = nilValueNode
+				node.Children[i] = nilValueNode
 				continue
 			}
 			child.hash(append(path, byte(i)))
 			if len(child.val) < 32 {
-				nodes[i] = rawNode(child.val)
+				node.Children[i] = rawNode(child.val)
 			} else {
-				nodes[i] = hashNode(child.val)
+				node.Children[i] = hashNode(child.val)
 			}
 			st.children[i] = nil // Reclaim mem from subtree
 			returnToPool(child)
 		}
-		nodes[16] = nilValueNode
 		h = newHasher(false)
 		defer returnHasherToPool(h)
-		h.tmp.Reset()
-		if err := rlp.Encode(&h.tmp, nodes); err != nil {
-			panic(err)
-		}
+
+		node.encode(h.encbuf)
+		encodedNode = h.encodedBytes()
 	case extNode:
 		st.children[0].hash(append(path, st.key...))
+		sz := hexToCompactInPlace(st.key)
+		n := shortNode{Key: st.key[:sz]}
+
+		if len(st.children[0].val) < 32 {
+			n.Val = rawNode(st.children[0].val)
+		} else {
+			n.Val = hashNode(st.children[0].val)
+		}
+
 		h = newHasher(false)
 		defer returnHasherToPool(h)
-		h.tmp.Reset()
-		var valuenode node
-		if len(st.children[0].val) < 32 {
-			valuenode = rawNode(st.children[0].val)
-		} else {
-			valuenode = hashNode(st.children[0].val)
-		}
-		n := struct {
-			Key []byte
-			Val node
-		}{
-			Key: hexToCompact(st.key),
-			Val: valuenode,
-		}
-		if err := rlp.Encode(&h.tmp, n); err != nil {
-			panic(err)
-		}
+
+		n.encode(h.encbuf)
+		encodedNode = h.encodedBytes()
+
 		returnToPool(st.children[0])
 		st.children[0] = nil // Reclaim mem from subtree
 	case leafNode:
 		h = newHasher(false)
 		defer returnHasherToPool(h)
-		h.tmp.Reset()
+
 		st.key = append(st.key, byte(16))
 		sz := hexToCompactInPlace(st.key)
-		n := [][]byte{st.key[:sz], st.val}
-		if err := rlp.Encode(&h.tmp, n); err != nil {
-			panic(err)
-		}
+		n := shortNode{Key: st.key[:sz], Val: valueNode(st.val)}
+
+		n.encode(h.encbuf)
+		encodedNode = h.encodedBytes()
 	case emptyNode:
 		st.val = emptyRoot.Bytes()
 		st.key = st.key[:0]
@@ -468,20 +464,19 @@ func (st *StackTrie) hash(path []byte) {
 	}
 	st.key = st.key[:0]
 	st.nodeType = hashedNode
-	if len(h.tmp) < 32 {
+	if len(encodedNode) < 32 {
 		// If rlp-encoded value was < 32 bytes, then val point directly to the rlp-encoded value
-		st.val = common.CopyBytes(h.tmp)
+		st.val = common.CopyBytes(encodedNode)
 		return
 	}
-	// Write the hash to the 'val'. We allocate a new val here to not mutate
-	// input values
-	st.val = make([]byte, 32)
-	h.sha.Reset()
-	h.sha.Write(h.tmp)
-	h.sha.Read(st.val)
+
+	h = newHasher(false)
+	defer returnHasherToPool(h)
+
+	st.val = h.hashData(encodedNode)
 
 	if st.writeFn != nil {
-		st.writeFn(st.owner, path, common.BytesToHash(st.val), h.tmp)
+		st.writeFn(st.owner, path, common.BytesToHash(st.val), encodedNode)
 	}
 }
 
