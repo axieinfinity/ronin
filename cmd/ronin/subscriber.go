@@ -38,6 +38,7 @@ const (
 	transactionConfirmedEventTopic = "subscriber.transactionConfirmedEventTopic"
 	logsConfirmedEventTopic        = "subscriber.logsConfirmedEventTopic"
 	internalTransactionEventTopic  = "subscriber.internalTransactionEventTopic"
+	transactionResultTopic         = "subscriber.transactionResultTopic"
 	kafkaPartition                 = "subscriber.kafka.partition"
 	kafkaUrl                       = "subscriber.kafka.url"
 	maxRetry                       = "subscriber.maxRetry"
@@ -58,6 +59,11 @@ const (
 	defaultWorkers                 = 1024
 	defaultMaxQueueSize            = 2048
 	defaultCoolDownDuration        = 0
+)
+
+const (
+	pubJob = iota
+	reprocessBlockJob
 )
 
 var (
@@ -100,6 +106,10 @@ var (
 	InternalTxEventFlag = cli.StringFlag{
 		Name:  internalTransactionEventTopic,
 		Usage: "topic name that internal transaction message will be published to",
+	}
+	TransactionResultEventFlag = cli.StringFlag{
+		Name:  transactionResultTopic,
+		Usage: "topic name that transaction result message will be published to",
 	}
 	KafkaPartitionFlag = cli.IntFlag{
 		Name:  kafkaPartition,
@@ -206,8 +216,6 @@ type NewTransaction struct {
 	R                 *hexutil.Big    `json:"r"`
 	S                 *hexutil.Big    `json:"s"`
 	PublishedTime     int64           `json:"publishedTime"`
-	Reason            string          `json:"reason"`
-	ReturnData        string          `json:"returnData"`
 }
 
 // NewBlock represents a block that will be published to message broker when new block has been mined
@@ -249,7 +257,14 @@ type InternalTransaction struct {
 	BlockTime       uint64         `json:"blockTime"`
 }
 
-func newTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber, timestamp uint64, index int, receipts types.Receipts, results []*core.ExecutionResult) *NewTransaction {
+type TransactionResult struct {
+	TransactionHash common.Hash   `json:"transactionHash"`
+	UsedGas         uint64        `json:"usedGas"`
+	Err             string        `json:"error"`
+	ReturnData      hexutil.Bytes `json:"returnData"`
+}
+
+func newTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber, timestamp uint64, index int, receipts types.Receipts) *NewTransaction {
 	var signer types.Signer = types.FrontierSigner{}
 	if tx.Protected() {
 		signer = types.NewEIP155Signer(tx.ChainId())
@@ -283,15 +298,6 @@ func newTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber, t
 		result.GasUsed = receipt.GasUsed
 		result.CumulativeGasUsed = receipt.CumulativeGasUsed
 		result.ContractAddress = receipt.ContractAddress
-	}
-	if results != nil && len(results) > index {
-		executionResult := results[index]
-		if executionResult.Err != nil {
-			result.Reason = executionResult.Err.Error()
-		}
-		if executionResult.ReturnData != nil {
-			result.ReturnData = common.Bytes2Hex(executionResult.ReturnData)
-		}
 	}
 	return result
 }
@@ -364,6 +370,7 @@ type Publisher interface {
 }
 
 type Job struct {
+	Type       int
 	Message    []interface{}
 	RetryCount int
 	NextTry    int
@@ -373,6 +380,10 @@ type Job struct {
 
 type Worker struct {
 	ctx context.Context
+
+	bc          *core.BlockChain
+	db          ethdb.Database
+	chainConfig *params.ChainConfig
 
 	id int
 
@@ -387,7 +398,8 @@ type Worker struct {
 	// workerChan is used to receive and publishing job
 	workerChan chan Job
 
-	closeChan chan struct{}
+	closeChan    chan struct{}
+	txResultChan chan *TransactionResult
 }
 
 // Subscriber is used to subscribe blockchain event and organized workers
@@ -406,6 +418,7 @@ type Subscriber struct {
 	removeLogsEvent  chan core.RemovedLogsEvent
 	rebirthLogsEvent chan []*types.Log
 	internalTxEvent  chan types.InternalTransaction
+	txResultEvent    chan *TransactionResult
 
 	// topics params
 	chainEventTopic        string
@@ -414,6 +427,7 @@ type Subscriber struct {
 	reorgTransactionsTopic string
 	logsTopic              string
 	internalTxTopic        string
+	transactionResultTopic string
 
 	confirmedBlockTopic       string
 	confirmedTransactionTopic string
@@ -482,6 +496,7 @@ func NewSubscriber(ethereum *eth.Ethereum, backend ethapi.Backend, ctx *cli.Cont
 	subs.rebirthLogsEvent = make(chan []*types.Log, subs.MaxQueueSize)
 	subs.resyncEvent = make(chan core.ChainEvent, subs.MaxQueueSize)
 	subs.internalTxEvent = make(chan types.InternalTransaction, subs.MaxQueueSize)
+	subs.txResultEvent = make(chan *TransactionResult, subs.MaxQueueSize)
 
 	// set event publisher
 	handlerType := ctx.GlobalString(PublisherFlag.Name)
@@ -525,6 +540,9 @@ func NewSubscriber(ethereum *eth.Ethereum, backend ethapi.Backend, ctx *cli.Cont
 		subs.internalTxTopic = ctx.GlobalString(InternalTxEventFlag.Name)
 		backend.SubscribeInternalTransactionEvent(subs.internalTxEvent)
 	}
+	if ctx.GlobalIsSet(TransactionResultEventFlag.Name) {
+		subs.transactionResultTopic = ctx.GlobalString(TransactionResultEventFlag.Name)
+	}
 	if ctx.GlobalIsSet(MaxRetryFlag.Name) {
 		subs.MaxRetry = ctx.GlobalInt(MaxRetryFlag.Name)
 	}
@@ -549,7 +567,7 @@ func NewSubscriber(ethereum *eth.Ethereum, backend ethapi.Backend, ctx *cli.Cont
 
 	// init workers
 	for i := 0; i < workers; i++ {
-		subs.Workers = append(subs.Workers, NewWorker(subs.ctx, i, subs.JobChan, subs.Queue, subs.eventPublisher.publish, subs.MaxQueueSize))
+		subs.Workers = append(subs.Workers, NewWorker(subs.ctx, subs.ethereum.BlockChain(), subs.db, subs.backend.ChainConfig(), i, subs.JobChan, subs.Queue, subs.eventPublisher.publish, subs.MaxQueueSize, subs.txResultEvent))
 	}
 	return subs
 }
@@ -560,7 +578,7 @@ func (s *Subscriber) CoolDown() {
 	}
 }
 
-func (s *Subscriber) SendJob(messages ...interface{}) {
+func (s *Subscriber) SendJob(jobType int, messages ...interface{}) {
 	if len(messages) == 0 {
 		return
 	}
@@ -568,7 +586,7 @@ func (s *Subscriber) SendJob(messages ...interface{}) {
 		log.Info("JobChan has reached its limit, Sleeping...")
 		s.CoolDown()
 	}
-	s.JobChan <- NewJob(messages, s.MaxRetry, s.BackOff)
+	s.JobChan <- NewJob(jobType, messages, s.MaxRetry, s.BackOff)
 }
 
 func (s *Subscriber) HandleNewBlockWithValidation(evt core.ChainEvent) {
@@ -601,10 +619,10 @@ func (s *Subscriber) HandleNewBlock(evt core.ChainEvent) {
 	}
 
 	// handle sending new transactions
-	messages = append(messages, s.HandleNewTransactions(s.transactionsTopic, s.logsTopic, block.Hash(), block.NumberU64(), block.Time(), txs, receipts, nil)...)
+	messages = append(messages, s.HandleNewTransactions(s.transactionsTopic, s.logsTopic, block.Hash(), block.NumberU64(), block.Time(), txs, receipts)...)
 
 	log.Info("[HandleNewBlock] sending new block messages to jobChan", "messages", len(messages), "height", block.NumberU64(), "txs", len(txs), "logs", len(logs))
-	s.SendJob(messages...)
+	s.SendJob(pubJob, messages...)
 }
 
 func (s *Subscriber) SendConfirmedBlock(height uint64) {
@@ -629,11 +647,6 @@ func (s *Subscriber) SendConfirmedBlock(height uint64) {
 			log.Error("[Subscriber][HandleConfirmedBlock] GetReceipts", "err", err, "hash", block.Hash().Hex())
 			return
 		}
-		// load execution results
-		results, err := s.reprocessBlock(block)
-		if err != nil {
-			log.Error("[Subscriber][HandleConfirmedBlock] GetExecutionResults", "err", err, "hash", block.Hash().Hex())
-		}
 		// marshal block
 		blockData, err := json.Marshal(newBlock(block))
 		if err != nil {
@@ -648,10 +661,11 @@ func (s *Subscriber) SendConfirmedBlock(height uint64) {
 			return
 		}
 		messages = append(messages, s.HandleNewTransactions(s.confirmedTransactionTopic, s.confirmedLogsTopic,
-			block.Hash(), height, block.Time(), block.Transactions(), receipts, results)...)
+			block.Hash(), height, block.Time(), block.Transactions(), receipts)...)
 
 		log.Info("[HandleNewBlock] sending confirmed block messages to jobChan", "messages", len(messages), "height", height)
-		s.SendJob(messages...)
+		s.SendJob(pubJob, messages...)
+		s.SendJob(reprocessBlockJob, block)
 	}
 }
 
@@ -674,19 +688,19 @@ func (s *Subscriber) HandleReorgBlock(evt core.ReorgEvent) {
 		}
 		messages = append(messages, s.eventPublisher.newMessage(s.chainSideTopic, blockData))
 	}
-	messages = append(messages, s.HandleNewTransactions(s.reorgTransactionsTopic, s.logsTopic, block.Hash(), block.NumberU64(), block.Time(), txs, nil, nil)...)
+	messages = append(messages, s.HandleNewTransactions(s.reorgTransactionsTopic, s.logsTopic, block.Hash(), block.NumberU64(), block.Time(), txs, nil)...)
 
 	log.Info("[HandleReorgBlock] sending reOrg block messages to jobChan", "messages", len(messages), "height", block.NumberU64(), "txs", len(txs))
-	s.SendJob(messages...)
+	s.SendJob(pubJob, messages...)
 }
 
 // HandleNewTransactions converts transaction to readable transaction (JSON) based on transactions list and receipts list and push them message broker.
 // if there is any topic within receipts call HandleLogs also to add all Logs to messages
-func (s *Subscriber) HandleNewTransactions(topic, logsTopic string, hash common.Hash, number uint64, timestamp uint64, txs types.Transactions, receipts types.Receipts, results []*core.ExecutionResult) []interface{} {
+func (s *Subscriber) HandleNewTransactions(topic, logsTopic string, hash common.Hash, number uint64, timestamp uint64, txs types.Transactions, receipts types.Receipts) []interface{} {
 	messages := make([]interface{}, 0)
 	if topic != "" {
 		for i, tx := range txs {
-			transaction := newTransaction(tx, hash, number, timestamp, i, receipts, results)
+			transaction := newTransaction(tx, hash, number, timestamp, i, receipts)
 			txData, err := json.Marshal(transaction)
 			if err != nil {
 				log.Error("[HandleNewTransactions]Marshal Transaction Data", "error", err, "blockHeight", number, "index", i)
@@ -699,6 +713,14 @@ func (s *Subscriber) HandleNewTransactions(topic, logsTopic string, hash common.
 		}
 	}
 	return messages
+}
+
+func (s *Subscriber) HandleTransactionResult(tx *TransactionResult) {
+	result, err := json.Marshal(tx)
+	if err != nil {
+		log.Error("[Subscriber][HandleTransactionResult] marshal error", "err", err)
+	}
+	s.SendJob(pubJob, s.eventPublisher.newMessage(s.transactionResultTopic, result))
 }
 
 // HandleLogs converts list of logs to binary and add to published messaged
@@ -764,7 +786,7 @@ func (s *Subscriber) HandleRemoveRebirthLogs(logs []*types.Log) {
 		}
 	}
 	log.Info("[HandleRemoveRebirthLogs] sending remove/rebirth logs messages to jobChan", "messages", len(messages))
-	s.SendJob(messages...)
+	s.SendJob(pubJob, messages...)
 }
 
 func (s *Subscriber) HandleInternalTransactionEvent(tx types.InternalTransaction) {
@@ -776,7 +798,7 @@ func (s *Subscriber) HandleInternalTransactionEvent(tx types.InternalTransaction
 			return
 		}
 		log.Info("[HandleInternalTransactionEvent] sending internal tx message to jobChan")
-		s.SendJob(s.eventPublisher.newMessage(s.internalTxTopic, data))
+		s.SendJob(pubJob, s.eventPublisher.newMessage(s.internalTxTopic, data))
 	}
 }
 
@@ -807,6 +829,8 @@ func (s *Subscriber) Start() chan struct{} {
 				go s.HandleRemoveRebirthLogs(evt)
 			case evt := <-s.internalTxEvent:
 				go s.HandleInternalTransactionEvent(evt)
+			case evt := <-s.txResultEvent:
+				go s.HandleTransactionResult(evt)
 			case job := <-s.JobChan:
 				// get 1 workerCh from queue and push job to this channel
 				workerCh := <-s.Queue
@@ -825,6 +849,7 @@ func (s *Subscriber) Start() chan struct{} {
 				close(s.removeLogsEvent)
 				close(s.internalTxEvent)
 				close(s.resyncEvent)
+				close(s.txResultEvent)
 				statsTicker.Stop()
 				break
 			case <-statsTicker.C:
@@ -858,34 +883,39 @@ func (s *Subscriber) resync() {
 	}
 }
 
-func (s *Subscriber) reprocessBlock(block *types.Block) ([]*core.ExecutionResult, error) {
-	parent := rawdb.ReadBlock(s.db, block.ParentHash(), block.NumberU64()-1)
+func (w *Worker) reprocessBlock(block *types.Block) error {
+	parent := rawdb.ReadBlock(w.db, block.ParentHash(), block.NumberU64()-1)
 	if parent == nil {
-		return nil, errors.New(fmt.Sprintf("parent not found, blockHash:%s, blockHeight:%d", block.Hash().Hex(), block.NumberU64()))
+		return errors.New(fmt.Sprintf("parent not found, blockHash:%s, blockHeight:%d", block.ParentHash().Hex(), block.NumberU64() - 1))
 	}
-	return reprocessBlock(s.ethereum.BlockChain(), parent.Root(), block.Header(), block.Transactions(), s.backend.ChainConfig(), s.db, s.ethereum.BlockChain().OpEvents()...)
+	return reprocessBlock(w.bc, parent.Root(), block.Header(), block.Transactions(), w.chainConfig, w.db, w.txResultChan, w.bc.OpEvents()...)
 }
 
 func (s *Subscriber) Close() {
 	s.cancelCtx()
 }
 
-func NewJob(message []interface{}, maxTry, backOff int) Job {
+func NewJob(jobType int, message []interface{}, maxTry, backOff int) Job {
 	return Job{
+		Type:    jobType,
 		Message: message,
 		MaxTry:  maxTry,
 		BackOff: backOff,
 	}
 }
 
-func NewWorker(ctx context.Context, id int, mainChan chan Job, queue chan chan Job, publishFn func(job Job) error, size int) *Worker {
+func NewWorker(ctx context.Context, bc *core.BlockChain, db ethdb.Database, chainConfig *params.ChainConfig, id int, mainChan chan Job, queue chan chan Job, publishFn func(job Job) error, size int, txResultChan chan *TransactionResult) *Worker {
 	return &Worker{
-		ctx:        ctx,
-		id:         id,
-		workerChan: make(chan Job, size),
-		mainChan:   mainChan,
-		queue:      queue,
-		publishFn:  publishFn,
+		ctx:          ctx,
+		id:           id,
+		bc:           bc,
+		db:           db,
+		chainConfig:  chainConfig,
+		workerChan:   make(chan Job, size),
+		mainChan:     mainChan,
+		queue:        queue,
+		publishFn:    publishFn,
+		txResultChan: txResultChan,
 	}
 }
 
@@ -900,20 +930,8 @@ func (w *Worker) start() {
 		select {
 		case job := <-w.workerChan:
 			if job.NextTry == 0 || job.NextTry <= time.Now().Second() {
-				log.Debug("publishing message", "id", w.id, "messages", len(job.Message), "retryCount", job.RetryCount)
-				if err := w.publishFn(job); err != nil {
-					log.Error("[worker][publishing]", "err", err)
-					// check if this job reaches maxTry or not
-					// if it is not send it back to mainChan
-					if job.RetryCount+1 > job.MaxTry {
-						log.Info("job reaches its maxTry", "message", job.Message)
-						continue
-					}
-					job.RetryCount += 1
-					job.NextTry = time.Now().Second() + (job.RetryCount * job.BackOff)
-				} else {
-					continue
-				}
+				w.processJob(job)
+				continue
 			}
 			// push the job back to mainChan
 			w.mainChan <- job
@@ -922,6 +940,37 @@ func (w *Worker) start() {
 			return
 		}
 	}
+}
+
+func (w *Worker) processJob(job Job) {
+	log.Debug("[Worker][processJob]", "id", w.id, "messages", len(job.Message), "retryCount", job.RetryCount)
+	var err error
+	switch job.Type {
+	case pubJob:
+		if err = w.publishFn(job); err != nil {
+			log.Error("[worker][publishing]", "err", err)
+			goto ERROR
+		}
+	case reprocessBlockJob:
+		if len(job.Message) == 0 {
+			return
+		}
+		block := job.Message[0].(*types.Block)
+		if err = w.reprocessBlock(block); err != nil {
+			log.Error("[worker][reprocessBlock]", "err", err)
+			goto ERROR
+		}
+	}
+	return
+	ERROR:
+	if job.RetryCount+1 > job.MaxTry {
+		log.Info("job reaches its maxTry", "message", job.Message)
+		return
+	}
+	job.RetryCount += 1
+	job.NextTry = time.Now().Second() + (job.RetryCount * job.BackOff)
+	// push the job back to mainChan
+	w.mainChan <- job
 }
 
 func NewDefaultEventPublisher(ctx *cli.Context) *DefaultEventPublisher {
@@ -985,19 +1034,18 @@ func (s *DefaultEventPublisher) getDialer() (*kafka.Dialer, error) {
 
 func (s *DefaultEventPublisher) close() {}
 
-func reprocessBlock(bc core.ChainContext, parentRoot common.Hash, header *types.Header, txs types.Transactions, chainConfig *params.ChainConfig, db ethdb.Database, events ...*vm.PublishEvent) ([]*core.ExecutionResult, error) {
+func reprocessBlock(bc core.ChainContext, parentRoot common.Hash, header *types.Header, txs types.Transactions, chainConfig *params.ChainConfig, db ethdb.Database, txResultChan chan *TransactionResult, events ...*vm.PublishEvent) error {
 	var (
-		results     []*core.ExecutionResult
 		usedGas     = new(uint64)
 		gp          = new(core.GasPool).AddGas(header.GasLimit)
 	)
 	blockContext := core.NewEVMBlockContext(header, bc, nil, events...)
 	if db == nil {
-		return nil, nil
+		return nil
 	}
 	statedb, err := state.New(parentRoot, state.NewDatabaseWithConfig(db, nil), nil)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	vmenv := vm.NewEVM(blockContext, vm.TxContext{}, statedb, chainConfig, vm.Config{})
 	// Iterate over and process the individual transactions
@@ -1008,16 +1056,26 @@ func reprocessBlock(bc core.ChainContext, parentRoot common.Hash, header *types.
 		vmenv.Context.Counter = 0
 		msg, err := tx.AsMessage(types.MakeSigner(chainConfig, header.Number), header.BaseFee)
 		if err != nil {
-			return nil, fmt.Errorf("could not apply tx %d [%v]: %w", i, tx.Hash().Hex(), err)
+			return fmt.Errorf("could not apply tx %d [%v]: %w", i, tx.Hash().Hex(), err)
 		}
 		// re-init message as fake message to bypass nonce check
 		msg = types.NewMessage(msg.From(), msg.To(), msg.Nonce(), msg.Value(), msg.Gas(), msg.GasPrice(), msg.GasFeeCap(), msg.GasTipCap(), msg.Data(), msg.AccessList(), true)
 		statedb.Prepare(tx.Hash(), i)
 		_, result, err := core.ApplyTransactionWithVMContext(msg, chainConfig, nil, nil, gp, statedb, header.Number, header.Hash(), tx, usedGas, vmenv)
 		if err != nil {
-			return nil, fmt.Errorf("could not apply tx %d [%v]: %w", i, tx.Hash().Hex(), err)
+			return fmt.Errorf("could not apply tx %d [%v]: %w", i, tx.Hash().Hex(), err)
 		}
-		results = append(results, result)
+		txResult := &TransactionResult{
+			TransactionHash: tx.Hash(),
+			UsedGas:         result.UsedGas,
+		}
+		if result.Err != nil {
+			txResult.Err = result.Err.Error()
+		}
+		if result.ReturnData != nil {
+			txResult.ReturnData = result.ReturnData
+		}
+		txResultChan <- txResult
 	}
-	return results, nil
+	return nil
 }

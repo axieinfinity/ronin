@@ -223,6 +223,8 @@ var (
 		ReOrgBlockEventFlag,
 		TransactionEventFlag,
 		ReorgTransactionEventFlag,
+		TransactionResultEventFlag,
+		InternalTxEventFlag,
 		KafkaPartitionFlag,
 		KafkaUrlFlag,
 		KafkaAuthenticationFlag,
@@ -240,7 +242,6 @@ var (
 		LogsConfirmedEventFlag,
 		SafeBlockRangeFlag,
 		CoolDownDurationFlag,
-		InternalTxEventFlag,
 		RPCUrlFlag,
 		ArchiveUrlFlag,
 	}
