@@ -150,7 +150,6 @@ func (b *backend) CurrentHeader() *types.Header {
 func (b *backend) writeBlock(block *types.Block) {
 	// cache current block and relevant fields
 	rawdb.WriteCanonicalHash(b.db, block.Hash(), block.NumberU64())
-	rawdb.WriteBlock(b.db, block)
 	rawdb.WriteHeaderNumber(b.db, block.Hash(), block.NumberU64())
 	rawdb.WriteHeader(b.db, block.Header())
 	// check if previous hashes were reorged or not
@@ -175,7 +174,6 @@ func (b *backend) writeBlock(block *types.Block) {
 			}
 			// remove block and receipts cached in db if any
 			rawdb.DeleteCanonicalHash(b.db, number)
-			rawdb.DeleteBlock(b.db, parentHash, number)
 			rawdb.DeleteReceipts(b.db, parentHash, number)
 			rawdb.DeleteHeaderNumber(b.db, parentHash)
 			rawdb.DeleteHeader(b.db, parentHash, number)
@@ -197,22 +195,18 @@ func (b *backend) CurrentBlock() *types.Block {
 		if ok {
 			now := uint64(time.Now().Unix())
 			// return currentBlock if block's time + block's period > now
-			// otherwise get block by current block height + 1
 			if block.Time()+b.ChainConfig().Consortium.Period > now {
-				return currentBlock.(*types.Block)
-			} else {
-				block, _ = b.BlockByNumber(context.Background(), rpc.BlockNumber(currentBlock.(*types.Block).Number().Int64() + 1))
-				b.currentBlock.Store(block)
-				b.writeBlock(block)
 				return block
 			}
 		}
 	}
 	log.Trace("calling rpc client to get current block")
-	block, err := b.rpc.BlockByNumber(context.Background(), nil)
+	latest, err := b.rpc.BlockNumber(context.Background())
 	if err != nil {
+		log.Error("[backend][CurrentBlock] get latest blockNumber", "err", err)
 		return nil
 	}
+	block, _ := b.BlockByNumber(context.Background(), rpc.BlockNumber(latest))
 	b.currentBlock.Store(block)
 	b.writeBlock(block)
 	return block
