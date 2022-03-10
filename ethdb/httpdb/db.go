@@ -205,12 +205,13 @@ func (db *DB) Ancient(kind string, number uint64) ([]byte, error) {
 		if db.archive == nil {
 			return nil, err
 		}
-		log.Debug("calling ancient via archive", "key", common.Bytes2Hex([]byte(kind)), "number", hexData)
+		log.Debug("calling ancient via archive", "kind", kind, "number", number)
 		val, err = query(db.archive, ANCIENT, kind, hexData)
 		if err != nil {
 			return nil, err
 		}
 	}
+	log.Debug("saving ancient data", "key", string(key))
 	if err = db.Put(key, val); err != nil {
 		return nil, err
 	}

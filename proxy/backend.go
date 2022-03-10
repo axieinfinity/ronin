@@ -193,9 +193,19 @@ func (b *backend) writeBlock(block *types.Block) {
 func (b *backend) CurrentBlock() *types.Block {
 	currentBlock := b.currentBlock.Load()
 	if currentBlock != nil {
-		now := uint64(time.Now().Unix())
-		if currentBlock.(*types.Block).Time()+b.ChainConfig().Consortium.Period > now {
-			return currentBlock.(*types.Block)
+		block, ok := currentBlock.(*types.Block)
+		if ok {
+			now := uint64(time.Now().Unix())
+			// return currentBlock if block's time + block's period > now
+			// otherwise get block by current block height + 1
+			if block.Time()+b.ChainConfig().Consortium.Period > now {
+				return currentBlock.(*types.Block)
+			} else {
+				block, _ = b.BlockByNumber(context.Background(), rpc.BlockNumber(currentBlock.(*types.Block).Number().Int64() + 1))
+				b.currentBlock.Store(block)
+				b.writeBlock(block)
+				return block
+			}
 		}
 	}
 	log.Trace("calling rpc client to get current block")
