@@ -24,6 +24,7 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 	"math/big"
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -32,6 +33,7 @@ const defaultSafeBlockRange = 10
 
 // backend implements interface ethapi.Backend which is used to init new VM
 type backend struct {
+	lock           sync.Mutex
 	db             ethdb.Database
 	ethConfig      *ethconfig.Config
 	hc             *core.HeaderChain
@@ -81,11 +83,11 @@ func newBackend(cfg *Config, ethConfig *ethconfig.Config) (*backend, error) {
 		return nil, err
 	}
 	b := &backend{
-		db: db,
-		ethConfig: ethConfig,
-		rpc: rpcClient,
-		chainConfig: chainConfig,
-		currentBlock: &atomic.Value{},
+		db:             db,
+		ethConfig:      ethConfig,
+		rpc:            rpcClient,
+		chainConfig:    chainConfig,
+		currentBlock:   &atomic.Value{},
 		safeBlockRange: defaultSafeBlockRange,
 	}
 	if cfg.FreeGasProxy != "" {
@@ -189,15 +191,15 @@ func (b *backend) writeBlock(block *types.Block) {
 }
 
 func (b *backend) CurrentBlock() *types.Block {
+	b.lock.Lock()
+	defer b.lock.Unlock()
 	currentBlock := b.currentBlock.Load()
 	if currentBlock != nil {
-		block, ok := currentBlock.(*types.Block)
-		if ok {
-			now := uint64(time.Now().Unix())
-			// return currentBlock if block's time + block's period > now
-			if block.Time()+b.ChainConfig().Consortium.Period > now {
-				return block
-			}
+		now := uint64(time.Now().Unix())
+		block := currentBlock.(*types.Block)
+		// return currentBlock if block's time + block's period > now
+		if block.Time()+b.ChainConfig().Consortium.Period > now {
+			return block
 		}
 	}
 	log.Trace("calling rpc client to get current block")
@@ -207,8 +209,10 @@ func (b *backend) CurrentBlock() *types.Block {
 		return nil
 	}
 	block, _ := b.BlockByNumber(context.Background(), rpc.BlockNumber(latest))
-	b.currentBlock.Store(block)
-	b.writeBlock(block)
+	if block != nil {
+		b.currentBlock.Store(block)
+		b.writeBlock(block)
+	}
 	return block
 }
 

@@ -160,7 +160,7 @@ func (db *DB) Put(key, value []byte) error {
 }
 
 func (db *DB) Delete(key []byte) error {
-	db.cachedItems.Remove(key)
+	db.cachedItems.Remove(common.Bytes2Hex(key))
 	return nil
 }
 
