@@ -28,6 +28,16 @@ func newAPI(b *backend) *API {
 	}
 }
 
+// BlockNumber returns the block number of the chain head.
+func (api *API) BlockNumber() (hexutil.Uint64, error) {
+	header, err := api.b.HeaderByNumber(context.Background(), rpc.LatestBlockNumber)
+	if err != nil {
+		log.Error("[api][BlockNumber] cannot get latest number", "err", err)
+		return hexutil.Uint64(0), err
+	}
+	return hexutil.Uint64(header.Number.Uint64()), nil
+}
+
 func (api *API) SendTransaction(ctx context.Context, args ethapi.TransactionArgs) (common.Hash, error) {
 	log.Trace("Sending transaction from proxy")
 	return SubmitTransaction(ctx, api.b, args.ToTransaction())

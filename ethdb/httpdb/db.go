@@ -44,6 +44,14 @@ func getAncientKey(kind string, number uint64) []byte {
 	return []byte(fmt.Sprintf("ancient-%s-%d", kind, number))
 }
 
+func PutAncient(db ethdb.Database, kind string, number uint64, value []byte) error {
+	return db.Put(getAncientKey(kind, number), value)
+}
+
+func RemoveAncient(db ethdb.Database, kind string, number uint64) error {
+	return db.Delete(getAncientKey(kind, number))
+}
+
 func query(client IClient, method string, params ...interface{}) ([]byte, error) {
 	var res string
 	if err := client.Call(&res, method, params...); err != nil {
@@ -125,6 +133,7 @@ func (db *DB) Get(key []byte) (val []byte, err error) {
 		return res.([]byte), nil
 	}
 	hexKey := common.Bytes2Hex(key)
+	log.Debug("calling getDbValue via rpc", "key", hexKey)
 	// try to get data from rpc if res is nil
 	val, err = query(db.client, GET, hexKey)
 	if err != nil {
@@ -132,6 +141,7 @@ func (db *DB) Get(key []byte) (val []byte, err error) {
 		if db.archive == nil {
 			return nil, err
 		}
+		log.Debug("calling getDbValue via archive", "key", hexKey, "err", err.Error())
 		val, err = query(db.archive, GET, hexKey)
 		if err != nil {
 			return nil, err
@@ -141,6 +151,7 @@ func (db *DB) Get(key []byte) (val []byte, err error) {
 		log.Error("value not found", "key", hexKey)
 		return nil, notfoundErr
 	}
+	log.Debug("getDbValue found", "key", hexKey, "value", common.Bytes2Hex(val))
 	// store val to memory db for later use
 	return val, db.Put(key, val)
 }
@@ -199,6 +210,7 @@ func (db *DB) Ancient(kind string, number uint64) ([]byte, error) {
 		return res.([]byte), nil
 	}
 	hexData := hexutil.EncodeUint64(number)
+	log.Debug("calling ancient via rpc", "kind", kind, "number", number)
 	val, err := query(db.client, ANCIENT, kind, hexData)
 	if err != nil {
 		// try to get data from archive if it is not nil
@@ -211,7 +223,7 @@ func (db *DB) Ancient(kind string, number uint64) ([]byte, error) {
 			return nil, err
 		}
 	}
-	log.Debug("saving ancient data", "key", string(key))
+	log.Debug("saving ancient data", "kind", kind, "number", number, "value", common.Bytes2Hex(val))
 	if err = db.Put(key, val); err != nil {
 		return nil, err
 	}

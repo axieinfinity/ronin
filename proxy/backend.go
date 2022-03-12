@@ -22,6 +22,7 @@ import (
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/rpc"
 	"math/big"
 	"sync"
@@ -29,7 +30,17 @@ import (
 	"time"
 )
 
-const defaultSafeBlockRange = 10
+const (
+	defaultSafeBlockRange = 10
+	// freezerHeaderTable indicates the name of the freezer header table.
+	freezerHeaderTable = "headers"
+
+	// freezerHashTable indicates the name of the freezer canonical hash table.
+	freezerHashTable = "hashes"
+
+	// freezerBodiesTable indicates the name of the freezer block body table.
+	freezerBodiesTable = "bodies"
+)
 
 // backend implements interface ethapi.Backend which is used to init new VM
 type backend struct {
@@ -149,11 +160,33 @@ func (b *backend) CurrentHeader() *types.Header {
 	return block.Header()
 }
 
+func (b *backend) writeAncient(block *types.Block) {
+	log.Debug("[backend] start writing ancient", "number", block.NumberU64())
+	header, err := rlp.EncodeToBytes(block.Header())
+	if err != nil {
+		log.Debug("[backend] encode header", "err", err, "block", block.NumberU64())
+	} else if err = httpdb.PutAncient(b.db, freezerHeaderTable, block.NumberU64(), header); err != nil {
+		log.Debug("[backend] error while saving block's header to ancient", "err", err, "block", block.NumberU64())
+	}
+
+	body, err := rlp.EncodeToBytes(block.Body())
+	if err != nil {
+		log.Debug("[backend] encode body", "err", err, "block", block.NumberU64())
+	} else if err = httpdb.PutAncient(b.db, freezerBodiesTable, block.NumberU64(), body); err != nil {
+		log.Debug("[backend] error while saving block's body to ancient", "err", err, "block", block.NumberU64())
+	}
+
+	if err = httpdb.PutAncient(b.db, freezerHashTable, block.NumberU64(), block.Hash().Bytes()); err != nil {
+		log.Debug("[backend] error while saving block's hash to ancient", "err", err, "block", block.NumberU64())
+	}
+}
+
 func (b *backend) writeBlock(block *types.Block) {
 	// cache current block and relevant fields
 	rawdb.WriteCanonicalHash(b.db, block.Hash(), block.NumberU64())
 	rawdb.WriteHeaderNumber(b.db, block.Hash(), block.NumberU64())
 	rawdb.WriteHeader(b.db, block.Header())
+	b.writeAncient(block)
 	// check if previous hashes were reorged or not
 	go func() {
 		parentHash := block.ParentHash()
@@ -177,8 +210,11 @@ func (b *backend) writeBlock(block *types.Block) {
 			// remove block and receipts cached in db if any
 			rawdb.DeleteCanonicalHash(b.db, number)
 			rawdb.DeleteReceipts(b.db, parentHash, number)
-			rawdb.DeleteHeaderNumber(b.db, parentHash)
 			rawdb.DeleteHeader(b.db, parentHash, number)
+
+			httpdb.RemoveAncient(b.db, freezerBodiesTable, number)
+			httpdb.RemoveAncient(b.db, freezerHeaderTable, number)
+			httpdb.RemoveAncient(b.db, freezerHashTable, number)
 
 			// start getting block's data from parentHash
 			_, err := b.BlockByHash(context.Background(), parentHash)
@@ -191,39 +227,49 @@ func (b *backend) writeBlock(block *types.Block) {
 }
 
 func (b *backend) CurrentBlock() *types.Block {
-	b.lock.Lock()
-	defer b.lock.Unlock()
 	currentBlock := b.currentBlock.Load()
 	if currentBlock != nil {
-		now := uint64(time.Now().Unix())
 		block := currentBlock.(*types.Block)
+		log.Debug("[backend][CurrentBlock] currentBlock is not nil", "height", block.NumberU64())
 		// return currentBlock if block's time + block's period > now
-		if block.Time()+b.ChainConfig().Consortium.Period > now {
+		if block.Time()+b.ChainConfig().Consortium.Period > uint64(time.Now().Unix()) {
 			return block
 		}
 	}
-	log.Trace("calling rpc client to get current block")
+	log.Debug("calling rpc client to get current block")
 	latest, err := b.rpc.BlockNumber(context.Background())
 	if err != nil {
 		log.Error("[backend][CurrentBlock] get latest blockNumber", "err", err)
 		return nil
 	}
+	log.Debug("[backend][CurrentBlock] getting block by latest", "number", latest)
 	block, _ := b.BlockByNumber(context.Background(), rpc.BlockNumber(latest))
 	if block != nil {
+		log.Debug("[backend][CurrentBlock] block is found, start caching", "number", latest)
 		b.currentBlock.Store(block)
 		b.writeBlock(block)
+		return block
 	}
-	return block
+	log.Debug("[backend][CurrentBlock] something went wrong when loading latest block", "number", latest)
+	return nil
 }
 
 func (b *backend) BlockByNumber(ctx context.Context, number rpc.BlockNumber) (*types.Block, error) {
 	if number == rpc.LatestBlockNumber || number == rpc.PendingBlockNumber {
-		return b.CurrentBlock(), nil
+		block := b.CurrentBlock()
+		if block != nil {
+			return block, nil
+		}
+		return nil, errors.New("cannot get latest block")
 	}
 	// getting hash from number
 	hash := rawdb.ReadCanonicalHash(b.db, uint64(number))
 	log.Debug("[proxy][backend][BlockByNumber] getting block from hash and number", "hash", hash.Hex(), "number", number)
-	return rawdb.ReadBlock(b.db, hash, uint64(number)), nil
+	block := rawdb.ReadBlock(b.db, hash, uint64(number))
+	if block != nil {
+		return block, nil
+	}
+	return nil, errors.New(fmt.Sprintf("block %d not found", number.Int64()))
 }
 
 func (b *backend) BlockByHash(ctx context.Context, hash common.Hash) (*types.Block, error) {
@@ -231,7 +277,11 @@ func (b *backend) BlockByHash(ctx context.Context, hash common.Hash) (*types.Blo
 	if blockNumber == nil {
 		return nil, errors.New(fmt.Sprintf("block not found by hash: %s", hash.Hex()))
 	}
-	return rawdb.ReadBlock(b.db, hash, *blockNumber), nil
+	block := rawdb.ReadBlock(b.db, hash, *blockNumber)
+	if block != nil {
+		return block, nil
+	}
+	return nil, errors.New(fmt.Sprintf("block %d not found", *blockNumber))
 }
 
 func (b *backend) BlockByNumberOrHash(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) (*types.Block, error) {
