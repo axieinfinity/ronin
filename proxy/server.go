@@ -26,6 +26,7 @@ type Config struct {
 	FreeGasProxy   string
 	DBCachedSize   int
 	SafeBlockRange uint
+	ResetThreshold int
 }
 
 func NewServer(config *Config, ethConfig *ethconfig.Config, nodeConfig *node.Config) (*Server, error) {

@@ -84,7 +84,7 @@ func (b *backend) TxPoolContentFrom(addr common.Address) (types.Transactions, ty
 }
 
 func newBackend(cfg *Config, ethConfig *ethconfig.Config) (*backend, error) {
-	db := httpdb.NewDB(cfg.RpcUrl, cfg.ArchiveUrl, cfg.DBCachedSize)
+	db := httpdb.NewDB(cfg.RpcUrl, cfg.ArchiveUrl, cfg.DBCachedSize, cfg.ResetThreshold)
 	rpcClient, err := ethclient.Dial(cfg.RpcUrl)
 	if err != nil {
 		return nil, err
@@ -194,6 +194,7 @@ func (b *backend) writeBlock(block *types.Block) {
 		// checkPoint is to make sure the loop won't loop from millions of blocks to 0
 		checkPoint := block.NumberU64() - uint64(b.safeBlockRange)
 		for number > checkPoint {
+			log.Debug("reorg checking", "number", number)
 			// loop until mismatch found or number does not exist
 			hash := rawdb.ReadCanonicalHash(b.db, number)
 			// there are 2 conditions:

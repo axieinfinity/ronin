@@ -3,6 +3,7 @@ package httpdb
 import (
 	"errors"
 	"fmt"
+	"github.com/VictoriaMetrics/fastcache"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/ethdb"
@@ -10,13 +11,17 @@ import (
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/rpc"
 	lru "github.com/hashicorp/golang-lru"
+	"sync"
+	"time"
 )
 
 const (
-	GET               = "consortium_getDBValue"
-	ANCIENT           = "consortium_getAncientValue"
-	defaultCachedItems = 1024
-	allowedCachedSized = 128 * 1024 * 1024 // 128 MB
+	GET                   = "consortium_getDBValue"
+	ANCIENT               = "consortium_getAncientValue"
+	defaultCachedItems    = 1024
+	allowedMaxSize        = 64 * 1024 * 1024 // 64 MB
+	defaultCleanUp        = time.Second
+	defaultResetThreshold = 10
 )
 
 type IClient interface {
@@ -29,15 +34,13 @@ var (
 	cacheHitCounter       metrics.Counter
 	cacheItemsCounter     metrics.Counter
 	cacheItemsSizeCounter metrics.Counter
-	evictedCallCounter    metrics.Counter
 )
 
 func initMetrics() {
-	requestCounter        = metrics.NewRegisteredCounter("cache/request", nil)
-	cacheHitCounter       = metrics.NewRegisteredCounter("cache/request/hit", nil)
-	cacheItemsCounter     = metrics.NewRegisteredCounter("cache/items", nil)
+	requestCounter = metrics.NewRegisteredCounter("cache/request", nil)
+	cacheHitCounter = metrics.NewRegisteredCounter("cache/request/hit", nil)
+	cacheItemsCounter = metrics.NewRegisteredCounter("cache/items", nil)
 	cacheItemsSizeCounter = metrics.NewRegisteredCounter("cache/items/size", nil)
-	evictedCallCounter    = metrics.NewRegisteredCounter("cache/items/evicted", nil)
 }
 
 func getAncientKey(kind string, number uint64) []byte {
@@ -64,8 +67,13 @@ func query(client IClient, method string, params ...interface{}) ([]byte, error)
 // it also caches return values using lru cache to get data immediately without RPC calling everytime.
 // DB only supports Get and Has function which query data from other nodes.
 type DB struct {
+	lock            sync.Mutex
 	client, archive IClient
-	cachedItems     *lru.Cache
+	maxEntries      int
+	lruCache        *lru.Cache
+	cache           *fastcache.Cache
+	cleanupInterval time.Duration
+	resetThreshold  int
 }
 
 func (db *DB) AncientRange(kind string, start, count, maxBytes uint64) ([][]byte, error) {
@@ -80,20 +88,18 @@ func (db *DB) ModifyAncients(f func(ethdb.AncientWriteOp) error) (int64, error) 
 	panic("implement me")
 }
 
-func onEvicted(key, value interface{}) {
-	evictedCallCounter.Inc(1)
-	cacheItemsCounter.Dec(1)
-	cacheItemsSizeCounter.Dec(int64(len(value.([]byte))))
-}
-
-func NewDB(rpcUrl, archive string, cachedSize int) *DB {
+func NewDB(rpcUrl, archive string, cachedSize, resetThreshold int) *DB {
 	client, err := rpc.DialHTTP(rpcUrl)
 	if err != nil {
 		log.Error("[httpdb][NewDB] Dial RPC", "err", err)
 		return nil
 	}
 	db := &DB{
-		client: client,
+		client:          client,
+		maxEntries:      defaultCachedItems,
+		cache:           fastcache.New(allowedMaxSize),
+		cleanupInterval: defaultCleanUp,
+		resetThreshold:  defaultResetThreshold,
 	}
 	if archive != "" {
 		if db.archive, err = rpc.DialHTTP(archive); err != nil {
@@ -102,12 +108,47 @@ func NewDB(rpcUrl, archive string, cachedSize int) *DB {
 		}
 	}
 	if cachedSize > 0 {
-		db.cachedItems, _ = lru.NewWithEvict(cachedSize, onEvicted)
-	} else {
-		db.cachedItems, _ = lru.NewWithEvict(defaultCachedItems, onEvicted)
+		db.maxEntries = cachedSize
 	}
+	if resetThreshold > 0 {
+		db.resetThreshold = resetThreshold
+	}
+	db.lruCache, _ = lru.NewWithEvict(db.maxEntries, db.onEvicted)
 	initMetrics()
+
+	go func() {
+		for {
+			select {
+			case <-time.Tick(db.cleanupInterval):
+				db.purge()
+			}
+		}
+	}()
+
 	return db
+}
+
+func (db *DB) purge() {
+	db.lock.Lock()
+	defer db.lock.Unlock()
+	items := cacheItemsCounter.Count()
+	if items == 0 {
+		return
+	}
+	if diff := items / int64(db.maxEntries); diff >= int64(db.resetThreshold) {
+		log.Debug("data is growing out of control, start purging")
+		db.lruCache.Purge()
+		db.cache.Reset()
+		cacheItemsCounter.Clear()
+		cacheItemsSizeCounter.Clear()
+	}
+}
+
+func (db *DB) onEvicted(key, value interface{}) {
+	log.Debug("onEvicted", "key", key)
+	cacheItemsCounter.Inc(-1)
+	cacheItemsSizeCounter.Inc(-int64(value.(int)))
+	db.cache.Del(common.Hex2Bytes(key.(string)))
 }
 
 func (db *DB) Close() error {
@@ -115,7 +156,7 @@ func (db *DB) Close() error {
 }
 
 func (db *DB) Has(key []byte) (bool, error) {
-	if db.cachedItems.Contains(key) {
+	if db.lruCache.Contains(key) {
 		return true, nil
 	}
 	// try to get data from rpc if data cannot be found in cached items
@@ -128,11 +169,15 @@ func (db *DB) Has(key []byte) (bool, error) {
 
 func (db *DB) Get(key []byte) (val []byte, err error) {
 	requestCounter.Inc(1)
-	if res, ok := db.cachedItems.Get(common.Bytes2Hex(key)); ok {
-		cacheHitCounter.Inc(1)
-		return res.([]byte), nil
-	}
 	hexKey := common.Bytes2Hex(key)
+
+	if res, ok := db.cache.HasGet(nil, key); ok {
+		// update recent-ness in lru cache
+		db.lruCache.Get(hexKey)
+		// increase hit counter
+		cacheHitCounter.Inc(1)
+		return res, nil
+	}
 	log.Debug("calling getDbValue via rpc", "key", hexKey)
 	// try to get data from rpc if res is nil
 	val, err = query(db.client, GET, hexKey)
@@ -151,31 +196,34 @@ func (db *DB) Get(key []byte) (val []byte, err error) {
 		log.Error("value not found", "key", hexKey)
 		return nil, notfoundErr
 	}
-	log.Debug("getDbValue found", "key", hexKey, "value", common.Bytes2Hex(val))
+	log.Debug("getDbValue found", "key", hexKey)
 	// store val to memory db for later use
 	return val, db.Put(key, val)
 }
 
 func (db *DB) Put(key, value []byte) error {
-	cacheItemsCounter.Inc(1)
+	db.lruCache.Add(common.Bytes2Hex(key), len(value))
+	db.cache.Set(key, value)
+
 	cacheItemsSizeCounter.Inc(int64(len(value)))
-	db.cachedItems.Add(common.Bytes2Hex(key), value)
-	// check cacheItemsSizeCounter to clear the oldest if it passes the limit size
-	go func() {
-		for cacheItemsCounter.Count() > allowedCachedSized {
-			db.cachedItems.RemoveOldest()
-		}
-	}()
+	cacheItemsCounter.Inc(1)
 
 	return nil
 }
 
 func (db *DB) Delete(key []byte) error {
-	db.cachedItems.Remove(common.Bytes2Hex(key))
+	val, ok := db.lruCache.Get(common.Bytes2Hex(key))
+	if !ok {
+		return nil
+	}
+
+	db.lruCache.Remove(common.Bytes2Hex(key))
+	db.cache.Del(key)
+
+	cacheItemsCounter.Inc(-1)
+	cacheItemsSizeCounter.Inc(-int64(val.(int)))
 	return nil
 }
-
-func (db *DB) Stats() {}
 
 func (db *DB) NewBatch() ethdb.Batch {
 	return nil
@@ -205,9 +253,11 @@ func (db *DB) HasAncient(kind string, number uint64) (bool, error) {
 func (db *DB) Ancient(kind string, number uint64) ([]byte, error) {
 	key := getAncientKey(kind, number)
 	requestCounter.Inc(1)
-	if res, ok := db.cachedItems.Get(common.Bytes2Hex(key)); ok {
+	if res, ok := db.cache.HasGet(nil, key); ok {
+		// increase recent-ness of lru cache
+		db.lruCache.Get(common.Bytes2Hex(key))
 		cacheHitCounter.Inc(1)
-		return res.([]byte), nil
+		return res, nil
 	}
 	hexData := hexutil.EncodeUint64(number)
 	log.Debug("calling ancient via rpc", "kind", kind, "number", number)
@@ -220,10 +270,11 @@ func (db *DB) Ancient(kind string, number uint64) ([]byte, error) {
 		log.Debug("calling ancient via archive", "kind", kind, "number", number)
 		val, err = query(db.archive, ANCIENT, kind, hexData)
 		if err != nil {
+			log.Debug("value not found via get ancient", "kind", kind, "number", number, "err", err)
 			return nil, err
 		}
 	}
-	log.Debug("saving ancient data", "kind", kind, "number", number, "value", common.Bytes2Hex(val))
+	log.Debug("saving ancient data", "kind", kind, "number", number)
 	if err = db.Put(key, val); err != nil {
 		return nil, err
 	}

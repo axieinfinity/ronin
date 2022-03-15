@@ -235,6 +235,7 @@ var AppHelpFlagGroups = []flags.FlagGroup{
 			utils.DBCacheSizeLimitFlag,
 			utils.SafeBlockRangeFlag,
 			utils.ArchiveUrlFlag,
+			utils.ResetThresholdFlag,
 		},
 	},
 	{

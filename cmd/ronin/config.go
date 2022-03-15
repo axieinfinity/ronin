@@ -376,6 +376,9 @@ func makeProxyServer(ctx *cli.Context) (*proxy.Server, error) {
 	if ctx.GlobalIsSet(utils.SafeBlockRangeFlag.Name) {
 		serverConfig.SafeBlockRange = ctx.GlobalUint(utils.SafeBlockRangeFlag.Name)
 	}
+	if ctx.GlobalIsSet(utils.ResetThresholdFlag.Name) {
+		serverConfig.ResetThreshold = ctx.GlobalInt(utils.ResetThresholdFlag.Name)
+	}
 
 	applyMetricConfig(ctx, &cfg)
 	// Start metrics export if enabled

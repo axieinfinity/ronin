@@ -828,6 +828,12 @@ var (
 		Usage: "safeBlockRange is used in Proxy mode to set safe range on checking reorg",
 		Value: 10,
 	}
+
+	ResetThresholdFlag = cli.IntFlag{
+		Name:  "proxy.resetThreshold",
+		Usage: "resetThreshold is used to clean cache DB when the size is greater than allowed size `resetThreshold` times",
+		Value: 10,
+	}
 )
 
 // MakeDataDir retrieves the currently requested data directory, terminating

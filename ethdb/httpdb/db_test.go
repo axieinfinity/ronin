@@ -5,6 +5,7 @@ import (
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/stretchr/testify/require"
 	"testing"
+	"time"
 )
 
 type mockRpc struct {}
@@ -16,11 +17,11 @@ func (m *mockRpc) Call(result interface{}, method string, args ...interface{}) e
 
 func TestEvict(t *testing.T) {
 	metrics.Enabled = true
-	db := NewDB("", "", 0)
+	db := NewDB("", "", 0, 0)
 	db.client = &mockRpc{}
 
 	var totalSize int64
-	for i := 0; i <= defaultCachedSize; i++ {
+	for i := 0; i <= defaultCachedItems; i++ {
 		key := []byte(fmt.Sprintf("key-%d", i))
 		val := []byte(fmt.Sprintf("val-%d", i))
 		if err := db.Put(key, val); err != nil {
@@ -30,6 +31,6 @@ func TestEvict(t *testing.T) {
 			totalSize += int64(len(val))
 		}
 	}
-	require.Equal(t, int64(1), evictedCallCounter.Count())
+	time.Sleep(3*time.Second)
 	require.Equal(t, totalSize, cacheItemsSizeCounter.Count())
 }
