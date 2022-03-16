@@ -1,5 +1,5 @@
 # Build Geth in a stock Go builder container
-FROM golang:1.15.5-alpine as builder
+FROM golang:1.17-alpine as builder
 
 RUN apk add --no-cache make gcc musl-dev linux-headers git
 
@@ -28,6 +28,6 @@ COPY --from=builder /opt/build/bin/ronin /usr/local/bin/ronin
 COPY --from=builder /opt/genesis/ ./
 COPY --from=builder /opt/docker/chainnode/entrypoint.sh ./
 
-EXPOSE 8545 8546 30303 30303/udp
+EXPOSE 7000 6060 8545 8546 30303 30303/udp
 
 ENTRYPOINT ["./entrypoint.sh"]
