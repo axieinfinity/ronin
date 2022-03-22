@@ -73,14 +73,14 @@ func (c *redisCache) Put(key, value []byte) error {
 		return nil
 	}
 	ctx := context.Background()
-	locker, err := c.locker.Obtain(ctx, common.Bytes2Hex(key), time.Second, nil)
-	if err != nil {
-		if err == redislock.ErrNotObtained {
-			return nil
-		}
-		return err
-	}
-	defer locker.Release(ctx)
+	//locker, err := c.locker.Obtain(ctx, common.Bytes2Hex(key), time.Second, nil)
+	//if err != nil {
+	//	if err == redislock.ErrNotObtained {
+	//		return nil
+	//	}
+	//	return err
+	//}
+	//defer locker.Release(ctx)
 	return c.store.Set(ctx, common.Bytes2Hex(key), common.Bytes2Hex(value), nil)
 }
 
@@ -89,13 +89,13 @@ func (c *redisCache) Delete(key []byte) error {
 		return nil
 	}
 	ctx := context.Background()
-	locker, err := c.locker.Obtain(ctx, common.Bytes2Hex(key), time.Second, nil)
-	if err != nil {
-		if err == redislock.ErrNotObtained {
-			return nil
-		}
-		return err
-	}
-	defer locker.Release(ctx)
-	return c.store.Delete(context.Background(), common.Bytes2Hex(key))
+	//locker, err := c.locker.Obtain(ctx, common.Bytes2Hex(key), time.Second, nil)
+	//if err != nil {
+	//	if err == redislock.ErrNotObtained {
+	//		return nil
+	//	}
+	//	return err
+	//}
+	//defer locker.Release(ctx)
+	return c.store.Delete(ctx, common.Bytes2Hex(key))
 }
