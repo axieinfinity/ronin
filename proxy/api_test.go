@@ -80,7 +80,7 @@ func TestGetStateAtBlock(t *testing.T) {
 
 func TestGetStateAtBehindBlock1024(t *testing.T) {
 	ethConfig := ethconfig.Defaults
-	backend, err := newBackend(&Config{ArchiveUrl: "http://localhost:8545", RpcUrl: "http://localhost:8549"}, &ethConfig)
+	backend, err := newBackend(&Config{Redis: true, ArchiveUrl: "http://localhost:8545", RpcUrl: "http://localhost:8549"}, &ethConfig)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -98,7 +98,7 @@ func TestViaPublicAPI(t *testing.T) {
 	log.New()
 	metrics.Enabled = true
 	ethConfig := ethconfig.Defaults
-	backend, err := newBackend(&Config{ArchiveUrl: "https://api-archived.roninchain.com/rpc", RpcUrl: "http://34.121.216.144:8545"}, &ethConfig)
+	backend, err := newBackend(&Config{Redis: true, ArchiveUrl: "https://api-archived.roninchain.com/rpc", RpcUrl: "http://34.121.216.144:8545"}, &ethConfig)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -110,7 +110,12 @@ func TestViaPublicAPI(t *testing.T) {
 	)
 	api := newAPI(backend)
 	var counter int32
-	ch := make(chan interface{})
+	ch := make(chan interface{}, 100)
+	defer func() {
+		if err := recover(); err != nil {
+			log.Error("panic", "err", err)
+		}
+	} ()
 	go func() {
 		for {
 			api.BlockNumber()
@@ -142,12 +147,12 @@ func TestViaPublicAPI(t *testing.T) {
 			log.Info(fmt.Sprintf("============================================"))
 			log.Info(fmt.Sprintf("requestCounter: %d", requestCounter.Count()))
 			log.Info(fmt.Sprintf("cacheHitCounter: %d", cacheHitCounter.Count()))
-			log.Info(fmt.Sprintf("%v %s", (float64(cacheHitCounter.Count())/float64(requestCounter.Count()))*100, "%"))
 			log.Info(fmt.Sprintf("cacheItemsCounter: %d", cacheItemsCounter.Count()))
 			log.Info(fmt.Sprintf("cacheItemsSizeCounter: %d", cacheItemsSizeCounter.Count()))
 			log.Info(fmt.Sprintf("============================================"))
 		}
 	}
+
 }
 
 func TestCurrentBlock(t *testing.T) {
@@ -156,27 +161,38 @@ func TestCurrentBlock(t *testing.T) {
 	//if err != nil {
 	//	t.Fatal(err)
 	//}
-	//var counter int32
-	ch := make(chan int, 100)
-	errCh := make(chan error, 1)
-	for {
+	var counter int32
+	ch := make(chan int, 150)
+	countCh := make(chan int)
+	//errCh := make(chan error, 1)
+	for i:=0; i<1000000000; i++ {
 		go func() {
 			ch <- 1
 			client, err := rpc.DialHTTP("http://localhost:8560")
 			if err != nil {
 				return
 			}
-			defer client.Close()
-			<- ch
 			var lastBlock string
 			err = client.CallContext(context.Background(), &lastBlock, "eth_blockNumber")
 			if err != nil {
-				errCh <- err
+				println(err.Error())
 				return
 			}
 			height := hexutil.MustDecodeUint64(lastBlock)
 			println(height)
-		}()
+			client.Close()
+			<-ch
+			countCh <- 1
+		} ()
+	}
+	for {
+		select {
+		case <-countCh:
+			atomic.AddInt32(&counter, 1)
+			if atomic.LoadInt32(&counter) >= 1000000 {
+				return
+			}
+		}
 	}
 }
 

@@ -379,6 +379,15 @@ func makeProxyServer(ctx *cli.Context) (*proxy.Server, error) {
 	if ctx.GlobalIsSet(utils.ResetThresholdFlag.Name) {
 		serverConfig.ResetThreshold = ctx.GlobalInt(utils.ResetThresholdFlag.Name)
 	}
+	if ctx.GlobalIsSet(utils.ProxyRedisFlag.Name) {
+		serverConfig.Redis = ctx.GlobalBool(utils.ProxyRedisFlag.Name)
+	}
+	if ctx.GlobalIsSet(utils.ProxyRedisAddressFlag.Name) {
+		serverConfig.Addresses = ctx.GlobalString(utils.ProxyRedisAddressFlag.Name)
+	}
+	if ctx.GlobalIsSet(utils.ProxyRedisExpirationFlag.Name) {
+		serverConfig.Expiration = ctx.GlobalDuration(utils.ProxyRedisExpirationFlag.Name)
+	}
 
 	applyMetricConfig(ctx, &cfg)
 	// Start metrics export if enabled

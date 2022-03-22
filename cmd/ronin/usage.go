@@ -236,6 +236,9 @@ var AppHelpFlagGroups = []flags.FlagGroup{
 			utils.SafeBlockRangeFlag,
 			utils.ArchiveUrlFlag,
 			utils.ResetThresholdFlag,
+			utils.ProxyRedisFlag,
+			utils.ProxyRedisAddressFlag,
+			utils.ProxyRedisExpirationFlag,
 		},
 	},
 	{

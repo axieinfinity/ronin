@@ -832,7 +832,22 @@ var (
 	ResetThresholdFlag = cli.IntFlag{
 		Name:  "proxy.resetThreshold",
 		Usage: "resetThreshold is used to clean cache DB when the size is greater than allowed size `resetThreshold` times",
-		Value: 10,
+		Value: 10240,
+	}
+
+	ProxyRedisFlag = cli.BoolFlag{
+		Name:  "proxy.redis",
+		Usage: "indicate whether redis is used to cache data",
+	}
+
+	ProxyRedisAddressFlag = cli.StringFlag{
+		Name:  "proxy.redis.addresses",
+		Usage: "list of redis addresses separated by comma (,)",
+	}
+
+	ProxyRedisExpirationFlag = cli.DurationFlag{
+		Name:  "proxy.redis.expiration",
+		Usage: "indicate ttl of a cached data",
 	}
 )
 

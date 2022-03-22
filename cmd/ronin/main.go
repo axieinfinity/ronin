@@ -191,6 +191,9 @@ var (
 		utils.FreeGasProxyUrlFlag,
 		utils.DBCacheSizeLimitFlag,
 		utils.SafeBlockRangeFlag,
+		utils.ProxyRedisFlag,
+		utils.ProxyRedisAddressFlag,
+		utils.ProxyRedisExpirationFlag,
 	}
 
 	metricsFlags = []cli.Flag{

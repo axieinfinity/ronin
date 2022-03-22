@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/rpc"
+	"time"
 )
 
 // Server is a proxy server that simulates rpc structures,
@@ -27,6 +28,9 @@ type Config struct {
 	DBCachedSize   int
 	SafeBlockRange uint
 	ResetThreshold int
+	Redis          bool
+	Addresses      string
+	Expiration     time.Duration
 }
 
 func NewServer(config *Config, ethConfig *ethconfig.Config, nodeConfig *node.Config) (*Server, error) {
