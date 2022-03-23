@@ -25,7 +25,6 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/rpc"
 	"math/big"
-	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -44,10 +43,8 @@ const (
 
 // backend implements interface ethapi.Backend which is used to init new VM
 type backend struct {
-	lock           sync.Mutex
 	db             ethdb.Database
 	ethConfig      *ethconfig.Config
-	hc             *core.HeaderChain
 	currentBlock   *atomic.Value
 	rpc            *ethclient.Client
 	fgpClient      *ethclient.Client
@@ -113,10 +110,6 @@ func newBackend(cfg *Config, ethConfig *ethconfig.Config) (*backend, error) {
 	}
 	if cfg.SafeBlockRange > 0 {
 		b.safeBlockRange = cfg.SafeBlockRange
-	}
-	b.hc, err = core.NewHeaderChain(db, b.ChainConfig(), &consortium.Consortium{}, nil)
-	if err != nil {
-		return nil, err
 	}
 	return b, nil
 }
@@ -324,7 +317,7 @@ func (b *backend) StateAndHeaderByNumberOrHash(ctx context.Context, blockNrOrHas
 		if header == nil {
 			return nil, nil, errors.New("header for hash not found")
 		}
-		if blockNrOrHash.RequireCanonical && b.hc.GetCanonicalHash(header.Number.Uint64()) != hash {
+		if blockNrOrHash.RequireCanonical && rawdb.ReadCanonicalHash(b.db, header.Number.Uint64()) != hash {
 			return nil, nil, errors.New("hash is not currently canonical")
 		}
 		stateDb, err := state.New(header.Root, state.NewDatabaseWithConfig(b.db, nil), nil)
@@ -354,7 +347,7 @@ func (b *backend) GetTd(ctx context.Context, hash common.Hash) *big.Int {
 	if block == nil {
 		return nil
 	}
-	return b.hc.GetTd(hash, block.NumberU64())
+	return rawdb.ReadTd(b.db, hash, block.NumberU64())
 }
 
 func (b *backend) GetEVM(ctx context.Context, msg core.Message, state *state.StateDB, header *types.Header, vmConfig *vm.Config) (*vm.EVM, func() error, error) {
@@ -420,7 +413,7 @@ func (b *backend) Engine() consensus.Engine {
 }
 
 func (b *backend) GetHeader(hash common.Hash, number uint64) *types.Header {
-	return b.hc.GetHeader(hash, number)
+	return rawdb.ReadHeader(b.db, hash, number)
 }
 
 func (b *backend) ServiceFilter(ctx context.Context, session *bloombits.MatcherSession) {}

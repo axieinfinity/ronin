@@ -2,7 +2,6 @@ package httpdb
 
 import (
 	"context"
-	"github.com/bsm/redislock"
 	"github.com/eko/gocache/store"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/go-redis/redis/v8"
@@ -23,7 +22,7 @@ type RedisStoreInterface interface {
 
 type redisCache struct {
 	store RedisStoreInterface
-	locker *redislock.Client
+	//locker *redislock.Client
 }
 
 func NewRedisCache(addresses []string, expiration time.Duration) *redisCache {
@@ -42,7 +41,8 @@ func NewRedisCache(addresses []string, expiration time.Duration) *redisCache {
 	} else {
 		panic("cannot init new redisCache")
 	}
-	return &redisCache{store: redisStore, locker: redislock.New(client.(redislock.RedisClient))}
+	//return &redisCache{store: redisStore, locker: redislock.New(client.(redislock.RedisClient))}
+	return &redisCache{store: redisStore}
 }
 
 func (c *redisCache) Get(key []byte) ([]byte, error) {
