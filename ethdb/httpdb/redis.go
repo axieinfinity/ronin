@@ -2,13 +2,10 @@ package httpdb
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"github.com/bsm/redislock"
 	"github.com/eko/gocache/store"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/go-redis/redis/v8"
-	"reflect"
 	"time"
 )
 
@@ -50,17 +47,19 @@ func NewRedisCache(addresses []string, expiration time.Duration) *redisCache {
 
 func (c *redisCache) Get(key []byte) ([]byte, error) {
 	val, err := c.store.Get(context.Background(), common.Bytes2Hex(key))
-	if err != nil && err.Error() != "redis: nil" {
+	if err != nil && err.Error() == "redis: nil" {
+		return nil, nil
+	} else if err != nil {
 		return nil, err
 	}
-	rs, ok := val.(string)
-	if ok {
-		if len(rs) == 0 {
-			return nil, nil
-		}
-		return common.Hex2Bytes(rs), nil
-	}
-	return nil, errors.New(fmt.Sprintf("invalid return type expected string - got %v", reflect.TypeOf(val).String()))
+	return []byte(val.(string)), nil
+	//if ok {
+	//	if len(rs) == 0 {
+	//		return nil, nil
+	//	}
+	//	return rs, nil
+	//}
+	//return nil, errors.New(fmt.Sprintf("invalid return type expected string - got %v", reflect.TypeOf(val).String()))
 }
 
 func (c *redisCache) Has(key []byte) (bool, error) {
@@ -81,7 +80,7 @@ func (c *redisCache) Put(key, value []byte) error {
 	//	return err
 	//}
 	//defer locker.Release(ctx)
-	return c.store.Set(ctx, common.Bytes2Hex(key), common.Bytes2Hex(value), nil)
+	return c.store.Set(ctx, common.Bytes2Hex(key), value, nil)
 }
 
 func (c *redisCache) Delete(key []byte) error {
