@@ -20,6 +20,7 @@ import (
 	"compress/gzip"
 	"context"
 	"fmt"
+	"github.com/klauspost/compress/gzhttp"
 	"io"
 	"io/ioutil"
 	"net"
@@ -366,7 +367,13 @@ func NewHTTPHandlerStack(srv http.Handler, cors []string, vhosts []string) http.
 	// Wrap the CORS-handler within a host-handler
 	handler := newCorsHandler(srv, cors)
 	handler = newVHostHandler(vhosts, handler)
-	return newGzipHandler(handler)
+
+	// Create a reusable wrapper with custom options.
+	wrapper, err := gzhttp.NewWrapper(gzhttp.MinSize(2000), gzhttp.CompressionLevel(gzip.BestSpeed))
+	if err != nil {
+		log.Crit(err.Error())
+	}
+	return wrapper(handler)
 }
 
 func newCorsHandler(srv http.Handler, allowedOrigins []string) http.Handler {
@@ -453,6 +460,7 @@ func (w *gzipResponseWriter) Write(b []byte) (int, error) {
 
 func newGzipHandler(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log.Debug("[GzipHandler] handlerFunc", "Accept-Encoding", r.Header.Get("Accept-Encoding"))
 		if !strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
 			next.ServeHTTP(w, r)
 			return
