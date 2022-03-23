@@ -202,7 +202,7 @@ echo "dump: $account $BOOTNODES"
 
 set -x
 
-exec ronin $params \
+exec env GODEBUG=madvdontneed=1 ronin $params \
   --syncmode $syncmode \
   --verbosity $VERBOSITY \
   --datadir $datadir \
