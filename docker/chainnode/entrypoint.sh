@@ -115,6 +115,11 @@ if [[ ! -z $BOOTNODES ]]; then
   params="$params --bootnodes $BOOTNODES"
 fi
 
+# trustednodes
+if [[ ! -z $TRUSTEDNODES ]]; then
+  params="$params --trustednodes $TRUSTEDNODES"
+fi
+
 # syncmode
 if [[ ! -z $SYNC_MODE ]]; then
   syncmode="$SYNC_MODE"

@@ -17,6 +17,7 @@ services:
     environment:
       - SYNC_MODE=${SYNC_MODE}
       - BOOTNODES=${BOOTNODES}
+      - TRUSTEDNODES=${TRUSTEDNODES}
       - NETWORK_ID=${NETWORK_ID}
       - GENESIS_PATH=${GENESIS_PATH}
       - RPC_NODE=${RPC_NODE}
