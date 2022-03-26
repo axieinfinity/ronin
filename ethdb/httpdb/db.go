@@ -139,7 +139,6 @@ func (db *DB) Get(key []byte) (val []byte, err error) {
 	res, err := db.cache.Get(key)
 	if err != nil {
 		log.Error("[httpdb] getting data from cache", "err", err)
-		return nil, err
 	}
 	if res != nil {
 		// increase hit counter
@@ -219,7 +218,6 @@ func (db *DB) Ancient(kind string, number uint64) ([]byte, error) {
 	res, err := db.cache.Get(key)
 	if err != nil {
 		log.Error("[httpdb] getting ancient data from cache", "err", err)
-		return nil, err
 	}
 	if res != nil {
 		// increase hit counter
