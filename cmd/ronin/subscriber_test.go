@@ -1,45 +1,50 @@
 package main
 
 import (
+	"fmt"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/consortium"
+	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/eth/ethconfig"
 	"github.com/ethereum/go-ethereum/ethdb"
+	"github.com/ethereum/go-ethereum/ethdb/httpdb"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/ethereum/go-ethereum/proxy"
 	"testing"
 )
 
 func TestReprocessTransaction(t *testing.T) {
-	ethConfig := ethconfig.Defaults
-	ethConfig.NetworkId = 2020
-	backend, err := proxy.NewBackend(&proxy.Config{RPC: "https://api-archived.roninchain.com/rpc"}, &ethConfig)
-	if err != nil {
-		t.Fatal(err)
-	}
-	block := rawdb.ReadBlock(backend.ChainDb(), common.HexToHash("0xccc6dc29e86b3ceaf2f08e04ccf71641bc4d2223fb142707b4e0699d63743698"), 10000017)
+	db := httpdb.NewDBWithLRU("https://api-archived.roninchain.com/rpc", "https://api-archived.roninchain.com/rpc", 0, 0)
+	chainConfig, _, err := core.SetupGenesisBlockWithOverride(db, nil, nil)
+	blockHash := rawdb.ReadCanonicalHash(db, 12185907)
+	println(blockHash.Hex())
+	block := rawdb.ReadBlock(db, common.HexToHash("0xa1fa3122c021db882f8dff2e389bd1b0f20d43e4c38ab0a4c239f28e5d795ed4"), 12208992)
 	if block == nil {
 		t.Fatal("cannot find block")
 	}
-	parentBlock := rawdb.ReadBlock(backend.ChainDb(), block.ParentHash(), 10000016)
+	println(block.Hash().Hex())
+	parentBlock := rawdb.ReadBlock(db, block.ParentHash(),12208991)
 	if parentBlock == nil {
 		t.Fatal("cannot find block")
 	}
-	statedb, err := state.New(parentBlock.Header().Root, state.NewDatabaseWithConfig(backend.ChainDb(), nil), nil)
+	txResult := make(chan *TransactionResult, 100)
+	//balance := statedb.GetBalance(common.HexToAddress("0x3D20380A3815Ff52CB41c032A4Fe93877a2AD614"))
+	//println(balance.String())
+	go func() {
+		for {
+			select {
+			case result := <-txResult:
+				println(fmt.Sprintf("hash:%s UsedGas:%d Error:%s Data:%s", result.TransactionHash.Hex(), result.UsedGas, result.Err, result.ReturnData.String()))
+			}
+		}
+	}()
+	err = reprocessBlock(&chainContext{db}, parentBlock.Root(), block.Header(), block.Transactions(), chainConfig, state.NewDatabase(db), txResult)
 	if err != nil {
 		t.Fatal(err)
 	}
-	balance := statedb.GetBalance(common.HexToAddress("0x3D20380A3815Ff52CB41c032A4Fe93877a2AD614"))
-	println(balance.String())
-	result, err := reprocessBlock(&chainContext{backend.ChainDb()}, parentBlock.Root(), block.Header(), block.Transactions(), backend.ChainConfig(), backend.ChainDb())
-	if err != nil {
-		t.Fatal(err)
-	}
-	println(result)
+	//println(result)
 }
 
 type chainContext struct {

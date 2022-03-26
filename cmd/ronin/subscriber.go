@@ -383,6 +383,7 @@ type Worker struct {
 
 	bc          *core.BlockChain
 	db          ethdb.Database
+	stateDb     state.Database
 	chainConfig *params.ChainConfig
 
 	id int
@@ -562,7 +563,7 @@ func NewSubscriber(ethereum *eth.Ethereum, backend ethapi.Backend, ctx *cli.Cont
 		subs.coolDownDuration = ctx.GlobalInt(CoolDownDurationFlag.Name)
 	}
 	if ctx.GlobalIsSet(RPCUrlFlag.Name) {
-		subs.db = httpdb.NewDB(ctx.GlobalString(RPCUrlFlag.Name), ctx.GlobalString(ArchiveUrlFlag.Name), 0)
+		subs.db = httpdb.NewDBWithLRU(ctx.GlobalString(RPCUrlFlag.Name), ctx.GlobalString(ArchiveUrlFlag.Name), 0, 0)
 	}
 
 	// init workers
@@ -884,11 +885,16 @@ func (s *Subscriber) resync() {
 }
 
 func (w *Worker) reprocessBlock(block *types.Block) error {
-	parent := rawdb.ReadBlock(w.db, block.ParentHash(), block.NumberU64()-1)
+	// get parent from blockchain first, if it can
+	parent := w.bc.GetBlockByNumber(block.NumberU64()-1)
 	if parent == nil {
-		return errors.New(fmt.Sprintf("parent not found, blockHash:%s, blockHeight:%d", block.ParentHash().Hex(), block.NumberU64() - 1))
+		// try getting parent from httpdb
+		parent = rawdb.ReadBlock(w.db, block.ParentHash(), block.NumberU64()-1)
+		if parent == nil {
+			return errors.New(fmt.Sprintf("parent not found, blockHash:%s, blockHeight:%d", block.ParentHash().Hex(), block.NumberU64() - 1))
+		}
 	}
-	return reprocessBlock(w.bc, parent.Root(), block.Header(), block.Transactions(), w.chainConfig, w.db, w.txResultChan, w.bc.OpEvents()...)
+	return reprocessBlock(w.bc, parent.Root(), block.Header(), block.Transactions(), w.chainConfig, w.stateDb, w.txResultChan, w.bc.OpEvents()...)
 }
 
 func (s *Subscriber) Close() {
@@ -910,6 +916,7 @@ func NewWorker(ctx context.Context, bc *core.BlockChain, db ethdb.Database, chai
 		id:           id,
 		bc:           bc,
 		db:           db,
+		stateDb:      state.NewDatabase(db),
 		chainConfig:  chainConfig,
 		workerChan:   make(chan Job, size),
 		mainChan:     mainChan,
@@ -943,6 +950,11 @@ func (w *Worker) start() {
 }
 
 func (w *Worker) processJob(job Job) {
+	defer func() {
+		if err := recover(); err != nil {
+			log.Error("panic occurred", "err", err)
+		}
+	}()
 	log.Debug("[Worker][processJob]", "id", w.id, "messages", len(job.Message), "retryCount", job.RetryCount)
 	var err error
 	switch job.Type {
@@ -1034,22 +1046,24 @@ func (s *DefaultEventPublisher) getDialer() (*kafka.Dialer, error) {
 
 func (s *DefaultEventPublisher) close() {}
 
-func reprocessBlock(bc core.ChainContext, parentRoot common.Hash, header *types.Header, txs types.Transactions, chainConfig *params.ChainConfig, db ethdb.Database, txResultChan chan *TransactionResult, events ...*vm.PublishEvent) error {
+func reprocessBlock(bc core.ChainContext, parentRoot common.Hash, header *types.Header, txs types.Transactions, chainConfig *params.ChainConfig, db state.Database, txResultChan chan *TransactionResult, events ...*vm.PublishEvent) error {
 	var (
 		usedGas     = new(uint64)
 		gp          = new(core.GasPool).AddGas(header.GasLimit)
 	)
+	log.Debug("start reprocessBlock", "Height", header.Number.Uint64())
 	blockContext := core.NewEVMBlockContext(header, bc, nil, events...)
 	if db == nil {
 		return nil
 	}
-	statedb, err := state.New(parentRoot, state.NewDatabaseWithConfig(db, nil), nil)
+	statedb, err := state.New(parentRoot, db, nil)
 	if err != nil {
 		return err
 	}
 	vmenv := vm.NewEVM(blockContext, vm.TxContext{}, statedb, chainConfig, vm.Config{})
 	// Iterate over and process the individual transactions
 	for i, tx := range txs {
+		log.Info("[reprocessBlock] processing tx", "index", i, "tx", tx.Hash().Hex(), "txNonce", tx.Nonce(), "")
 		// set current transaction in block context to each transaction
 		vmenv.Context.CurrentTransaction = tx
 		// reset counter to start counting opcodes in new transaction
@@ -1058,12 +1072,12 @@ func reprocessBlock(bc core.ChainContext, parentRoot common.Hash, header *types.
 		if err != nil {
 			return fmt.Errorf("could not apply tx %d [%v]: %w", i, tx.Hash().Hex(), err)
 		}
-		// re-init message as fake message to bypass nonce check
-		msg = types.NewMessage(msg.From(), msg.To(), msg.Nonce(), msg.Value(), msg.Gas(), msg.GasPrice(), msg.GasFeeCap(), msg.GasTipCap(), msg.Data(), msg.AccessList(), true)
+		nonce := statedb.GetNonce(msg.From())
+		log.Info("[reprocessBlock] get sender nonce", "sender", msg.From().Hex(), "nonce", nonce, "index", i, "txNonce", msg.Nonce(), "tx", tx.Hash().Hex())
 		statedb.Prepare(tx.Hash(), i)
 		_, result, err := core.ApplyTransactionWithVMContext(msg, chainConfig, nil, nil, gp, statedb, header.Number, header.Hash(), tx, usedGas, vmenv)
 		if err != nil {
-			return fmt.Errorf("could not apply tx %d [%v]: %w", i, tx.Hash().Hex(), err)
+			return fmt.Errorf("could not apply tx %d [%v] [block: %d]: %w", i, tx.Hash().Hex(), header.Number.Uint64(), err)
 		}
 		txResult := &TransactionResult{
 			TransactionHash: tx.Hash(),
