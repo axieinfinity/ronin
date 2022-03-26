@@ -24,6 +24,7 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/ethereum/go-ethereum/trie"
 	"math/big"
 	"sync/atomic"
 	"time"
@@ -44,6 +45,7 @@ const (
 // backend implements interface ethapi.Backend which is used to init new VM
 type backend struct {
 	db             ethdb.Database
+	stateCache     state.Database
 	ethConfig      *ethconfig.Config
 	currentBlock   *atomic.Value
 	rpc            *ethclient.Client
@@ -80,7 +82,7 @@ func (b *backend) TxPoolContentFrom(addr common.Address) (types.Transactions, ty
 	return nil, nil
 }
 
-func newBackend(cfg *Config, ethConfig *ethconfig.Config) (*backend, error) {
+func NewBackend(cfg *Config, ethConfig *ethconfig.Config) (*backend, error) {
 	var db *httpdb.DB
 	if cfg.Redis {
 		db = httpdb.NewDBWithRedis(cfg.RpcUrl, cfg.ArchiveUrl, cfg.Addresses, cfg.Expiration)
@@ -102,6 +104,7 @@ func newBackend(cfg *Config, ethConfig *ethconfig.Config) (*backend, error) {
 		chainConfig:    chainConfig,
 		currentBlock:   &atomic.Value{},
 		safeBlockRange: defaultSafeBlockRange,
+		stateCache:     state.NewDatabaseWithConfig(db, &trie.Config{Cache: 16}),
 	}
 	if cfg.FreeGasProxy != "" {
 		if b.fgpClient, err = ethclient.Dial(cfg.FreeGasProxy); err != nil {
@@ -206,10 +209,8 @@ func (b *backend) writeBlock(block *types.Block) {
 					continue
 				}
 			}
-			// remove block and receipts cached in db if any
+			// remove reorg block hash from parent
 			rawdb.DeleteCanonicalHash(b.db, number)
-			rawdb.DeleteReceipts(b.db, parentHash, number)
-			rawdb.DeleteHeader(b.db, parentHash, number)
 
 			httpdb.RemoveAncient(b.db, freezerBodiesTable, number)
 			httpdb.RemoveAncient(b.db, freezerHeaderTable, number)
@@ -226,13 +227,11 @@ func (b *backend) writeBlock(block *types.Block) {
 }
 
 func (b *backend) CurrentBlock() *types.Block {
-	currentBlock := b.currentBlock.Load()
-	if currentBlock != nil {
-		block := currentBlock.(*types.Block)
-		log.Debug("[backend][CurrentBlock] currentBlock is not nil", "height", block.NumberU64())
+	if currentBlock, ok := b.currentBlock.Load().(*types.Block); ok {
+		log.Debug("[backend][CurrentBlock] currentBlock is not nil", "height", currentBlock.NumberU64())
 		// return currentBlock if block's time + block's period > now
-		if block.Time()+b.ChainConfig().Consortium.Period > uint64(time.Now().Unix()) {
-			return block
+		if currentBlock.Time()+b.ChainConfig().Consortium.Period > uint64(time.Now().Unix()) {
+			return currentBlock
 		}
 	}
 	log.Debug("calling rpc client to get current block")
@@ -301,7 +300,7 @@ func (b *backend) StateAndHeaderByNumber(ctx context.Context, number rpc.BlockNu
 	if header == nil {
 		return nil, nil, errors.New("header not found")
 	}
-	stateDb, err := state.New(header.Root, state.NewDatabaseWithConfig(b.db, nil), nil)
+	stateDb, err := state.New(header.Root, b.stateCache, nil)
 	return stateDb, header, err
 }
 
@@ -320,7 +319,7 @@ func (b *backend) StateAndHeaderByNumberOrHash(ctx context.Context, blockNrOrHas
 		if blockNrOrHash.RequireCanonical && rawdb.ReadCanonicalHash(b.db, header.Number.Uint64()) != hash {
 			return nil, nil, errors.New("hash is not currently canonical")
 		}
-		stateDb, err := state.New(header.Root, state.NewDatabaseWithConfig(b.db, nil), nil)
+		stateDb, err := state.New(header.Root, b.stateCache, nil)
 		return stateDb, header, err
 	}
 	return nil, nil, errors.New("invalid arguments; neither block nor hash specified")
