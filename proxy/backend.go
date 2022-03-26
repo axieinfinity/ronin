@@ -87,7 +87,7 @@ func NewBackend(cfg *Config, ethConfig *ethconfig.Config) (*backend, error) {
 	if cfg.Redis {
 		db = httpdb.NewDBWithRedis(cfg.RpcUrl, cfg.ArchiveUrl, cfg.Addresses, cfg.Expiration)
 	} else {
-		db = httpdb.NewDBWithLRU(cfg.RpcUrl, cfg.ArchiveUrl, cfg.DBCachedSize, cfg.ResetThreshold)
+		db = httpdb.NewDBWithLRU(cfg.RpcUrl, cfg.ArchiveUrl, cfg.DBCachedSize)
 	}
 	rpcClient, err := ethclient.Dial(cfg.RpcUrl)
 	if err != nil {

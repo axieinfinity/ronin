@@ -18,7 +18,7 @@ func (m *mockRpc) Call(result interface{}, method string, args ...interface{}) e
 
 func TestEvict(t *testing.T) {
 	metrics.Enabled = true
-	db := NewDBWithLRU("", "", 0, 0)
+	db := NewDBWithLRU("", "", 0)
 	db.client = &mockRpc{}
 
 	var totalSize int64

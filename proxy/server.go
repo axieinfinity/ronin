@@ -28,7 +28,6 @@ type Config struct {
 	FreeGasProxy   string
 	DBCachedSize   int
 	SafeBlockRange uint
-	ResetThreshold int
 	Redis          bool
 	Addresses      string
 	Expiration     time.Duration

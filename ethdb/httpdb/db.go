@@ -18,8 +18,6 @@ const (
 	ANCIENT               = "consortium_getAncientValue"
 	defaultCachedItems    = 1024
 	allowedMaxSize        = 64 * 1024 * 1024 // 64 MB
-	defaultCleanUp        = time.Second
-	defaultResetThreshold = defaultCachedItems*10
 )
 
 type IClient interface {
@@ -86,8 +84,8 @@ func (db *DB) ModifyAncients(f func(ethdb.AncientWriteOp) error) (int64, error) 
 	panic("implement me")
 }
 
-func NewDBWithLRU(rpcUrl, archive string, cachedSize, resetThreshold int) *DB {
-	return NewDB(rpcUrl, archive, NewLRUCache(cachedSize, resetThreshold))
+func NewDBWithLRU(rpcUrl, archive string, cachedSize int) *DB {
+	return NewDB(rpcUrl, archive, NewLRUCache(cachedSize))
 }
 
 func NewDBWithRedis(rpcUrl, archive, addrs string, expiration time.Duration) *DB {
