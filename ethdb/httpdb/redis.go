@@ -22,7 +22,6 @@ type RedisStoreInterface interface {
 
 type redisCache struct {
 	store RedisStoreInterface
-	//locker *redislock.Client
 }
 
 func NewRedisCache(addresses []string, expiration time.Duration) *redisCache {
@@ -41,7 +40,6 @@ func NewRedisCache(addresses []string, expiration time.Duration) *redisCache {
 	} else {
 		panic("cannot init new redisCache")
 	}
-	//return &redisCache{store: redisStore, locker: redislock.New(client.(redislock.RedisClient))}
 	return &redisCache{store: redisStore}
 }
 
@@ -53,13 +51,6 @@ func (c *redisCache) Get(key []byte) ([]byte, error) {
 		return nil, err
 	}
 	return []byte(val.(string)), nil
-	//if ok {
-	//	if len(rs) == 0 {
-	//		return nil, nil
-	//	}
-	//	return rs, nil
-	//}
-	//return nil, errors.New(fmt.Sprintf("invalid return type expected string - got %v", reflect.TypeOf(val).String()))
 }
 
 func (c *redisCache) Has(key []byte) (bool, error) {
@@ -72,29 +63,18 @@ func (c *redisCache) Put(key, value []byte) error {
 		return nil
 	}
 	ctx := context.Background()
-	//locker, err := c.locker.Obtain(ctx, common.Bytes2Hex(key), time.Second, nil)
-	//if err != nil {
-	//	if err == redislock.ErrNotObtained {
-	//		return nil
-	//	}
-	//	return err
-	//}
-	//defer locker.Release(ctx)
 	return c.store.Set(ctx, common.Bytes2Hex(key), value, nil)
 }
 
 func (c *redisCache) Delete(key []byte) error {
-	if has, _ := c.Has(key); !has {
-		return nil
+	val, err := c.Get(key)
+	if err != nil {
+		return err
 	}
-	ctx := context.Background()
-	//locker, err := c.locker.Obtain(ctx, common.Bytes2Hex(key), time.Second, nil)
-	//if err != nil {
-	//	if err == redislock.ErrNotObtained {
-	//		return nil
-	//	}
-	//	return err
-	//}
-	//defer locker.Release(ctx)
-	return c.store.Delete(ctx, common.Bytes2Hex(key))
+	if err = c.store.Delete(context.Background(), common.Bytes2Hex(key)); err != nil {
+		return err
+	}
+	cacheItemsCounter.Inc(-1)
+	cacheItemsSizeCounter.Inc(-int64(len(val)))
+	return nil
 }

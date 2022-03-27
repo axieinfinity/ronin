@@ -5,11 +5,9 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	lru "github.com/hashicorp/golang-lru"
-	"sync"
 )
 
 type lruCache struct {
-	lock            sync.Mutex
 	maxEntries      int
 	lruCache        *lru.Cache
 	cache           *fastcache.Cache
