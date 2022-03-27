@@ -35,11 +35,15 @@ var (
 	cacheHitCounter       metrics.Counter
 	cacheItemsCounter     metrics.Counter
 	cacheItemsSizeCounter metrics.Counter
+	requestRpcCounter     metrics.Counter
+	requestArchiveCounter metrics.Counter
 )
 
 func initMetrics() {
 	requestCounter = metrics.GetOrRegisterCounter("cache/request", nil)
 	cacheHitCounter = metrics.GetOrRegisterCounter("cache/request/hit", nil)
+	requestRpcCounter = metrics.GetOrRegisterCounter("cache/request/rpc", nil)
+	requestArchiveCounter = metrics.GetOrRegisterCounter("cache/request/archive", nil)
 	cacheItemsCounter = metrics.GetOrRegisterCounter("cache/items", nil)
 	cacheItemsSizeCounter = metrics.GetOrRegisterCounter("cache/items/size", nil)
 }
@@ -146,6 +150,7 @@ func (db *DB) Get(key []byte) (val []byte, err error) {
 	hexKey := common.Bytes2Hex(key)
 	log.Debug("calling getDbValue via rpc", "key", hexKey)
 	// try to get data from rpc if res is nil
+	requestRpcCounter.Inc(1)
 	val, err = query(db.client, GET, hexKey)
 	if err != nil {
 		// try to get data from archive if it is not nil
@@ -153,6 +158,7 @@ func (db *DB) Get(key []byte) (val []byte, err error) {
 			return nil, err
 		}
 		log.Debug("calling getDbValue via archive", "key", hexKey, "err", err.Error())
+		requestArchiveCounter.Inc(1)
 		val, err = query(db.archive, GET, hexKey)
 		if err != nil {
 			return nil, err
