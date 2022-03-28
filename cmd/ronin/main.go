@@ -194,6 +194,10 @@ var (
 		utils.ProxyRedisFlag,
 		utils.ProxyRedisAddressFlag,
 		utils.ProxyRedisExpirationFlag,
+		utils.ProxyRedisPoolSizeFlag,
+		utils.ProxyRedisReadTimeoutFlag,
+		utils.ProxyRedisWriteTimeoutFlag,
+		utils.ProxyRedisConnectionTimeoutFlag,
 	}
 
 	metricsFlags = []cli.Flag{

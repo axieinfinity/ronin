@@ -843,6 +843,26 @@ var (
 		Name:  "proxy.redis.expiration",
 		Usage: "indicate ttl of a cached data",
 	}
+
+	ProxyRedisPoolSizeFlag = cli.IntFlag{
+		Name: "proxy.redis.poolSize",
+		Usage: "indicate the size of redis pool",
+	}
+
+	ProxyRedisReadTimeoutFlag = cli.DurationFlag{
+		Name: "proxy.redis.readTimeout",
+		Usage: "Timeout for redis reads. If reached, commands will fail",
+	}
+
+	ProxyRedisWriteTimeoutFlag = cli.DurationFlag{
+		Name: "proxy.redis.writeTimeout",
+		Usage: "Timeout for redis writes. If reached, commands will fail",
+	}
+
+	ProxyRedisConnectionTimeoutFlag = cli.DurationFlag{
+		Name: "proxy.redis.connectionTimeout",
+		Usage: "Amount of time client waits for connection",
+	}
 )
 
 // MakeDataDir retrieves the currently requested data directory, terminating

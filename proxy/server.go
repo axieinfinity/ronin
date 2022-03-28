@@ -7,6 +7,7 @@ import (
 	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/go-redis/redis/v8"
 	"time"
 )
 
@@ -28,9 +29,12 @@ type Config struct {
 	FreeGasProxy   string
 	DBCachedSize   int
 	SafeBlockRange uint
-	Redis          bool
-	Addresses      string
-	Expiration     time.Duration
+	Redis          *Redis
+}
+
+type Redis struct {
+	Options    *redis.Options
+	Expiration time.Duration
 }
 
 func NewServer(config *Config, ethConfig *ethconfig.Config, nodeConfig *node.Config) (*Server, error) {

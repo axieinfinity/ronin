@@ -8,7 +8,12 @@ import (
 	"time"
 )
 
-var defaultTTL = time.Minute
+var (
+	defaultTTL = time.Minute
+	defaultReadTimeout = 15 * time.Second
+	defaultWriteTimeout = defaultReadTimeout
+	defaultConnectTimeout = defaultReadTimeout
+)
 
 type RedisStoreInterface interface {
 	Get(ctx context.Context, key interface{}) (interface{}, error)
@@ -24,15 +29,24 @@ type redisCache struct {
 	store RedisStoreInterface
 }
 
-func NewRedisCache(addresses []string, expiration time.Duration) *redisCache {
+func NewRedisCache(addresses []string, expiration time.Duration, options *redis.Options) *redisCache {
 	var redisStore RedisStoreInterface
 	opts := &store.Options{Expiration: defaultTTL}
 	if expiration > 0 {
 		opts.Expiration = expiration
 	}
+	if options.ReadTimeout == 0 {
+		options.ReadTimeout = defaultReadTimeout
+	}
+	if options.WriteTimeout == 0 {
+		options.WriteTimeout = defaultWriteTimeout
+	}
+	if options.PoolTimeout == 0 {
+		options.PoolTimeout = defaultConnectTimeout
+	}
 	var client store.RedisClientInterface
 	if len(addresses) == 1 {
-		client = redis.NewClient(&redis.Options{Addr: addresses[0]})
+		client = redis.NewClient(options)
 		redisStore = store.NewRedis(client, opts)
 	} else if len(addresses) > 1 {
 		client = redis.NewClusterClient(&redis.ClusterOptions{Addrs: addresses})

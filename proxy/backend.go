@@ -84,8 +84,8 @@ func (b *backend) TxPoolContentFrom(addr common.Address) (types.Transactions, ty
 
 func NewBackend(cfg *Config, ethConfig *ethconfig.Config) (*backend, error) {
 	var db *httpdb.DB
-	if cfg.Redis {
-		db = httpdb.NewDBWithRedis(cfg.RpcUrl, cfg.ArchiveUrl, cfg.Addresses, cfg.Expiration)
+	if cfg.Redis != nil {
+		db = httpdb.NewDBWithRedis(cfg.RpcUrl, cfg.ArchiveUrl, cfg.Redis.Expiration, cfg.Redis.Options)
 	} else {
 		db = httpdb.NewDBWithLRU(cfg.RpcUrl, cfg.ArchiveUrl, cfg.DBCachedSize)
 	}

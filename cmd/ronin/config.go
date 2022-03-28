@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/ethereum/go-ethereum/proxy"
+	"github.com/go-redis/redis/v8"
 	gopsutil "github.com/shirou/gopsutil/mem"
 	"math"
 	"math/big"
@@ -381,13 +382,27 @@ func makeProxyServer(ctx *cli.Context) (*proxy.Server, error) {
 		serverConfig.SafeBlockRange = ctx.GlobalUint(utils.SafeBlockRangeFlag.Name)
 	}
 	if ctx.GlobalIsSet(utils.ProxyRedisFlag.Name) {
-		serverConfig.Redis = ctx.GlobalBool(utils.ProxyRedisFlag.Name)
-	}
-	if ctx.GlobalIsSet(utils.ProxyRedisAddressFlag.Name) {
-		serverConfig.Addresses = ctx.GlobalString(utils.ProxyRedisAddressFlag.Name)
-	}
-	if ctx.GlobalIsSet(utils.ProxyRedisExpirationFlag.Name) {
-		serverConfig.Expiration = ctx.GlobalDuration(utils.ProxyRedisExpirationFlag.Name)
+		serverConfig.Redis = &proxy.Redis{
+			Options: &redis.Options{},
+		}
+		if ctx.GlobalIsSet(utils.ProxyRedisAddressFlag.Name) {
+			serverConfig.Redis.Options.Addr = ctx.GlobalString(utils.ProxyRedisAddressFlag.Name)
+		}
+		if ctx.GlobalIsSet(utils.ProxyRedisExpirationFlag.Name) {
+			serverConfig.Redis.Expiration = ctx.GlobalDuration(utils.ProxyRedisExpirationFlag.Name)
+		}
+		if ctx.GlobalIsSet(utils.ProxyRedisPoolSizeFlag.Name) {
+			serverConfig.Redis.Options.PoolSize = ctx.GlobalInt(utils.ProxyRedisPoolSizeFlag.Name)
+		}
+		if ctx.GlobalIsSet(utils.ProxyRedisReadTimeoutFlag.Name) {
+			serverConfig.Redis.Options.ReadTimeout = ctx.GlobalDuration(utils.ProxyRedisReadTimeoutFlag.Name)
+		}
+		if ctx.GlobalIsSet(utils.ProxyRedisWriteTimeoutFlag.Name) {
+			serverConfig.Redis.Options.WriteTimeout = ctx.GlobalDuration(utils.ProxyRedisWriteTimeoutFlag.Name)
+		}
+		if ctx.GlobalIsSet(utils.ProxyRedisConnectionTimeoutFlag.Name) {
+			serverConfig.Redis.Options.PoolTimeout = ctx.GlobalDuration(utils.ProxyRedisConnectionTimeoutFlag.Name)
+		}
 	}
 
 	applyMetricConfig(ctx, &cfg)

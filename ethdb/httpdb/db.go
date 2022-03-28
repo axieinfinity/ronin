@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/go-redis/redis/v8"
 	"strings"
 	"time"
 )
@@ -92,12 +93,12 @@ func NewDBWithLRU(rpcUrl, archive string, cachedSize int) *DB {
 	return NewDB(rpcUrl, archive, NewLRUCache(cachedSize))
 }
 
-func NewDBWithRedis(rpcUrl, archive, addrs string, expiration time.Duration) *DB {
-	addresses := strings.Split(addrs, ",")
+func NewDBWithRedis(rpcUrl, archive string, expiration time.Duration, options *redis.Options) *DB {
+	addresses := strings.Split(options.Addr, ",")
 	if len(addresses) == 0 {
 		addresses = append(addresses, "")
 	}
-	return NewDB(rpcUrl, archive, NewRedisCache(addresses, expiration))
+	return NewDB(rpcUrl, archive, NewRedisCache(addresses, expiration, options))
 }
 
 func NewDB(rpcUrl, archive string, cache Cache) *DB {

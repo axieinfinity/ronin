@@ -238,6 +238,10 @@ var AppHelpFlagGroups = []flags.FlagGroup{
 			utils.ProxyRedisFlag,
 			utils.ProxyRedisAddressFlag,
 			utils.ProxyRedisExpirationFlag,
+			utils.ProxyRedisPoolSizeFlag,
+			utils.ProxyRedisReadTimeoutFlag,
+			utils.ProxyRedisWriteTimeoutFlag,
+			utils.ProxyRedisConnectionTimeoutFlag,
 		},
 	},
 	{
