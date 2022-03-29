@@ -873,6 +873,9 @@ func setBootstrapNodes(ctx *cli.Context, cfg *p2p.Config) {
 	urls := params.MainnetBootnodes
 	switch {
 	case ctx.GlobalIsSet(BootnodesFlag.Name):
+		if ctx.GlobalString(BootnodesFlag.Name) == "enode" {
+			return
+		}
 		urls = SplitAndTrim(ctx.GlobalString(BootnodesFlag.Name))
 	case ctx.GlobalBool(RopstenFlag.Name):
 		urls = params.RopstenBootnodes
@@ -933,10 +936,10 @@ func setTrustedNodes(ctx *cli.Context, cfg *p2p.Config) {
 		if url != "" {
 			n, err := enode.Parse(enode.ValidSchemes, url)
 			if err != nil {
-				log.Crit("Bootstrap URL invalid", "enode", url, "err", err)
+				log.Crit("TrustedNode URL invalid", "enode", url, "err", err)
 				continue
 			}
-			cfg.BootstrapNodes = append(cfg.TrustedNodes, n)
+			cfg.TrustedNodes = append(cfg.TrustedNodes, n)
 		}
 	}
 }
