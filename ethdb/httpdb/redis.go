@@ -26,11 +26,24 @@ type RedisStoreInterface interface {
 }
 
 type redisCache struct {
-	store RedisStoreInterface
+	isCluster bool
+	readStore, writeStore RedisStoreInterface
+}
+
+func copyOptions(options *redis.Options) *redis.Options {
+	return &redis.Options{
+		Addr:         options.Addr,
+		ReadTimeout:  options.ReadTimeout,
+		WriteTimeout: options.WriteTimeout,
+		PoolSize:     options.PoolSize,
+		PoolTimeout:  options.PoolTimeout,
+	}
 }
 
 func NewRedisCache(addresses []string, expiration time.Duration, options *redis.Options) *redisCache {
-	var redisStore RedisStoreInterface
+	var (
+		readStore, writeStore RedisStoreInterface
+	)
 	opts := &store.Options{Expiration: defaultTTL}
 	if expiration > 0 {
 		opts.Expiration = expiration
@@ -47,18 +60,30 @@ func NewRedisCache(addresses []string, expiration time.Duration, options *redis.
 	var client store.RedisClientInterface
 	if len(addresses) == 1 {
 		client = redis.NewClient(options)
-		redisStore = store.NewRedis(client, opts)
-	} else if len(addresses) > 1 {
+		readStore = store.NewRedis(client, opts)
+		writeStore = readStore
+	} else if len(addresses) > 2 {
 		client = redis.NewClusterClient(&redis.ClusterOptions{Addrs: addresses})
-		redisStore = store.NewRedisCluster(redis.NewClusterClient(&redis.ClusterOptions{Addrs: addresses}), opts)
+		readStore = store.NewRedisCluster(redis.NewClusterClient(&redis.ClusterOptions{Addrs: addresses}), opts)
+		writeStore = readStore
+	} else if len(addresses) == 2 {
+		// set write store with first address as master
+		writeClient := redis.NewClient(copyOptions(options)).WithContext(context.Background())
+		writeClient.Options().Addr = addresses[0]
+		writeStore = store.NewRedis(writeClient, opts)
+
+		// set read store with second address as slave
+		readClient := redis.NewClient(copyOptions(options)).WithContext(context.Background())
+		readClient.Options().Addr = addresses[1]
+		readStore = store.NewRedis(readClient, opts)
 	} else {
 		panic("cannot init new redisCache")
 	}
-	return &redisCache{store: redisStore}
+	return &redisCache{readStore: readStore, writeStore: writeStore}
 }
 
 func (c *redisCache) Get(key []byte) ([]byte, error) {
-	val, err := c.store.Get(context.Background(), common.Bytes2Hex(key))
+	val, err := c.readStore.Get(context.Background(), common.Bytes2Hex(key))
 	if err != nil && err.Error() == "redis: nil" {
 		return nil, nil
 	} else if err != nil {
@@ -77,7 +102,7 @@ func (c *redisCache) Put(key, value []byte) error {
 		return nil
 	}
 	ctx := context.Background()
-	return c.store.Set(ctx, common.Bytes2Hex(key), value, nil)
+	return c.writeStore.Set(ctx, common.Bytes2Hex(key), value, nil)
 }
 
 func (c *redisCache) Delete(key []byte) error {
@@ -85,7 +110,7 @@ func (c *redisCache) Delete(key []byte) error {
 	if err != nil {
 		return err
 	}
-	if err = c.store.Delete(context.Background(), common.Bytes2Hex(key)); err != nil {
+	if err = c.writeStore.Delete(context.Background(), common.Bytes2Hex(key)); err != nil {
 		return err
 	}
 	cacheItemsCounter.Inc(-1)
