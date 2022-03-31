@@ -2,6 +2,10 @@
 
 Official Golang implementation of the Ronin protocol.
 
+Ronin is a Byzantine Fault Tolerant proof of authority (POA) network operated by validators. Carefully selected, trusted validators are predefined at the bootstrap of the network. Later, new validators can be added or old validators can be removed if the decision is approved by the majority of currently active validators.
+
+In the future, Ronin consensus will be migrated to dPOS to enable complete decentralization as well as nodes' freedom to join the network as validators/miners. dPoS is a more democratic way of choosing who verifies the next block, allowing a more diverse group of people to participate in the process since it’s based on earned reputation as a lawful staker and not overall wealth. Additionally, because there are a limited number of validators, DPoS allows the network to reach consensus more quickly.
+
 Ronin starts its development based on go-ethereum fork. So you may see many toolings, binaries and also docs are based on Ethereum ones
 
 [![Discord](https://img.shields.io/badge/discord-join%20chat-blue.svg)](https://discord.com/invite/pjgPrrZJyZ)
