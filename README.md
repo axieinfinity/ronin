@@ -4,7 +4,7 @@ Official Golang implementation of the Ronin protocol.
 
 Ronin starts its development based on go-ethereum fork. So you may see many toolings, binaries and also docs are based on Ethereum ones
 
-[![Discord](https://img.shields.io/badge/discord-join%20chat-blue.svg)](https://discord.gg/EDg6xm8W)
+[![Discord](https://img.shields.io/badge/discord-join%20chat-blue.svg)](https://discord.com/invite/pjgPrrZJyZ)
 
 ## Building the source
 
@@ -119,7 +119,7 @@ from anyone on the internet, and are grateful for even the smallest of fixes!
 
 If you'd like to contribute to go-ethereum, please fork, fix, commit and send a pull request
 for the maintainers to review and merge into the main code base. If you wish to submit
-more complex changes though, please check up with the core devs first on [our Discord Server](https://discord.gg/EDg6xm8W)
+more complex changes though, please check up with the core devs first on [our Discord Server](https://discord.com/invite/pjgPrrZJyZ)
 to ensure those changes are in line with the general philosophy of the project and/or get
 some early feedback which can make both your efforts much lighter as well as our review
 and merge procedures quick and simple.
