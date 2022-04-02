@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/consortium"
@@ -11,15 +10,19 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/ethdb/httpdb"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/stretchr/testify/require"
+	"os"
 	"testing"
 )
 
 func TestReprocessTransaction(t *testing.T) {
-	db := httpdb.NewDBWithLRU("https://api-archived.roninchain.com/rpc", "https://api-archived.roninchain.com/rpc", 0, 0)
-	chainConfig, _, err := core.SetupGenesisBlockWithOverride(db, nil, nil)
-	blockHash := rawdb.ReadCanonicalHash(db, 12185907)
-	println(blockHash.Hex())
+	glogger := log.NewGlogHandler(log.StreamHandler(os.Stderr, log.TerminalFormat(false)))
+	glogger.Verbosity(log.LvlDebug)
+	log.Root().SetHandler(glogger)
+	db := httpdb.NewDBWithLRU("https://api-archived.roninchain.com/rpc", "https://api-archived.roninchain.com/rpc", 0)
+	chainConfig, _, _ := core.SetupGenesisBlockWithOverride(db, nil, nil)
 	block := rawdb.ReadBlock(db, common.HexToHash("0xa1fa3122c021db882f8dff2e389bd1b0f20d43e4c38ab0a4c239f28e5d795ed4"), 12208992)
 	if block == nil {
 		t.Fatal("cannot find block")
@@ -29,22 +32,12 @@ func TestReprocessTransaction(t *testing.T) {
 	if parentBlock == nil {
 		t.Fatal("cannot find block")
 	}
-	txResult := make(chan *TransactionResult, 100)
-	//balance := statedb.GetBalance(common.HexToAddress("0x3D20380A3815Ff52CB41c032A4Fe93877a2AD614"))
-	//println(balance.String())
-	go func() {
-		for {
-			select {
-			case result := <-txResult:
-				println(fmt.Sprintf("hash:%s UsedGas:%d Error:%s Data:%s", result.TransactionHash.Hex(), result.UsedGas, result.Err, result.ReturnData.String()))
-			}
-		}
-	}()
-	err = reprocessBlock(&chainContext{db}, parentBlock.Root(), block.Header(), block.Transactions(), chainConfig, state.NewDatabase(db), txResult)
-	if err != nil {
-		t.Fatal(err)
-	}
-	//println(result)
+	errChan := make(chan error, 1)
+	txResult, internalTxs := reprocessBlock(&chainContext{db}, parentBlock.Root(), block.Header(), block.Transactions(), chainConfig, state.NewDatabase(db), errChan)
+	err := <-errChan
+	require.NoError(t, err)
+	require.Greater(t, len(txResult), 0)
+	require.Len(t, len(internalTxs), 9)
 }
 
 type chainContext struct {

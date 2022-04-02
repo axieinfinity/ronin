@@ -141,7 +141,7 @@ func (db *DB) Get(key []byte) (val []byte, err error) {
 	requestCounter.Inc(1)
 	res, err := db.cache.Get(key)
 	if err != nil {
-		log.Error("[httpdb] getting data from cache", "err", err)
+		log.Debug("[httpdb] getting data from cache", "err", err)
 	}
 	if res != nil {
 		// increase hit counter

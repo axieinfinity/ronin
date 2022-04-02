@@ -401,25 +401,25 @@ func (bc *BlockChain) OpEvents() []*vm.PublishEvent {
 		{
 			OpCodes: []vm.OpCode{vm.CALL},
 			Event: &InternalTransferOrSmcCallEvent{
-				feed: &bc.internalTxFeed,
+				Feed: &bc.internalTxFeed,
 			},
 		},
 		{
 			OpCodes: []vm.OpCode{vm.CREATE, vm.CREATE2},
 			Event: &InternalTransactionContractCreation{
-				feed: &bc.internalTxFeed,
+				Feed: &bc.internalTxFeed,
 			},
 		},
 	}
 }
 
 type InternalTransferOrSmcCallEvent struct {
-	feed *event.Feed
+	Feed *event.Feed
 }
 
 func (tx *InternalTransferOrSmcCallEvent) Publish(opcode vm.OpCode, order uint64, stateDB vm.StateDB, blockHeight uint64,
 	blockHash common.Hash, blockTime uint64, hash common.Hash, from, to common.Address, value *big.Int, input []byte, err error) error {
-	internal := types.InternalTransaction{
+	internal := &types.InternalTransaction{
 		Opcode:          opcode.String(),
 		Order:           order,
 		TransactionHash: hash,
@@ -440,17 +440,17 @@ func (tx *InternalTransferOrSmcCallEvent) Publish(opcode vm.OpCode, order uint64
 	if err != nil {
 		internal.Error = err.Error()
 	}
-	tx.feed.Send(internal)
+	tx.Feed.Send(internal)
 	return nil
 }
 
 type InternalTransactionContractCreation struct {
-	feed *event.Feed
+	Feed *event.Feed
 }
 
 func (tx *InternalTransactionContractCreation) Publish(opcode vm.OpCode, order uint64, stateDB vm.StateDB, blockHeight uint64,
 	blockHash common.Hash, blockTime uint64, hash common.Hash, from, to common.Address, value *big.Int, input []byte, err error) error {
-	internal := types.InternalTransaction{
+	internal := &types.InternalTransaction{
 		Opcode:          opcode.String(),
 		Order:           order,
 		TransactionHash: hash,
@@ -468,6 +468,6 @@ func (tx *InternalTransactionContractCreation) Publish(opcode vm.OpCode, order u
 	if err != nil {
 		internal.Error = err.Error()
 	}
-	tx.feed.Send(internal)
+	tx.Feed.Send(internal)
 	return nil
 }
