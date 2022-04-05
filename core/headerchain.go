@@ -20,6 +20,7 @@ import (
 	crand "crypto/rand"
 	"errors"
 	"fmt"
+	"github.com/ethereum/go-ethereum/core/state"
 	"math"
 	"math/big"
 	mrand "math/rand"
@@ -475,6 +476,11 @@ func (hc *HeaderChain) GetHeaderByHash(hash common.Hash) *types.Header {
 	return hc.GetHeader(hash, *number)
 }
 
+// DB returns db object that HeaderChain is using
+func (hc *HeaderChain) DB() ethdb.Database {
+	return hc.chainDb
+}
+
 // HasHeader checks if a block header is present in the database or not.
 // In theory, if header is present in the database, all relative components
 // like td and hash->number should be present too.
@@ -620,5 +626,9 @@ func (hc *HeaderChain) Engine() consensus.Engine { return hc.engine }
 // GetBlock implements consensus.ChainReader, and returns nil for every input as
 // a header chain does not have blocks available for retrieval.
 func (hc *HeaderChain) GetBlock(hash common.Hash, number uint64) *types.Block {
+	return nil
+}
+
+func (hc *HeaderChain) StateCache() state.Database {
 	return nil
 }

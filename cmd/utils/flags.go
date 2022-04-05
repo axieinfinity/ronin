@@ -802,6 +802,67 @@ var (
 		Name:  "catalyst",
 		Usage: "Catalyst mode (eth2 integration testing)",
 	}
+
+	RPCUrlFlag = cli.StringFlag{
+		Name:  "proxy.rpcUrl",
+		Usage: "rpcUrl is used in Proxy mode to forward rpc requests or query for data",
+	}
+
+	ArchiveUrlFlag = cli.StringFlag{
+		Name:  "proxy.archiveUrl",
+		Usage: "archiveUrl is used in Proxy mode to query for data when rpcUrl cannot find data",
+	}
+
+	FreeGasProxyUrlFlag = cli.StringFlag{
+		Name:  "proxy.freeGasProxyUrl",
+		Usage: "freeGasProxyUrl is used in Proxy mode to forward free gas transaction",
+	}
+
+	DBCacheSizeLimitFlag = cli.IntFlag{
+		Name:  "proxy.dbCacheSizeLimit",
+		Usage: "dbCacheSizeLimit is used in Proxy mode to set cache size limit of the database",
+	}
+
+	SafeBlockRangeFlag = cli.UintFlag{
+		Name:  "proxy.safeBlockRange",
+		Usage: "safeBlockRange is used in Proxy mode to set safe range on checking reorg",
+		Value: 10,
+	}
+
+	ProxyRedisFlag = cli.BoolFlag{
+		Name:  "proxy.redis",
+		Usage: "indicate whether redis is used to cache data",
+	}
+
+	ProxyRedisAddressFlag = cli.StringFlag{
+		Name:  "proxy.redis.addresses",
+		Usage: "list of redis addresses separated by comma (,)",
+	}
+
+	ProxyRedisExpirationFlag = cli.DurationFlag{
+		Name:  "proxy.redis.expiration",
+		Usage: "indicate ttl of a cached data",
+	}
+
+	ProxyRedisPoolSizeFlag = cli.IntFlag{
+		Name: "proxy.redis.poolSize",
+		Usage: "indicate the size of redis pool",
+	}
+
+	ProxyRedisReadTimeoutFlag = cli.DurationFlag{
+		Name: "proxy.redis.readTimeout",
+		Usage: "Timeout for redis reads. If reached, commands will fail",
+	}
+
+	ProxyRedisWriteTimeoutFlag = cli.DurationFlag{
+		Name: "proxy.redis.writeTimeout",
+		Usage: "Timeout for redis writes. If reached, commands will fail",
+	}
+
+	ProxyRedisConnectionTimeoutFlag = cli.DurationFlag{
+		Name: "proxy.redis.connectionTimeout",
+		Usage: "Amount of time client waits for connection",
+	}
 )
 
 // MakeDataDir retrieves the currently requested data directory, terminating

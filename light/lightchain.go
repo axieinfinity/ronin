@@ -491,6 +491,11 @@ func (lc *LightChain) GetHeaderByNumberOdr(ctx context.Context, number uint64) (
 // Config retrieves the header chain's chain configuration.
 func (lc *LightChain) Config() *params.ChainConfig { return lc.hc.Config() }
 
+// DB returns db object that LightChain is using
+func (lc *LightChain) DB() ethdb.Database {
+	return lc.chainDb
+}
+
 // SyncCheckpoint fetches the checkpoint point block header according to
 // the checkpoint provided by the remote peer.
 //

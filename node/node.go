@@ -335,6 +335,10 @@ func (n *Node) closeDataDir() {
 	}
 }
 
+func (n *Node) StartRPC() error {
+	return n.startRPC()
+}
+
 // configureRPC is a helper method to configure all the various RPC endpoints during node
 // startup. It's not meant to be called at any time afterwards as it makes certain
 // assumptions about the state of the node.
@@ -400,6 +404,10 @@ func (n *Node) stopRPC() {
 	n.ws.stop()
 	n.ipc.stop()
 	n.stopInProc()
+}
+
+func (n *Node) StopRPC() {
+	n.stopRPC()
 }
 
 // startInProc registers all RPC APIs on the inproc server.

@@ -566,7 +566,7 @@ func (evm *EVM) PublishEvent(opCode OpCode, counter uint64, caller, callee commo
 		log.Debug("[EVM] PublishEvent - Transaction is nil", "height", context.BlockNumber.Int64())
 		return
 	}
-	log.Info("[EVM] PublishEvent",
+	log.Debug("[EVM] PublishEvent",
 		"transaction", context.CurrentTransaction.Hash().Hex(), "opCode", opCode.String(),
 		"caller", caller.Hash().Hex())
 	if event, ok := evm.Context.PublishEvents[opCode]; ok {

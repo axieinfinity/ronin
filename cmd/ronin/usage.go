@@ -228,6 +228,23 @@ var AppHelpFlagGroups = []flags.FlagGroup{
 		},
 	},
 	{
+		Name: "PROXY NODE",
+		Flags: []cli.Flag{
+			utils.RPCUrlFlag,
+			utils.FreeGasProxyUrlFlag,
+			utils.DBCacheSizeLimitFlag,
+			utils.SafeBlockRangeFlag,
+			utils.ArchiveUrlFlag,
+			utils.ProxyRedisFlag,
+			utils.ProxyRedisAddressFlag,
+			utils.ProxyRedisExpirationFlag,
+			utils.ProxyRedisPoolSizeFlag,
+			utils.ProxyRedisReadTimeoutFlag,
+			utils.ProxyRedisWriteTimeoutFlag,
+			utils.ProxyRedisConnectionTimeoutFlag,
+		},
+	},
+	{
 		Name: "MISC",
 		Flags: []cli.Flag{
 			utils.SnapshotFlag,

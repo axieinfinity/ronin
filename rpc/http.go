@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	jsoniter "github.com/json-iterator/go"
 	"io"
 	"io/ioutil"
 	"mime"
@@ -140,7 +141,7 @@ func (c *Client) sendHTTP(ctx context.Context, op *requestOp, msg interface{}) e
 	defer respBody.Close()
 
 	var respmsg jsonrpcMessage
-	if err := json.NewDecoder(respBody).Decode(&respmsg); err != nil {
+	if err := jsoniter.NewDecoder(respBody).Decode(&respmsg); err != nil {
 		return err
 	}
 	op.resp <- &respmsg
@@ -174,6 +175,7 @@ func (hc *httpConn) doRequest(ctx context.Context, msg interface{}) (io.ReadClos
 		return nil, err
 	}
 	req.ContentLength = int64(len(body))
+	req.GetBody = func() (io.ReadCloser, error) { return ioutil.NopCloser(bytes.NewReader(body)), nil }
 
 	// set headers
 	hc.mu.Lock()

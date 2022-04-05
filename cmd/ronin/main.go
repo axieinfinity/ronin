@@ -186,6 +186,18 @@ var (
 		utils.ReadinessEnabledFlag,
 		utils.ReadinessPrometheusEndpointFlag,
 		utils.ReadinessBlockLagFlag,
+		utils.RPCUrlFlag,
+		utils.ArchiveUrlFlag,
+		utils.FreeGasProxyUrlFlag,
+		utils.DBCacheSizeLimitFlag,
+		utils.SafeBlockRangeFlag,
+		utils.ProxyRedisFlag,
+		utils.ProxyRedisAddressFlag,
+		utils.ProxyRedisExpirationFlag,
+		utils.ProxyRedisPoolSizeFlag,
+		utils.ProxyRedisReadTimeoutFlag,
+		utils.ProxyRedisWriteTimeoutFlag,
+		utils.ProxyRedisConnectionTimeoutFlag,
 	}
 
 	metricsFlags = []cli.Flag{
@@ -345,7 +357,16 @@ func geth(ctx *cli.Context) error {
 	if args := ctx.Args(); len(args) > 0 {
 		return fmt.Errorf("invalid command: %q", args[0])
 	}
-
+	// start proxy server if sync mode is proxy
+	if ctx.GlobalString(utils.SyncModeFlag.Name) == "proxy" {
+		server, err := makeProxyServer(ctx)
+		if err != nil {
+			return err
+		}
+		defer server.Close()
+		server.Start()
+		return nil
+	}
 	prepare(ctx)
 	stack, backend := makeFullNode(ctx)
 	defer stack.Close()

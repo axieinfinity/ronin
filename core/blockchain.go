@@ -2210,3 +2210,8 @@ func (bc *BlockChain) InsertHeaderChain(chain []*types.Header, checkFreq int) (i
 	_, err := bc.hc.InsertHeaderChain(chain, start)
 	return 0, err
 }
+
+// DB returns database object that blockchain is using
+func (bc *BlockChain) DB() ethdb.Database {
+	return bc.db
+}

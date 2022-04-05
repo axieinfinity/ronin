@@ -58,6 +58,10 @@ func (ec *Client) Close() {
 	ec.c.Close()
 }
 
+func (ec *Client) RpcClient() *rpc.Client {
+	return ec.c
+}
+
 // Blockchain Access
 
 // ChainID retrieves the current chain ID for transaction replay protection.
@@ -527,11 +531,10 @@ func (ec *Client) SendTransaction(ctx context.Context, tx *types.Transaction) er
 }
 
 func toBlockNumArg(number *big.Int) string {
-	if number == nil {
+	if number == nil || number.Cmp(big.NewInt(int64(rpc.LatestBlockNumber))) == 0 {
 		return "latest"
 	}
-	pending := big.NewInt(-1)
-	if number.Cmp(pending) == 0 {
+	if number.Cmp(big.NewInt(int64(rpc.PendingBlockNumber))) == 0 {
 		return "pending"
 	}
 	return hexutil.EncodeBig(number)
