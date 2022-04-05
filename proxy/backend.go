@@ -334,7 +334,8 @@ func (b *backend) GetReceipts(ctx context.Context, hash common.Hash) (types.Rece
 	if receipts != nil {
 		return receipts, nil
 	}
-	return nil, errors.New(fmt.Sprintf("receipts not found by hash:%s number:%d", block.Hash().Hex(), block.NumberU64()))
+	log.Warn(fmt.Sprintf("[proxy][backend] receipts not found at hash:%s and number:%d", block.Hash().Hex(), block.NumberU64()))
+	return nil, nil
 }
 
 func (b *backend) GetTd(ctx context.Context, hash common.Hash) *big.Int {
