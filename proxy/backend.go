@@ -62,10 +62,6 @@ func (b *backend) SubscribeInternalTransactionEvent(ch chan<- types.InternalTran
 	return nil
 }
 
-func (b *backend) SubscribeInternalTransactionEvent(ch chan<- types.InternalTransaction) event.Subscription {
-	panic("implement me")
-}
-
 func (b *backend) SyncProgress() ethereum.SyncProgress {
 	return ethereum.SyncProgress{}
 }

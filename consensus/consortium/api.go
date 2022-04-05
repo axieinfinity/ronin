@@ -70,11 +70,3 @@ func (api *API) GetAncientValue(kind string, number rpc.BlockNumber) (string, er
 	}
 	return common.Bytes2Hex(value), nil
 }
-
-func (api *API) GetAncientValue(kind string, number rpc.BlockNumber) (string, error) {
-	value, err := api.chain.DB().Ancient(kind, uint64(number.Int64()))
-	if err != nil {
-		return common.Bytes2Hex([]byte{}), err
-	}
-	return common.Bytes2Hex(value), nil
-}
