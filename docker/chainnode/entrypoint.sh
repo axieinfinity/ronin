@@ -120,6 +120,11 @@ if [[ ! -z $TRUSTEDNODES ]]; then
   params="$params --trustednodes $TRUSTEDNODES"
 fi
 
+# staticnodes
+if [[ ! -z $STATICNODES ]]; then
+  params="$params --staticnodes $STATICNODES"
+fi
+
 # syncmode
 if [[ ! -z $SYNC_MODE ]]; then
   syncmode="$SYNC_MODE"
