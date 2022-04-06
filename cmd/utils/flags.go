@@ -663,6 +663,11 @@ var (
 		Usage: "Comma separated enode URLs for trusted nodes",
 		Value: "",
 	}
+	StaticnodesFlag = cli.StringFlag{
+		Name:  "staticnodes",
+		Usage: "Comma separated enode URLs for static nodes",
+		Value: "",
+	}
 	NodeKeyFileFlag = cli.StringFlag{
 		Name:  "nodekey",
 		Usage: "P2P node key file",
@@ -873,9 +878,6 @@ func setBootstrapNodes(ctx *cli.Context, cfg *p2p.Config) {
 	urls := params.MainnetBootnodes
 	switch {
 	case ctx.GlobalIsSet(BootnodesFlag.Name):
-		if ctx.GlobalString(BootnodesFlag.Name) == "enode" {
-			return
-		}
 		urls = SplitAndTrim(ctx.GlobalString(BootnodesFlag.Name))
 	case ctx.GlobalBool(RopstenFlag.Name):
 		urls = params.RopstenBootnodes
@@ -940,6 +942,24 @@ func setTrustedNodes(ctx *cli.Context, cfg *p2p.Config) {
 				continue
 			}
 			cfg.TrustedNodes = append(cfg.TrustedNodes, n)
+		}
+	}
+}
+
+func setStaticNodes(ctx *cli.Context, cfg *p2p.Config) {
+	var urls []string
+	if ctx.GlobalIsSet(StaticnodesFlag.Name) {
+		urls = SplitAndTrim(ctx.GlobalString(StaticnodesFlag.Name))
+	}
+	cfg.StaticNodes = make([]*enode.Node, 0, len(urls))
+	for _, url := range urls {
+		if url != "" {
+			n, err := enode.Parse(enode.ValidSchemes, url)
+			if err != nil {
+				log.Crit("StaticNode URL invalid", "enode", url, "err", err)
+				continue
+			}
+			cfg.StaticNodes = append(cfg.StaticNodes, n)
 		}
 	}
 }
@@ -1176,12 +1196,22 @@ func SetP2PConfig(ctx *cli.Context, cfg *p2p.Config) {
 	setNodeKey(ctx, cfg)
 	setNAT(ctx, cfg)
 	setListenAddress(ctx, cfg)
-	setBootstrapNodes(ctx, cfg)
-	setBootstrapNodesV5(ctx, cfg)
-	setTrustedNodes(ctx, cfg)
+
+	if ctx.GlobalIsSet(TrustednodesFlag.Name) {
+		setTrustedNodes(ctx, cfg)
+	}
+
+	if ctx.GlobalIsSet(StaticnodesFlag.Name) {
+		setStaticNodes(ctx, cfg)
+	}
+
+	if ctx.GlobalIsSet(BootnodesFlag.Name) {
+		setBootstrapNodes(ctx, cfg)
+		setBootstrapNodesV5(ctx, cfg)
+	}
 
 	lightClient := ctx.GlobalString(SyncModeFlag.Name) == "light"
-	lightServer := (ctx.GlobalInt(LightServeFlag.Name) != 0)
+	lightServer := ctx.GlobalInt(LightServeFlag.Name) != 0
 
 	lightPeers := ctx.GlobalInt(LightMaxPeersFlag.Name)
 	if lightClient && !ctx.GlobalIsSet(LightMaxPeersFlag.Name) {

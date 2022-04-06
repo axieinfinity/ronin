@@ -72,12 +72,23 @@ func StartNode(ctx *cli.Context, stack *node.Node) {
 	if err := stack.Start(); err != nil {
 		Fatalf("Error starting protocol stack: %v", err)
 	}
+	trustedNodes := stack.Config().P2P.TrustedNodes
 	// check if any trusted node is set, add all into stack
 	if len(stack.Config().TrustedNodes()) > 0 {
-		for _, n := range stack.Config().TrustedNodes() {
-			stack.Server().AddTrustedPeer(n)
-		}
+		trustedNodes = append(trustedNodes, stack.Config().TrustedNodes()...)
 	}
+	for _, n := range trustedNodes {
+		stack.Server().AddTrustedPeer(n)
+	}
+
+	staticNodes := stack.Config().P2P.StaticNodes
+	if len(stack.Config().StaticNodes()) > 0 {
+		staticNodes = append(staticNodes, stack.Config().StaticNodes()...)
+	}
+	for _, n := range staticNodes {
+		stack.Server().AddPeer(n)
+	}
+
 	go func() {
 		sigc := make(chan os.Signal, 1)
 		signal.Notify(sigc, syscall.SIGINT, syscall.SIGTERM)

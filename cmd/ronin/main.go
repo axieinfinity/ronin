@@ -64,6 +64,7 @@ var (
 		utils.PasswordFileFlag,
 		utils.BootnodesFlag,
 		utils.TrustednodesFlag,
+		utils.StaticnodesFlag,
 		utils.DataDirFlag,
 		utils.AncientFlag,
 		utils.MinFreeDiskSpaceFlag,

@@ -165,6 +165,7 @@ var AppHelpFlagGroups = []flags.FlagGroup{
 		Flags: []cli.Flag{
 			utils.BootnodesFlag,
 			utils.TrustednodesFlag,
+			utils.StaticnodesFlag,
 			utils.DNSDiscoveryFlag,
 			utils.ListenPortFlag,
 			utils.MaxPeersFlag,
