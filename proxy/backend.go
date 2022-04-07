@@ -54,6 +54,28 @@ type backend struct {
 	safeBlockRange uint
 }
 
+func (b *backend) Config() *params.ChainConfig {
+	return b.ChainConfig()
+}
+
+func (b *backend) GetHeaderByNumber(number uint64) *types.Header {
+	header, _ := b.HeaderByNumber(context.Background(), rpc.BlockNumber(number))
+	return header
+}
+
+func (b *backend) GetHeaderByHash(hash common.Hash) *types.Header {
+	header, _ := b.HeaderByHash(context.Background(), hash)
+	return header
+}
+
+func (b *backend) DB() ethdb.Database {
+	return b.db
+}
+
+func (b *backend) StateCache() state.Database {
+	return b.stateCache
+}
+
 func (b *backend) PendingBlockAndReceipts() (*types.Block, types.Receipts) {
 	return nil, nil
 }
