@@ -2,10 +2,12 @@ package proxy
 
 import (
 	"errors"
+	"github.com/ethereum/go-ethereum/consensus/consortium"
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/p2p"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/go-redis/redis/v8"
 	"time"
@@ -58,6 +60,7 @@ func NewServer(config *Config, ethConfig *ethconfig.Config, nodeConfig *node.Con
 }
 
 func (s *Server) Start() {
+	engine := consortium.New(&params.ConsortiumConfig{}, s.backend.db)
 	var apis = []rpc.API{
 		{
 			Namespace: "eth",
@@ -72,6 +75,7 @@ func (s *Server) Start() {
 			Public:    true,
 		},
 	}
+	apis = append(apis, engine.APIs(s.backend)...)
 	s.node.RegisterAPIs(apis)
 	if err := s.node.StartRPC(); err != nil {
 		panic(err)
