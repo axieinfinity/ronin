@@ -75,34 +75,50 @@ func (mt *mockTransactor) SendTransaction(ctx context.Context, tx *types.Transac
 }
 
 type mockCaller struct {
-	codeAtBlockNumber         *big.Int
-	callContractBlockNumber   *big.Int
-	pendingCodeAtCalled       bool
-	pendingCallContractCalled bool
+	codeAtBlockNumber       *big.Int
+	callContractBlockNumber *big.Int
+	callContractBytes       []byte
+	callContractErr         error
+	codeAtBytes             []byte
+	codeAtErr               error
 }
 
 func (mc *mockCaller) CodeAt(ctx context.Context, contract common.Address, blockNumber *big.Int) ([]byte, error) {
 	mc.codeAtBlockNumber = blockNumber
-	return []byte{1, 2, 3}, nil
+	return mc.codeAtBytes, mc.codeAtErr
 }
 
 func (mc *mockCaller) CallContract(ctx context.Context, call ethereum.CallMsg, blockNumber *big.Int) ([]byte, error) {
 	mc.callContractBlockNumber = blockNumber
-	return nil, nil
+	return mc.callContractBytes, mc.callContractErr
 }
 
-func (mc *mockCaller) PendingCodeAt(ctx context.Context, contract common.Address) ([]byte, error) {
+type mockPendingCaller struct {
+	*mockCaller
+	pendingCodeAtBytes        []byte
+	pendingCodeAtErr          error
+	pendingCodeAtCalled       bool
+	pendingCallContractCalled bool
+	pendingCallContractBytes  []byte
+	pendingCallContractErr    error
+}
+
+func (mc *mockPendingCaller) PendingCodeAt(ctx context.Context, contract common.Address) ([]byte, error) {
 	mc.pendingCodeAtCalled = true
-	return nil, nil
+	return mc.pendingCodeAtBytes, mc.pendingCodeAtErr
 }
 
-func (mc *mockCaller) PendingCallContract(ctx context.Context, call ethereum.CallMsg) ([]byte, error) {
+func (mc *mockPendingCaller) PendingCallContract(ctx context.Context, call ethereum.CallMsg) ([]byte, error) {
 	mc.pendingCallContractCalled = true
-	return nil, nil
+	return mc.pendingCallContractBytes, mc.pendingCallContractErr
 }
 func TestPassingBlockNumber(t *testing.T) {
 
-	mc := &mockCaller{}
+	mc := &mockPendingCaller{
+		mockCaller: &mockCaller{
+			codeAtBytes: []byte{1, 2, 3},
+		},
+	}
 
 	bc := bind.NewBoundContract(common.HexToAddress("0x0"), abi.ABI{
 		Methods: map[string]abi.Method{
