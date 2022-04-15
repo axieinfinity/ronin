@@ -8,7 +8,6 @@ import (
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
-	"github.com/ethereum/go-ethereum/consensus/consortium"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/bloombits"
 	"github.com/ethereum/go-ethereum/core/rawdb"
@@ -249,7 +248,12 @@ func (b *backend) writeBlock(block *types.Block) {
 }
 
 func (b *backend) CurrentBlock() *types.Block {
-	if currentBlock, ok := b.currentBlock.Load().(*types.Block); ok {
+	var (
+		currentBlock *types.Block
+		exist        bool
+		err          error
+	)
+	if currentBlock, exist = b.currentBlock.Load().(*types.Block); exist {
 		log.Debug("[backend][CurrentBlock] currentBlock is not nil", "height", currentBlock.NumberU64())
 		// return currentBlock if block's time + block's period > now
 		if currentBlock.Time()+b.ChainConfig().Consortium.Period > uint64(time.Now().Unix()) {
@@ -260,18 +264,18 @@ func (b *backend) CurrentBlock() *types.Block {
 	latest, err := b.rpc.BlockNumber(context.Background())
 	if err != nil {
 		log.Error("[backend][CurrentBlock] get latest blockNumber", "err", err)
-		return nil
+		return currentBlock
 	}
 	log.Debug("[backend][CurrentBlock] getting block by latest", "number", latest)
-	block, _ := b.BlockByNumber(context.Background(), rpc.BlockNumber(latest))
-	if block != nil {
+	currentBlock, _ = b.BlockByNumber(context.Background(), rpc.LatestBlockNumber)
+	if currentBlock != nil {
 		log.Debug("[backend][CurrentBlock] block is found, start caching", "number", latest)
-		b.currentBlock.Store(block)
-		b.writeBlock(block)
-		return block
+		b.currentBlock.Store(currentBlock)
+		b.writeBlock(currentBlock)
+	} else {
+		log.Debug("[backend][CurrentBlock] something went wrong when loading latest block", "number", latest)
 	}
-	log.Debug("[backend][CurrentBlock] something went wrong when loading latest block", "number", latest)
-	return nil
+	return currentBlock
 }
 
 func (b *backend) BlockByNumber(ctx context.Context, number rpc.BlockNumber) (*types.Block, error) {
@@ -389,8 +393,20 @@ func (b *backend) SendTx(ctx context.Context, signedTx *types.Transaction) error
 }
 
 func (b *backend) GetTransaction(ctx context.Context, txHash common.Hash) (*types.Transaction, common.Hash, uint64, uint64, error) {
-	tx, blockHash, blockNumber, index := rawdb.ReadTransaction(b.db, txHash)
-	return tx, blockHash, blockNumber, index, nil
+	blockNumber := rawdb.ReadTxLookupEntry(b.db, txHash)
+	if blockNumber == nil {
+		return nil, common.Hash{}, 0, 0, errors.New(fmt.Sprintf("block not found with txHash %s", txHash.Hex()))
+	}
+	block, err := b.BlockByNumber(ctx, rpc.BlockNumber(*blockNumber))
+	if err != nil {
+		return nil, common.Hash{}, 0, 0, err
+	}
+	for txIndex, tx := range block.Transactions() {
+		if tx.Hash() == txHash {
+			return tx, block.Hash(), block.NumberU64(), uint64(txIndex), nil
+		}
+	}
+	return nil, common.Hash{}, 0, 0, errors.New(fmt.Sprintf("Transaction not found at block:%d hash:%s tx:%s", block.NumberU64(), block.Hash().Hex(), txHash.Hex()))
 }
 
 func (b *backend) GetPoolTransactions() (types.Transactions, error) { return nil, nil }
@@ -431,7 +447,7 @@ func (b *backend) ChainConfig() *params.ChainConfig {
 }
 
 func (b *backend) Engine() consensus.Engine {
-	return consortium.New(&params.ConsortiumConfig{}, b.db)
+	return nil
 }
 
 func (b *backend) GetHeader(hash common.Hash, number uint64) *types.Header {

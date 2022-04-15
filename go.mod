@@ -75,9 +75,9 @@ require (
 )
 
 require (
-	github.com/bsm/redislock v0.7.2
 	github.com/eko/gocache v1.2.0
 	github.com/go-redis/redis/v8 v8.11.5
+	github.com/klauspost/compress v1.15.1
 )
 
 require (
@@ -95,7 +95,7 @@ require (
 	github.com/dlclark/regexp2 v1.4.1-0.20201116162257-a2a8dda75c91 // indirect
 	github.com/go-ole/go-ole v1.2.5 // indirect
 	github.com/go-sourcemap/sourcemap v2.1.3+incompatible // indirect
-	github.com/klauspost/compress v1.15.1 // indirect
+	github.com/google/go-cmp v0.5.6 // indirect
 	github.com/konsorten/go-windows-terminal-sequences v1.0.3 // indirect
 	github.com/mattn/go-ieproxy v0.0.0-20190702010315-6dee0af9227d // indirect
 	github.com/mattn/go-runewidth v0.0.9 // indirect
