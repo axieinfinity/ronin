@@ -3,8 +3,10 @@ package proxy
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"github.com/ethereum/go-ethereum/log"
@@ -112,4 +114,63 @@ func (api *API) GetFreeGasRequests(ctx context.Context, address common.Address) 
 		return -1, err
 	}
 	return result, nil
+}
+
+func (api *API) GetTransactionReceipt(ctx context.Context, hash common.Hash) (map[string]interface{}, error) {
+	tx, blockHash, blockNumber, index, err := api.b.GetTransaction(ctx, hash)
+	if err != nil || tx == nil {
+		log.Warn("[proxy][backend] transaction not found or error occurred", "err", err)
+		return nil, nil
+	}
+	receipts := rawdb.ReadReceipts(api.b.db, blockHash, blockNumber, api.b.ChainConfig())
+	if receipts == nil || len(receipts) <= int(index) {
+		log.Warn(fmt.Sprintf("[proxy][backend] receipts not found at hash:%s and number:%d", blockHash.Hex(), blockNumber))
+		return nil, nil
+	}
+	receipt := receipts[index]
+
+	// Derive the sender.
+	bigblock := new(big.Int).SetUint64(blockNumber)
+	signer := types.MakeSigner(api.b.ChainConfig(), bigblock)
+	from, _ := types.Sender(signer, tx)
+
+	fields := map[string]interface{}{
+		"blockHash":         blockHash,
+		"blockNumber":       hexutil.Uint64(blockNumber),
+		"transactionHash":   hash,
+		"transactionIndex":  hexutil.Uint64(index),
+		"from":              from,
+		"to":                tx.To(),
+		"gasUsed":           hexutil.Uint64(receipt.GasUsed),
+		"cumulativeGasUsed": hexutil.Uint64(receipt.CumulativeGasUsed),
+		"contractAddress":   nil,
+		"logs":              receipt.Logs,
+		"logsBloom":         receipt.Bloom,
+		"type":              hexutil.Uint(tx.Type()),
+	}
+	// Assign the effective gas price paid
+	if !api.b.ChainConfig().IsLondon(bigblock) {
+		fields["effectiveGasPrice"] = hexutil.Uint64(tx.GasPrice().Uint64())
+	} else {
+		header, err := api.b.HeaderByHash(ctx, blockHash)
+		if err != nil {
+			return nil, err
+		}
+		gasPrice := new(big.Int).Add(header.BaseFee, tx.EffectiveGasTipValue(header.BaseFee))
+		fields["effectiveGasPrice"] = hexutil.Uint64(gasPrice.Uint64())
+	}
+	// Assign receipt status or post state.
+	if len(receipt.PostState) > 0 {
+		fields["root"] = hexutil.Bytes(receipt.PostState)
+	} else {
+		fields["status"] = hexutil.Uint(receipt.Status)
+	}
+	if receipt.Logs == nil {
+		fields["logs"] = [][]*types.Log{}
+	}
+	// If the ContractAddress is 20 0x0 bytes, assume it is not a contract creation
+	if receipt.ContractAddress != (common.Address{}) {
+		fields["contractAddress"] = receipt.ContractAddress
+	}
+	return fields, nil
 }
