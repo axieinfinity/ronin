@@ -260,20 +260,14 @@ func (b *backend) CurrentBlock() *types.Block {
 			return currentBlock
 		}
 	}
-	log.Debug("calling rpc client to get current block")
-	latest, err := b.rpc.BlockNumber(context.Background())
-	if err != nil {
-		log.Error("[backend][CurrentBlock] get latest blockNumber", "err", err)
-		return currentBlock
-	}
-	log.Debug("[backend][CurrentBlock] getting block by latest", "number", latest)
-	currentBlock, _ = b.BlockByNumber(context.Background(), rpc.LatestBlockNumber)
+	log.Debug("calling rpc client to get latest block")
+	currentBlock, err = b.BlockByNumber(context.Background(), rpc.LatestBlockNumber)
 	if currentBlock != nil {
-		log.Debug("[backend][CurrentBlock] block is found, start caching", "number", latest)
+		log.Debug("[backend][CurrentBlock] block is found, start caching", "number", currentBlock.NumberU64())
 		b.currentBlock.Store(currentBlock)
 		b.writeBlock(currentBlock)
 	} else {
-		log.Debug("[backend][CurrentBlock] something went wrong when loading latest block", "number", latest)
+		log.Debug("[backend][CurrentBlock] something went wrong when loading latest block", "number", currentBlock.NumberU64(), "err", err)
 	}
 	return currentBlock
 }
