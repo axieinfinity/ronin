@@ -121,11 +121,15 @@ func (api *API) GetTransactionReceipt(ctx context.Context, hash common.Hash) (ma
 	tx, blockHash, blockNumber, index, err := api.b.GetTransaction(ctx, hash)
 	if err != nil || tx == nil {
 		log.Warn("[proxy][backend] transaction not found or error occurred - calling rpc directly", "err", err)
-		// directly call via rpc
-		receipt, err = api.b.rpc.TransactionReceipt(ctx, hash)
-		if err != nil {
-			log.Warn("[proxy][backend] failed on getting transactionReceipt via rpc", "err", err, "hash", hash.Hex())
-			return nil, err
+		// directly call via rpc and archive
+		if receipt, err = api.b.rpc.TransactionReceipt(ctx, hash); err != nil {
+			log.Warn("[proxy][backend] failed on getting transactionReceipt via rpc - try with archive", "err", err, "hash", hash.Hex())
+			if api.b.archive != nil {
+				if receipt, err = api.b.archive.TransactionReceipt(ctx, hash); err != nil {
+					log.Warn("[proxy][backend] failed on getting transactionReceipt via archive", "err", err, "hash", hash.Hex())
+					return nil, nil
+				}
+			}
 		}
 		// cache receipt to db
 		api.b.writeReceiptAncient(receipt)

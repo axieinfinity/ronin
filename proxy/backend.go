@@ -52,6 +52,7 @@ type backend struct {
 	ethConfig      *ethconfig.Config
 	currentBlock   *atomic.Value
 	rpc            *ethclient.Client
+	archive        *ethclient.Client
 	fgpClient      *ethclient.Client
 	chainConfig    *params.ChainConfig
 	safeBlockRange uint
@@ -138,6 +139,11 @@ func NewBackend(cfg *Config, ethConfig *ethconfig.Config) (*backend, error) {
 	}
 	if cfg.SafeBlockRange > 0 {
 		b.safeBlockRange = cfg.SafeBlockRange
+	}
+	if cfg.ArchiveUrl != "" {
+		if b.archive, err = ethclient.Dial(cfg.ArchiveUrl); err != nil {
+			return nil, err
+		}
 	}
 	return b, nil
 }
