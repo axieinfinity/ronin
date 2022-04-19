@@ -8,6 +8,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
+	"github.com/ethereum/go-ethereum/consensus/consortium"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/bloombits"
 	"github.com/ethereum/go-ethereum/core/rawdb"
@@ -449,7 +450,7 @@ func (b *backend) ChainConfig() *params.ChainConfig {
 }
 
 func (b *backend) Engine() consensus.Engine {
-	return nil
+	return consortium.New(&params.ConsortiumConfig{}, b.db)
 }
 
 func (b *backend) GetHeader(hash common.Hash, number uint64) *types.Header {
