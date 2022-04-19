@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/metrics"
+	"github.com/go-redis/redis/v8"
 	"github.com/stretchr/testify/require"
 	"testing"
 	"time"
@@ -37,7 +38,7 @@ func TestEvict(t *testing.T) {
 }
 
 func TestRedisCache(t *testing.T) {
-	db := NewRedisCache([]string{"127.0.0.1:6379"}, 0)
+	db := NewRedisCache([]string{"127.0.0.1:6379"}, 0, &redis.Options{})
 	if err := db.Put(common.Hex2Bytes("0xmy-key-1"), common.Hex2Bytes("0xmy-value")); err != nil {
 		t.Fatal(err)
 	}
