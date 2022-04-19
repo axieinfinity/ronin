@@ -117,17 +117,26 @@ func (api *API) GetFreeGasRequests(ctx context.Context, address common.Address) 
 }
 
 func (api *API) GetTransactionReceipt(ctx context.Context, hash common.Hash) (map[string]interface{}, error) {
+	var receipt *types.Receipt
 	tx, blockHash, blockNumber, index, err := api.b.GetTransaction(ctx, hash)
 	if err != nil || tx == nil {
-		log.Warn("[proxy][backend] transaction not found or error occurred", "err", err)
-		return nil, err
+		log.Warn("[proxy][backend] transaction not found or error occurred - calling rpc directly", "err", err)
+		// directly call via rpc
+		receipt, err = api.b.rpc.TransactionReceipt(ctx, hash)
+		if err != nil {
+			log.Warn("[proxy][backend] failed on getting transactionReceipt via rpc", "err", err, "hash", hash.Hex())
+			return nil, err
+		}
+		// cache receipt to db
+		api.b.writeReceiptAncient(receipt)
+	} else {
+		receipts := rawdb.ReadReceipts(api.b.db, blockHash, blockNumber, api.b.ChainConfig())
+		if receipts == nil || len(receipts) <= int(index) {
+			log.Warn(fmt.Sprintf("[proxy][backend] receipts not found at hash:%s and number:%d", blockHash.Hex(), blockNumber))
+			return nil, nil
+		}
+		receipt = receipts[index]
 	}
-	receipts := rawdb.ReadReceipts(api.b.db, blockHash, blockNumber, api.b.ChainConfig())
-	if receipts == nil || len(receipts) <= int(index) {
-		log.Warn(fmt.Sprintf("[proxy][backend] receipts not found at hash:%s and number:%d", blockHash.Hex(), blockNumber))
-		return nil, nil
-	}
-	receipt := receipts[index]
 
 	// Derive the sender.
 	bigblock := new(big.Int).SetUint64(blockNumber)

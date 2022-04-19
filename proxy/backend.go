@@ -40,6 +40,9 @@ const (
 
 	// freezerBodiesTable indicates the name of the freezer block body table.
 	freezerBodiesTable = "bodies"
+
+	// freezerReceiptTable indicates the name of the freezer receipts table.
+	freezerReceiptTable = "receipts"
 )
 
 // backend implements interface ethapi.Backend which is used to init new VM
@@ -181,6 +184,18 @@ func (b *backend) CurrentHeader() *types.Header {
 		return nil
 	}
 	return block.Header()
+}
+
+func (b *backend) writeReceiptAncient(receipt *types.Receipt) {
+	log.Debug("[backend] start writing receipt ancient", "number", receipt.BlockNumber.Uint64(), "tx", receipt.TxHash.Hex())
+	data, err := rlp.EncodeToBytes(receipt)
+	if err != nil {
+		log.Debug("[backend] encode receipt", "err", err, "number", receipt.BlockNumber.Uint64(), "tx", receipt.TxHash.Hex())
+		return
+	}
+	if err = httpdb.PutAncient(b.db, freezerHeaderTable, receipt.BlockNumber.Uint64(), data); err != nil {
+		log.Debug("[backend] error while saving block's header to ancient", "err", err, "number", receipt.BlockNumber.Uint64(), "tx", receipt.TxHash.Hex())
+	}
 }
 
 func (b *backend) writeAncient(block *types.Block) {
