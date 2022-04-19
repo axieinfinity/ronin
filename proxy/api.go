@@ -120,7 +120,7 @@ func (api *API) GetTransactionReceipt(ctx context.Context, hash common.Hash) (ma
 	tx, blockHash, blockNumber, index, err := api.b.GetTransaction(ctx, hash)
 	if err != nil || tx == nil {
 		log.Warn("[proxy][backend] transaction not found or error occurred", "err", err)
-		return nil, nil
+		return nil, err
 	}
 	receipts := rawdb.ReadReceipts(api.b.db, blockHash, blockNumber, api.b.ChainConfig())
 	if receipts == nil || len(receipts) <= int(index) {

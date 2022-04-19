@@ -208,7 +208,9 @@ func (b *backend) writeBlock(block *types.Block) {
 	rawdb.WriteCanonicalHash(b.db, block.Hash(), block.NumberU64())
 	rawdb.WriteHeaderNumber(b.db, block.Hash(), block.NumberU64())
 	rawdb.WriteHeader(b.db, block.Header())
+	rawdb.WriteTxLookupEntriesByBlock(b.db, block)
 	b.writeAncient(block)
+
 	// check if previous hashes were reorged or not
 	go func() {
 		parentHash := block.ParentHash()
@@ -249,7 +251,7 @@ func (b *backend) writeBlock(block *types.Block) {
 
 func (b *backend) CurrentBlock() *types.Block {
 	var (
-		currentBlock *types.Block
+		currentBlock, block *types.Block
 		exist        bool
 		err          error
 	)
@@ -260,15 +262,21 @@ func (b *backend) CurrentBlock() *types.Block {
 			return currentBlock
 		}
 	}
-	log.Debug("calling rpc client to get latest block")
-	currentBlock, err = b.BlockByNumber(context.Background(), rpc.LatestBlockNumber)
-	if currentBlock != nil {
-		log.Debug("[backend][CurrentBlock] block is found, start caching", "number", currentBlock.NumberU64())
-		b.currentBlock.Store(currentBlock)
-		b.writeBlock(currentBlock)
-	} else {
-		log.Debug("[backend][CurrentBlock] something went wrong when loading latest block", "number", currentBlock.NumberU64(), "err", err)
+	log.Debug("calling rpc client to get current block")
+	latest, err := b.rpc.BlockNumber(context.Background())
+	if err != nil {
+		log.Error("[backend][CurrentBlock] get latest blockNumber", "err", err)
+		return currentBlock
 	}
+	log.Debug("[backend][CurrentBlock] getting block by latest", "number", latest)
+	block, err = b.BlockByNumber(context.Background(), rpc.BlockNumber(latest))
+	if block != nil {
+		log.Debug("[backend][CurrentBlock] block is found, start caching", "number", latest)
+		b.currentBlock.Store(block)
+		b.writeBlock(block)
+		return block
+	}
+	log.Debug("[backend][CurrentBlock] something went wrong when loading latest block", "number", latest, "err", err)
 	return currentBlock
 }
 
