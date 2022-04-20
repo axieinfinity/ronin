@@ -111,7 +111,7 @@ var Flags = []cli.Flag{
 var glogger *log.GlogHandler
 
 func init() {
-	glogger = log.NewGlogHandler(log.StreamHandler(os.Stdout, log.TerminalFormat(false)))
+	glogger = log.NewGlogHandler(log.StreamHandler(os.Stderr, log.TerminalFormat(false)))
 	glogger.Verbosity(log.LvlInfo)
 	log.Root().SetHandler(glogger)
 }
@@ -120,11 +120,11 @@ func init() {
 // It should be called as early as possible in the program.
 func Setup(ctx *cli.Context) error {
 	var ostream log.Handler
-	output := io.Writer(os.Stdout)
+	output := io.Writer(os.Stderr)
 	if ctx.GlobalBool(logjsonFlag.Name) {
 		ostream = log.StreamHandler(output, log.JSONFormat())
 	} else {
-		usecolor := (isatty.IsTerminal(os.Stdout.Fd()) || isatty.IsCygwinTerminal(os.Stdout.Fd())) && os.Getenv("TERM") != "dumb"
+		usecolor := (isatty.IsTerminal(os.Stderr.Fd()) || isatty.IsCygwinTerminal(os.Stderr.Fd())) && os.Getenv("TERM") != "dumb"
 		if usecolor {
 			output = colorable.NewColorableStderr()
 		}
