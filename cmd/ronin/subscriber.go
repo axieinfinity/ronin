@@ -544,6 +544,12 @@ func NewSubscriber(ethereum *eth.Ethereum, backend ethapi.Backend, ctx *cli.Cont
 		backend.SubscribeRemovedLogsEvent(subs.removeLogsEvent)
 		backend.SubscribeLogsEvent(subs.rebirthLogsEvent)
 	}
+	if ctx.GlobalIsSet(TransactionResultEventFlag.Name) {
+		subs.transactionResultTopic = ctx.GlobalString(TransactionResultEventFlag.Name)
+	}
+	if ctx.GlobalIsSet(InternalTxEventFlag.Name) {
+		subs.internalTxTopic = ctx.GlobalString(InternalTxEventFlag.Name)
+	}
 	if ctx.GlobalIsSet(MaxRetryFlag.Name) {
 		subs.MaxRetry = int32(ctx.GlobalInt(MaxRetryFlag.Name))
 	}
@@ -581,7 +587,7 @@ func (s *Subscriber) SendJob(jobType int, messages ...interface{}) {
 		return
 	}
 	for len(s.JobChan) >= s.MaxQueueSize {
-		log.Info("JobChan has reached its limit, Sleeping...")
+		log.Debug("JobChan has reached its limit, Sleeping...")
 		s.CoolDown()
 	}
 	s.JobChan <- NewJob(atomic.AddInt32(&s.jobId, 1), jobType, messages, s.MaxRetry, s.BackOff)
@@ -865,11 +871,14 @@ func (s *Subscriber) reprocessBlock(block *types.Block) ([]interface{}, error) {
 			return nil, err
 		}
 		errCh := make(chan error, 1)
+		startTime := time.Now()
+		log.Info("[Subscriber][reprocessBlock] reprocessing block", "height", block.NumberU64(), "numOfTxs", len(block.Transactions()))
 		txResults, internalTxs := reprocessBlock(s.ethereum.BlockChain(), parent.Root(), block.Header(), block.Transactions(), s.ethereum.APIBackend.ChainConfig(), state.NewDatabase(s.db), errCh)
 		err = <-errCh
 		if err != nil {
 			return nil, err
 		}
+		log.Info("[Subscriber][reprocessBlock] finish reprocessing block", "height", block.NumberU64(), "txResults", len(txResults), "internalTxs", len(internalTxs), "elapsed", time.Now().Unix() - startTime.Unix())
 		if s.internalTxTopic != "" {
 			for _, tx := range internalTxs {
 				internalTx := newInternalTx(tx)
