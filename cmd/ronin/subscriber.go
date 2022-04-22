@@ -56,11 +56,13 @@ const (
 	coolDownDuration               = "subscriber.coolDownDuration"
 	rpcUrl                         = "subscriber.rpcUrl"
 	archiveUrl                     = "subscriber.archiveUrl"
+	resyncLimitation               = "subscriber.resync.limit"
 	defaultSafeBlockRange          = 10
 	statsDuration                  = 30
 	defaultWorkers                 = 2048
 	defaultMaxQueueSize            = 4096
 	defaultCoolDownDuration        = 1
+	defaultReSyncLimitation        = 20
 )
 
 const (
@@ -179,6 +181,10 @@ var (
 	ArchiveUrlFlag = cli.StringFlag{
 		Name: archiveUrl,
 		Usage: "archiveUrl is used in httpdb in case rpc url cannot find data",
+	}
+	ResyncLimitationFlag = cli.IntFlag{
+		Name: resyncLimitation,
+		Usage: "number of blocks allowed to resync at once",
 	}
 )
 
@@ -463,8 +469,12 @@ type Subscriber struct {
 	// confirmed block is before the current block `confirmBlockAt` blocks
 	safeBlockRange int
 
-	jobId int32
+	jobId         int32
 	processedJobs sync.Map
+
+	resyncing           *atomic.Value
+	limitation, counter int32
+	isReachedLimitation *atomic.Value
 }
 
 type DefaultEventPublisher struct {
@@ -482,17 +492,22 @@ func NewSubscriber(ethereum *eth.Ethereum, backend ethapi.Backend, ctx *cli.Cont
 	}
 	subCtx, cancelCtx := context.WithCancel(context.Background())
 	subs := &Subscriber{
-		ethereum:         ethereum,
-		backend:          backend,
-		ctx:              subCtx,
-		cancelCtx:        cancelCtx,
-		MaxRetry:         100,
-		BackOff:          5,
-		Workers:          make([]*Worker, 0),
-		MaxQueueSize:     defaultMaxQueueSize,
-		safeBlockRange:   defaultSafeBlockRange,
-		coolDownDuration: defaultCoolDownDuration,
+		ethereum:            ethereum,
+		backend:             backend,
+		ctx:                 subCtx,
+		cancelCtx:           cancelCtx,
+		MaxRetry:            100,
+		BackOff:             5,
+		Workers:             make([]*Worker, 0),
+		MaxQueueSize:        defaultMaxQueueSize,
+		safeBlockRange:      defaultSafeBlockRange,
+		coolDownDuration:    defaultCoolDownDuration,
+		limitation:          defaultReSyncLimitation,
+		isReachedLimitation: &atomic.Value{},
+		resyncing:           &atomic.Value{},
 	}
+	subs.resyncing.Store(false)
+	subs.isReachedLimitation.Store(false)
 	if ctx.GlobalIsSet(QueueSizeFlag.Name) {
 		queueSize := ctx.GlobalInt(QueueSizeFlag.Name)
 		if queueSize > 0 {
@@ -567,6 +582,9 @@ func NewSubscriber(ethereum *eth.Ethereum, backend ethapi.Backend, ctx *cli.Cont
 	}
 	if ctx.GlobalIsSet(RPCUrlFlag.Name) {
 		subs.db = httpdb.NewDBWithLRU(ctx.GlobalString(RPCUrlFlag.Name), ctx.GlobalString(ArchiveUrlFlag.Name), 0)
+	}
+	if ctx.GlobalIsSet(ResyncLimitationFlag.Name) {
+		subs.limitation = int32(ctx.GlobalInt(ResyncLimitationFlag.Name))
 	}
 
 	// init workers
@@ -678,6 +696,12 @@ func (s *Subscriber) SendConfirmedBlock(height uint64) error {
 		messages = append(messages, reprocessesMsg...)
 		log.Info("[HandleConfirmedBlock] sending confirmed block messages to jobChan", "messages", len(messages), "height", height)
 		s.SendJob(pubJob, messages...)
+	}
+	if s.limitation > 0 && s.resyncing.Load().(bool) {
+		counter := atomic.AddInt32(&s.counter, -1)
+		if counter < s.limitation {
+			s.isReachedLimitation.Store(false)
+		}
 	}
 	return nil
 }
@@ -846,6 +870,7 @@ func (s *Subscriber) Start() chan struct{} {
 // resync is used when we want to resync blocks that exist on stateDb for some reason.
 // Such as message broker is down and message cannot be published to services.
 func (s *Subscriber) resync() {
+	s.resyncing.Store(true)
 	// if fromHeight is update to date or greater than currentHeight then do nothing
 	currentHeader := s.backend.CurrentHeader().Number.Uint64()
 	if s.FromHeight == 0 || s.FromHeight >= currentHeader {
@@ -854,12 +879,23 @@ func (s *Subscriber) resync() {
 	// loop until
 	for s.FromHeight < currentHeader {
 		height := s.FromHeight
+		if s.limitation > 0 {
+			rs := s.isReachedLimitation.Load()
+			if rs.(bool) {
+				s.CoolDown()
+				continue
+			}
+			if atomic.AddInt32(&s.counter, 1) >= s.limitation {
+				s.isReachedLimitation.Store(true)
+			}
+		}
 		s.SendJob(sendConfirmBlock, func(jobId int32) error {
 			log.Info("Processing confirm block job", "jobId", jobId, "height", height)
 			return s.SendConfirmedBlock(height)
 		})
 		s.FromHeight++
 	}
+	s.resyncing.Store(false)
 }
 
 func (s *Subscriber) reprocessBlock(block *types.Block) ([]interface{}, error) {
@@ -887,6 +923,7 @@ func (s *Subscriber) reprocessBlock(block *types.Block) ([]interface{}, error) {
 					log.Error("[Subscriber][HandleInternalTransactionEvent] Marshal data", "err", err)
 					return nil, err
 				}
+				log.Info("[Subscriber][reprocessBlock] adding message to internalTxTopic", "topic", s.internalTxTopic, "tx", tx.Hash().Hex(), "height", tx.Height, "parent", tx.TransactionHash.Hex())
 				messages = append(messages, s.eventPublisher.newMessage(s.internalTxTopic, data))
 			}
 		}
@@ -897,6 +934,7 @@ func (s *Subscriber) reprocessBlock(block *types.Block) ([]interface{}, error) {
 					log.Error("[Subscriber][HandleTransactionResult] marshal error", "err", err)
 					return nil, err
 				}
+				log.Info("[Subscriber][reprocessBlock] adding message to txResultTopic", "topic", s.transactionResultTopic, "tx", tx.TransactionHash.Hex(), "height", block.NumberU64())
 				messages = append(messages, s.eventPublisher.newMessage(s.transactionResultTopic, result))
 			}
 		}
@@ -1088,14 +1126,16 @@ func reprocessBlock(bc core.ChainContext, parentRoot common.Hash, header *types.
 	// Iterate over and process the individual transactions
 	startTime := time.Now()
 	for i, tx := range txs {
-		log.Debug("[reprocessBlock] processing tx", "index", i, "tx", tx.Hash().Hex(), "txNonce", tx.Nonce())
+		log.Info("[reprocessBlock] processing tx", "index", i, "tx", tx.Hash().Hex(), "txNonce", tx.Nonce())
 		// set current transaction in block context to each transaction
 		vmenv.Context.CurrentTransaction = tx
 		// reset counter to start counting opcodes in new transaction
 		vmenv.Context.Counter = 0
 		msg, err := tx.AsMessage(types.MakeSigner(chainConfig, header.Number), header.BaseFee)
 		if err != nil {
-			errCh <- fmt.Errorf("could not apply tx %d [%v]: %w", i, tx.Hash().Hex(), err)
+			errMsg := fmt.Errorf("could not apply tx %d [%v]: %w", i, tx.Hash().Hex(), err)
+			log.Error("[reprocessBlock] tx to message", "err", err, "tx", tx.Hash().Hex(), "block", header.Number.Uint64())
+			errCh <- errMsg
 			return
 		}
 		nonce := statedb.GetNonce(msg.From())
@@ -1103,7 +1143,9 @@ func reprocessBlock(bc core.ChainContext, parentRoot common.Hash, header *types.
 		statedb.Prepare(tx.Hash(), i)
 		_, result, err := core.ApplyTransactionWithVMContext(msg, chainConfig, nil, nil, gp, statedb, header.Number, header.Hash(), tx, usedGas, vmenv)
 		if err != nil {
-			errCh <- fmt.Errorf("could not apply tx %d [%v] [block: %d]: %w", i, tx.Hash().Hex(), header.Number.Uint64(), err)
+			errMsg := fmt.Errorf("could not apply tx %d [%v] [block: %d]: %w", i, tx.Hash().Hex(), header.Number.Uint64(), err)
+			log.Error("[reprocessBlock] ApplyMessage", "err", err, "tx", tx.Hash().Hex(), "block", header.Number.Uint64())
+			errCh <- errMsg
 			return
 		}
 		txResults[i] = &TransactionResult{

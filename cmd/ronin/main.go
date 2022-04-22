@@ -244,6 +244,7 @@ var (
 		CoolDownDurationFlag,
 		RPCUrlFlag,
 		ArchiveUrlFlag,
+		ResyncLimitationFlag,
 	}
 )
 
