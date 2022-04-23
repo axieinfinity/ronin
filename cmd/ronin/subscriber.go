@@ -637,9 +637,10 @@ func (s *Subscriber) HandleNewBlock(evt core.ChainEvent) {
 	}
 	// call send confirmed block with block behind with current block `confirmBlockAt` blocks
 	if s.safeBlockRange > 0 {
+		confirmedBlockHeight := block.NumberU64()-uint64(s.safeBlockRange)
 		s.SendJob(sendConfirmBlock, func(jobId int32) error {
-			log.Info("Processing confirm block job", "jobId", jobId, "height", s.FromHeight)
-			return s.SendConfirmedBlock(s.FromHeight)
+			log.Info("Processing confirm block job", "jobId", jobId, "height", confirmedBlockHeight)
+			return s.SendConfirmedBlock(confirmedBlockHeight)
 		})
 	}
 
