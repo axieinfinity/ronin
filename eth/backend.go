@@ -282,7 +282,15 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 				log.Crit("Cannot get state of blockchain", "err", err)
 				return nil, err
 			}
-			return state.GetValidators(stateDb), nil
+			return state.GetSCValidators(stateDb), nil
+		})
+		c.SetGetFenixValidators(func() ([]common.Address, error) {
+			stateDb, err := eth.blockchain.State()
+			if err != nil {
+				log.Crit("Cannot get state of blockchain", "err", err)
+				return nil, err
+			}
+			return state.GetFenixValidators(stateDb, eth.blockchain.Config().FenixValidatorContractAddress), nil
 		})
 	}
 	return eth, nil

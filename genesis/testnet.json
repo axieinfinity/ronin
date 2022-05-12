@@ -11,6 +11,8 @@
     "istanbulBlock": 0,
     "odysseusBlock": 3315095,
     "blacklistContractAddress": "0xF53EED5210c9cF308abFe66bA7CF14884c95A8aC",
+    "fenixBlock": null,
+    "fenixValidatorContractAddress": "0x1454cAAd1637b662432Bb795cD5773d21281eDAb",
     "consortium": {
       "period": 3,
       "epoch": 30
