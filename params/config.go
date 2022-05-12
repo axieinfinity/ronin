@@ -630,6 +630,9 @@ func (c *ChainConfig) checkCompatible(newcfg *ChainConfig, head *big.Int) *Confi
 	if isForkIncompatible(c.OdysseusBlock, newcfg.OdysseusBlock, head) {
 		return newCompatError("Odysseus fork block", c.OdysseusBlock, newcfg.OdysseusBlock)
 	}
+	if isForkIncompatible(c.FenixBlock, newcfg.FenixBlock, head) {
+		return newCompatError("Fenix fork block", c.FenixBlock, newcfg.FenixBlock)
+	}
 	return nil
 }
 
@@ -698,7 +701,7 @@ type Rules struct {
 	IsHomestead, IsEIP150, IsEIP155, IsEIP158               bool
 	IsByzantium, IsConstantinople, IsPetersburg, IsIstanbul bool
 	IsBerlin, IsLondon                                      bool
-	IsOdysseusFork                                          bool
+	IsOdysseusFork, IsFenix                                 bool
 }
 
 // Rules ensures c's ChainID is not nil.
@@ -720,5 +723,6 @@ func (c *ChainConfig) Rules(num *big.Int) Rules {
 		IsBerlin:         c.IsBerlin(num),
 		IsLondon:         c.IsLondon(num),
 		IsOdysseusFork:   c.IsOdysseus(num),
+		IsFenix:          c.IsFenix(num),
 	}
 }
