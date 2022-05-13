@@ -314,6 +314,7 @@ func (tab *Table) loadSeedNodes() {
 // doRevalidate checks that the last node in a random bucket is still live and replaces or
 // deletes the node if it isn't.
 func (tab *Table) doRevalidate(done chan<- struct{}) {
+	tab.log.Debug("Access dorevalidate")
 	defer func() { done <- struct{}{} }()
 
 	last, bi := tab.nodeToRevalidate()
@@ -379,6 +380,7 @@ func (tab *Table) nextRevalidateTime() time.Duration {
 // copyLiveNodes adds nodes from the table to the database if they have been in the table
 // longer than seedMinTableTime.
 func (tab *Table) copyLiveNodes() {
+	tab.log.Debug("Access copy livenodes")
 	tab.mutex.Lock()
 	defer tab.mutex.Unlock()
 

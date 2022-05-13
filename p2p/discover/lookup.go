@@ -66,11 +66,13 @@ func (it *lookup) run() []*enode.Node {
 // advance advances the lookup until any new nodes have been found.
 // It returns false when the lookup has ended.
 func (it *lookup) advance() bool {
+	it.tab.log.Debug("Access advance")
 	for it.startQueries() {
 		select {
 		case nodes := <-it.replyCh:
 			it.replyBuffer = it.replyBuffer[:0]
 			for _, n := range nodes {
+				it.tab.log.Debug("Checking nodes in advance", "node_id", n.ID())
 				if n != nil && !it.seen[n.ID()] {
 					it.seen[n.ID()] = true
 					it.result.push(n, bucketSize)
@@ -98,10 +100,10 @@ func (it *lookup) shutdown() {
 }
 
 func (it *lookup) startQueries() bool {
+	it.tab.log.Debug("Access startqueries", "queries", it.queries)
 	if it.queryfunc == nil {
 		return false
 	}
-
 	// The first query returns nodes from the local table.
 	if it.queries == -1 {
 		closest := it.tab.findnodeByID(it.result.target, bucketSize, false)
