@@ -465,7 +465,7 @@ func (tab *Table) bucketAtDistance(d int) *bucket {
 //
 // The caller must not hold tab.mutex.
 func (tab *Table) addSeenNode(n *node) {
-	tab.log.Debug("Add seen node", "node_id", n.ID(), "Node ip", n.IP(), "Tab self", tab.self().ID())
+	tab.log.Debug("Add seen node", "node_id", n.ID(), "Node ip", n.IP(), "Node Record", n.Record(), "Tab self", tab.self().ID(), "Tab self ip", tab.self().IP(), "Tab self record", tab.self().Record())
 	if n.ID() == tab.self().ID() {
 		return
 	}
