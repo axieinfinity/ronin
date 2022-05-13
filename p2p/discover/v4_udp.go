@@ -173,6 +173,7 @@ func (t *UDPv4) Close() {
 // Resolve searches for a specific node with the given ID and tries to get the most recent
 // version of the node record for it. It returns n if the node could not be resolved.
 func (t *UDPv4) Resolve(n *enode.Node) *enode.Node {
+	t.log.Debug("Access Resolve")
 	// Try asking directly. This works if the node is still responding on the endpoint we have.
 	if rn, err := t.RequestENR(n); err == nil {
 		return rn
@@ -258,6 +259,7 @@ func (t *UDPv4) makePing(toaddr *net.UDPAddr) *v4wire.Ping {
 
 // LookupPubkey finds the closest nodes to the given public key.
 func (t *UDPv4) LookupPubkey(key *ecdsa.PublicKey) []*enode.Node {
+	t.log.Debug("access lookupPubkey", "key", key)
 	if t.tab.len() == 0 {
 		// All nodes were dropped, refresh. The very first query will hit this
 		// case and run the bootstrapping logic.
@@ -290,9 +292,12 @@ func (t *UDPv4) newRandomLookup(ctx context.Context) *lookup {
 }
 
 func (t *UDPv4) newLookup(ctx context.Context, targetKey encPubkey) *lookup {
+
 	target := enode.ID(crypto.Keccak256Hash(targetKey[:]))
 	ekey := v4wire.Pubkey(targetKey)
+
 	it := newLookup(ctx, t.tab, target, func(n *node) ([]*node, error) {
+		t.log.Debug("Access new lookup", "Id", n.ID(), "Addr", n.addr())
 		return t.findnode(n.ID(), n.addr(), ekey)
 	})
 	return it
