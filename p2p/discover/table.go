@@ -121,7 +121,6 @@ func newTable(t transport, db *enode.DB, bootnodes []*enode.Node, log log.Logger
 	}
 	tab.seedRand()
 	tab.loadSeedNodes()
-
 	return tab, nil
 }
 
@@ -402,7 +401,7 @@ func (tab *Table) copyLiveNodes() {
 // contain unverified nodes. However, if there are no verified nodes at all, the result
 // will contain unverified nodes.
 func (tab *Table) findnodeByID(target enode.ID, nresults int, preferLive bool) *nodesByDistance {
-	tab.log.Debug("FindnodebyID", "target", target)
+	tab.log.Debug("FindnodebyID", "target", target, "nresults", nresults)
 	tab.mutex.Lock()
 	defer tab.mutex.Unlock()
 
@@ -411,7 +410,9 @@ func (tab *Table) findnodeByID(target enode.ID, nresults int, preferLive bool) *
 	// is O(tab.len() * nresults).
 	nodes := &nodesByDistance{target: target}
 	liveNodes := &nodesByDistance{target: target}
+	tab.log.Debug("Len of total bucket", "buckets", len(tab.buckets))
 	for _, b := range &tab.buckets {
+		tab.log.Debug("Len of entries", "entries", len(b.entries))
 		for _, n := range b.entries {
 			nodes.push(n, nresults)
 			if preferLive && n.livenessChecks > 0 {
