@@ -520,6 +520,7 @@ func (t *UDPv4) write(toaddr *net.UDPAddr, toid enode.ID, what string, packet []
 
 // readLoop runs in its own goroutine. it handles incoming UDP packets.
 func (t *UDPv4) readLoop(unhandled chan<- ReadPacket) {
+	t.log.Debug("Access Readloop")
 	defer t.wg.Done()
 	if unhandled != nil {
 		defer close(unhandled)

@@ -110,6 +110,7 @@ func (it *lookup) startQueries() bool {
 		// Avoid finishing the lookup too quickly if table is empty. It'd be better to wait
 		// for the table to fill in this case, but there is no good mechanism for that
 		// yet.
+		it.tab.log.Debug("total number of closest.entries", "number of closest entries", len(closest.entries))
 		if len(closest.entries) == 0 {
 			it.slowdown()
 		}

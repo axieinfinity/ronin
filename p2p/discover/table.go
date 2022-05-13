@@ -402,6 +402,7 @@ func (tab *Table) copyLiveNodes() {
 // contain unverified nodes. However, if there are no verified nodes at all, the result
 // will contain unverified nodes.
 func (tab *Table) findnodeByID(target enode.ID, nresults int, preferLive bool) *nodesByDistance {
+	tab.log.Debug("FindnodebyID", "target", target)
 	tab.mutex.Lock()
 	defer tab.mutex.Unlock()
 
