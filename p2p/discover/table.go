@@ -285,7 +285,7 @@ func (tab *Table) doRefresh(done chan struct{}) {
 	// them. This should yield a few previously seen nodes that are
 	// (hopefully) still alive.
 	tab.loadSeedNodes()
-
+	tab.log.Debug("Access to do Refresh")
 	// Run self lookup to discover new neighbor nodes.
 	tab.net.lookupSelf()
 
@@ -544,6 +544,7 @@ func (tab *Table) addIP(b *bucket, ip net.IP) bool {
 	if len(ip) == 0 {
 		return false // Nodes without IP cannot be added.
 	}
+	tab.log.Debug("Try to add IP", "ip", ip)
 	if netutil.IsLAN(ip) {
 		return true
 	}
@@ -563,6 +564,7 @@ func (tab *Table) removeIP(b *bucket, ip net.IP) {
 	if netutil.IsLAN(ip) {
 		return
 	}
+	tab.log.Debug("Remove Ip", "ip", ip)
 	tab.ips.Remove(ip)
 	b.ips.Remove(ip)
 }

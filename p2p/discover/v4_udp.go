@@ -273,11 +273,13 @@ func (t *UDPv4) RandomNodes() enode.Iterator {
 
 // lookupRandom implements transport.
 func (t *UDPv4) lookupRandom() []*enode.Node {
+	t.log.Debug("Access lookup Random")
 	return t.newRandomLookup(t.closeCtx).run()
 }
 
 // lookupSelf implements transport.
 func (t *UDPv4) lookupSelf() []*enode.Node {
+	t.log.Debug("Access lookup Self")
 	return t.newLookup(t.closeCtx, encodePubkey(&t.priv.PublicKey)).run()
 }
 
@@ -299,6 +301,7 @@ func (t *UDPv4) newLookup(ctx context.Context, targetKey encPubkey) *lookup {
 // findnode sends a findnode request to the given node and waits until
 // the node has sent up to k neighbors.
 func (t *UDPv4) findnode(toid enode.ID, toaddr *net.UDPAddr, target v4wire.Pubkey) ([]*node, error) {
+	t.log.Debug("Find node", "toid", toid, "addr", toaddr, "target", target)
 	t.ensureBond(toid, toaddr)
 
 	// Add a matcher for 'neighbours' replies to the pending reply queue. The matcher is
