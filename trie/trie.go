@@ -61,9 +61,11 @@ type LeafCallback func(paths [][]byte, hexpath []byte, leaf []byte, parent commo
 //
 // Trie is not safe for concurrent use.
 type Trie struct {
-	db   *Database
-	root node
-	// Keep track of the number leafs which have been inserted since the last
+	db    *Database
+	root  node
+	owner common.Hash
+
+	// Keep track of the number leaves which have been inserted since the last
 	// hashing operation. This number will not directly map to the number of
 	// actually unhashed nodes
 	unhashed int
@@ -86,18 +88,31 @@ func newWithRootNode(root node) *Trie {
 	}
 }
 
-// New creates a trie with an existing root node from db.
+// New creates a trie with an existing root node from db and an assigned
+// owner for storage proximity.
 //
 // If root is the zero hash or the sha3 hash of an empty string, the
 // trie is initially empty and does not require a database. Otherwise,
 // New will panic if db is nil and returns a MissingNodeError if root does
 // not exist in the database. Accessing the trie loads nodes from db on demand.
-func New(root common.Hash, db *Database) (*Trie, error) {
+func New(owner common.Hash, root common.Hash, db *Database) (*Trie, error) {
+	return newTrie(owner, root, db)
+}
+
+// NewEmpty is a shortcut to create empty tree. It's mostly used in tests.
+func NewEmpty(db *Database) *Trie {
+	tr, _ := newTrie(common.Hash{}, common.Hash{}, db)
+	return tr
+}
+
+// newTrie is the internal function used to construct the trie with given parameters.
+func newTrie(owner common.Hash, root common.Hash, db *Database) (*Trie, error) {
 	if db == nil {
 		panic("trie.New called without a database")
 	}
 	trie := &Trie{
-		db: db,
+		db:    db,
+		owner: owner,
 		//tracer: newTracer(),
 	}
 	if root != (common.Hash{}) && root != emptyRoot {
@@ -574,7 +589,7 @@ func (t *Trie) resolveHash(n hashNode, prefix []byte) (node, error) {
 	if node := t.db.node(hash); node != nil {
 		return node, nil
 	}
-	return nil, &MissingNodeError{NodeHash: hash, Path: prefix}
+	return nil, &MissingNodeError{Owner: t.owner, NodeHash: hash, Path: prefix}
 }
 
 // Hash returns the root hash of the trie. It does not write to the
@@ -606,7 +621,10 @@ func (t *Trie) Commit(onleaf LeafCallback) (common.Hash, int, error) {
 	// Do a quick check if we really need to commit, before we spin
 	// up goroutines. This can happen e.g. if we load a trie for reading storage
 	// values, but don't write to it.
-	if _, dirty := t.root.cache(); !dirty {
+	if hashedNode, dirty := t.root.cache(); !dirty {
+		// Replace the root node with the origin hash in order to
+		// ensure all resolved nodes are dropped after the commit.
+		t.root = hashedNode
 		return rootHash, 0, nil
 	}
 	var wg sync.WaitGroup
@@ -651,6 +669,7 @@ func (t *Trie) hashRoot() (node, node, error) {
 // Reset drops the referenced root node and cleans all internal state.
 func (t *Trie) Reset() {
 	t.root = nil
+	t.owner = common.Hash{}
 	t.unhashed = 0
 	t.tracer.reset()
 }
@@ -663,4 +682,9 @@ func (t *Trie) Copy() *Trie {
 		unhashed: t.unhashed,
 		tracer:   t.tracer.copy(),
 	}
+}
+
+// Owner returns the associated trie owner.
+func (t *Trie) Owner() common.Hash {
+	return t.owner
 }
