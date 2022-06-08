@@ -2,18 +2,27 @@ package httpdb
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"github.com/eko/gocache/store"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/go-redis/redis/v8"
+	"math"
+	"sync"
 	"time"
 )
 
 var (
-	defaultTTL = time.Minute
-	defaultReadTimeout = 15 * time.Second
-	defaultWriteTimeout = defaultReadTimeout
+	defaultTTL            = time.Minute
+	defaultReadTimeout    = 15 * time.Second
+	defaultWriteTimeout   = defaultReadTimeout
 	defaultConnectTimeout = defaultReadTimeout
+
+	defaultLimitSize = 128.0
 )
+
+const keyFmt = "k%sidx%d"
 
 type RedisStoreInterface interface {
 	Get(ctx context.Context, key interface{}) (interface{}, error)
@@ -26,7 +35,7 @@ type RedisStoreInterface interface {
 }
 
 type redisCache struct {
-	isCluster bool
+	isCluster             bool
 	readStore, writeStore RedisStoreInterface
 }
 
@@ -83,17 +92,74 @@ func NewRedisCache(addresses []string, expiration time.Duration, options *redis.
 }
 
 func (c *redisCache) Get(key []byte) ([]byte, error) {
-	val, err := c.readStore.Get(context.Background(), common.Bytes2Hex(key))
+	redisKey := common.Bytes2Hex(key)
+	length, err := c.getInt(redisKey)
+	if err != nil {
+		return nil, err
+	}
+	valuesMap := make(map[int][]byte)
+	size := int(math.Ceil(float64(length) / defaultLimitSize))
+	var (
+		wg   sync.WaitGroup
+		lock sync.Mutex
+	)
+	wg.Add(size)
+	for i := 0; i < size; i++ {
+		go func(w *sync.WaitGroup, index int) {
+			val, err := c.getBytes(fmt.Sprintf(keyFmt, redisKey, index))
+			if err != nil {
+				log.Error("[redisCache][Get] error while get bytes value from index", "err", err, "key", fmt.Sprintf(keyFmt, redisKey, index))
+			}
+
+			lock.Lock()
+			valuesMap[index] = val
+			lock.Unlock()
+
+			w.Done()
+		}(&wg, i)
+	}
+	wg.Wait()
+	values := make([]byte, 0)
+	for _, v := range valuesMap {
+		values = append(values, v...)
+	}
+	return values, nil
+}
+
+func (c *redisCache) getInt(key string) (int, error) {
+	val, err := c.get(key)
+	if err != nil {
+		return -1, err
+	}
+	if _, ok := val.(int); !ok {
+		return -1, errors.New("cannot cast interface value into integer")
+	}
+	return val.(int), nil
+}
+
+func (c *redisCache) getBytes(key string) ([]byte, error) {
+	val, err := c.get(key)
+	if err != nil {
+		return nil, err
+	}
+	if _, ok := val.([]byte); !ok {
+		return nil, errors.New("cannot cast interface value into integer")
+	}
+	return val.([]byte), nil
+}
+
+func (c *redisCache) get(key string) (interface{}, error) {
+	val, err := c.readStore.Get(context.Background(), key)
 	if err != nil && err.Error() == "redis: nil" {
 		return nil, nil
 	} else if err != nil {
 		return nil, err
 	}
-	return []byte(val.(string)), nil
+	return val, err
 }
 
 func (c *redisCache) Has(key []byte) (bool, error) {
-	val, err := c.Get(key)
+	val, err := c.get(common.Bytes2Hex(key))
 	return val != nil, err
 }
 
@@ -101,19 +167,58 @@ func (c *redisCache) Put(key, value []byte) error {
 	if has, _ := c.Has(key); has {
 		return nil
 	}
-	ctx := context.Background()
-	return c.writeStore.Set(ctx, common.Bytes2Hex(key), value, nil)
+	// the main key will contain the length of value
+	redisKey := common.Bytes2Hex(key)
+	size := int(math.Ceil(float64(len(value)) / defaultLimitSize))
+	if err := c.put(redisKey, len(value)); err != nil {
+		return err
+	}
+	// then loop through size and separate value based on limit size
+	start, end := 0, 0
+	for i := 0; i < size; i++ {
+		if end+int(defaultLimitSize) < len(value) {
+			end += int(defaultLimitSize)
+		} else {
+			end = len(value)
+		}
+		if err := c.put(fmt.Sprintf(keyFmt, redisKey, i), value[start:end]); err != nil {
+			return err
+		}
+		start = end
+	}
+	return c.put(common.Bytes2Hex(key), value)
+}
+
+func (c *redisCache) put(key string, value interface{}) error {
+	return c.writeStore.Set(context.Background(), key, value, nil)
 }
 
 func (c *redisCache) Delete(key []byte) error {
-	val, err := c.Get(key)
+	redisKey := common.Bytes2Hex(key)
+	length, err := c.get(redisKey)
 	if err != nil {
 		return err
 	}
-	if err = c.writeStore.Delete(context.Background(), common.Bytes2Hex(key)); err != nil {
+	if _, ok := length.(int); !ok {
+		return errors.New("cannot cast size to int")
+	}
+	size := int(math.Ceil(float64(length.(int)) / defaultLimitSize))
+	var wg sync.WaitGroup
+	wg.Add(size)
+	// delete all indexes
+	for i := 0; i < size; i++ {
+		go func(w *sync.WaitGroup, index int) {
+			if err := c.writeStore.Delete(context.Background(), fmt.Sprintf(keyFmt, redisKey, index)); err != nil {
+				log.Error("[redisCache][Delete] error while deleting data", "key", fmt.Sprintf(keyFmt, redisKey, index))
+			}
+			wg.Done()
+		}(&wg, i)
+	}
+	wg.Wait()
+	if err = c.writeStore.Delete(context.Background(), redisKey); err != nil {
 		return err
 	}
 	cacheItemsCounter.Inc(-1)
-	cacheItemsSizeCounter.Inc(-int64(len(val)))
+	cacheItemsSizeCounter.Inc(-int64(length.(int)))
 	return nil
 }
