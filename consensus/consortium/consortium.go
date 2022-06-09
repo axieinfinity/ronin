@@ -23,6 +23,8 @@ import (
 	"io"
 	"math/big"
 	"math/rand"
+	"reflect"
+	"sort"
 	"sync"
 	"time"
 
@@ -323,9 +325,40 @@ func (c *Consortium) verifyCascadingFields(chain consensus.ChainHeaderReader, he
 	}
 
 	// Todo(Thor): If the block is a checkpoint block, verify the signer list
+	if number%c.config.Epoch != 0 {
+		return c.verifySeal(chain, header, parents)
+	}
+
+	signers, err := c.getValidatorsFromContract()
+	if err != nil {
+		return err
+	}
+
+	extraSuffix := len(header.Extra) - extraSeal
+	checkpointHeaders := extractAddressFromBytes(header.Extra[extraVanity:extraSuffix])
+	validSigners := compareSignersLists(checkpointHeaders, signers)
+	if !validSigners {
+		log.Error("signers lists are different in checkpoint header and snapshot", "number", number, "signersHeader", checkpointHeaders, "signers", signers)
+		return errInvalidCheckpointSigners
+	}
 
 	// All basic checks passed, verify the seal and return
 	return c.verifySeal(chain, header, parents)
+}
+
+// compare 2 signers lists
+// return true if they are same elements, otherwise return false
+func compareSignersLists(list1 []common.Address, list2 []common.Address) bool {
+	if len(list1) == 0 && len(list2) == 0 {
+		return true
+	}
+	sort.Slice(list1, func(i, j int) bool {
+		return list1[i].String() <= list1[j].String()
+	})
+	sort.Slice(list2, func(i, j int) bool {
+		return list2[i].String() <= list2[j].String()
+	})
+	return reflect.DeepEqual(list1, list2)
 }
 
 // snapshot retrieves the authorization snapshot at a given point in time.
