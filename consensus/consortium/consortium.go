@@ -23,8 +23,6 @@ import (
 	"io"
 	"math/big"
 	"math/rand"
-	"reflect"
-	"sort"
 	"sync"
 	"time"
 
@@ -324,7 +322,7 @@ func (c *Consortium) verifyCascadingFields(chain consensus.ChainHeaderReader, he
 		return ErrInvalidTimestamp
 	}
 
-	// Todo(Thor): If the block is a checkpoint block, verify the signer list
+	// If the block is a checkpoint block, verify the signer list
 	if number%c.config.Epoch != 0 {
 		return c.verifySeal(chain, header, parents)
 	}
@@ -352,13 +350,12 @@ func compareSignersLists(list1 []common.Address, list2 []common.Address) bool {
 	if len(list1) == 0 && len(list2) == 0 {
 		return true
 	}
-	sort.Slice(list1, func(i, j int) bool {
-		return list1[i].String() <= list1[j].String()
-	})
-	sort.Slice(list2, func(i, j int) bool {
-		return list2[i].String() <= list2[j].String()
-	})
-	return reflect.DeepEqual(list1, list2)
+	for i := 0; i < len(list1); i++ {
+		if list1[i].Hex() != list2[i].Hex() {
+			return false
+		}
+	}
+	return true
 }
 
 // snapshot retrieves the authorization snapshot at a given point in time.
