@@ -327,7 +327,7 @@ func (c *Consortium) verifyCascadingFields(chain consensus.ChainHeaderReader, he
 		return c.verifySeal(chain, header, parents)
 	}
 
-	signers, err := c.getValidatorsFromContract()
+	signers, err := c.getValidatorsFromContract(chain, number-1)
 	if err != nil {
 		return err
 	}
@@ -347,8 +347,8 @@ func (c *Consortium) verifyCascadingFields(chain consensus.ChainHeaderReader, he
 // compare 2 signers lists
 // return true if they are same elements, otherwise return false
 func compareSignersLists(list1 []common.Address, list2 []common.Address) bool {
-	if len(list1) == 0 && len(list2) == 0 {
-		return true
+	if len(list1) != len(list2) {
+		return false
 	}
 	for i := 0; i < len(list1); i++ {
 		if list1[i].Hex() != list2[i].Hex() {
