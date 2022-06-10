@@ -4,6 +4,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 const (
@@ -23,8 +24,11 @@ var (
 		BLACKLISTED: 1,
 		DISABLED:    2,
 	}
-	slotValidatorMapping = map[string]uint64{
+	slotSCValidatorMapping = map[string]uint64{
 		VALIDATORS: 1,
+	}
+	slotRoninValidatorMapping = map[string]uint64{
+		VALIDATORS: 6,
 	}
 )
 
@@ -63,8 +67,8 @@ func IsAddressBlacklisted(statedb *StateDB, blacklistAddr *common.Address, addre
 	return blacklisted.Big().Cmp(big.NewInt(1)) == 0
 }
 
-func GetValidators(statedb *StateDB) []common.Address {
-	slot := slotValidatorMapping[VALIDATORS]
+func GetSCValidators(statedb *StateDB) []common.Address {
+	slot := slotSCValidatorMapping[VALIDATORS]
 	slotHash := common.BigToHash(new(big.Int).SetUint64(slot))
 	arrLength := statedb.GetState(common.HexToAddress(common.ValidatorSC), slotHash)
 	keys := []common.Hash{}
@@ -75,6 +79,28 @@ func GetValidators(statedb *StateDB) []common.Address {
 	rets := []common.Address{}
 	for _, key := range keys {
 		ret := statedb.GetState(common.HexToAddress(common.ValidatorSC), key)
+		rets = append(rets, common.HexToAddress(ret.Hex()))
+	}
+	return rets
+}
+
+func GetFenixValidators(statedb *StateDB, roninValidatorContract *common.Address) []common.Address {
+	if roninValidatorContract == nil {
+		log.Crit("Cannot get Ronin Validator contract")
+		return GetSCValidators(statedb)
+	}
+
+	slot := slotRoninValidatorMapping[VALIDATORS]
+	slotHash := common.BigToHash(new(big.Int).SetUint64(slot))
+	arrLength := statedb.GetState(*roninValidatorContract, slotHash)
+	keys := []common.Hash{}
+	for i := uint64(0); i < arrLength.Big().Uint64(); i++ {
+		key := GetLocDynamicArrAtElement(slotHash, i, 1)
+		keys = append(keys, key)
+	}
+	rets := []common.Address{}
+	for _, key := range keys {
+		ret := statedb.GetState(*roninValidatorContract, key)
 		rets = append(rets, common.HexToAddress(ret.Hex()))
 	}
 	return rets

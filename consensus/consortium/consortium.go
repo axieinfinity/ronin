@@ -175,7 +175,8 @@ type Consortium struct {
 	signFn SignerFn       // Signer function to authorize hashes with
 	lock   sync.RWMutex   // Protects the signer fields
 
-	getSCValidators func() ([]common.Address, error) // Get the list of validator from contract
+	getSCValidators    func() ([]common.Address, error) // Get the list of validator from contract
+	getFenixValidators func() ([]common.Address, error) // Get the validator list from Ronin Validator contract of Fenix hardfork
 }
 
 // New creates a Consortium proof-of-authority consensus engine with the initial
@@ -202,6 +203,11 @@ func New(config *params.ConsortiumConfig, db ethdb.Database) *Consortium {
 // SetGetSCValidatorsFn sets the function to get a list of validators from smart contracts
 func (c *Consortium) SetGetSCValidatorsFn(fn func() ([]common.Address, error)) {
 	c.getSCValidators = fn
+}
+
+// SetGetFenixValidators sets the function to get the validator list from Ronin Validator contract of Fenix hardfork
+func (c *Consortium) SetGetFenixValidators(fn func() ([]common.Address, error)) {
+	c.getFenixValidators = fn
 }
 
 // Author implements consensus.Engine, returning the Ethereum address recovered
@@ -352,7 +358,7 @@ func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, 
 			if cpHeader != nil {
 				hash := cpHeader.Hash()
 
-				validators, err := c.getValidatorsFromContract()
+				validators, err := c.getValidatorsFromContract(chain, number)
 				if err != nil {
 					return nil, err
 				}
@@ -485,7 +491,7 @@ func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.He
 	header.Extra = header.Extra[:extraVanity]
 
 	if number%c.config.Epoch == 0 {
-		validators, err := c.getValidatorsFromContract()
+		validators, err := c.getValidatorsFromContract(chain, number)
 		if err != nil {
 			return err
 		}
@@ -717,7 +723,14 @@ func (c *Consortium) doCalcDifficulty(signer common.Address, number uint64, vali
 }
 
 // Read the validator list from contract
-func (c *Consortium) getValidatorsFromContract() ([]common.Address, error) {
+func (c *Consortium) getValidatorsFromContract(chain consensus.ChainHeaderReader, number uint64) ([]common.Address, error) {
+	if chain.Config().IsFenix(big.NewInt(int64(number))) {
+		if c.getFenixValidators == nil {
+			return nil, errors.New("No getFenixValidators function supplied")
+		}
+		return c.getFenixValidators()
+	}
+
 	if c.getSCValidators == nil {
 		return nil, errors.New("No getSCValidators function supplied")
 	}
@@ -732,7 +745,7 @@ func (c *Consortium) getValidatorsFromLastCheckpoint(chain consensus.ChainHeader
 
 	if lastCheckpoint == 0 {
 		// TODO(andy): Review if we should put validators in genesis block's extra data
-		return c.getValidatorsFromContract()
+		return c.getValidatorsFromContract(chain, number)
 	}
 
 	var header *types.Header
