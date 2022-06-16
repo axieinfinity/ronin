@@ -9,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/go-redis/redis/v8"
 	"math"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -19,7 +20,7 @@ var (
 	defaultWriteTimeout   = defaultReadTimeout
 	defaultConnectTimeout = defaultReadTimeout
 
-	defaultLimitSize = 128.0
+	defaultLimitSize = 51200.00 // 50KB
 )
 
 const keyFmt = "k%sidx%d"
@@ -97,6 +98,9 @@ func (c *redisCache) Get(key []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	if length < 0 {
+		return nil, fmt.Errorf("key:%s not found", redisKey)
+	}
 	valuesMap := make(map[int][]byte)
 	size := int(math.Ceil(float64(length) / defaultLimitSize))
 	var (
@@ -109,6 +113,8 @@ func (c *redisCache) Get(key []byte) ([]byte, error) {
 			val, err := c.getBytes(fmt.Sprintf(keyFmt, redisKey, index))
 			if err != nil {
 				log.Error("[redisCache][Get] error while get bytes value from index", "err", err, "key", fmt.Sprintf(keyFmt, redisKey, index))
+				w.Done()
+				return
 			}
 
 			lock.Lock()
@@ -121,7 +127,14 @@ func (c *redisCache) Get(key []byte) ([]byte, error) {
 	wg.Wait()
 	values := make([]byte, 0)
 	for _, v := range valuesMap {
+		if v == nil {
+			continue
+		}
 		values = append(values, v...)
+	}
+	if len(values) != length {
+		err = fmt.Errorf("mismatch length of returned value, expected %d got %d", length, len(values))
+		return nil, err
 	}
 	return values, nil
 }
@@ -131,10 +144,13 @@ func (c *redisCache) getInt(key string) (int, error) {
 	if err != nil {
 		return -1, err
 	}
-	if _, ok := val.(int); !ok {
-		return -1, errors.New("cannot cast interface value into integer")
+	if val == nil {
+		return -1, nil
 	}
-	return val.(int), nil
+	if _, ok := val.(string); !ok {
+		return -1, errors.New("cannot cast interface value into string")
+	}
+	return strconv.Atoi(val.(string))
 }
 
 func (c *redisCache) getBytes(key string) ([]byte, error) {
@@ -142,10 +158,13 @@ func (c *redisCache) getBytes(key string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if _, ok := val.([]byte); !ok {
-		return nil, errors.New("cannot cast interface value into integer")
+	if val == nil {
+		return nil, nil
 	}
-	return val.([]byte), nil
+	if _, ok := val.(string); !ok {
+		return nil, errors.New("cannot cast interface value into string")
+	}
+	return []byte(val.(string)), nil
 }
 
 func (c *redisCache) get(key string) (interface{}, error) {
@@ -186,7 +205,7 @@ func (c *redisCache) Put(key, value []byte) error {
 		}
 		start = end
 	}
-	return c.put(common.Bytes2Hex(key), value)
+	return nil
 }
 
 func (c *redisCache) put(key string, value interface{}) error {

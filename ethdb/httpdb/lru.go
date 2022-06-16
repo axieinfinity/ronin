@@ -8,9 +8,9 @@ import (
 )
 
 type lruCache struct {
-	maxEntries      int
-	lruCache        *lru.Cache
-	cache           *fastcache.Cache
+	maxEntries int
+	lruCache   *lru.Cache
+	cache      *fastcache.Cache
 }
 
 func (c *lruCache) onEvicted(key, value interface{}) {

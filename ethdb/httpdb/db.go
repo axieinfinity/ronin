@@ -15,10 +15,10 @@ import (
 )
 
 const (
-	GET                   = "consortium_getDBValue"
-	ANCIENT               = "consortium_getAncientValue"
-	defaultCachedItems    = 1024
-	allowedMaxSize        = 64 * 1024 * 1024 // 64 MB
+	GET                = "consortium_getDBValue"
+	ANCIENT            = "consortium_getAncientValue"
+	defaultCachedItems = 1024
+	allowedMaxSize     = 64 * 1024 * 1024 // 64 MB
 )
 
 type IClient interface {
@@ -171,7 +171,8 @@ func (db *DB) Get(key []byte) (val []byte, err error) {
 	}
 	log.Debug("getDbValue found", "key", hexKey)
 	// store val to memory db for later use
-	return val, db.Put(key, val)
+	go db.Put(key, val)
+	return val, nil
 }
 
 func (db *DB) Put(key, value []byte) error {
@@ -233,6 +234,10 @@ func (db *DB) Ancient(kind string, number uint64) ([]byte, error) {
 	log.Debug("calling ancient via rpc", "kind", kind, "number", number)
 	val, err := query(db.client, ANCIENT, kind, hexData)
 	if err != nil {
+		if strings.Contains(err.Error(), "out of bounds") {
+			log.Debug("out of bounds, don't need to retry archive", "ancientKey", string(key))
+			return nil, err
+		}
 		// try to get data from archive if it is not nil
 		if db.archive == nil {
 			return nil, err
