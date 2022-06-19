@@ -23,6 +23,7 @@ ENV RPC_NODE ''
 ENV NODEKEY ''
 ENV FORCE_INIT 'true'
 ENV RONIN_PARAMS ''
+ENV ENABLE_SIGNING_METHODS ''
 
 COPY --from=builder /opt/build/bin/ronin /usr/local/bin/ronin
 COPY --from=builder /opt/genesis/ ./
