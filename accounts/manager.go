@@ -35,6 +35,7 @@ const managerSubBufferSize = 50
 // is removed in favor of Clef.
 type Config struct {
 	InsecureUnlockAllowed bool // Whether account unlocking in insecure environment is allowed
+	EnableSigningMethods  bool // Enable RPC signing methods
 }
 
 // newBackendEvent lets the manager know it should
