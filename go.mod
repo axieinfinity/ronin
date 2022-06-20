@@ -120,3 +120,5 @@ require (
 	gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c // indirect
 	k8s.io/apimachinery v0.0.0-20191123233150-4c4803ed55e3 // indirect
 )
+
+replace github.com/ethereum/go-ethereum => github.com/axieinfinity/ronin v2.4.0-replace-test
