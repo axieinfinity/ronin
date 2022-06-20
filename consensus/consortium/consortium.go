@@ -322,10 +322,40 @@ func (c *Consortium) verifyCascadingFields(chain consensus.ChainHeaderReader, he
 		return ErrInvalidTimestamp
 	}
 
-	// Todo(Thor): If the block is a checkpoint block, verify the signer list
+	// If the block is a checkpoint block, verify the signer list
+	if number%c.config.Epoch != 0 {
+		return c.verifySeal(chain, header, parents)
+	}
+
+	signers, err := c.getValidatorsFromContract(chain, number-1)
+	if err != nil {
+		return err
+	}
+
+	extraSuffix := len(header.Extra) - extraSeal
+	checkpointHeaders := extractAddressFromBytes(header.Extra[extraVanity:extraSuffix])
+	validSigners := compareSignersLists(checkpointHeaders, signers)
+	if !validSigners {
+		log.Error("signers lists are different in checkpoint header and snapshot", "number", number, "signersHeader", checkpointHeaders, "signers", signers)
+		return errInvalidCheckpointSigners
+	}
 
 	// All basic checks passed, verify the seal and return
 	return c.verifySeal(chain, header, parents)
+}
+
+// compare 2 signers lists
+// return true if they are same elements, otherwise return false
+func compareSignersLists(list1 []common.Address, list2 []common.Address) bool {
+	if len(list1) != len(list2) {
+		return false
+	}
+	for i := 0; i < len(list1); i++ {
+		if list1[i].Hex() != list2[i].Hex() {
+			return false
+		}
+	}
+	return true
 }
 
 // snapshot retrieves the authorization snapshot at a given point in time.
