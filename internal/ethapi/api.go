@@ -48,6 +48,8 @@ import (
 	"github.com/tyler-smith/go-bip39"
 )
 
+var ErrMethodNotSupport = errors.New("method is not supported")
+
 // PublicEthereumAPI provides an API to access Ethereum related information.
 // It offers only methods that operate on public data that is freely available to anyone.
 type PublicEthereumAPI struct {
@@ -424,6 +426,10 @@ func (s *PrivateAccountAPI) LockAccount(addr common.Address) bool {
 // NOTE: the caller needs to ensure that the nonceLock is held, if applicable,
 // and release it after the transaction has been submitted to the tx pool
 func (s *PrivateAccountAPI) signTransaction(ctx context.Context, args *TransactionArgs, passwd string) (*types.Transaction, error) {
+	if !s.b.AccountManager().Config().EnableSigningMethods {
+		return &types.Transaction{}, ErrMethodNotSupport
+	}
+
 	// Look up the wallet containing the requested signer
 	account := accounts.Account{Address: args.from()}
 	wallet, err := s.am.Find(account)
@@ -504,6 +510,10 @@ func (s *PrivateAccountAPI) SignTransaction(ctx context.Context, args Transactio
 //
 // https://github.com/ethereum/go-ethereum/wiki/Management-APIs#personal_sign
 func (s *PrivateAccountAPI) Sign(ctx context.Context, data hexutil.Bytes, addr common.Address, passwd string) (hexutil.Bytes, error) {
+	if !s.b.AccountManager().Config().EnableSigningMethods {
+		return hexutil.Bytes{}, ErrMethodNotSupport
+	}
+
 	// Look up the wallet containing the requested signer
 	account := accounts.Account{Address: addr}
 
@@ -1657,6 +1667,10 @@ func (s *PublicTransactionPoolAPI) GetTransactionReceipt(ctx context.Context, ha
 
 // sign is a helper function that signs a transaction with the private key of the given address.
 func (s *PublicTransactionPoolAPI) sign(addr common.Address, tx *types.Transaction) (*types.Transaction, error) {
+	if !s.b.AccountManager().Config().EnableSigningMethods {
+		return &types.Transaction{}, ErrMethodNotSupport
+	}
+
 	// Look up the wallet containing the requested signer
 	account := accounts.Account{Address: addr}
 
@@ -1701,6 +1715,10 @@ func SubmitTransaction(ctx context.Context, b Backend, tx *types.Transaction) (c
 // SendTransaction creates a transaction for the given argument, sign it and submit it to the
 // transaction pool.
 func (s *PublicTransactionPoolAPI) SendTransaction(ctx context.Context, args TransactionArgs) (common.Hash, error) {
+	if !s.b.AccountManager().Config().EnableSigningMethods {
+		return common.Hash{}, ErrMethodNotSupport
+	}
+
 	// Look up the wallet containing the requested signer
 	account := accounts.Account{Address: args.from()}
 
@@ -1767,6 +1785,10 @@ func (s *PublicTransactionPoolAPI) SendRawTransaction(ctx context.Context, input
 //
 // https://github.com/ethereum/wiki/wiki/JSON-RPC#eth_sign
 func (s *PublicTransactionPoolAPI) Sign(addr common.Address, data hexutil.Bytes) (hexutil.Bytes, error) {
+	if !s.b.AccountManager().Config().EnableSigningMethods {
+		return hexutil.Bytes{}, ErrMethodNotSupport
+	}
+
 	// Look up the wallet containing the requested signer
 	account := accounts.Account{Address: addr}
 
@@ -1932,6 +1954,10 @@ func (api *PublicDebugAPI) GetBlockRlp(ctx context.Context, number uint64) (hexu
 // This is a temporary method to debug the externalsigner integration,
 // TODO: Remove this method when the integration is mature
 func (api *PublicDebugAPI) TestSignCliqueBlock(ctx context.Context, address common.Address, number uint64) (common.Address, error) {
+	if !api.b.AccountManager().Config().EnableSigningMethods {
+		return common.Address{}, ErrMethodNotSupport
+	}
+
 	block, _ := api.b.BlockByNumber(ctx, rpc.BlockNumber(number))
 	if block == nil {
 		return common.Address{}, fmt.Errorf("block #%d not found", number)

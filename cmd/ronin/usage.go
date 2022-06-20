@@ -128,6 +128,7 @@ var AppHelpFlagGroups = []flags.FlagGroup{
 			utils.PasswordFileFlag,
 			utils.ExternalSignerFlag,
 			utils.InsecureUnlockAllowedFlag,
+			utils.EnableSigningMethodsFlag,
 		},
 	},
 	{
