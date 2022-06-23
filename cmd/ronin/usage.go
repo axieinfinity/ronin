@@ -247,6 +247,14 @@ var AppHelpFlagGroups = []flags.FlagGroup{
 		},
 	},
 	{
+		Name: "KEY MANAGEMENT SERVICE",
+		Flags: []cli.Flag{
+			utils.KMSAddressFlag,
+			utils.KMSKeyTokenPathFlag,
+			utils.KMSSourceAddressFlag,
+		},
+	},
+	{
 		Name: "MISC",
 		Flags: []cli.Flag{
 			utils.SnapshotFlag,

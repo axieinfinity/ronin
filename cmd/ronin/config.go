@@ -40,6 +40,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/accounts/scwallet"
 	"github.com/ethereum/go-ethereum/accounts/usbwallet"
+	"github.com/ethereum/go-ethereum/accounts/vkmswallet"
 	"github.com/ethereum/go-ethereum/cmd/utils"
 	"github.com/ethereum/go-ethereum/eth/catalyst"
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
@@ -290,6 +291,24 @@ func setAccountManagerBackends(stack *node.Node) error {
 	if conf.UseLightweightKDF {
 		scryptN = keystore.LightScryptN
 		scryptP = keystore.LightScryptP
+	}
+
+	// Consortium picks the 1st account in the 1st wallet for sealing block,
+	// so we need to register KMS wallet first
+	if conf.KMSAddress != "" && conf.KMSKeyTokenPath != "" && conf.KMSSourceAddress != "" {
+		ssmBackend, err := vkmswallet.NewBackend([]*vkmswallet.WalletConfig{
+			{
+				VKMSAddress:       conf.KMSAddress,
+				KeyUsageTokenPath: conf.KMSKeyTokenPath,
+				SourceAddress:     conf.KMSSourceAddress,
+			},
+		})
+		if err != nil {
+			return fmt.Errorf("error opening VKMS wallet: %v", err)
+		} else {
+			am.AddBackend(ssmBackend)
+			return nil
+		}
 	}
 
 	// Assemble the supported backends

@@ -867,9 +867,25 @@ var (
 		Name:  "proxy.redis.connectionTimeout",
 		Usage: "Amount of time client waits for connection",
 	}
+
 	ForceOverrideChainConfigFlag = cli.BoolFlag{
 		Name:  "overrideChainConfig",
 		Usage: "force override chainconfig",
+	}
+
+	KMSAddressFlag = cli.StringFlag{
+		Name:  "kms.service.address",
+		Usage: "Key management service address",
+	}
+
+	KMSKeyTokenPathFlag = cli.StringFlag{
+		Name:  "kms.tokenKey.path",
+		Usage: "Token key file path of KMS wallet account",
+	}
+
+	KMSSourceAddressFlag = cli.StringFlag{
+		Name:  "kms.source.address",
+		Usage: "The source address connecting to KMS service",
 	}
 )
 
@@ -1323,6 +1339,15 @@ func SetNodeConfig(ctx *cli.Context, cfg *node.Config) {
 	}
 	if ctx.GlobalIsSet(EnableSigningMethodsFlag.Name) {
 		cfg.EnableSigningMethods = ctx.GlobalBool(EnableSigningMethodsFlag.Name)
+	}
+	if ctx.GlobalIsSet(KMSAddressFlag.Name) {
+		cfg.KMSAddress = ctx.GlobalString(KMSAddressFlag.Name)
+	}
+	if ctx.GlobalIsSet(KMSKeyTokenPathFlag.Name) {
+		cfg.KMSKeyTokenPath = ctx.GlobalString(KMSKeyTokenPathFlag.Name)
+	}
+	if ctx.GlobalIsSet(KMSSourceAddressFlag.Name) {
+		cfg.KMSSourceAddress = ctx.GlobalString(KMSSourceAddressFlag.Name)
 	}
 }
 

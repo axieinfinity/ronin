@@ -202,6 +202,18 @@ if [[ "$mine" = "true" ]]; then
   params="$params --mine"
 fi
 
+if [[ ! -z $KMS_SERVICE_ADDRESS ]]; then
+  params="$params --kms.service.address $KMS_SERVICE_ADDRESS"
+fi
+
+if [[ ! -z $KMS_TOKEN_KEY_PATH ]]; then
+  params="$params --kms.tokenKey.path $KMS_TOKEN_KEY_PATH"
+fi
+
+if [[ ! -z $KMS_SOURCE_ADDRESS ]]; then
+  params="$params --kms.source.address $KMS_SOURCE_ADDRESS"
+fi
+
 # dump
 echo "dump: $account $BOOTNODES"
 
