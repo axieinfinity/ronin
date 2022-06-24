@@ -1,0 +1,4 @@
+FROM golang:1.17-alpine
+WORKDIR /opt
+RUN mkdir /opt/ronin
+COPY . /opt/ronin 
