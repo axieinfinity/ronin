@@ -252,6 +252,7 @@ var AppHelpFlagGroups = []flags.FlagGroup{
 			utils.KMSAddressFlag,
 			utils.KMSKeyTokenPathFlag,
 			utils.KMSSourceAddressFlag,
+			utils.KMSSslCertificatePathFlag,
 		},
 	},
 	{

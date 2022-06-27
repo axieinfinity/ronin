@@ -201,6 +201,8 @@ type Config struct {
 	KMSKeyTokenPath string `toml:",omitempty"`
 	// The local source address connecting to KMS service
 	KMSSourceAddress string `toml:",omitempty"`
+	// The KMS service SSL certificate path
+	KMSSslCertificatePath string `toml:",omitempty"`
 }
 
 // IPCEndpoint resolves an IPC endpoint based on a configured value, taking into

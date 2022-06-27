@@ -160,6 +160,7 @@ var (
 		utils.KMSAddressFlag,
 		utils.KMSKeyTokenPathFlag,
 		utils.KMSSourceAddressFlag,
+		utils.KMSSslCertificatePathFlag,
 	}
 
 	rpcFlags = []cli.Flag{

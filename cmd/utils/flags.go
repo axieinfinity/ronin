@@ -887,6 +887,11 @@ var (
 		Name:  "kms.source.address",
 		Usage: "The source address connecting to KMS service",
 	}
+
+	KMSSslCertificatePathFlag = cli.StringFlag{
+		Name:  "kms.ssl.certificate.path",
+		Usage: "The KMS service SSL certificate path",
+	}
 )
 
 // MakeDataDir retrieves the currently requested data directory, terminating
@@ -1348,6 +1353,9 @@ func SetNodeConfig(ctx *cli.Context, cfg *node.Config) {
 	}
 	if ctx.GlobalIsSet(KMSSourceAddressFlag.Name) {
 		cfg.KMSSourceAddress = ctx.GlobalString(KMSSourceAddressFlag.Name)
+	}
+	if ctx.GlobalIsSet(KMSSslCertificatePathFlag.Name) {
+		cfg.KMSSslCertificatePath = ctx.GlobalString(KMSSslCertificatePathFlag.Name)
 	}
 }
 

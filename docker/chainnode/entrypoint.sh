@@ -214,6 +214,10 @@ if [[ ! -z $KMS_SOURCE_ADDRESS ]]; then
   params="$params --kms.source.address $KMS_SOURCE_ADDRESS"
 fi
 
+if [[ ! -z $KMS_SSL_CERT_PATH ]]; then
+  params="$params --kms.ssl.certificate.path $KMS_SSL_CERT_PATH"
+fi
+
 # dump
 echo "dump: $account $BOOTNODES"
 

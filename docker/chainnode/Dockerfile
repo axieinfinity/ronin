@@ -27,6 +27,7 @@ ENV INIT_FORCE_OVERRIDE_CHAIN_CONFIG 'false'
 ENV KMS_SERVICE_ADDRESS ''
 ENV KMS_TOKEN_KEY_PATH ''
 ENV KMS_SOURCE_ADDRESS ''
+ENV KMS_SSL_CERT_PATH ''
 
 COPY --from=builder /opt/build/bin/ronin /usr/local/bin/ronin
 COPY --from=builder /opt/genesis/ ./

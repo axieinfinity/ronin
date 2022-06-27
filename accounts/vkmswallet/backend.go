@@ -31,9 +31,10 @@ const SuccessCode = 1
 const InternalErrorCode = 2
 
 type WalletConfig struct {
-	VKMSAddress       string
-	KeyUsageTokenPath string
-	SourceAddress     string
+	VKMSAddress        string
+	KeyUsageTokenPath  string
+	SourceAddress      string
+	SslCertificatePath string
 }
 
 type Backend struct {
@@ -71,8 +72,6 @@ type Wallet struct {
 	status        string
 }
 
-const PinnedCertString = "-----BEGIN CERTIFICATE-----\nMIIB2zCCAYCgAwIBAgIBATAKBggqhkjOPQQDAjBDMQswCQYDVQQGEwJWTjEQMA4G\nA1UEChMHVktNUyBDQTEQMA4GA1UECxMHVktNUyBDQTEQMA4GA1UEAxMHVktNUyBD\nQTAgFw0yMjAxMDEwMDAwMDBaGA8yMjIyMDEwMTAwMDAwMFowQzELMAkGA1UEBhMC\nVk4xEDAOBgNVBAoTB1ZLTVMgQ0ExEDAOBgNVBAsTB1ZLTVMgQ0ExEDAOBgNVBAMT\nB1ZLTVMgQ0EwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAAR6beXm9THiPdFEY/ui\nWCLpfZmPjg/c1dGN2QeOO121okrQeXuZQUiXR21Ae7Z4/RnyHLq+WQDCy07sNA3j\nMBLoo2MwYTAOBgNVHQ8BAf8EBAMCAoQwDwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4E\nFgQUAAAAAAAAAAAAAAAAAAAAAAAAAAAwHwYDVR0jBBgwFoAUAAAAAAAAAAAAAAAA\nAAAAAAAAAAAwCgYIKoZIzj0EAwIDSQAwRgIhAPfw6mn1Jw2Z0AuSXUCNc45lexiX\n9PslBH7k9XcXMbTsAiEAhmSz+dhM3xe+Ey+YtqNNmjlNE4QvCvLbwk1kl308/Cw=\n-----END CERTIFICATE-----"
-
 func NewWallet(config *WalletConfig) (*Wallet, error) {
 	// parse source address
 	sourceAddr, err := net.ResolveTCPAddr("tcp", config.SourceAddress)
@@ -83,9 +82,14 @@ func NewWallet(config *WalletConfig) (*Wallet, error) {
 		LocalAddr: sourceAddr,
 	}
 
-	// load pinned VKMS certificate
+	// load VKMS certificate
+	certString, err := ioutil.ReadFile(config.SslCertificatePath)
+	if err != nil {
+		return nil, err
+	}
+
 	certPool := x509.NewCertPool()
-	certPool.AppendCertsFromPEM([]byte(PinnedCertString))
+	certPool.AppendCertsFromPEM([]byte(certString))
 
 	// prepare a GRPC client
 	conn, err := grpc.Dial(config.VKMSAddress,

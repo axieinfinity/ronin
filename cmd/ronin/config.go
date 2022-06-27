@@ -295,12 +295,13 @@ func setAccountManagerBackends(stack *node.Node) error {
 
 	// Consortium picks the 1st account in the 1st wallet for sealing block,
 	// so we need to register KMS wallet first
-	if conf.KMSAddress != "" && conf.KMSKeyTokenPath != "" && conf.KMSSourceAddress != "" {
+	if conf.KMSAddress != "" && conf.KMSKeyTokenPath != "" && conf.KMSSourceAddress != "" && conf.KMSSslCertificatePath != "" {
 		ssmBackend, err := vkmswallet.NewBackend([]*vkmswallet.WalletConfig{
 			{
-				VKMSAddress:       conf.KMSAddress,
-				KeyUsageTokenPath: conf.KMSKeyTokenPath,
-				SourceAddress:     conf.KMSSourceAddress,
+				VKMSAddress:        conf.KMSAddress,
+				KeyUsageTokenPath:  conf.KMSKeyTokenPath,
+				SourceAddress:      conf.KMSSourceAddress,
+				SslCertificatePath: conf.KMSSslCertificatePath,
 			},
 		})
 		if err != nil {
