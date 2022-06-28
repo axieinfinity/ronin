@@ -21,6 +21,8 @@ params=""
 syncmode="snap"
 mine="true"
 
+set -e
+
 if [[ ! -z $DATA_DIR ]]; then
   datadir="$DATA_DIR"
 fi
