@@ -637,9 +637,9 @@ var (
 		Value: "localhost:9090",
 	}
 	ReadinessBlockLagFlag = cli.Int64Flag{
-    Name: "readiness.block.lag",
-    Usage: "The block lag for deciding the readiness is success or fail",
-    Value: 50,
+		Name:  "readiness.block.lag",
+		Usage: "The block lag for deciding the readiness is success or fail",
+		Value: 5,
 	}
 	// Network Settings
 	MaxPeersFlag = cli.IntFlag{
@@ -849,23 +849,27 @@ var (
 	}
 
 	ProxyRedisPoolSizeFlag = cli.IntFlag{
-		Name: "proxy.redis.poolSize",
+		Name:  "proxy.redis.poolSize",
 		Usage: "indicate the size of redis pool",
 	}
 
 	ProxyRedisReadTimeoutFlag = cli.DurationFlag{
-		Name: "proxy.redis.readTimeout",
+		Name:  "proxy.redis.readTimeout",
 		Usage: "Timeout for redis reads. If reached, commands will fail",
 	}
 
 	ProxyRedisWriteTimeoutFlag = cli.DurationFlag{
-		Name: "proxy.redis.writeTimeout",
+		Name:  "proxy.redis.writeTimeout",
 		Usage: "Timeout for redis writes. If reached, commands will fail",
 	}
 
 	ProxyRedisConnectionTimeoutFlag = cli.DurationFlag{
-		Name: "proxy.redis.connectionTimeout",
+		Name:  "proxy.redis.connectionTimeout",
 		Usage: "Amount of time client waits for connection",
+	}
+	ForceOverrideChainConfigFlag = cli.BoolFlag{
+		Name:  "overrideChainConfig",
+		Usage: "force override chainconfig",
 	}
 )
 
@@ -1826,9 +1830,9 @@ func RegisterGraphQLService(stack *node.Node, backend ethapi.Backend, cfg node.C
 
 // RegisterGraphQLService is a utility function to construct a new service and register it against a node.
 func RegisterReadinessService(stack *node.Node, ctx *cli.Context) {
-    if err := NewReadinessHandler(stack, []string{"*"}, []string{"*"}, ctx.GlobalString(ReadinessPrometheusEndpointFlag.Name), ctx.GlobalInt64(ReadinessBlockLagFlag.Name)); err != nil {
-        Fatalf("Failed to register the Readiness service: %v", err)
-    }
+	if err := NewReadinessHandler(stack, []string{"*"}, []string{"*"}, ctx.GlobalString(ReadinessPrometheusEndpointFlag.Name), ctx.GlobalInt64(ReadinessBlockLagFlag.Name)); err != nil {
+		Fatalf("Failed to register the Readiness service: %v", err)
+	}
 }
 
 func SetupMetrics(ctx *cli.Context) {
@@ -1952,7 +1956,7 @@ func MakeGenesis(ctx *cli.Context) *core.Genesis {
 func MakeChain(ctx *cli.Context, stack *node.Node) (chain *core.BlockChain, chainDb ethdb.Database) {
 	var err error
 	chainDb = MakeChainDatabase(ctx, stack, false) // TODO(rjl493456442) support read-only database
-	config, _, err := core.SetupGenesisBlock(chainDb, MakeGenesis(ctx))
+	config, _, err := core.SetupGenesisBlock(chainDb, MakeGenesis(ctx), false)
 	if err != nil {
 		Fatalf("%v", err)
 	}

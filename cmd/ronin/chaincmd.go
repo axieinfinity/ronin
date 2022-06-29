@@ -49,6 +49,7 @@ var (
 		ArgsUsage: "<genesisPath>",
 		Flags: []cli.Flag{
 			utils.DataDirFlag,
+			utils.ForceOverrideChainConfigFlag,
 		},
 		Category: "BLOCKCHAIN COMMANDS",
 		Description: `
@@ -201,6 +202,10 @@ func initGenesis(ctx *cli.Context) error {
 	if err := json.NewDecoder(file).Decode(genesis); err != nil {
 		utils.Fatalf("invalid genesis file: %v", err)
 	}
+	var overrideChainConfig bool
+	if ctx.IsSet(utils.ForceOverrideChainConfigFlag.Name) {
+		overrideChainConfig = ctx.Bool(utils.ForceOverrideChainConfigFlag.Name)
+	}
 	// Open and initialise both full and light databases
 	stack, _ := makeConfigNode(ctx)
 	defer stack.Close()
@@ -210,7 +215,7 @@ func initGenesis(ctx *cli.Context) error {
 		if err != nil {
 			utils.Fatalf("Failed to open database: %v", err)
 		}
-		_, hash, err := core.SetupGenesisBlock(chaindb, genesis)
+		_, hash, err := core.SetupGenesisBlock(chaindb, genesis, overrideChainConfig)
 		if err != nil {
 			utils.Fatalf("Failed to write genesis block: %v", err)
 		}
