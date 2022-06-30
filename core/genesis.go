@@ -177,7 +177,7 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, genesis *Genesis, override
 		}
 		return genesis.Config, block.Hash(), nil
 	}
-	if forceOverrideChainConfig {
+	if forceOverrideChainConfig && genesis != nil {
 		rawdb.WriteChainConfig(db, stored, genesis.Config)
 		return genesis.Config, stored, nil
 	}
