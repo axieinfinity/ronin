@@ -177,10 +177,6 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, genesis *Genesis, override
 		}
 		return genesis.Config, block.Hash(), nil
 	}
-	if forceOverrideChainConfig && genesis != nil {
-		rawdb.WriteChainConfig(db, stored, genesis.Config)
-		return genesis.Config, stored, nil
-	}
 	// We have the genesis block in database(perhaps in ancient database)
 	// but the corresponding state is missing.
 	header := rawdb.ReadHeader(db, stored, 0)
@@ -204,6 +200,11 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, genesis *Genesis, override
 		hash := genesis.ToBlock(nil).Hash()
 		if hash != stored {
 			return genesis.Config, hash, &GenesisMismatchError{stored, hash}
+		}
+		// force update chainconfig if forceOverrideChainConfig is enabled
+		if forceOverrideChainConfig {
+			rawdb.WriteChainConfig(db, stored, genesis.Config)
+			return genesis.Config, stored, nil
 		}
 	}
 	// Get the existing chain configuration.
