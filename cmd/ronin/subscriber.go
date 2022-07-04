@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/getsentry/sentry-go"
 	"github.com/segmentio/kafka-go"
 	"github.com/segmentio/kafka-go/sasl/plain"
 	"github.com/segmentio/kafka-go/sasl/scram"
@@ -187,6 +188,10 @@ var (
 		Name:  transactionResultTopic,
 		Usage: "topic name that transaction result message will be published to",
 	}
+)
+
+var (
+	OnJobMaxTry = NewJobMaxTryObserver()
 )
 
 type NewLog struct {
@@ -378,6 +383,28 @@ type Publisher interface {
 	close()
 }
 
+type JobMaxTryHandler func(job *Job)
+
+type JobMaxTryObserver struct {
+	handlers []JobMaxTryHandler
+}
+
+func (m *JobMaxTryObserver) trigger(job *Job) {
+	for _, v := range m.handlers {
+		v(job)
+	}
+}
+
+func (m *JobMaxTryObserver) Add(handler JobMaxTryHandler) {
+	m.handlers = append(m.handlers, handler)
+}
+
+func NewJobMaxTryObserver(handlers ...JobMaxTryHandler) *JobMaxTryObserver {
+	return &JobMaxTryObserver{
+		handlers: handlers,
+	}
+}
+
 type Job struct {
 	ID         int32
 	Type       int
@@ -428,7 +455,6 @@ type Subscriber struct {
 	removeLogsEvent  chan core.RemovedLogsEvent
 	rebirthLogsEvent chan []*types.Log
 	internalTxEvent  chan types.InternalTransaction
-
 	// topics params
 	chainEventTopic        string
 	chainSideTopic         string
@@ -513,6 +539,19 @@ func NewSubscriber(ethereum *eth.Ethereum, backend ethapi.Backend, ctx *cli.Cont
 	}
 	subs.resyncing.Store(false)
 	subs.isReachedLimitation.Store(false)
+
+	sentryOptions := sentry.ClientOptions{
+		Debug:            false,
+		TracesSampleRate: 1.0,
+	}
+	if err := sentry.Init(sentryOptions); err != nil {
+		log.Info(fmt.Sprintf("init sentry got error: %v", err))
+	}
+	// Flush buffered events before the program terminates.
+	// Set the timeout to the maximum duration the program can afford to wait.
+	defer sentry.Flush(2 * time.Second)
+	OnJobMaxTry = NewJobMaxTryObserver(jobMaxTrySendToSentry)
+
 	subs.JobChan = make(chan Job, subs.MaxQueueSize)
 	subs.Queue = make(chan chan Job, subs.MaxQueueSize)
 	subs.chainEvent = make(chan core.ChainEvent, subs.MaxQueueSize)
@@ -591,6 +630,7 @@ func NewSubscriber(ethereum *eth.Ethereum, backend ethapi.Backend, ctx *cli.Cont
 	if ctx.GlobalIsSet(ResyncLimitationFlag.Name) {
 		subs.limitation = int32(ctx.GlobalInt(ResyncLimitationFlag.Name))
 	}
+
 	// init workers
 	for i := 0; i < workers; i++ {
 		subs.Workers = append(subs.Workers, NewWorker(subs.ctx, i, subs.JobChan, subs.Queue, subs.eventPublisher.publish, subs.MaxQueueSize))
@@ -909,6 +949,21 @@ func NewJob(id int32, jobType int, message []interface{}, maxTry, backOff int) J
 		MaxTry:  maxTry,
 		BackOff: backOff,
 	}
+
+}
+
+func jobMaxTrySendToSentry(job *Job) {
+	hub := sentry.CurrentHub().Clone()
+	hub.AddBreadcrumb(&sentry.Breadcrumb{
+		Type:     string(sentry.LevelInfo),
+		Category: "Job",
+		Data: map[string]interface{}{
+			"Message": job.Message,
+			"MaxTry":  job.MaxTry,
+			"Backoff": job.BackOff,
+		},
+	}, &sentry.BreadcrumbHint{})
+	hub.CaptureMessage("Max try exceed")
 }
 
 func NewWorker(ctx context.Context, id int, mainChan chan Job, queue chan chan Job, publishFn func(job Job) error, size int) *Worker {
@@ -968,6 +1023,7 @@ func (w *Worker) processJob(job Job) {
 	if err != nil {
 		if job.RetryCount+1 > job.MaxTry {
 			log.Info("[Worker][processJob] job reaches its maxTry", "message", job.Message)
+			OnJobMaxTry.trigger(&job)
 			return
 		}
 
