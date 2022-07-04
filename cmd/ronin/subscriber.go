@@ -4,6 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math/rand"
+	"runtime"
+	"strings"
+	"time"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
@@ -11,13 +16,11 @@ import (
 	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/getsentry/sentry-go"
 	"github.com/segmentio/kafka-go"
 	"github.com/segmentio/kafka-go/sasl/plain"
 	"github.com/segmentio/kafka-go/sasl/scram"
 	"gopkg.in/urfave/cli.v1"
-	"runtime"
-	"strings"
-	"time"
 )
 
 const (
@@ -150,6 +153,10 @@ var (
 		Usage: "coolDownDuration is used to sleep for a while when a channel reaches its size",
 		Value: defaultCoolDownDuration,
 	}
+)
+
+var (
+	OnJobMaxTry = NewJobMaxTryObserver()
 )
 
 type NewLog struct {
@@ -334,6 +341,28 @@ type Publisher interface {
 	close()
 }
 
+type JobMaxTryHandler func(job *Job)
+
+type JobMaxTryObserver struct {
+	handlers []JobMaxTryHandler
+}
+
+func (m *JobMaxTryObserver) trigger(job *Job) {
+	for _, v := range m.handlers {
+		v(job)
+	}
+}
+
+func (m *JobMaxTryObserver) Add(handler JobMaxTryHandler) {
+	m.handlers = append(m.handlers, handler)
+}
+
+func NewJobMaxTryObserver(handlers ...JobMaxTryHandler) *JobMaxTryObserver {
+	return &JobMaxTryObserver{
+		handlers: handlers,
+	}
+}
+
 type Job struct {
 	Message    []interface{}
 	RetryCount int
@@ -442,6 +471,22 @@ func NewSubscriber(eth ethapi.Backend, ctx *cli.Context) *Subscriber {
 			subs.MaxQueueSize = queueSize
 		}
 	}
+
+	sentryOptions := sentry.ClientOptions{
+		Debug:            false,
+		TracesSampleRate: 1.0,
+	}
+	if err := sentry.Init(sentryOptions); err != nil {
+		log.Info(fmt.Sprintf("init sentry got error: %v", err))
+	}
+	// Flush buffered events before the program terminates.
+	// Set the timeout to the maximum duration the program can afford to wait.
+	defer sentry.Flush(2 * time.Second)
+	OnJobMaxTry = NewJobMaxTryObserver(jobMaxTrySendToSentry)
+	jobMaxTrySendToSentry(&Job{
+		MaxTry:  3,
+		BackOff: 3,
+	})
 	subs.JobChan = make(chan Job, subs.MaxQueueSize)
 	subs.Queue = make(chan chan Job, subs.MaxQueueSize)
 	subs.chainEvent = make(chan core.ChainEvent, subs.MaxQueueSize)
@@ -511,12 +556,41 @@ func NewSubscriber(eth ethapi.Backend, ctx *cli.Context) *Subscriber {
 	if ctx.GlobalIsSet(CoolDownDurationFlag.Name) {
 		subs.coolDownDuration = ctx.GlobalInt(CoolDownDurationFlag.Name)
 	}
-
+	go subs.LocalTest()
 	// init workers
 	for i := 0; i < workers; i++ {
 		subs.Workers = append(subs.Workers, NewWorker(subs.ctx, i, subs.JobChan, subs.Queue, subs.eventPublisher.publish, subs.MaxQueueSize))
 	}
 	return subs
+}
+
+func (s *Subscriber) LocalTest() {
+	var (
+		t = time.NewTicker(time.Second)
+	)
+
+	for {
+		select {
+		case <-t.C:
+			v := rand.Intn(4)
+			switch v {
+			case 0:
+				log.Info("create internal transaction")
+				it := types.InternalTransaction{}
+				s.internalTxEvent <- it
+			case 1:
+				log.Info("create chain event")
+				it := core.ChainEvent{}
+				s.chainEvent <- it
+			case 2:
+				log.Info("create removed log event")
+				it := core.RemovedLogsEvent{}
+				s.removeLogsEvent <- it
+			default:
+				log.Info("nothing to do")
+			}
+		}
+	}
 }
 
 func (s *Subscriber) CoolDown() {
@@ -533,7 +607,7 @@ func (s *Subscriber) SendJob(messages ...interface{}) {
 		log.Info("JobChan has reached its limit, Sleeping...")
 		s.CoolDown()
 	}
-	s.JobChan <- NewJob(messages, s.MaxRetry, s.BackOff)
+	s.JobChan <- NewJob(messages, s.MaxRetry, s.BackOff, NewJobMaxTryObserver())
 }
 
 func (s *Subscriber) HandleNewBlockWithValidation(evt core.ChainEvent) {
@@ -822,12 +896,27 @@ func (s *Subscriber) Close() {
 	s.cancelCtx()
 }
 
-func NewJob(message []interface{}, maxTry, backOff int) Job {
+func NewJob(message []interface{}, maxTry, backOff int, onMaxTry *JobMaxTryObserver) Job {
 	return Job{
 		Message: message,
 		MaxTry:  maxTry,
 		BackOff: backOff,
 	}
+
+}
+
+func jobMaxTrySendToSentry(job *Job) {
+	hub := sentry.CurrentHub().Clone()
+	hub.AddBreadcrumb(&sentry.Breadcrumb{
+		Type:     string(sentry.LevelInfo),
+		Category: "Job",
+		Data: map[string]interface{}{
+			"Message": job.Message,
+			"MaxTry":  job.MaxTry,
+			"Backoff": job.BackOff,
+		},
+	}, &sentry.BreadcrumbHint{})
+	hub.CaptureMessage("Max try exceed")
 }
 
 func NewWorker(ctx context.Context, id int, mainChan chan Job, queue chan chan Job, publishFn func(job Job) error, size int) *Worker {
@@ -859,6 +948,7 @@ func (w *Worker) start() {
 					// if it is not send it back to mainChan
 					if job.RetryCount+1 > job.MaxTry {
 						log.Info("job reaches its maxTry", "message", job.Message)
+						OnJobMaxTry.trigger(&job)
 						continue
 					}
 					job.RetryCount += 1
