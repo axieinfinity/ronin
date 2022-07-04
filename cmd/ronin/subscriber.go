@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"math/rand"
 	"runtime"
 	"strings"
 	"time"
@@ -556,41 +555,12 @@ func NewSubscriber(eth ethapi.Backend, ctx *cli.Context) *Subscriber {
 	if ctx.GlobalIsSet(CoolDownDurationFlag.Name) {
 		subs.coolDownDuration = ctx.GlobalInt(CoolDownDurationFlag.Name)
 	}
-	go subs.LocalTest()
+
 	// init workers
 	for i := 0; i < workers; i++ {
 		subs.Workers = append(subs.Workers, NewWorker(subs.ctx, i, subs.JobChan, subs.Queue, subs.eventPublisher.publish, subs.MaxQueueSize))
 	}
 	return subs
-}
-
-func (s *Subscriber) LocalTest() {
-	var (
-		t = time.NewTicker(time.Second)
-	)
-
-	for {
-		select {
-		case <-t.C:
-			v := rand.Intn(4)
-			switch v {
-			case 0:
-				log.Info("create internal transaction")
-				it := types.InternalTransaction{}
-				s.internalTxEvent <- it
-			case 1:
-				log.Info("create chain event")
-				it := core.ChainEvent{}
-				s.chainEvent <- it
-			case 2:
-				log.Info("create removed log event")
-				it := core.RemovedLogsEvent{}
-				s.removeLogsEvent <- it
-			default:
-				log.Info("nothing to do")
-			}
-		}
-	}
 }
 
 func (s *Subscriber) CoolDown() {
@@ -607,7 +577,7 @@ func (s *Subscriber) SendJob(messages ...interface{}) {
 		log.Info("JobChan has reached its limit, Sleeping...")
 		s.CoolDown()
 	}
-	s.JobChan <- NewJob(messages, s.MaxRetry, s.BackOff, NewJobMaxTryObserver())
+	s.JobChan <- NewJob(messages, s.MaxRetry, s.BackOff)
 }
 
 func (s *Subscriber) HandleNewBlockWithValidation(evt core.ChainEvent) {
@@ -896,7 +866,7 @@ func (s *Subscriber) Close() {
 	s.cancelCtx()
 }
 
-func NewJob(message []interface{}, maxTry, backOff int, onMaxTry *JobMaxTryObserver) Job {
+func NewJob(message []interface{}, maxTry, backOff int) Job {
 	return Job{
 		Message: message,
 		MaxTry:  maxTry,
