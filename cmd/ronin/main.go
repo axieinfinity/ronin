@@ -223,6 +223,8 @@ var (
 		ReOrgBlockEventFlag,
 		TransactionEventFlag,
 		ReorgTransactionEventFlag,
+		TransactionResultEventFlag,
+		InternalTxEventFlag,
 		KafkaPartitionFlag,
 		KafkaUrlFlag,
 		KafkaAuthenticationFlag,
@@ -368,12 +370,12 @@ func geth(ctx *cli.Context) error {
 		return nil
 	}
 	prepare(ctx)
-	stack, backend := makeFullNode(ctx)
+	stack, backend, eth := makeFullNode(ctx)
 	defer stack.Close()
 
 	// subscribe backend event if any
 	if ctx.GlobalBool(SubscriberFlag.Name) {
-		subs := NewSubscriber(backend, ctx)
+		subs := NewSubscriber(eth, backend, ctx)
 		defer subs.Close()
 		// wait until subscriber finishes its initiation
 		<-subs.Start()

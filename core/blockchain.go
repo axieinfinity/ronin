@@ -179,13 +179,13 @@ type BlockChain struct {
 	chainFeed     event.Feed
 	chainSideFeed event.Feed
 	// reorgFeed is used when canonical turns into side
-	reorgFeed     event.Feed
-	chainHeadFeed event.Feed
-	logsFeed      event.Feed
-	blockProcFeed event.Feed
+	reorgFeed      event.Feed
+	chainHeadFeed  event.Feed
+	logsFeed       event.Feed
+	blockProcFeed  event.Feed
 	internalTxFeed event.Feed
-	scope         event.SubscriptionScope
-	genesisBlock  *types.Block
+	scope          event.SubscriptionScope
+	genesisBlock   *types.Block
 
 	// This mutex synchronizes chain write operations.
 	// Readers don't need to take it, they can just read the database.
@@ -1628,7 +1628,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, er
 
 		// Process block using the parent state as reference point
 		substart := time.Now()
-		receipts, logs, usedGas, err := bc.processor.Process(block, statedb, bc.vmConfig, bc.OpEvents()...)
+		receipts, logs, usedGas, err := bc.processor.Process(block, statedb, bc.vmConfig)
 		if err != nil {
 			bc.reportBlock(block, receipts, err)
 			atomic.StoreUint32(&followupInterrupt, 1)
