@@ -20,9 +20,6 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
-	"github.com/ethereum/go-ethereum/proxy"
-	"github.com/go-redis/redis/v8"
-	gopsutil "github.com/shirou/gopsutil/mem"
 	"math"
 	"math/big"
 	"os"
@@ -31,6 +28,11 @@ import (
 	"strconv"
 	"time"
 	"unicode"
+
+	"github.com/ethereum/go-ethereum/eth"
+	"github.com/ethereum/go-ethereum/proxy"
+	"github.com/go-redis/redis/v8"
+	gopsutil "github.com/shirou/gopsutil/mem"
 
 	"gopkg.in/urfave/cli.v1"
 
@@ -161,7 +163,7 @@ func makeConfigNode(ctx *cli.Context) (*node.Node, gethConfig) {
 }
 
 // makeFullNode loads geth configuration and creates the Ethereum backend.
-func makeFullNode(ctx *cli.Context) (*node.Node, ethapi.Backend) {
+func makeFullNode(ctx *cli.Context) (*node.Node, ethapi.Backend, *eth.Ethereum) {
 	stack, cfg := makeConfigNode(ctx)
 	if ctx.GlobalIsSet(utils.OverrideArrowGlacierFlag.Name) {
 		cfg.Eth.OverrideArrowGlacier = new(big.Int).SetUint64(ctx.GlobalUint64(utils.OverrideArrowGlacierFlag.Name))
@@ -185,13 +187,13 @@ func makeFullNode(ctx *cli.Context) (*node.Node, ethapi.Backend) {
 
 	// Configure health check if requested
 	if ctx.GlobalIsSet(utils.ReadinessEnabledFlag.Name) {
-	    utils.RegisterReadinessService(stack, ctx)
+		utils.RegisterReadinessService(stack, ctx)
 	}
 	// Add the Ethereum Stats daemon if requested.
 	if cfg.Ethstats.URL != "" {
 		utils.RegisterEthStatsService(stack, backend, cfg.Ethstats.URL)
 	}
-	return stack, backend
+	return stack, backend, eth
 }
 
 // dumpConfig is the dumpconfig command.
