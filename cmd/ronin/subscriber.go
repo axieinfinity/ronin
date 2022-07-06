@@ -785,7 +785,7 @@ func (s *Subscriber) HandleNewTransactions(topic, logsTopic string, hash common.
 			}
 			messages = append(messages, s.eventPublisher.newMessage(topic, txData))
 			if receipts != nil && len(receipts) == len(txs) {
-				messages = append(messages, s.HandleLogs(logsTopic, hash, tx.Hash(), number, uint(i), receipts[i].Logs)...)
+				messages = append(messages, s.HandleLogs(logsTopic, hash, tx.Hash(), number, timestamp, uint(i), receipts[i].Logs)...)
 			}
 		}
 	}
