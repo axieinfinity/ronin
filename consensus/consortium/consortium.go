@@ -327,7 +327,7 @@ func (c *Consortium) verifyCascadingFields(chain consensus.ChainHeaderReader, he
 		return c.verifySeal(chain, header, parents)
 	}
 
-	signers, err := c.getValidatorsFromContract(chain, number-1)
+	signers, err := c.getValidatorsFromContract(chain, number)
 	if err != nil {
 		return err
 	}
