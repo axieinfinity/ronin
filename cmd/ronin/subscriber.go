@@ -3,21 +3,32 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"runtime"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/eth"
+	"github.com/ethereum/go-ethereum/ethdb"
+	"github.com/ethereum/go-ethereum/ethdb/httpdb"
+	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/segmentio/kafka-go"
 	"github.com/segmentio/kafka-go/sasl/plain"
 	"github.com/segmentio/kafka-go/sasl/scram"
 	"gopkg.in/urfave/cli.v1"
-	"runtime"
-	"strings"
-	"time"
 )
 
 const (
@@ -30,6 +41,7 @@ const (
 	transactionConfirmedEventTopic = "subscriber.transactionConfirmedEventTopic"
 	logsConfirmedEventTopic        = "subscriber.logsConfirmedEventTopic"
 	internalTransactionEventTopic  = "subscriber.internalTransactionEventTopic"
+	transactionResultTopic         = "subscriber.transactionResultTopic"
 	kafkaPartition                 = "subscriber.kafka.partition"
 	kafkaUrl                       = "subscriber.kafka.url"
 	maxRetry                       = "subscriber.maxRetry"
@@ -43,11 +55,20 @@ const (
 	queueSize                      = "subscriber.queueSize"
 	safeBlockRange                 = "subscriber.safeBlockRange"
 	coolDownDuration               = "subscriber.coolDownDuration"
+	rpcUrl                         = "subscriber.rpcUrl"
+	archiveUrl                     = "subscriber.archiveUrl"
+	resyncLimitation               = "subscriber.resync.limit"
 	defaultSafeBlockRange          = 10
 	statsDuration                  = 30
-	defaultWorkers                 = 1024
-	defaultMaxQueueSize            = 2048
-	defaultCoolDownDuration        = 0
+	defaultWorkers                 = 2048
+	defaultMaxQueueSize            = 4096
+	defaultCoolDownDuration        = 1
+	defaultReSyncLimitation        = 20
+)
+
+const (
+	pubJob = iota
+	sendConfirmBlock
 )
 
 var (
@@ -150,6 +171,22 @@ var (
 		Usage: "coolDownDuration is used to sleep for a while when a channel reaches its size",
 		Value: defaultCoolDownDuration,
 	}
+	RPCUrlFlag = cli.StringFlag{
+		Name:  rpcUrl,
+		Usage: "rpcUrl is used in httpdb to reprocess block in case local db (leveldb) cannot find root key",
+	}
+	ArchiveUrlFlag = cli.StringFlag{
+		Name:  archiveUrl,
+		Usage: "archiveUrl is used in httpdb in case rpc url cannot find data",
+	}
+	ResyncLimitationFlag = cli.IntFlag{
+		Name:  resyncLimitation,
+		Usage: "number of blocks allowed to resync at once",
+	}
+	TransactionResultEventFlag = cli.StringFlag{
+		Name:  transactionResultTopic,
+		Usage: "topic name that transaction result message will be published to",
+	}
 )
 
 type NewLog struct {
@@ -227,6 +264,13 @@ type InternalTransaction struct {
 	Height          uint64         `json:"height"`
 	BlockHash       common.Hash    `json:"blockHash"`
 	BlockTime       uint64         `json:"blockTime"`
+}
+
+type TransactionResult struct {
+	TransactionHash common.Hash   `json:"transactionHash"`
+	UsedGas         uint64        `json:"usedGas"`
+	Err             string        `json:"error"`
+	ReturnData      hexutil.Bytes `json:"returnData"`
 }
 
 func newTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber, timestamp uint64, index int, receipts types.Receipts) *NewTransaction {
@@ -307,7 +351,7 @@ func newLog(log *types.Log, timestamp uint64) *NewLog {
 	}
 }
 
-func newInternalTx(tx types.InternalTransaction) *InternalTransaction {
+func newInternalTx(tx *types.InternalTransaction) *InternalTransaction {
 	return &InternalTransaction{
 		Opcode:          tx.Opcode,
 		Order:           tx.Order,
@@ -335,11 +379,17 @@ type Publisher interface {
 }
 
 type Job struct {
+	ID         int32
+	Type       int
 	Message    []interface{}
 	RetryCount int
-	NextTry    int
+	NextTry    int64
 	MaxTry     int
 	BackOff    int
+}
+
+func (job Job) Hash() common.Hash {
+	return common.BytesToHash([]byte(fmt.Sprintf("j-%d-%d-%d", job.ID, job.RetryCount, job.NextTry)))
 }
 
 type Worker struct {
@@ -353,7 +403,7 @@ type Worker struct {
 	queue chan chan Job
 
 	// mainChain is subscriber's jobChan which is used to push job back to subscriber
-	mainChan chan Job
+	mainChan chan<- Job
 
 	// workerChan is used to receive and publishing job
 	workerChan chan Job
@@ -364,9 +414,12 @@ type Worker struct {
 // Subscriber is used to subscribe blockchain event and organized workers
 // to publish message into targeted message broker.
 type Subscriber struct {
+	once      sync.Once
 	ctx       context.Context
 	cancelCtx context.CancelFunc
 	backend   ethapi.Backend
+	ethereum  *eth.Ethereum
+	db        ethdb.Database
 
 	eventPublisher   Publisher
 	chainEvent       chan core.ChainEvent
@@ -383,6 +436,7 @@ type Subscriber struct {
 	reorgTransactionsTopic string
 	logsTopic              string
 	internalTxTopic        string
+	transactionResultTopic string
 
 	confirmedBlockTopic       string
 	confirmedTransactionTopic string
@@ -412,6 +466,13 @@ type Subscriber struct {
 	// safeBlockRange is used to send confirmed block
 	// confirmed block is behind the current block `confirmBlockAt` height
 	safeBlockRange int
+
+	jobId         int32
+	processedJobs sync.Map
+
+	resyncing           *atomic.Value
+	limitation, counter int32
+	isReachedLimitation *atomic.Value
 }
 
 type DefaultEventPublisher struct {
@@ -422,11 +483,16 @@ type DefaultEventPublisher struct {
 	AuthenticationType string
 }
 
-func NewSubscriber(eth ethapi.Backend, ctx *cli.Context) *Subscriber {
+func NewSubscriber(ethereum *eth.Ethereum, backend ethapi.Backend, ctx *cli.Context) *Subscriber {
 	workers := defaultWorkers
+	if ctx.GlobalIsSet(NumberOfWorkerFlag.Name) {
+		workers = ctx.GlobalInt(NumberOfWorkerFlag.Name)
+	}
+
 	subCtx, cancelCtx := context.WithCancel(context.Background())
 	subs := &Subscriber{
-		backend:          eth,
+		ethereum:         ethereum,
+		backend:          backend,
 		ctx:              subCtx,
 		cancelCtx:        cancelCtx,
 		MaxRetry:         100,
@@ -463,11 +529,11 @@ func NewSubscriber(eth ethapi.Backend, ctx *cli.Context) *Subscriber {
 	}
 	if ctx.GlobalIsSet(ChainEventFlag.Name) {
 		subs.chainEventTopic = ctx.GlobalString(ChainEventFlag.Name)
-		eth.SubscribeChainEvent(subs.chainEvent)
+		backend.SubscribeChainEvent(subs.chainEvent)
 	}
 	if ctx.GlobalIsSet(ReOrgBlockEventFlag.Name) {
 		subs.chainSideTopic = ctx.GlobalString(ReOrgBlockEventFlag.Name)
-		eth.SubscribeReorgEvent(subs.reorgEvent)
+		backend.SubscribeReorgEvent(subs.reorgEvent)
 	}
 	if ctx.GlobalIsSet(TransactionEventFlag.Name) {
 		subs.transactionsTopic = ctx.GlobalString(TransactionEventFlag.Name)
@@ -486,12 +552,15 @@ func NewSubscriber(eth ethapi.Backend, ctx *cli.Context) *Subscriber {
 	}
 	if ctx.GlobalIsSet(LogsEventFlag.Name) {
 		subs.logsTopic = ctx.GlobalString(LogsEventFlag.Name)
-		eth.SubscribeRemovedLogsEvent(subs.removeLogsEvent)
-		eth.SubscribeLogsEvent(subs.rebirthLogsEvent)
+		backend.SubscribeRemovedLogsEvent(subs.removeLogsEvent)
+		backend.SubscribeLogsEvent(subs.rebirthLogsEvent)
+	}
+	if ctx.GlobalIsSet(TransactionResultEventFlag.Name) {
+		subs.transactionResultTopic = ctx.GlobalString(TransactionResultEventFlag.Name)
 	}
 	if ctx.GlobalIsSet(InternalTxEventFlag.Name) {
 		subs.internalTxTopic = ctx.GlobalString(InternalTxEventFlag.Name)
-		eth.SubscribeInternalTransactionEvent(subs.internalTxEvent)
+		backend.SubscribeInternalTransactionEvent(subs.internalTxEvent)
 	}
 	if ctx.GlobalIsSet(MaxRetryFlag.Name) {
 		subs.MaxRetry = ctx.GlobalInt(MaxRetryFlag.Name)
@@ -511,7 +580,12 @@ func NewSubscriber(eth ethapi.Backend, ctx *cli.Context) *Subscriber {
 	if ctx.GlobalIsSet(CoolDownDurationFlag.Name) {
 		subs.coolDownDuration = ctx.GlobalInt(CoolDownDurationFlag.Name)
 	}
-
+	if ctx.GlobalIsSet(RPCUrlFlag.Name) {
+		subs.db = httpdb.NewDBWithLRU(ctx.GlobalString(RPCUrlFlag.Name), ctx.GlobalString(ArchiveUrlFlag.Name), 0)
+	}
+	if ctx.GlobalIsSet(ResyncLimitationFlag.Name) {
+		subs.limitation = int32(ctx.GlobalInt(ResyncLimitationFlag.Name))
+	}
 	// init workers
 	for i := 0; i < workers; i++ {
 		subs.Workers = append(subs.Workers, NewWorker(subs.ctx, i, subs.JobChan, subs.Queue, subs.eventPublisher.publish, subs.MaxQueueSize))
@@ -525,15 +599,15 @@ func (s *Subscriber) CoolDown() {
 	}
 }
 
-func (s *Subscriber) SendJob(messages ...interface{}) {
+func (s *Subscriber) SendJob(jobType int, messages ...interface{}) {
 	if len(messages) == 0 {
 		return
 	}
-	if len(s.JobChan) >= s.MaxQueueSize {
-		log.Info("JobChan has reached its limit, Sleeping...")
+	for len(s.JobChan) >= s.MaxQueueSize {
+		log.Debug("JobChan has reached its limit, Sleeping...")
 		s.CoolDown()
 	}
-	s.JobChan <- NewJob(messages, s.MaxRetry, s.BackOff)
+	s.JobChan <- NewJob(atomic.AddInt32(&s.jobId, 1), jobType, messages, s.MaxRetry, s.BackOff)
 }
 
 func (s *Subscriber) HandleNewBlockWithValidation(evt core.ChainEvent) {
@@ -562,19 +636,23 @@ func (s *Subscriber) HandleNewBlock(evt core.ChainEvent) {
 	}
 	// call send confirmed block with block behind with current block `confirmBlockAt` blocks
 	if s.safeBlockRange > 0 {
-		go s.SendConfirmedBlock(block.NumberU64() - uint64(s.safeBlockRange))
+		confirmedBlockHeight := block.NumberU64() - uint64(s.safeBlockRange)
+		s.SendJob(sendConfirmBlock, func(jobId int32) error {
+			log.Info("Processing confirm block job", "jobId", jobId, "height", confirmedBlockHeight)
+			return s.SendConfirmedBlock(confirmedBlockHeight)
+		})
 	}
 
 	// handle sending new transactions
 	messages = append(messages, s.HandleNewTransactions(s.transactionsTopic, s.logsTopic, block.Hash(), block.NumberU64(), block.Time(), txs, receipts)...)
 
 	log.Info("[HandleNewBlock] sending new block messages to jobChan", "messages", len(messages), "height", block.NumberU64(), "txs", len(txs), "logs", len(logs))
-	s.SendJob(messages...)
+	s.SendJob(pubJob, messages...)
 }
 
-func (s *Subscriber) SendConfirmedBlock(height uint64) {
+func (s *Subscriber) SendConfirmedBlock(height uint64) error {
 	if height < 0 {
-		return
+		return nil
 	}
 	messages := make([]interface{}, 0)
 	if s.confirmedBlockTopic != "" {
@@ -582,37 +660,50 @@ func (s *Subscriber) SendConfirmedBlock(height uint64) {
 		block, err := s.backend.BlockByNumber(context.Background(), rpc.BlockNumber(height))
 		if err != nil {
 			log.Error("[Subscriber][HandleConfirmedBlock] BlockByNumber", "err", err, "height", height)
-			return
+			return err
 		}
 		if block == nil {
 			log.Debug("[Subscriber][HandleConfirmedBlock] Could not find block", "height", height)
-			return
+			return errors.New(fmt.Sprintf("block %d not found", height))
 		}
-		// get receipts by number
+		// get receipts by hash
 		receipts, err := s.backend.GetReceipts(context.Background(), block.Hash())
 		if err != nil {
-			log.Error("[Subscriber][HandleConfirmedBlock] GetReceipts", "err", err, "height", height)
-			return
+			log.Error("[Subscriber][HandleConfirmedBlock] GetReceipts", "err", err, "hash", block.Hash().Hex())
+			return err
 		}
 		// marshal block
 		blockData, err := json.Marshal(newBlock(block))
 		if err != nil {
 			log.Error("[Subscriber][HandleConfirmedBlock] Marshal Block Data", "error", err, "height", height)
-			return
+			return err
 		}
 		messages = append(messages, s.eventPublisher.newMessage(s.confirmedBlockTopic, blockData))
 
 		if block.Transactions().Len() != len(receipts) {
-			log.Error("[Subscriber][HandleConfirmedBlock] mismatched txs len and receipts len",
+			log.Error("[Subscriber][HandleConfirmedBlock] mismatched txs len, receipts len or execution results len",
 				"height", height, "txs len", block.Transactions().Len(), "receipts len", len(receipts))
-			return
+			return errors.New("transactions and receipts are mismatched")
 		}
 		messages = append(messages, s.HandleNewTransactions(s.confirmedTransactionTopic, s.confirmedLogsTopic,
 			block.Hash(), height, block.Time(), block.Transactions(), receipts)...)
 
-		log.Info("[HandleNewBlock] sending confirmed block messages to jobChan", "messages", len(messages), "height", height)
-		s.SendJob(messages...)
+		// reprocess block
+		reprocessesMsg, err := s.reprocessBlock(block)
+		if err != nil {
+			return err
+		}
+		messages = append(messages, reprocessesMsg...)
+		log.Info("[HandleConfirmedBlock] sending confirmed block messages to jobChan", "messages", len(messages), "height", height)
+		s.SendJob(pubJob, messages...)
 	}
+	if s.limitation > 0 && s.resyncing.Load().(bool) {
+		counter := atomic.AddInt32(&s.counter, -1)
+		if counter < s.limitation {
+			s.isReachedLimitation.Store(false)
+		}
+	}
+	return nil
 }
 
 // HandleReorgBlock handles reOrg block event and push relevant block and transactions to message brokers using eventPublisher
@@ -637,7 +728,7 @@ func (s *Subscriber) HandleReorgBlock(evt core.ReorgEvent) {
 	messages = append(messages, s.HandleNewTransactions(s.reorgTransactionsTopic, s.logsTopic, block.Hash(), block.NumberU64(), block.Time(), txs, nil)...)
 
 	log.Info("[HandleReorgBlock] sending reOrg block messages to jobChan", "messages", len(messages), "height", block.NumberU64(), "txs", len(txs))
-	s.SendJob(messages...)
+	s.SendJob(pubJob, messages...)
 }
 
 // HandleNewTransactions converts transaction to readable transaction (JSON) based on transactions list and receipts list and push them message broker.
@@ -654,7 +745,7 @@ func (s *Subscriber) HandleNewTransactions(topic, logsTopic string, hash common.
 			}
 			messages = append(messages, s.eventPublisher.newMessage(topic, txData))
 			if receipts != nil && len(receipts) == len(txs) {
-				messages = append(messages, s.HandleLogs(logsTopic, hash, tx.Hash(), number, uint(i), receipts[i].Logs)...)
+				messages = append(messages, s.HandleLogs(logsTopic, hash, tx.Hash(), number, timestamp, uint(i), receipts[i].Logs)...)
 			}
 		}
 	}
@@ -664,9 +755,8 @@ func (s *Subscriber) HandleNewTransactions(topic, logsTopic string, hash common.
 // HandleLogs converts list of logs to binary and add to published messaged
 // When syncing using snap/fast mode, log does not contain txHash, blockHash, blockNumber and txIndex
 // Therefore we add these variables from params and update each log with these params.
-func (s *Subscriber) HandleLogs(topic string, hash, txHash common.Hash, number uint64, txIndex uint, logs []*types.Log) []interface{} {
+func (s *Subscriber) HandleLogs(topic string, hash, txHash common.Hash, number uint64, timestamp uint64, txIndex uint, logs []*types.Log) []interface{} {
 	messages := make([]interface{}, 0)
-	blockTimes := make(map[uint64]uint64)
 	if topic != "" {
 		for _, l := range logs {
 			if l.BlockNumber < s.FromHeight {
@@ -676,16 +766,7 @@ func (s *Subscriber) HandleLogs(topic string, hash, txHash common.Hash, number u
 			l.BlockHash = hash
 			l.BlockNumber = number
 			l.TxIndex = txIndex
-			// block time at current number is not find then find it in database
-			if blockTimes[number] == 0 {
-				header, err := s.backend.HeaderByHash(context.Background(), hash)
-				if err != nil {
-					log.Error("[HandleLogs]Get Header by block height", "number", number, "err", err)
-					continue
-				}
-				blockTimes[number] = header.Time
-			}
-			logData, err := json.Marshal(newLog(l, blockTimes[number]))
+			logData, err := json.Marshal(newLog(l, timestamp))
 			if err != nil {
 				log.Error("[HandleLogs]Marshal log data", "err", err, "blockHeight", l.BlockNumber, "index", l.TxIndex)
 				continue
@@ -724,20 +805,7 @@ func (s *Subscriber) HandleRemoveRebirthLogs(logs []*types.Log) {
 		}
 	}
 	log.Info("[HandleRemoveRebirthLogs] sending remove/rebirth logs messages to jobChan", "messages", len(messages))
-	s.SendJob(messages...)
-}
-
-func (s *Subscriber) HandleInternalTransactionEvent(tx types.InternalTransaction) {
-	if s.internalTxTopic != "" {
-		internalTx := newInternalTx(tx)
-		data, err := json.Marshal(internalTx)
-		if err != nil {
-			log.Error("[HandleInternalTransactionEvent] Marshal data", "err", err)
-			return
-		}
-		log.Info("[HandleInternalTransactionEvent] sending internal tx message to jobChan")
-		s.SendJob(s.eventPublisher.newMessage(s.internalTxTopic, data))
-	}
+	s.SendJob(pubJob, messages...)
 }
 
 // Start starts a subscriber which do the following:
@@ -752,40 +820,36 @@ func (s *Subscriber) Start() chan struct{} {
 	// run all events listeners
 	go func() {
 		statsTicker := time.NewTicker(statsDuration * time.Second)
-		queueStat := time.NewTimer(time.Millisecond)
 		for {
 			select {
 			case evt := <-s.reorgEvent:
 				go s.HandleReorgBlock(evt)
-			case evt := <-s.resyncEvent:
-				s.HandleNewBlock(evt)
 			case evt := <-s.chainEvent:
 				go s.HandleNewBlockWithValidation(evt)
 			case evt := <-s.removeLogsEvent:
 				go s.HandleRemoveRebirthLogs(evt.Logs)
 			case evt := <-s.rebirthLogsEvent:
 				go s.HandleRemoveRebirthLogs(evt)
-			case evt := <-s.internalTxEvent:
-				go s.HandleInternalTransactionEvent(evt)
 			case job := <-s.JobChan:
 				// get 1 workerCh from queue and push job to this channel
+				hash := job.Hash()
+				if _, ok := s.processedJobs.Load(hash); ok {
+					continue
+				}
+				s.processedJobs.Store(hash, struct{}{})
+				log.Info("jobChan received a job", "jobId", job.ID, "nextTry", job.NextTry)
 				workerCh := <-s.Queue
 				workerCh <- job
-			case <-queueStat.C:
-				// fill up Queue to make sure Queue never get empty
-				for i := 0; i < len(s.Workers)-len(s.Queue); i++ {
-					s.Queue <- s.Workers[i].workerChan
-				}
 			case <-s.ctx.Done():
-				close(s.Queue)
-				close(s.JobChan)
-				close(s.reorgEvent)
-				close(s.chainEvent)
-				close(s.rebirthLogsEvent)
-				close(s.removeLogsEvent)
-				close(s.internalTxEvent)
-				close(s.resyncEvent)
-				statsTicker.Stop()
+				s.once.Do(func() {
+					close(s.Queue)
+					close(s.JobChan)
+					close(s.reorgEvent)
+					close(s.chainEvent)
+					close(s.rebirthLogsEvent)
+					close(s.removeLogsEvent)
+					statsTicker.Stop()
+				})
 				break
 			case <-statsTicker.C:
 				log.Info("subscriber stats",
@@ -806,6 +870,7 @@ func (s *Subscriber) Start() chan struct{} {
 // resync is used when we want to resync blocks that exist on stateDb for some reason.
 // Such as message broker is down and message cannot be published to services.
 func (s *Subscriber) resync() {
+	s.resyncing.Store(true)
 	// if fromHeight is update to date or greater than currentHeight then do nothing
 	currentHeader := s.backend.CurrentHeader().Number.Uint64()
 	if s.FromHeight == 0 || s.FromHeight >= currentHeader {
@@ -813,17 +878,78 @@ func (s *Subscriber) resync() {
 	}
 	// loop until
 	for s.FromHeight < currentHeader {
-		s.SendConfirmedBlock(s.FromHeight)
+		height := s.FromHeight
+		if s.limitation > 0 {
+			rs := s.isReachedLimitation.Load()
+			if rs.(bool) {
+				s.CoolDown()
+				continue
+			}
+			if atomic.AddInt32(&s.counter, 1) >= s.limitation {
+				s.isReachedLimitation.Store(true)
+			}
+		}
+		s.SendJob(sendConfirmBlock, func(jobId int32) error {
+			log.Info("Processing confirm block job", "jobId", jobId, "height", height)
+			return s.SendConfirmedBlock(height)
+		})
 		s.FromHeight++
 	}
+	s.resyncing.Store(false)
+}
+
+func (s *Subscriber) reprocessBlock(block *types.Block) ([]interface{}, error) {
+	messages := make([]interface{}, 0)
+	if s.internalTxTopic != "" || s.transactionResultTopic != "" {
+		// get parent from blockchain first, if it can
+		parent, err := s.backend.BlockByNumber(context.Background(), rpc.BlockNumber(block.NumberU64()-1))
+		if err != nil {
+			return nil, err
+		}
+		errCh := make(chan error, 1)
+		startTime := time.Now()
+		log.Info("[Subscriber][reprocessBlock] reprocessing block", "height", block.NumberU64(), "numOfTxs", len(block.Transactions()))
+		txResults, internalTxs := reprocessBlock(s.ethereum.BlockChain(), parent.Root(), block.Header(), block.Transactions(), s.ethereum.APIBackend.ChainConfig(), state.NewDatabase(s.db), errCh)
+		err = <-errCh
+		if err != nil {
+			return nil, err
+		}
+		log.Info("[Subscriber][reprocessBlock] finish reprocessing block", "height", block.NumberU64(), "txResults", len(txResults), "internalTxs", len(internalTxs), "elapsed", time.Now().Unix()-startTime.Unix())
+		if s.internalTxTopic != "" {
+			for _, tx := range internalTxs {
+				internalTx := newInternalTx(tx)
+				data, err := json.Marshal(internalTx)
+				if err != nil {
+					log.Error("[Subscriber][HandleInternalTransactionEvent] Marshal data", "err", err)
+					return nil, err
+				}
+				log.Info("[Subscriber][reprocessBlock] adding message to internalTxTopic", "topic", s.internalTxTopic, "tx", tx.Hash().Hex(), "height", tx.Height, "parent", tx.TransactionHash.Hex())
+				messages = append(messages, s.eventPublisher.newMessage(s.internalTxTopic, data))
+			}
+		}
+		if s.transactionResultTopic != "" {
+			for _, tx := range txResults {
+				result, err := json.Marshal(tx)
+				if err != nil {
+					log.Error("[Subscriber][HandleTransactionResult] marshal error", "err", err)
+					return nil, err
+				}
+				log.Info("[Subscriber][reprocessBlock] adding message to txResultTopic", "topic", s.transactionResultTopic, "tx", tx.TransactionHash.Hex(), "height", block.NumberU64())
+				messages = append(messages, s.eventPublisher.newMessage(s.transactionResultTopic, result))
+			}
+		}
+	}
+	return messages, nil
 }
 
 func (s *Subscriber) Close() {
 	s.cancelCtx()
 }
 
-func NewJob(message []interface{}, maxTry, backOff int) Job {
+func NewJob(id int32, jobType int, message []interface{}, maxTry, backOff int) Job {
 	return Job{
+		ID:      id,
+		Type:    jobType,
 		Message: message,
 		MaxTry:  maxTry,
 		BackOff: backOff,
@@ -851,21 +977,10 @@ func (w *Worker) start() {
 		w.queue <- w.workerChan
 		select {
 		case job := <-w.workerChan:
-			if job.NextTry == 0 || job.NextTry <= time.Now().Second() {
-				log.Debug("publishing message", "id", w.id, "messages", len(job.Message), "retryCount", job.RetryCount)
-				if err := w.publishFn(job); err != nil {
-					log.Error("[worker][publishing]", "err", err)
-					// check if this job reaches maxTry or not
-					// if it is not send it back to mainChan
-					if job.RetryCount+1 > job.MaxTry {
-						log.Info("job reaches its maxTry", "message", job.Message)
-						continue
-					}
-					job.RetryCount += 1
-					job.NextTry = time.Now().Second() + (job.RetryCount * job.BackOff)
-				} else {
-					continue
-				}
+			log.Info("processing job", "id", job.ID, "nextTry", job.NextTry, "retryCount", job.RetryCount, "type", job.Type)
+			if job.NextTry == 0 || job.NextTry <= time.Now().Unix() {
+				w.processJob(job)
+				continue
 			}
 			// push the job back to mainChan
 			w.mainChan <- job
@@ -874,6 +989,40 @@ func (w *Worker) start() {
 			return
 		}
 	}
+}
+
+func (w *Worker) processJob(job Job) {
+	var err error
+	switch job.Type {
+	case pubJob:
+		if err = w.publishFn(job); err != nil {
+			log.Error("[worker][publishing]", "err", err, "id", job.ID)
+			break
+		}
+	case sendConfirmBlock:
+		if len(job.Message) == 0 {
+			return
+		}
+		sendConfirmBlockFunc := job.Message[0].(func(int32) error)
+		if err = sendConfirmBlockFunc(job.ID); err != nil {
+			log.Error("[worker][reprocessBlock]", "err", err, "id", job.ID)
+			break
+		}
+	}
+
+	if err != nil {
+		if job.RetryCount+1 > job.MaxTry {
+			log.Info("[Worker][processJob] job reaches its maxTry", "message", job.Message)
+			return
+		}
+
+		job.RetryCount++
+		job.NextTry = time.Now().Unix() + int64(job.RetryCount*job.BackOff)
+		// push the job back to mainChan
+		w.mainChan <- job
+		log.Info("[Worker][processJob] job failed, added back to jobChan", "id", job.ID, "retryCount", job.RetryCount, "nextTry", job.NextTry)
+	}
+
 }
 
 func NewDefaultEventPublisher(ctx *cli.Context) *DefaultEventPublisher {
@@ -936,3 +1085,181 @@ func (s *DefaultEventPublisher) getDialer() (*kafka.Dialer, error) {
 }
 
 func (s *DefaultEventPublisher) close() {}
+
+type ReprocessBlockRequest struct {
+	BC           core.ChainContext
+	ParentRoot   common.Hash
+	Header       *types.Header
+	Transactions []*types.Transaction
+	ChainConfig  *params.ChainConfig
+	DB           state.Database
+	ErrorChannel chan error
+}
+
+type ReprocessBlockResponse struct {
+	TransactionResults   []*TransactionResult
+	InternalTransactions []*types.InternalTransaction
+}
+
+func reprocessBlock2(req *ReprocessBlockRequest) *ReprocessBlockResponse {
+	var (
+		internalTxFeed event.Feed
+		usedGas        = new(uint64)
+		gp             = new(core.GasPool).AddGas(req.Header.GasLimit)
+		internalTxsCh  = make(chan *types.InternalTransaction, 10000)
+		res            ReprocessBlockResponse
+	)
+	internalTxFeed.Subscribe(internalTxsCh)
+	opEvents := []*vm.PublishEvent{
+		{
+			OpCodes: []vm.OpCode{vm.CALL},
+			Event:   core.NewInternalTransferOrSmcCallEvent(&internalTxFeed),
+		},
+		{
+			OpCodes: []vm.OpCode{vm.CREATE, vm.CREATE2},
+			Event:   core.NewInternalTransactionContractCreation(&internalTxFeed),
+		},
+	}
+	defer func() {
+		if err := recover(); err != nil {
+			req.ErrorChannel <- errors.New(fmt.Sprintf("panic occurred: %v", err))
+		}
+	}()
+	log.Debug("[reprocessBlock] start reprocessBlock", "Height", req.Header.Number.Uint64())
+	blockContext := core.NewEVMBlockContext(req.Header, req.BC, nil, opEvents...)
+	statedb, err := state.New(req.ParentRoot, req.DB, nil)
+	if err != nil {
+		req.ErrorChannel <- err
+		return nil
+	}
+	vmenv := vm.NewEVM(blockContext, vm.TxContext{}, statedb, req.ChainConfig, vm.Config{})
+	res.TransactionResults = make([]*TransactionResult, len(req.Transactions))
+	// Iterate over and process the individual transactions
+	startTime := time.Now()
+	for i, tx := range req.Transactions {
+		log.Info("[reprocessBlock] processing tx", "index", i, "tx", tx.Hash().Hex(), "txNonce", tx.Nonce())
+		// set current transaction in block context to each transaction
+		vmenv.Context.CurrentTransaction = tx
+		// reset counter to start counting opcodes in new transaction
+		vmenv.Context.Counter = 0
+		msg, err := tx.AsMessage(types.MakeSigner(req.ChainConfig, req.Header.Number), req.Header.BaseFee)
+		if err != nil {
+			errMsg := fmt.Errorf("could not apply tx %d [%v]: %w", i, tx.Hash().Hex(), err)
+			log.Error("[reprocessBlock] tx to message", "err", err, "tx", tx.Hash().Hex(), "block", req.Header.Number.Uint64())
+			req.ErrorChannel <- errMsg
+			return nil
+		}
+		nonce := statedb.GetNonce(msg.From())
+		log.Debug("[reprocessBlock] get sender nonce", "sender", msg.From().Hex(), "nonce", nonce, "index", i, "txNonce", msg.Nonce(), "tx", tx.Hash().Hex())
+		statedb.Prepare(tx.Hash(), i)
+		_, result, err := core.ApplyTransactionWithVMContext(msg, req.ChainConfig, nil, nil, gp, statedb, req.Header.Number, req.Header.Hash(), tx, usedGas, vmenv)
+		if err != nil {
+			errMsg := fmt.Errorf("could not apply tx %d [%v] [block: %d]: %w", i, tx.Hash().Hex(), req.Header.Number.Uint64(), err)
+			log.Error("[reprocessBlock] ApplyMessage", "err", err, "tx", tx.Hash().Hex(), "block", req.Header.Number.Uint64())
+			req.ErrorChannel <- errMsg
+			return nil
+		}
+		res.TransactionResults[i] = &TransactionResult{
+			TransactionHash: tx.Hash(),
+			UsedGas:         result.UsedGas,
+		}
+		if result.Err != nil {
+			res.TransactionResults[i].Err = result.Err.Error()
+		}
+		if result.ReturnData != nil {
+			res.TransactionResults[i].ReturnData = result.ReturnData
+		}
+	}
+	endTime := time.Now()
+	log.Info("[reprocessBlock] finish processing tx", "txs", len(res.TransactionResults), "internalTxs", len(internalTxsCh), "block", req.Header.Number.Uint64(), "elapsed", endTime.Unix()-startTime.Unix())
+	close(internalTxsCh)
+	if len(internalTxsCh) > 0 {
+		log.Debug("[reprocessBlock] getting internalTxs", "txs", len(internalTxsCh))
+		for internalTx := range internalTxsCh {
+			res.InternalTransactions = append(res.InternalTransactions, internalTx)
+		}
+	}
+	req.ErrorChannel <- nil
+	return &res
+}
+
+func reprocessBlock(bc core.ChainContext, parentRoot common.Hash, header *types.Header, txs types.Transactions, chainConfig *params.ChainConfig, db state.Database, errCh chan error) (txResults []*TransactionResult, internalTxs []*types.InternalTransaction) {
+	var (
+		internalTxFeed event.Feed
+		usedGas        = new(uint64)
+		gp             = new(core.GasPool).AddGas(header.GasLimit)
+		internalTxsCh  = make(chan *types.InternalTransaction, 10000)
+	)
+	internalTxFeed.Subscribe(internalTxsCh)
+	opEvents := []*vm.PublishEvent{
+		{
+			OpCodes: []vm.OpCode{vm.CALL},
+			Event:   core.NewInternalTransferOrSmcCallEvent(&internalTxFeed),
+		},
+		{
+			OpCodes: []vm.OpCode{vm.CREATE, vm.CREATE2},
+			Event:   core.NewInternalTransactionContractCreation(&internalTxFeed),
+		},
+	}
+	defer func() {
+		if err := recover(); err != nil {
+			errCh <- errors.New(fmt.Sprintf("panic occurred: %v", err))
+		}
+	}()
+	log.Debug("[reprocessBlock] start reprocessBlock", "Height", header.Number.Uint64())
+	blockContext := core.NewEVMBlockContext(header, bc, nil, opEvents...)
+	statedb, err := state.New(parentRoot, db, nil)
+	if err != nil {
+		errCh <- err
+		return
+	}
+	vmenv := vm.NewEVM(blockContext, vm.TxContext{}, statedb, chainConfig, vm.Config{})
+	txResults = make([]*TransactionResult, len(txs))
+	// Iterate over and process the individual transactions
+	startTime := time.Now()
+	for i, tx := range txs {
+		log.Info("[reprocessBlock] processing tx", "index", i, "tx", tx.Hash().Hex(), "txNonce", tx.Nonce())
+		// set current transaction in block context to each transaction
+		vmenv.Context.CurrentTransaction = tx
+		// reset counter to start counting opcodes in new transaction
+		vmenv.Context.Counter = 0
+		msg, err := tx.AsMessage(types.MakeSigner(chainConfig, header.Number), header.BaseFee)
+		if err != nil {
+			errMsg := fmt.Errorf("could not apply tx %d [%v]: %w", i, tx.Hash().Hex(), err)
+			log.Error("[reprocessBlock] tx to message", "err", err, "tx", tx.Hash().Hex(), "block", header.Number.Uint64())
+			errCh <- errMsg
+			return
+		}
+		nonce := statedb.GetNonce(msg.From())
+		log.Debug("[reprocessBlock] get sender nonce", "sender", msg.From().Hex(), "nonce", nonce, "index", i, "txNonce", msg.Nonce(), "tx", tx.Hash().Hex())
+		statedb.Prepare(tx.Hash(), i)
+		_, result, err := core.ApplyTransactionWithVMContext(msg, chainConfig, nil, nil, gp, statedb, header.Number, header.Hash(), tx, usedGas, vmenv)
+		if err != nil {
+			errMsg := fmt.Errorf("could not apply tx %d [%v] [block: %d]: %w", i, tx.Hash().Hex(), header.Number.Uint64(), err)
+			log.Error("[reprocessBlock] ApplyMessage", "err", err, "tx", tx.Hash().Hex(), "block", header.Number.Uint64())
+			errCh <- errMsg
+			return
+		}
+		txResults[i] = &TransactionResult{
+			TransactionHash: tx.Hash(),
+			UsedGas:         result.UsedGas,
+		}
+		if result.Err != nil {
+			txResults[i].Err = result.Err.Error()
+		}
+		if result.ReturnData != nil {
+			txResults[i].ReturnData = result.ReturnData
+		}
+	}
+	endTime := time.Now()
+	log.Info("[reprocessBlock] finish processing tx", "txs", len(txResults), "internalTxs", len(internalTxsCh), "block", header.Number.Uint64(), "elapsed", endTime.Unix()-startTime.Unix())
+	close(internalTxsCh)
+	if len(internalTxsCh) > 0 {
+		log.Debug("[reprocessBlock] getting internalTxs", "txs", len(internalTxsCh))
+		for internalTx := range internalTxsCh {
+			internalTxs = append(internalTxs, internalTx)
+		}
+	}
+	errCh <- nil
+	return
+}
