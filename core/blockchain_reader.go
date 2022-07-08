@@ -448,6 +448,12 @@ type InternalTransactionContractCreation struct {
 	feed *event.Feed
 }
 
+func NewInternalTransferOrSmcCallEvent(feed *event.Feed) *InternalTransferOrSmcCallEvent {
+	return &InternalTransferOrSmcCallEvent{
+		feed: feed,
+	}
+}
+
 func (tx *InternalTransactionContractCreation) Publish(opcode vm.OpCode, order uint64, stateDB vm.StateDB, blockHeight uint64,
 	blockHash common.Hash, blockTime uint64, hash common.Hash, from, to common.Address, value *big.Int, input []byte, err error) error {
 	internal := types.InternalTransaction{
@@ -470,4 +476,10 @@ func (tx *InternalTransactionContractCreation) Publish(opcode vm.OpCode, order u
 	}
 	tx.feed.Send(internal)
 	return nil
+}
+
+func NewInternalTransactionContractCreation(feed *event.Feed) *InternalTransactionContractCreation {
+	return &InternalTransactionContractCreation{
+		feed: feed,
+	}
 }

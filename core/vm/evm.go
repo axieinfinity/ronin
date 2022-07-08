@@ -17,11 +17,12 @@
 package vm
 
 import (
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/log"
 	"math/big"
 	"sync/atomic"
 	"time"
+
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -50,8 +51,9 @@ type (
 	// PublishEvent is used to pass in NewVM as a list of PublishEvent to init PublishEventsMap
 	PublishEvent struct {
 		OpCodes []OpCode
-		Event  OpEvent
+		Event   OpEvent
 	}
+	BlockHash common.Hash
 )
 
 func (evm *EVM) precompile(addr common.Address) (PrecompiledContract, bool) {
@@ -96,7 +98,7 @@ type BlockContext struct {
 	BaseFee     *big.Int       // Provides information for BASEFEE
 
 	// Counter is used to call number of opcodes called in a transaction
-	Counter 	uint64
+	Counter uint64
 	// CurrentTransaction stores current processing transaction
 	CurrentTransaction *types.Transaction
 
