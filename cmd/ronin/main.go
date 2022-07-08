@@ -224,7 +224,6 @@ var (
 		TransactionEventFlag,
 		ReorgTransactionEventFlag,
 		TransactionResultEventFlag,
-		InternalTxEventFlag,
 		KafkaPartitionFlag,
 		KafkaUrlFlag,
 		KafkaAuthenticationFlag,

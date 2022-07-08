@@ -491,16 +491,19 @@ func NewSubscriber(ethereum *eth.Ethereum, backend ethapi.Backend, ctx *cli.Cont
 
 	subCtx, cancelCtx := context.WithCancel(context.Background())
 	subs := &Subscriber{
-		ethereum:         ethereum,
-		backend:          backend,
-		ctx:              subCtx,
-		cancelCtx:        cancelCtx,
-		MaxRetry:         100,
-		BackOff:          5,
-		Workers:          make([]*Worker, 0),
-		MaxQueueSize:     defaultMaxQueueSize,
-		safeBlockRange:   defaultSafeBlockRange,
-		coolDownDuration: defaultCoolDownDuration,
+		ethereum:            ethereum,
+		backend:             backend,
+		ctx:                 subCtx,
+		cancelCtx:           cancelCtx,
+		MaxRetry:            100,
+		BackOff:             5,
+		Workers:             make([]*Worker, 0),
+		MaxQueueSize:        defaultMaxQueueSize,
+		safeBlockRange:      defaultSafeBlockRange,
+		coolDownDuration:    defaultCoolDownDuration,
+		limitation:          defaultReSyncLimitation,
+		isReachedLimitation: &atomic.Value{},
+		resyncing:           &atomic.Value{},
 	}
 	if ctx.GlobalIsSet(QueueSizeFlag.Name) {
 		queueSize := ctx.GlobalInt(QueueSizeFlag.Name)
@@ -508,6 +511,8 @@ func NewSubscriber(ethereum *eth.Ethereum, backend ethapi.Backend, ctx *cli.Cont
 			subs.MaxQueueSize = queueSize
 		}
 	}
+	subs.resyncing.Store(false)
+	subs.isReachedLimitation.Store(false)
 	subs.JobChan = make(chan Job, subs.MaxQueueSize)
 	subs.Queue = make(chan chan Job, subs.MaxQueueSize)
 	subs.chainEvent = make(chan core.ChainEvent, subs.MaxQueueSize)
@@ -1022,7 +1027,6 @@ func (w *Worker) processJob(job Job) {
 		w.mainChan <- job
 		log.Info("[Worker][processJob] job failed, added back to jobChan", "id", job.ID, "retryCount", job.RetryCount, "nextTry", job.NextTry)
 	}
-
 }
 
 func NewDefaultEventPublisher(ctx *cli.Context) *DefaultEventPublisher {
