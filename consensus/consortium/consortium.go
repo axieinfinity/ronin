@@ -511,8 +511,9 @@ func (c *Consortium) verifySeal(chain consensus.ChainHeaderReader, header *types
 // Prepare implements consensus.Engine, preparing all the consensus fields of the
 // header for running the transactions on top.
 func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.Header) error {
+	signer, _ := c.getSigner()
 	// Set the Coinbase address as the signer
-	header.Coinbase = c.signer
+	header.Coinbase = signer
 	header.Nonce = types.BlockNonce{}
 
 	number := header.Number.Uint64()
@@ -521,7 +522,7 @@ func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.He
 		return err
 	}
 	// Set the correct difficulty
-	header.Difficulty = c.doCalcDifficulty(c.signer, number, validators)
+	header.Difficulty = c.doCalcDifficulty(signer, number, validators)
 
 	// Ensure the extra data has all its components
 	if len(header.Extra) < extraVanity {
@@ -600,15 +601,13 @@ func (c *Consortium) Seal(chain consensus.ChainHeaderReader, block *types.Block,
 		return errors.New("sealing paused while waiting for transactions")
 	}
 	// Don't hold the signer fields for the entire sealing procedure
-	c.lock.RLock()
-	signer, signFn := c.signer, c.signFn
-	c.lock.RUnlock()
+	signer, signFn := c.getSigner()
 
 	validators, err := c.getValidatorsFromLastCheckpoint(chain, number-1, nil)
 	if err != nil {
 		return err
 	}
-	if !signerInList(c.signer, validators) {
+	if !signerInList(signer, validators) {
 		return errUnauthorizedSigner
 	}
 	snap, err := c.snapshot(chain, number-1, header.ParentHash, nil)
@@ -687,7 +686,8 @@ func (c *Consortium) CalcDifficulty(chain consensus.ChainHeaderReader, time uint
 	if err != nil {
 		return nil
 	}
-	return c.doCalcDifficulty(c.signer, number, validators)
+	signer, _ := c.getSigner()
+	return c.doCalcDifficulty(signer, number, validators)
 }
 
 // SealHash returns the hash of a block prior to it being sealed.
@@ -810,4 +810,10 @@ func (c *Consortium) signerInTurn(signer common.Address, number uint64, validato
 	lastCheckpoint := number / c.config.Epoch * c.config.Epoch
 	index := (number - lastCheckpoint) % uint64(len(validators))
 	return validators[index] == signer
+}
+
+func (c *Consortium) getSigner() (common.Address, SignerFn) {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+	return c.signer, c.signFn
 }
