@@ -694,7 +694,7 @@ func (c *Consortium) CalcDifficulty(chain consensus.ChainHeaderReader, time uint
 func SealHash(header *types.Header) (hash common.Hash) {
 	hasher := sha3.NewLegacyKeccak256()
 	encodeSigHeader(hasher, header)
-	hasher.Sum(hash[:0])
+	hasher.(crypto.KeccakState).Read(hash[:])
 	return hash
 }
 
