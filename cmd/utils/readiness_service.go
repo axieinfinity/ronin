@@ -34,7 +34,7 @@ type Response struct {
 
 type handler struct {
 	prometheus string
-	blockLag  int64
+	blockLag   int64
 }
 
 func respond(w http.ResponseWriter, body []byte, code int) {
@@ -66,7 +66,7 @@ func (h handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	queryParam := url.QueryEscape("max(chain_head_block) by (job)")
-	query := fmt.Sprintf("http://%s/api/v1/query?query=%s&time=%d", h.prometheus, queryParam, strconv.FormatInt(time.Now().Unix(),10))
+	query := fmt.Sprintf("http://%s/api/v1/query?query=%s&time=%d", h.prometheus, queryParam, time.Now().Unix())
 	resp, err := http.Get(query)
 	if err != nil {
 		log.Error("[Readiness] Failed to query to prometheus", "query", query, "error", err)
@@ -77,13 +77,18 @@ func (h handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		log.Error("[Readiness] Failed to parse body", "error", err)
-		respond(w, errorJSON("Failed to parse json body"), http.StatusOK)
+		log.Error("[Readiness] Failed to read response body", "error", err)
+		respond(w, errorJSON("Failed to read response body"), http.StatusOK)
 		return
 	}
 
 	var response Response
 	err = json.Unmarshal(body, &response)
+	if err != nil {
+		log.Error("[Readiness] Failed to parse body", "error", err)
+		respond(w, errorJSON("Failed to parse body"), http.StatusOK)
+		return
+	}
 
 	if response.Status != "success" {
 		log.Error("[Readiness] Process query to prometheus", "status", response.Status, "query", query)
@@ -120,7 +125,7 @@ func NewReadinessHandler(stack *node.Node, cors, vhosts []string, prometheus str
 func newHandler(stack *node.Node, cors, vhosts []string, prometheus string, blockLag int64) error {
 	h := handler{
 		prometheus: prometheus,
-		blockLag:  blockLag,
+		blockLag:   blockLag,
 	}
 	handler := node.NewHTTPHandlerStack(h, cors, vhosts)
 	stack.RegisterHandler("readiness", "/readiness", handler)
