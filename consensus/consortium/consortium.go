@@ -20,6 +20,7 @@ package consortium
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"math/big"
 	"math/rand"
@@ -290,6 +291,11 @@ func (c *Consortium) verifyHeader(chain consensus.ChainHeaderReader, header *typ
 			return errInvalidDifficulty
 		}
 	}
+	// Verify that the gas limit is <= 2^63-1
+	cap := uint64(0x7fffffffffffffff)
+	if header.GasLimit > cap {
+		return fmt.Errorf("invalid gasLimit: have %v, max %v", header.GasLimit, cap)
+	}
 	// If all checks passed, validate any special fields for hard forks
 	if err := misc.VerifyForkHashes(chain.Config(), header, false); err != nil {
 		return err
@@ -321,13 +327,28 @@ func (c *Consortium) verifyCascadingFields(chain consensus.ChainHeaderReader, he
 	if parent.Time+c.config.Period > header.Time {
 		return ErrInvalidTimestamp
 	}
-
+	// Verify that the gasUsed is <= gasLimit
+	if header.GasUsed > header.GasLimit {
+		return fmt.Errorf("invalid gasUsed: have %d, gasLimit %d", header.GasUsed, header.GasLimit)
+	}
+	if !chain.Config().IsLondon(header.Number) {
+		// Verify BaseFee not present before EIP-1559 fork.
+		if header.BaseFee != nil {
+			return fmt.Errorf("invalid baseFee before fork: have %d, want <nil>", header.BaseFee)
+		}
+		if err := misc.VerifyGaslimit(parent.GasLimit, header.GasLimit); err != nil {
+			return err
+		}
+	} else if err := misc.VerifyEip1559Header(chain.Config(), parent, header); err != nil {
+		// Verify the header's EIP-1559 attributes.
+		return err
+	}
 	// If the block is a checkpoint block, verify the signer list
 	if number%c.config.Epoch != 0 {
 		return c.verifySeal(chain, header, parents)
 	}
 
-	signers, err := c.getValidatorsFromContract(chain, number-1)
+	signers, err := c.getValidatorsFromContract(chain, number)
 	if err != nil {
 		return err
 	}
@@ -487,6 +508,15 @@ func (c *Consortium) verifySeal(chain consensus.ChainHeaderReader, header *types
 		return errUnauthorizedSigner
 	}
 
+	for seen, recent := range snap.Recents {
+		if recent == signer {
+			// Signer is among recents, only fail if the current block doesn't shift it out
+			if limit := uint64(len(snap.SignerList)/2 + 1); number < limit || seen > number-limit {
+				return errRecentlySigned
+			}
+		}
+	}
+
 	// Ensure that the difficulty corresponds to the turn-ness of the signer
 	validators := snap.SignerList
 	inturn := c.signerInTurn(signer, header.Number.Uint64(), validators)
@@ -502,8 +532,9 @@ func (c *Consortium) verifySeal(chain consensus.ChainHeaderReader, header *types
 // Prepare implements consensus.Engine, preparing all the consensus fields of the
 // header for running the transactions on top.
 func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.Header) error {
+	signer, _ := c.getSigner()
 	// Set the Coinbase address as the signer
-	header.Coinbase = c.signer
+	header.Coinbase = signer
 	header.Nonce = types.BlockNonce{}
 
 	number := header.Number.Uint64()
@@ -512,7 +543,7 @@ func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.He
 		return err
 	}
 	// Set the correct difficulty
-	header.Difficulty = c.doCalcDifficulty(c.signer, number, validators)
+	header.Difficulty = c.doCalcDifficulty(signer, number, validators)
 
 	// Ensure the extra data has all its components
 	if len(header.Extra) < extraVanity {
@@ -591,15 +622,13 @@ func (c *Consortium) Seal(chain consensus.ChainHeaderReader, block *types.Block,
 		return errors.New("sealing paused while waiting for transactions")
 	}
 	// Don't hold the signer fields for the entire sealing procedure
-	c.lock.RLock()
-	signer, signFn := c.signer, c.signFn
-	c.lock.RUnlock()
+	signer, signFn := c.getSigner()
 
 	validators, err := c.getValidatorsFromLastCheckpoint(chain, number-1, nil)
 	if err != nil {
 		return err
 	}
-	if !signerInList(c.signer, validators) {
+	if !signerInList(signer, validators) {
 		return errUnauthorizedSigner
 	}
 	snap, err := c.snapshot(chain, number-1, header.ParentHash, nil)
@@ -678,14 +707,15 @@ func (c *Consortium) CalcDifficulty(chain consensus.ChainHeaderReader, time uint
 	if err != nil {
 		return nil
 	}
-	return c.doCalcDifficulty(c.signer, number, validators)
+	signer, _ := c.getSigner()
+	return c.doCalcDifficulty(signer, number, validators)
 }
 
 // SealHash returns the hash of a block prior to it being sealed.
 func SealHash(header *types.Header) (hash common.Hash) {
 	hasher := sha3.NewLegacyKeccak256()
 	encodeSigHeader(hasher, header)
-	hasher.Sum(hash[:0])
+	hasher.(crypto.KeccakState).Read(hash[:])
 	return hash
 }
 
@@ -703,7 +733,7 @@ func ConsortiumRLP(header *types.Header) []byte {
 }
 
 func encodeSigHeader(w io.Writer, header *types.Header) {
-	err := rlp.Encode(w, []interface{}{
+	enc := []interface{}{
 		header.ParentHash,
 		header.UncleHash,
 		header.Coinbase,
@@ -719,8 +749,11 @@ func encodeSigHeader(w io.Writer, header *types.Header) {
 		header.Extra[:len(header.Extra)-crypto.SignatureLength], // Yes, this will panic if extra is too short
 		header.MixDigest,
 		header.Nonce,
-	})
-	if err != nil {
+	}
+	if header.BaseFee != nil {
+		enc = append(enc, header.BaseFee)
+	}
+	if err := rlp.Encode(w, enc); err != nil {
 		panic("can't encode: " + err.Error())
 	}
 }
@@ -798,4 +831,10 @@ func (c *Consortium) signerInTurn(signer common.Address, number uint64, validato
 	lastCheckpoint := number / c.config.Epoch * c.config.Epoch
 	index := (number - lastCheckpoint) % uint64(len(validators))
 	return validators[index] == signer
+}
+
+func (c *Consortium) getSigner() (common.Address, SignerFn) {
+	c.lock.RLock()
+	defer c.lock.RUnlock()
+	return c.signer, c.signFn
 }
