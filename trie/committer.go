@@ -33,6 +33,7 @@ const leafChanSize = 200
 type leaf struct {
 	blob   []byte      // raw blob of leaf
 	parent common.Hash // the hash of parent node
+	path   []byte      // the path from the root node
 }
 
 // committer is a type used for the trie Commit operation. The committer will
