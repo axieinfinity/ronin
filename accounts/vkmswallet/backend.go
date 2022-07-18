@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"math/big"
 	"net"
+	"time"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts"
@@ -19,6 +20,7 @@ import (
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
 
+	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/rlp"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -41,7 +43,25 @@ type Backend struct {
 	wallets []accounts.Wallet
 }
 
+var (
+	signingSuccessCounter       metrics.Counter
+	signingCallFailureCounter   metrics.Counter
+	signingResponseErrorCounter metrics.Counter
+	signingLastSuccessGauge     metrics.Gauge
+	signingLatency              metrics.Histogram
+)
+
+func initMetrics() {
+	signingSuccessCounter = metrics.GetOrRegisterCounter("kms/success", nil)
+	signingCallFailureCounter = metrics.GetOrRegisterCounter("kms/call_failure", nil)
+	signingResponseErrorCounter = metrics.GetOrRegisterCounter("kms/response_error", nil)
+	signingLastSuccessGauge = metrics.GetOrRegisterGauge("kms/last_success", nil)
+	signingLatency = metrics.GetOrRegisterHistogram("kms/latency", nil, metrics.NewExpDecaySample(1028, 0.015))
+}
+
 func NewBackend(configs []*WalletConfig) (*Backend, error) {
+	initMetrics()
+
 	wallets := make([]accounts.Wallet, 0, len(configs))
 	for _, config := range configs {
 		wallet, err := NewWallet(config)
@@ -190,6 +210,7 @@ func (w *Wallet) SignData(account accounts.Account, mimeType string, data []byte
 		return nil, accounts.ErrUnknownAccount
 	}
 
+	start := time.Now().UnixMilli()
 	client := vkms.NewUserClient(w.connection)
 	resp, err := client.Sign(
 		metadata.AppendToOutgoingContext(context.Background(), "vkms_data_type", "non-ether"),
@@ -198,11 +219,19 @@ func (w *Wallet) SignData(account accounts.Account, mimeType string, data []byte
 			Data:          data,
 		})
 	if err != nil {
+		log.Error("KMS VM call failed", "err", err)
+		signingCallFailureCounter.Inc(1)
 		return nil, err
 	}
 	if resp.Code != SuccessCode {
+		log.Error("KMS VM error response", "response", resp.Code)
+		signingResponseErrorCounter.Inc(1)
 		return nil, fmt.Errorf("access denied")
 	}
+
+	signingLatency.Update(time.Now().UnixMilli() - start)
+	signingSuccessCounter.Inc(1)
+	signingLastSuccessGauge.Update(time.Now().Unix())
 	return resp.Signature, nil
 }
 
