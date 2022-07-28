@@ -85,7 +85,7 @@ accountsCount=$(
 )
 
 # private key
-if [[ $accountsCount -le 0 ]]; then
+if [[ $accountsCount -le 0 && -z $KMS_SERVICE_ADDRESS ]]; then
   echo "No accounts found"
   if [[ ! -z $PRIVATE_KEY ]]; then
     echo "Creating account from private key"
@@ -104,7 +104,7 @@ if [[ $accountsCount -le 0 ]]; then
   fi
 fi
 
-if [[ ! -z $KEYSTORE_DIR ]]; then
+if [[ ! -z $KEYSTORE_DIR && -z $KMS_SERVICE_ADDRESS ]]; then
   account=$(
     ronin account list --datadir $datadir  --keystore $KEYSTORE_DIR \
     2> /dev/null \
