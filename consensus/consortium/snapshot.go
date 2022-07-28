@@ -156,7 +156,7 @@ func (s *Snapshot) apply(chain consensus.ChainHeaderReader, c *Consortium, heade
 
 	// Update the list of signers
 	number := headers[len(headers)-1].Number.Uint64()
-	validators, err := c.getValidatorsFromLastCheckpoint(chain, number, parents)
+	validators, err := c.getValidatorsFromLastCheckpoint(chain, number-1, parents)
 	if err != nil {
 		return nil, err
 	}
