@@ -58,6 +58,9 @@ fi
 if [[ ! -d $datadir/ronin ]]; then
   echo "No blockchain data, creating genesis block."
   ronin init $genesisPath --datadir $datadir 2> /dev/null
+elif [[ "$FORCE_INIT" = "true" && "$INIT_FORCE_OVERRIDE_CHAIN_CONFIG" = "true" ]]; then
+  echo "Forcing update chain config with force overriding chain config."
+  ronin init $genesisPath --overrideChainConfig --datadir $datadir 2> /dev/null
 elif [ "$FORCE_INIT" = "true" ]; then
   echo "Forcing update chain config."
   ronin init $genesisPath --datadir $datadir 2> /dev/null

@@ -54,6 +54,7 @@ var AppHelpFlagGroups = []flags.FlagGroup{
 			utils.IdentityFlag,
 			utils.LightKDFFlag,
 			utils.WhitelistFlag,
+			utils.ForceOverrideChainConfigFlag,
 		},
 	},
 	{
@@ -215,7 +216,7 @@ var AppHelpFlagGroups = []flags.FlagGroup{
 		}, debug.Flags...),
 	},
 	{
-		Name: "SUBSCRIBER",
+		Name:  "SUBSCRIBER",
 		Flags: subscriberFlags,
 	},
 	{

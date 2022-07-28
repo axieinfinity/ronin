@@ -115,7 +115,7 @@ func NewBackend(cfg *Config, ethConfig *ethconfig.Config) (*backend, error) {
 	if err != nil {
 		return nil, err
 	}
-	chainConfig, _, err := core.SetupGenesisBlockWithOverride(db, nil, nil)
+	chainConfig, _, err := core.SetupGenesisBlockWithOverride(db, nil, nil, false)
 	if err != nil {
 		return nil, err
 	}
