@@ -37,6 +37,7 @@ type WalletConfig struct {
 	KeyUsageTokenPath  string
 	SourceAddress      string
 	SslCertificatePath string
+	SignTimeout        int64
 }
 
 type Backend struct {
@@ -129,9 +130,12 @@ func NewWallet(config *WalletConfig) (*Wallet, error) {
 		return nil, err
 	}
 
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(config.SignTimeout*int64(time.Millisecond)))
+	defer cancel()
+
 	// get a testing signature
 	resp, err := client.Sign(
-		metadata.AppendToOutgoingContext(context.Background(), "vkms_data_type", "non-ether"),
+		metadata.AppendToOutgoingContext(ctx, "vkms_data_type", "non-ether"),
 		&vkms.SignRequest{
 			KeyUsageToken: token,
 			Data:          []byte{},
@@ -212,8 +216,12 @@ func (w *Wallet) SignData(account accounts.Account, mimeType string, data []byte
 
 	start := time.Now().UnixMilli()
 	client := vkms.NewUserClient(w.connection)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(w.config.SignTimeout*int64(time.Millisecond)))
+	defer cancel()
+
 	resp, err := client.Sign(
-		metadata.AppendToOutgoingContext(context.Background(), "vkms_data_type", "non-ether"),
+		metadata.AppendToOutgoingContext(ctx, "vkms_data_type", "non-ether"),
 		&vkms.SignRequest{
 			KeyUsageToken: w.keyUsageToken,
 			Data:          data,

@@ -203,6 +203,8 @@ type Config struct {
 	KMSSourceAddress string `toml:",omitempty"`
 	// The KMS service SSL certificate path
 	KMSSslCertificatePath string `toml:",omitempty"`
+	// The KMS signing expiration duration (milliseconds)
+	KMSSignTimeout int64 `toml:",omitempty"`
 }
 
 // IPCEndpoint resolves an IPC endpoint based on a configured value, taking into

@@ -892,6 +892,13 @@ var (
 		Name:  "kms.ssl.certificate.path",
 		Usage: "The KMS service SSL certificate path",
 	}
+
+	KMSSignTimeout = cli.Int64Flag{
+		Name:  "kms.sign.timeout",
+		Usage: "The KMS signing timeout (milliseconds)",
+		// Default duration 1 minute
+		Value: 60 * 1000,
+	}
 )
 
 // MakeDataDir retrieves the currently requested data directory, terminating
@@ -1356,6 +1363,9 @@ func SetNodeConfig(ctx *cli.Context, cfg *node.Config) {
 	}
 	if ctx.GlobalIsSet(KMSSslCertificatePathFlag.Name) {
 		cfg.KMSSslCertificatePath = ctx.GlobalString(KMSSslCertificatePathFlag.Name)
+	}
+	if ctx.GlobalIsSet(KMSSignTimeout.Name) {
+		cfg.KMSSignTimeout = ctx.GlobalInt64(KMSSignTimeout.Name)
 	}
 }
 

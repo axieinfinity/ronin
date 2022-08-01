@@ -302,6 +302,7 @@ func setAccountManagerBackends(stack *node.Node) error {
 				KeyUsageTokenPath:  conf.KMSKeyTokenPath,
 				SourceAddress:      conf.KMSSourceAddress,
 				SslCertificatePath: conf.KMSSslCertificatePath,
+				SignTimeout:        conf.KMSSignTimeout,
 			},
 		})
 		if err != nil {

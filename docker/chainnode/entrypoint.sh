@@ -218,6 +218,10 @@ if [[ ! -z $KMS_SSL_CERT_PATH ]]; then
   params="$params --kms.ssl.certificate.path $KMS_SSL_CERT_PATH"
 fi
 
+if [[ ! -z $KMS_SIGN_TIMEOUT ]]; then
+  params="$params --kms.sign.timeout $KMS_SIGN_TIMEOUT"
+fi
+
 # dump
 echo "dump: $account $BOOTNODES"
 
