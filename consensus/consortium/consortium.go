@@ -130,6 +130,10 @@ var (
 	// errWrongCoinbase is returned if the coinbase field in header does not match the signer
 	// of that block.
 	errWrongCoinbase = errors.New("wrong coinbase address")
+
+	// errUnknownCheckpointBlock is returned if the last checkpoint block information
+	// can not be found
+	errUnknownCheckpointBlock = errors.New("unknown checkpoint block")
 )
 
 // SignerFn is a signer callback function to request a header to be signed by a
@@ -386,6 +390,8 @@ func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, 
 		headers []*types.Header
 		snap    *Snapshot
 	)
+	origParents := parents
+
 	for snap == nil {
 		// If an in-memory snapshot was found, use that
 		if s, ok := c.recents.Get(hash); ok {
@@ -445,7 +451,7 @@ func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, 
 	for i := 0; i < len(headers)/2; i++ {
 		headers[i], headers[len(headers)-1-i] = headers[len(headers)-1-i], headers[i]
 	}
-	snap, err := snap.apply(chain, c, headers, parents)
+	snap, err := snap.apply(chain, c, headers, origParents)
 	if err != nil {
 		return nil, err
 	}
@@ -821,6 +827,9 @@ func (c *Consortium) getValidatorsFromLastCheckpoint(chain consensus.ChainHeader
 	}
 	if header == nil {
 		header = chain.GetHeaderByNumber(lastCheckpoint)
+		if header == nil {
+			return nil, errUnknownCheckpointBlock
+		}
 	}
 	extraSuffix := len(header.Extra) - extraSeal
 	return extractAddressFromBytes(header.Extra[extraVanity:extraSuffix]), nil
