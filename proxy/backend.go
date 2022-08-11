@@ -431,7 +431,7 @@ func (b *backend) ChainConfig() *params.ChainConfig {
 }
 
 func (b *backend) Engine() consensus.Engine {
-	return consortium.New(&params.ConsortiumConfig{}, b.db)
+	return consortium.New(b.ChainConfig(), b.db)
 }
 
 func (b *backend) GetHeader(hash common.Hash, number uint64) *types.Header {
