@@ -9,28 +9,29 @@ import (
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethdb"
+	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 	"math/big"
 )
 
 type Consortium struct {
-	v1             *v1.Consortium
-	v2             *v2.Consortium
-	isConsortiumV2 func(num *big.Int) bool
+	chainConfig *params.ChainConfig
+	v1          *v1.Consortium
+	v2          *v2.Consortium
 }
 
 // New creates a Consortium proof-of-stake consensus engine with the initial
 // signers set to the ones provided by the user.
-func New(config *params.ChainConfig, db ethdb.Database) *Consortium {
+func New(chainConfig *params.ChainConfig, ee *ethapi.PublicBlockChainAPI, db ethdb.Database, genesisHash common.Hash) *Consortium {
 	// Set any missing consensus parameters to their defaults
-	consortiumV1 := v1.New(config.Consortium, db)
-	consortiumV2 := v2.New(config.Consortium, db)
+	consortiumV1 := v1.New(chainConfig.Consortium, db)
+	consortiumV2 := v2.New(chainConfig, db, ee, genesisHash)
 
 	return &Consortium{
-		v1:             consortiumV1,
-		v2:             consortiumV2,
-		isConsortiumV2: config.IsConsortiumV2,
+		chainConfig: chainConfig,
+		v1:          consortiumV1,
+		v2:          consortiumV2,
 	}
 }
 
@@ -41,7 +42,7 @@ func (c *Consortium) Author(header *types.Header) (common.Address, error) {
 }
 
 func (c *Consortium) VerifyHeader(chain consensus.ChainHeaderReader, header *types.Header, seal bool) error {
-	if chain.Config().IsConsortiumV2(header.Number) {
+	if c.chainConfig.IsConsortiumV2(header.Number) {
 		return c.v2.VerifyHeader(chain, header, seal)
 	}
 
@@ -55,7 +56,7 @@ func (c *Consortium) VerifyHeaders(chain consensus.ChainHeaderReader, headers []
 	go func() {
 		for i, header := range headers {
 			var err error
-			if c.isConsortiumV2(header.Number) {
+			if c.chainConfig.IsConsortiumV2(header.Number) {
 				err = c.v2.VerifyHeaderAndParents(chain, header, headers[:i])
 			} else {
 				err = c.v1.VerifyHeaderAndParents(chain, header, headers[:i])
@@ -73,7 +74,7 @@ func (c *Consortium) VerifyHeaders(chain consensus.ChainHeaderReader, headers []
 }
 
 func (c *Consortium) VerifyUncles(chain consensus.ChainReader, block *types.Block) error {
-	if c.isConsortiumV2(block.Header().Number) {
+	if c.chainConfig.IsConsortiumV2(block.Header().Number) {
 		return c.v2.VerifyUncles(chain, block)
 	}
 
@@ -81,7 +82,7 @@ func (c *Consortium) VerifyUncles(chain consensus.ChainReader, block *types.Bloc
 }
 
 func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.Header) error {
-	if c.isConsortiumV2(header.Number) {
+	if c.chainConfig.IsConsortiumV2(header.Number) {
 		return c.v2.Prepare(chain, header)
 	}
 
@@ -89,7 +90,7 @@ func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.He
 }
 
 func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, uncles []*types.Header) {
-	if c.isConsortiumV2(header.Number) {
+	if c.chainConfig.IsConsortiumV2(header.Number) {
 		c.v2.Finalize(chain, header, state, txs, uncles)
 	} else {
 		c.v1.Finalize(chain, header, state, txs, uncles)
@@ -97,7 +98,7 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 }
 
 func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt) (*types.Block, error) {
-	if c.isConsortiumV2(header.Number) {
+	if c.chainConfig.IsConsortiumV2(header.Number) {
 		return c.v2.FinalizeAndAssemble(chain, header, state, txs, uncles, receipts)
 	}
 
@@ -105,7 +106,7 @@ func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, head
 }
 
 func (c *Consortium) Seal(chain consensus.ChainHeaderReader, block *types.Block, results chan<- *types.Block, stop <-chan struct{}) error {
-	if c.isConsortiumV2(block.Header().Number) {
+	if c.chainConfig.IsConsortiumV2(block.Header().Number) {
 		return c.v2.Seal(chain, block, results, stop)
 	}
 
@@ -113,7 +114,7 @@ func (c *Consortium) Seal(chain consensus.ChainHeaderReader, block *types.Block,
 }
 
 func (c *Consortium) SealHash(header *types.Header) common.Hash {
-	if c.isConsortiumV2(header.Number) {
+	if c.chainConfig.IsConsortiumV2(header.Number) {
 		return c.v2.SealHash(header)
 	}
 
@@ -139,7 +140,7 @@ func (c *Consortium) APIs(chain consensus.ChainHeaderReader) []rpc.API {
 }
 
 func (c *Consortium) CalcDifficulty(chain consensus.ChainHeaderReader, time uint64, parent *types.Header) *big.Int {
-	if c.isConsortiumV2(parent.Number) {
+	if c.chainConfig.IsConsortiumV2(parent.Number) {
 		return c.v2.CalcDifficulty(chain, time, parent)
 	}
 
