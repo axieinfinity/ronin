@@ -18,6 +18,7 @@ package v1
 
 import (
 	"encoding/json"
+	consortiumCommon "github.com/ethereum/go-ethereum/consensus/consortium/common"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -135,7 +136,7 @@ func (s *Snapshot) apply(chain consensus.ChainHeaderReader, c *Consortium, heade
 		}
 
 		// Resolve the authorization key and check against signers
-		signer, err := ecrecover(header, s.sigcache)
+		signer, err := consortiumCommon.Ecrecover(header, s.sigcache)
 		if err != nil {
 			return nil, err
 		}
