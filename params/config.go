@@ -539,6 +539,11 @@ func (c *ChainConfig) IsFenix(num *big.Int) bool {
 	return isForked(c.FenixBlock, num)
 }
 
+// IsConsortiumV2 returns whether the num is equals to or larger than the Fenix fork block.
+func (c *ChainConfig) IsConsortiumV2(num *big.Int) bool {
+	return isForked(c.ConsortiumV2Block, num)
+}
+
 // CheckCompatible checks whether scheduled fork transitions have been imported
 // with a mismatching chain configuration.
 func (c *ChainConfig) CheckCompatible(newcfg *ChainConfig, height uint64) *ConfigCompatError {
@@ -726,7 +731,7 @@ type Rules struct {
 	IsHomestead, IsEIP150, IsEIP155, IsEIP158               bool
 	IsByzantium, IsConstantinople, IsPetersburg, IsIstanbul bool
 	IsBerlin, IsLondon                                      bool
-	IsOdysseusFork, IsFenix                                 bool
+	IsOdysseusFork, IsFenix, IsConsortiumV2                 bool
 }
 
 // Rules ensures c's ChainID is not nil.
@@ -749,5 +754,6 @@ func (c *ChainConfig) Rules(num *big.Int) Rules {
 		IsLondon:         c.IsLondon(num),
 		IsOdysseusFork:   c.IsOdysseus(num),
 		IsFenix:          c.IsFenix(num),
+		IsConsortiumV2:   c.IsConsortiumV2(num),
 	}
 }
