@@ -181,7 +181,7 @@ func (c *Consortium) Author(header *types.Header) (common.Address, error) {
 
 // VerifyHeader checks whether a header conforms to the consensus rules.
 func (c *Consortium) VerifyHeader(chain consensus.ChainHeaderReader, header *types.Header, seal bool) error {
-	return c.verifyHeader(chain, header, nil)
+	return c.VerifyHeaderAndParents(chain, header, nil)
 }
 
 // VerifyHeaders is similar to VerifyHeader, but verifies a batch of headers. The
@@ -193,7 +193,7 @@ func (c *Consortium) VerifyHeaders(chain consensus.ChainHeaderReader, headers []
 
 	go func() {
 		for i, header := range headers {
-			err := c.verifyHeader(chain, header, headers[:i])
+			err := c.VerifyHeaderAndParents(chain, header, headers[:i])
 
 			select {
 			case <-abort:
@@ -205,11 +205,11 @@ func (c *Consortium) VerifyHeaders(chain consensus.ChainHeaderReader, headers []
 	return abort, results
 }
 
-// verifyHeader checks whether a header conforms to the consensus rules.The
+// VerifyHeaderAndParents checks whether a header conforms to the consensus rules.The
 // caller may optionally pass in a batch of parents (ascending order) to avoid
 // looking those up from the database. This is useful for concurrently verifying
 // a batch of new headers.
-func (c *Consortium) verifyHeader(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header) error {
+func (c *Consortium) VerifyHeaderAndParents(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header) error {
 	if header.Number == nil {
 		return errUnknownBlock
 	}

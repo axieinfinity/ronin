@@ -41,7 +41,7 @@ func (c *Consortium) Author(header *types.Header) (common.Address, error) {
 }
 
 func (c *Consortium) VerifyHeader(chain consensus.ChainHeaderReader, header *types.Header, seal bool) error {
-	if c.isConsortiumV2(header.Number) {
+	if chain.Config().IsConsortiumV2(header.Number) {
 		return c.v2.VerifyHeader(chain, header, seal)
 	}
 
@@ -49,20 +49,27 @@ func (c *Consortium) VerifyHeader(chain consensus.ChainHeaderReader, header *typ
 }
 
 func (c *Consortium) VerifyHeaders(chain consensus.ChainHeaderReader, headers []*types.Header, seals []bool) (chan<- struct{}, <-chan error) {
-	var headersV1 []*types.Header
-	var headersV2 []*types.Header
+	abort := make(chan struct{})
+	results := make(chan error, len(headers))
 
-	for _, header := range headers {
-		if chain.Config().IsConsortiumV2(header.Number) {
-			headersV2 = append(headersV2, header)
-		} else {
-			headersV1 = append(headersV1, header)
+	go func() {
+		for i, header := range headers {
+			var err error
+			if c.isConsortiumV2(header.Number) {
+				err = c.v2.VerifyHeaderAndParents(chain, header, headers[:i])
+			} else {
+				err = c.v1.VerifyHeaderAndParents(chain, header, headers[:i])
+			}
+
+			select {
+			case <-abort:
+				return
+			case results <- err:
+			}
 		}
-	}
+	}()
 
-	// TODO: handle headers v2 is WIP
-
-	return c.v1.VerifyHeaders(chain, headersV1, seals)
+	return abort, results
 }
 
 func (c *Consortium) VerifyUncles(chain consensus.ChainReader, block *types.Block) error {

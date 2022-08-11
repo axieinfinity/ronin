@@ -87,6 +87,10 @@ func (c *Consortium) VerifyHeaders(chain consensus.ChainHeaderReader, headers []
 	return abort, results
 }
 
+func (c *Consortium) VerifyHeaderAndParents(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header) error {
+	return nil
+}
+
 func (c *Consortium) VerifyUncles(chain consensus.ChainReader, block *types.Block) error {
 	return nil
 }
