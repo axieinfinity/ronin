@@ -23,7 +23,7 @@ type Consortium struct {
 
 // New creates a Consortium proof-of-stake consensus engine with the initial
 // signers set to the ones provided by the user.
-func New(chainConfig *params.ChainConfig, ee *ethapi.PublicBlockChainAPI, db ethdb.Database, genesisHash common.Hash) *Consortium {
+func New(chainConfig *params.ChainConfig, db ethdb.Database, ee *ethapi.PublicBlockChainAPI, genesisHash common.Hash) *Consortium {
 	// Set any missing consensus parameters to their defaults
 	consortiumV1 := v1.New(chainConfig.Consortium, db)
 	consortiumV2 := v2.New(chainConfig, db, ee, genesisHash)
