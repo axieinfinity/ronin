@@ -74,7 +74,7 @@ func New(
 ) *Consortium {
 	consortiumConfig := chainConfig.Consortium
 
-	if consortiumConfig == nil && consortiumConfig.Epoch == 0 {
+	if consortiumConfig != nil && consortiumConfig.Epoch == 0 {
 		consortiumConfig.Epoch = epochLength
 	}
 
