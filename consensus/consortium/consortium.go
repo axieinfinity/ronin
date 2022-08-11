@@ -89,7 +89,7 @@ func (c *Consortium) CalcDifficulty(chain consensus.ChainHeaderReader, time uint
 }
 
 // Authorize backward compatible for consortium v1
-func (c *Consortium) Authorize(signer common.Address, signFn SignerFn) {
+func (c *Consortium) Authorize(signer common.Address, signFn v1.SignerFn) {
 	c.v1.Authorize(signer, signFn)
 }
 
