@@ -54,8 +54,8 @@ type Consortium struct {
 	recents    *lru.ARCCache // Snapshots for recent block to speed up reorgs
 	signatures *lru.ARCCache // Signatures of recent blocks to speed up mining
 
-	val      common.Address            // Ethereum address of the signing key
-	signer   types.Signer              // Ethereum address of the signing key
+	val      common.Address // Ethereum address of the signing key
+	signer   types.Signer
 	signFn   consortiumCommon.SignerFn // Signer function to authorize hashes with
 	signTxFn SignerTxFn
 

@@ -182,7 +182,7 @@ func (c *Consortium) applyTransaction(
 ) (err error) {
 	nonce := state.GetNonce(msg.From())
 	expectedTx := types.NewTransaction(nonce, *msg.To(), msg.Value(), msg.Gas(), msg.GasPrice(), msg.Data())
-	expectedHash := expectedTx.Hash()
+	expectedHash := c.signer.Hash(expectedTx)
 
 	if msg.From() == c.val && mining {
 		expectedTx, err = c.signTxFn(accounts.Account{Address: msg.From()}, expectedTx, c.chainConfig.ChainID)
@@ -194,7 +194,7 @@ func (c *Consortium) applyTransaction(
 			return errors.New("supposed to get a actual transaction, but get none")
 		}
 		actualTx := (*receivedTxs)[0]
-		if !bytes.Equal(actualTx.Hash().Bytes(), expectedHash.Bytes()) {
+		if !bytes.Equal(c.signer.Hash(actualTx).Bytes(), expectedHash.Bytes()) {
 			return fmt.Errorf("expected tx hash %v, get %v, nonce %d, to %s, value %s, gas %d, gasPrice %s, data %s", expectedHash.String(), actualTx.Hash().String(),
 				expectedTx.Nonce(),
 				expectedTx.To().String(),
