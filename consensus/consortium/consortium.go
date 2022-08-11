@@ -87,3 +87,11 @@ func (c *Consortium) APIs(chain consensus.ChainHeaderReader) []rpc.API {
 func (c *Consortium) CalcDifficulty(chain consensus.ChainHeaderReader, time uint64, parent *types.Header) *big.Int {
 	return c.v1.CalcDifficulty(chain, time, parent)
 }
+
+func (c *Consortium) SetGetSCValidatorsFn(fn func() ([]common.Address, error)) {
+	c.v1.SetGetFenixValidators(fn)
+}
+
+func (c *Consortium) SetGetFenixValidators(fn func() ([]common.Address, error)) {
+	c.v1.SetGetFenixValidators(fn)
+}

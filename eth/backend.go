@@ -20,6 +20,7 @@ package eth
 import (
 	"errors"
 	"fmt"
+	"github.com/ethereum/go-ethereum/consensus/consortium"
 	"github.com/ethereum/go-ethereum/consensus/consortium/v1"
 	"math/big"
 	"runtime"
@@ -275,7 +276,7 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 	}
 
 	if chainConfig.Consortium != nil {
-		c := eth.engine.(*v1.Consortium)
+		c := eth.engine.(*consortium.Consortium)
 		stack.RegisterAPIs(c.APIs(eth.blockchain))
 		c.SetGetSCValidatorsFn(func() ([]common.Address, error) {
 			stateDb, err := eth.blockchain.State()
