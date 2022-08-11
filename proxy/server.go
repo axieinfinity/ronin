@@ -59,7 +59,7 @@ func NewServer(config *Config, ethConfig *ethconfig.Config, nodeConfig *node.Con
 }
 
 func (s *Server) Start() {
-	engine := consortium.New(&params.ConsortiumConfig{}, s.backend.db)
+	engine := consortium.New(&params.ChainConfig{}, s.backend.db)
 	var apis = []rpc.API{
 		{
 			Namespace: "eth",
