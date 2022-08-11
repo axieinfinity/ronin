@@ -13,7 +13,6 @@ import (
 	"time"
 )
 
-
 // Server is a proxy server that simulates rpc structures,
 // it uses http database which remotely connects to other rpc nodes to get and cache data if needed
 // it can be used to get data from rpc and cache them
