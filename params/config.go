@@ -539,9 +539,14 @@ func (c *ChainConfig) IsFenix(num *big.Int) bool {
 	return isForked(c.FenixBlock, num)
 }
 
-// IsConsortiumV2 returns whether the num is equals to or larger than the Fenix fork block.
+// IsConsortiumV2 returns whether the num is equals to or larger than the consortiumV2 fork block.
 func (c *ChainConfig) IsConsortiumV2(num *big.Int) bool {
 	return isForked(c.ConsortiumV2Block, num)
+}
+
+// IsOnConsortiumV2 returns whether the num is equals to the consortiumV2 fork block.
+func (c *ChainConfig) IsOnConsortiumV2(num *big.Int) bool {
+	return configNumEqual(c.ConsortiumV2Block, num)
 }
 
 // CheckCompatible checks whether scheduled fork transitions have been imported
