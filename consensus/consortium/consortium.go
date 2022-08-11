@@ -20,7 +20,6 @@ package consortium
 import (
 	"bytes"
 	"errors"
-	"github.com/ethereum/go-ethereum/consensus/consortium_v2"
 	"io"
 	"math/big"
 	"math/rand"
@@ -178,8 +177,6 @@ type Consortium struct {
 
 	getSCValidators    func() ([]common.Address, error) // Get the list of validator from contract
 	getFenixValidators func() ([]common.Address, error) // Get the validator list from Ronin Validator contract of Fenix hardfork
-
-	consortiumV2 *consortium_v2.ConsortiumV2
 }
 
 // New creates a Consortium proof-of-authority consensus engine with the initial
@@ -193,15 +190,13 @@ func New(config *params.ConsortiumConfig, db ethdb.Database) *Consortium {
 	// Allocate the snapshot caches and create the engine
 	recents, _ := lru.NewARC(inmemorySnapshots)
 	signatures, _ := lru.NewARC(inmemorySignatures)
-	consortiumV2 := consortium_v2.New(config, db)
 
 	return &Consortium{
-		config:       &conf,
-		db:           db,
-		recents:      recents,
-		signatures:   signatures,
-		proposals:    make(map[common.Address]bool),
-		consortiumV2: consortiumV2,
+		config:     &conf,
+		db:         db,
+		recents:    recents,
+		signatures: signatures,
+		proposals:  make(map[common.Address]bool),
 	}
 }
 
