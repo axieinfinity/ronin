@@ -88,10 +88,17 @@ func (c *Consortium) CalcDifficulty(chain consensus.ChainHeaderReader, time uint
 	return c.v1.CalcDifficulty(chain, time, parent)
 }
 
+// Authorize backward compatible for consortium v1
+func (c *Consortium) Authorize(signer common.Address, signFn SignerFn) {
+	c.v1.Authorize(signer, signFn)
+}
+
+// SetGetSCValidatorsFn backward compatible for consortium v1
 func (c *Consortium) SetGetSCValidatorsFn(fn func() ([]common.Address, error)) {
 	c.v1.SetGetFenixValidators(fn)
 }
 
+// SetGetFenixValidators backward compatible for consortium v1
 func (c *Consortium) SetGetFenixValidators(fn func() ([]common.Address, error)) {
 	c.v1.SetGetFenixValidators(fn)
 }

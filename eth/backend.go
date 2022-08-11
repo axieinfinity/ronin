@@ -21,7 +21,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/ethereum/go-ethereum/consensus/consortium"
-	"github.com/ethereum/go-ethereum/consensus/consortium/v1"
 	"math/big"
 	"runtime"
 	"sync"
@@ -499,7 +498,7 @@ func (s *Ethereum) StartMining(threads int) error {
 			}
 			clique.Authorize(eb, wallet.SignData)
 		}
-		if consortium, ok := s.engine.(*v1.Consortium); ok {
+		if consortium, ok := s.engine.(*consortium.Consortium); ok {
 			wallet, err := s.accountManager.Find(accounts.Account{Address: eb})
 			if wallet == nil || err != nil {
 				log.Error("Etherbase account unavailable locally", "err", err)
