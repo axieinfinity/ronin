@@ -20,6 +20,7 @@ package eth
 import (
 	"errors"
 	"fmt"
+	"github.com/ethereum/go-ethereum/consensus/consortium/v1"
 	"math/big"
 	"runtime"
 	"sync"
@@ -33,7 +34,6 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/clique"
-	"github.com/ethereum/go-ethereum/consensus/consortium"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/bloombits"
 	"github.com/ethereum/go-ethereum/core/rawdb"
@@ -275,7 +275,7 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 	}
 
 	if chainConfig.Consortium != nil {
-		c := eth.engine.(*consortium.Consortium)
+		c := eth.engine.(*v1.Consortium)
 		stack.RegisterAPIs(c.APIs(eth.blockchain))
 		c.SetGetSCValidatorsFn(func() ([]common.Address, error) {
 			stateDb, err := eth.blockchain.State()
@@ -498,7 +498,7 @@ func (s *Ethereum) StartMining(threads int) error {
 			}
 			clique.Authorize(eb, wallet.SignData)
 		}
-		if consortium, ok := s.engine.(*consortium.Consortium); ok {
+		if consortium, ok := s.engine.(*v1.Consortium); ok {
 			wallet, err := s.accountManager.Find(accounts.Account{Address: eb})
 			if wallet == nil || err != nil {
 				log.Error("Etherbase account unavailable locally", "err", err)
