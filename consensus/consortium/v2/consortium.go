@@ -1,6 +1,8 @@
 package v2
 
 import (
+	"github.com/ethereum/go-ethereum/accounts"
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -9,10 +11,12 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb"
+	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 	lru "github.com/hashicorp/golang-lru"
 	"math/big"
+	"strings"
 	"sync"
 	"time"
 )
@@ -39,36 +43,58 @@ var (
 	diffNoTurn = big.NewInt(3) // Block difficulty for out-of-turn signatures
 )
 
+type SignerTxFn func(accounts.Account, *types.Transaction, *big.Int) (*types.Transaction, error)
+
 type Consortium struct {
-	config *params.ConsortiumConfig // Consensus engine configuration parameters
-	db     ethdb.Database           // Database to store and retrieve snapshot checkpoints
+	chainConfig *params.ChainConfig
+	config      *params.ConsortiumConfig // Consensus engine configuration parameters
+	genesisHash common.Hash
+	db          ethdb.Database // Database to store and retrieve snapshot checkpoints
 
 	recents    *lru.ARCCache // Snapshots for recent block to speed up reorgs
 	signatures *lru.ARCCache // Signatures of recent blocks to speed up mining
 
-	proposals map[common.Address]bool // Current list of proposals we are pushing
+	val      common.Address // Ethereum address of the signing key
+	signer   types.Signer
+	signFn   consortiumCommon.SignerFn // Signer function to authorize hashes with
+	signTxFn SignerTxFn
 
-	signer common.Address            // Ethereum address of the signing key
-	signFn consortiumCommon.SignerFn // Signer function to authorize hashes with
-	lock   sync.RWMutex              // Protects the signer fields
+	lock sync.RWMutex // Protects the signer fields
+
+	ethAPI          *ethapi.PublicBlockChainAPI
+	validatorSetABI abi.ABI
+	slashABI        abi.ABI
 }
 
-func New(config *params.ConsortiumConfig, db ethdb.Database) *Consortium {
-	// Set any missing consensus parameters to their defaults
-	conf := *config
-	if conf.Epoch == 0 {
-		conf.Epoch = epochLength
+func New(
+	chainConfig *params.ChainConfig,
+	db ethdb.Database,
+	ethAPI *ethapi.PublicBlockChainAPI,
+	genesisHash common.Hash,
+) *Consortium {
+	consortiumConfig := chainConfig.Consortium
+
+	if consortiumConfig != nil && consortiumConfig.Epoch == 0 {
+		consortiumConfig.Epoch = epochLength
 	}
+
 	// Allocate the snapshot caches and create the engine
 	recents, _ := lru.NewARC(inmemorySnapshots)
 	signatures, _ := lru.NewARC(inmemorySignatures)
+	vABI, _ := abi.JSON(strings.NewReader(validatorSetABI))
+	sABI, _ := abi.JSON(strings.NewReader(slashABI))
 
 	return &Consortium{
-		config:     &conf,
-		db:         db,
-		recents:    recents,
-		signatures: signatures,
-		proposals:  make(map[common.Address]bool),
+		chainConfig:     chainConfig,
+		config:          consortiumConfig,
+		genesisHash:     genesisHash,
+		db:              db,
+		ethAPI:          ethAPI,
+		recents:         recents,
+		signatures:      signatures,
+		validatorSetABI: vABI,
+		slashABI:        sABI,
+		signer:          types.NewEIP155Signer(chainConfig.ChainID),
 	}
 }
 
