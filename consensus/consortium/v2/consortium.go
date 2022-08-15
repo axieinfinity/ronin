@@ -1,6 +1,7 @@
 package v2
 
 import (
+	"errors"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
@@ -8,6 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus"
 	consortiumCommon "github.com/ethereum/go-ethereum/consensus/consortium/common"
 	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/core/systemcontracts"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb"
@@ -43,7 +45,21 @@ var (
 	diffNoTurn = big.NewInt(3) // Block difficulty for out-of-turn signatures
 )
 
+var (
+	// 100 native token
+	maxSystemBalance = new(big.Int).Mul(big.NewInt(100), big.NewInt(params.Ether))
+
+	systemContracts = map[common.Address]bool{
+		common.HexToAddress(systemcontracts.ValidatorContract): true,
+		common.HexToAddress(systemcontracts.SlashContract):     true,
+	}
+)
+
 type SignerTxFn func(accounts.Account, *types.Transaction, *big.Int) (*types.Transaction, error)
+
+func isToSystemContract(to common.Address) bool {
+	return systemContracts[to]
+}
 
 type Consortium struct {
 	chainConfig *params.ChainConfig
@@ -98,6 +114,51 @@ func New(
 	}
 }
 
+func (c *Consortium) IsSystemTransaction(tx *types.Transaction, header *types.Header) (bool, error) {
+	// deploy a contract
+	if tx.To() == nil {
+		return false, nil
+	}
+	sender, err := types.Sender(c.signer, tx)
+	if err != nil {
+		return false, errors.New("UnAuthorized transaction")
+	}
+	if sender == header.Coinbase && isToSystemContract(*tx.To()) && tx.GasPrice().Cmp(big.NewInt(0)) == 0 {
+		return true, nil
+	}
+	return false, nil
+}
+
+func (c *Consortium) IsSystemContract(to *common.Address) bool {
+	if to == nil {
+		return false
+	}
+	return isToSystemContract(*to)
+}
+
+func (c *Consortium) EnoughDistance(chain consensus.ChainReader, header *types.Header) bool {
+	snap, err := c.snapshot(chain, header.Number.Uint64()-1, header.ParentHash, nil)
+	if err != nil {
+		return true
+	}
+	return snap.enoughDistance(c.val, header)
+}
+
+func (c *Consortium) IsLocalBlock(header *types.Header) bool {
+	return c.val == header.Coinbase
+}
+
+func (c *Consortium) AllowLightProcess(chain consensus.ChainReader, currentHeader *types.Header) bool {
+	snap, err := c.snapshot(chain, currentHeader.Number.Uint64()-1, currentHeader.ParentHash, nil)
+	if err != nil {
+		return true
+	}
+
+	idx := snap.indexOfVal(c.val)
+	// validator is not allowed to diff sync
+	return idx < 0
+}
+
 func (c *Consortium) Author(header *types.Header) (common.Address, error) {
 	return common.Address{}, nil
 }
@@ -117,6 +178,10 @@ func (c *Consortium) VerifyHeaderAndParents(chain consensus.ChainHeaderReader, h
 	return nil
 }
 
+func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, hash common.Hash, parents []*types.Header) (*Snapshot, error) {
+	return nil, nil
+}
+
 func (c *Consortium) VerifyUncles(chain consensus.ChainReader, block *types.Block) error {
 	return nil
 }
@@ -125,12 +190,18 @@ func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.He
 	return nil
 }
 
-func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, uncles []*types.Header) {
-
+func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs *[]*types.Transaction,
+	uncles []*types.Header, receipts *[]*types.Receipt, systemTxs *[]*types.Transaction, usedGas *uint64) error {
+	return nil
 }
 
-func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt) (*types.Block, error) {
+func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB,
+	txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt) (*types.Block, error) {
 	return nil, nil
+}
+
+func (c *Consortium) Delay(chain consensus.ChainReader, header *types.Header) *time.Duration {
+	return nil
 }
 
 func (c *Consortium) Seal(chain consensus.ChainHeaderReader, block *types.Block, results chan<- *types.Block, stop <-chan struct{}) error {
