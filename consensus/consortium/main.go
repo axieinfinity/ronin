@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 	"math/big"
+	"time"
 )
 
 type Consortium struct {
@@ -89,20 +90,26 @@ func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.He
 	return c.v1.Prepare(chain, header)
 }
 
-func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, uncles []*types.Header) {
+func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs *[]*types.Transaction,
+	uncles []*types.Header, receipts *[]*types.Receipt, systemTxs *[]*types.Transaction, usedGas *uint64) error {
 	if c.chainConfig.IsConsortiumV2(header.Number) {
-		c.v2.Finalize(chain, header, state, txs, uncles)
-	} else {
-		c.v1.Finalize(chain, header, state, txs, uncles)
+		return c.v2.Finalize(chain, header, state, txs, uncles, receipts, systemTxs, usedGas)
 	}
+
+	return c.v1.Finalize(chain, header, state, txs, uncles, receipts, systemTxs, usedGas)
 }
 
-func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt) (*types.Block, error) {
+func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB,
+	txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt) (*types.Block, error) {
 	if c.chainConfig.IsConsortiumV2(header.Number) {
 		return c.v2.FinalizeAndAssemble(chain, header, state, txs, uncles, receipts)
 	}
 
 	return c.v1.FinalizeAndAssemble(chain, header, state, txs, uncles, receipts)
+}
+
+func (c *Consortium) Delay(chain consensus.ChainReader, header *types.Header) *time.Duration {
+	return nil
 }
 
 func (c *Consortium) Seal(chain consensus.ChainHeaderReader, block *types.Block, results chan<- *types.Block, stop <-chan struct{}) error {
