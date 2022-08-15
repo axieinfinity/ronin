@@ -49,6 +49,7 @@ const (
 	backoff                        = "subscriber.backoff"
 	publisherType                  = "subscriber.publisher"
 	fromHeight                     = "subscriber.fromHeight"
+	toHeight                       = "subscriber.toHeight"
 	kafkaUsername                  = "subscriber.kafka.username"
 	kafkaPassword                  = "subscriber.kafka.password"
 	kafkaAuthentication            = "subscriber.kafka.authentication"
@@ -143,6 +144,10 @@ var (
 	FromHeightFlag = cli.Uint64Flag{
 		Name:  fromHeight,
 		Usage: "the height that the program starts publishing events",
+	}
+	ToHeightFlag = cli.Uint64Flag{
+		Name:  toHeight,
+		Usage: "the height that the program stops publishing events",
 	}
 	kafkaUsernameFlag = cli.StringFlag{
 		Name:  kafkaUsername,
@@ -452,6 +457,8 @@ type Subscriber struct {
 	// start publishing from specific block's height
 	// this field is necessary when we don't want to handle data which is already existed.
 	FromHeight uint64
+	// stop publishing at specific block's height
+	ToHeight uint64
 
 	Workers []*Worker
 
@@ -579,6 +586,9 @@ func NewSubscriber(ethereum *eth.Ethereum, backend ethapi.Backend, ctx *cli.Cont
 	if ctx.GlobalIsSet(FromHeightFlag.Name) {
 		subs.FromHeight = ctx.GlobalUint64(FromHeightFlag.Name)
 	}
+	if ctx.GlobalIsSet(ToHeightFlag.Name) {
+		subs.ToHeight = ctx.GlobalUint64(ToHeightFlag.Name)
+	}
 	if ctx.GlobalIsSet(SafeBlockRangeFlag.Name) {
 		subs.safeBlockRange = ctx.GlobalInt(SafeBlockRangeFlag.Name)
 	}
@@ -616,7 +626,7 @@ func (s *Subscriber) SendJob(jobType int, messages ...interface{}) {
 }
 
 func (s *Subscriber) HandleNewBlockWithValidation(evt core.ChainEvent) {
-	if evt.Block == nil || evt.Block.NumberU64() < s.FromHeight {
+	if evt.Block == nil || evt.Block.NumberU64() < s.FromHeight || evt.Block.NumberU64() > s.ToHeight {
 		return
 	}
 	s.HandleNewBlock(evt)
@@ -708,7 +718,7 @@ func (s *Subscriber) SendConfirmedBlock(height uint64) error {
 // HandleReorgBlock handles reOrg block event and push relevant block and transactions to message brokers using eventPublisher
 func (s *Subscriber) HandleReorgBlock(evt core.ReorgEvent) {
 	block := evt.Block
-	if block == nil || block.NumberU64() < s.FromHeight {
+	if block == nil || block.NumberU64() < s.FromHeight || block.NumberU64() > s.ToHeight {
 		return
 	}
 	txs := block.Transactions()
@@ -758,7 +768,7 @@ func (s *Subscriber) HandleLogs(topic string, hash, txHash common.Hash, number u
 	messages := make([]interface{}, 0)
 	if topic != "" {
 		for _, l := range logs {
-			if l.BlockNumber < s.FromHeight {
+			if l.BlockNumber < s.FromHeight || l.BlockNumber > s.ToHeight {
 				return messages
 			}
 			l.TxHash = txHash
@@ -783,7 +793,7 @@ func (s *Subscriber) HandleRemoveRebirthLogs(logs []*types.Log) {
 	blockTimes := make(map[uint64]uint64)
 	if s.logsTopic != "" {
 		for _, l := range logs {
-			if l.BlockNumber < s.FromHeight {
+			if l.BlockNumber < s.FromHeight || l.BlockNumber > s.ToHeight {
 				return
 			}
 			// block time at current number is not find then find it in database
@@ -872,6 +882,9 @@ func (s *Subscriber) resync() {
 	s.resyncing.Store(true)
 	// if fromHeight is update to date or greater than currentHeight then do nothing
 	currentHeader := s.backend.CurrentHeader().Number.Uint64()
+	if currentHeader > s.ToHeight {
+		currentHeader = s.ToHeight
+	}
 	if s.FromHeight == 0 || s.FromHeight >= currentHeader {
 		return
 	}
