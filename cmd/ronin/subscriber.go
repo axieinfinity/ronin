@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"runtime"
 	"strings"
 	"sync"
@@ -511,6 +512,7 @@ func NewSubscriber(ethereum *eth.Ethereum, backend ethapi.Backend, ctx *cli.Cont
 		limitation:          defaultReSyncLimitation,
 		isReachedLimitation: &atomic.Value{},
 		resyncing:           &atomic.Value{},
+		ToHeight:            math.MaxUint64,
 	}
 	if ctx.GlobalIsSet(QueueSizeFlag.Name) {
 		queueSize := ctx.GlobalInt(QueueSizeFlag.Name)
@@ -883,7 +885,7 @@ func (s *Subscriber) resync() {
 	// if fromHeight is update to date or greater than currentHeight then do nothing
 	currentHeader := s.backend.CurrentHeader().Number.Uint64()
 	if currentHeader > s.ToHeight {
-		currentHeader = s.ToHeight
+		currentHeader = s.ToHeight + 1
 	}
 	if s.FromHeight == 0 || s.FromHeight >= currentHeader {
 		return
