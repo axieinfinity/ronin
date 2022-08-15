@@ -55,6 +55,23 @@ var (
 	}
 )
 
+var (
+	// errUnauthorizedValidator is returned if a header is signed by a non-authorized entity.
+	errUnauthorizedValidator = errors.New("unauthorized validator")
+
+	// errOutOfRangeChain is returned if an authorization list is attempted to
+	// be modified via out-of-range or non-contiguous headers.
+	errOutOfRangeChain = errors.New("out of range or non-contiguous chain")
+
+	// errBlockHashInconsistent is returned if an authorization list is attempted to
+	// insert an inconsistent block.
+	errBlockHashInconsistent = errors.New("the block hash is inconsistent")
+
+	// errRecentlySigned is returned if a header is signed by an authorized entity
+	// that already signed a header recently, thus is temporarily not allowed to.
+	errRecentlySigned = errors.New("recently signed")
+)
+
 type SignerTxFn func(accounts.Account, *types.Transaction, *big.Int) (*types.Transaction, error)
 
 func isToSystemContract(to common.Address) bool {
