@@ -274,12 +274,12 @@ func FindAncientHeader(header *types.Header, ite uint64, chain consensus.ChainHe
 	return ancient
 }
 
-func (s *Snapshot) isMajorityFork(forkHash string) bool {
-	ally := 0
-	for _, h := range s.RecentForkHashes {
-		if h == forkHash {
-			ally++
-		}
-	}
-	return ally > len(s.RecentForkHashes)/2
-}
+//func (s *Snapshot) isMajorityFork(forkHash string) bool {
+//	ally := 0
+//	for _, h := range s.RecentForkHashes {
+//		if h == forkHash {
+//			ally++
+//		}
+//	}
+//	return ally > len(s.RecentForkHashes)/2
+//}
