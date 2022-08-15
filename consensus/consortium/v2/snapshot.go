@@ -53,7 +53,7 @@ func newSnapshot(config *params.ConsortiumConfig, sigcache *lru.ARCCache, number
 }
 
 func loadSnapshot(config *params.ConsortiumConfig, sigcache *lru.ARCCache, db ethdb.Database, hash common.Hash, ethAPI *ethapi.PublicBlockChainAPI) (*Snapshot, error) {
-	blob, err := db.Get(append([]byte("parlia-"), hash[:]...))
+	blob, err := db.Get(append([]byte("consortium-v2-"), hash[:]...))
 	if err != nil {
 		return nil, err
 	}
