@@ -67,14 +67,14 @@ var (
 	// that already signed a header recently, thus is temporarily not allowed to.
 	errRecentlySigned = errors.New("recently signed")
 
-	// errMissingValidators is returned if you can get list of validators.
+	// errMissingValidators is returned if you can not get list of validators.
 	errMissingValidators = errors.New("missing validators")
 
 	// errCoinBaseMisMatch is returned if a header's coinbase do not match with signature
 	errCoinBaseMisMatch = errors.New("coinbase do not match with signature")
 
 	// errMismatchingEpochValidators is returned if a sprint block contains a
-	// list of validators different than the one the local node calculated.
+	// list of validators different from the one the local node calculated.
 	errMismatchingEpochValidators = errors.New("mismatching validator list on epoch block")
 )
 
@@ -277,16 +277,17 @@ func (c *Consortium) verifyCascadingFields(chain consensus.ChainHeaderReader, he
 	}
 
 	// Verify list validators
-	validators, err := c.getCurrentValidators(header.Hash(), header.Number)
-	if err != nil {
-		return errMissingValidators
-	}
-	checkpointValidators := c.getValidatorsFromHeader(header)
-	validValidators := consortiumCommon.CompareSignersLists(validators, checkpointValidators)
-	if !validValidators {
-		log.Error("signers lists are different in checkpoint header and snapshot", "number", number, "validatorsHeader", checkpointValidators, "signers", validators)
-		return consortiumCommon.ErrInvalidCheckpointSigners
-	}
+	// Note: Verify it in Finalize
+	//validators, err := c.getCurrentValidators(header.Hash(), header.Number)
+	//if err != nil {
+	//	return errMissingValidators
+	//}
+	//checkpointValidators := c.getValidatorsFromHeader(header)
+	//validValidators := consortiumCommon.CompareSignersLists(validators, checkpointValidators)
+	//if !validValidators {
+	//	log.Error("signers lists are different in checkpoint header and snapshot", "number", number, "validatorsHeader", checkpointValidators, "signers", validators)
+	//	return consortiumCommon.ErrInvalidCheckpointSigners
+	//}
 
 	// Verify that the gas limit is <= 2^63-1
 	capacity := uint64(0x7fffffffffffffff)
@@ -299,15 +300,15 @@ func (c *Consortium) verifyCascadingFields(chain consensus.ChainHeaderReader, he
 	}
 
 	// Verify that the gas limit remains within allowed bounds
-	diff := int64(parent.GasLimit) - int64(header.GasLimit)
-	if diff < 0 {
-		diff *= -1
-	}
-	limit := parent.GasLimit / params.ConsortiumGasLimitBoundDivisor
-
-	if uint64(diff) >= limit || header.GasLimit < params.MinGasLimit {
-		return fmt.Errorf("invalid gas limit: have %d, want %d += %d", header.GasLimit, parent.GasLimit, limit)
-	}
+	//diff := int64(parent.GasLimit) - int64(header.GasLimit)
+	//if diff < 0 {
+	//	diff *= -1
+	//}
+	//limit := parent.GasLimit / params.ConsortiumGasLimitBoundDivisor
+	//
+	//if uint64(diff) >= limit || header.GasLimit < params.MinGasLimit {
+	//	return fmt.Errorf("invalid gas limit: have %d, want %d += %d", header.GasLimit, parent.GasLimit, limit)
+	//}
 
 	// All basic checks passed, verify the seal and return
 	return c.verifySeal(chain, header, parents)
