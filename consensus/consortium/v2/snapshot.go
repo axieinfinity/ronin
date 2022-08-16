@@ -217,6 +217,12 @@ func (s *Snapshot) inturn(validator common.Address) bool {
 	return validators[offset] == validator
 }
 
+func (s *Snapshot) supposeValidator() common.Address {
+	validators := s.validators()
+	index := (s.Number + 1) % uint64(len(validators))
+	return validators[index]
+}
+
 func ParseValidators(validatorsBytes []byte) ([]common.Address, error) {
 	if len(validatorsBytes)%validatorBytesLength != 0 {
 		return nil, errors.New("invalid validators bytes")
