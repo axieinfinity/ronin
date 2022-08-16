@@ -309,6 +309,9 @@ func (c *Consortium) verifyCascadingFields(chain consensus.ChainHeaderReader, he
 	//if uint64(diff) >= limit || header.GasLimit < params.MinGasLimit {
 	//	return fmt.Errorf("invalid gas limit: have %d, want %d += %d", header.GasLimit, parent.GasLimit, limit)
 	//}
+	if err := misc.VerifyGaslimit(parent.GasLimit, header.GasLimit); err != nil {
+		return err
+	}
 
 	// All basic checks passed, verify the seal and return
 	return c.verifySeal(chain, header, parents)
