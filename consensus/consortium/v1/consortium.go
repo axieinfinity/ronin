@@ -20,6 +20,10 @@ package v1
 import (
 	"bytes"
 	"errors"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/rlp"
+	"golang.org/x/crypto/sha3"
+	"io"
 	"math/big"
 	"math/rand"
 	"sync"
@@ -67,56 +71,19 @@ var (
 // codebase, inherently breaking if the engine is swapped out. Please put common
 // error types into the consensus package.
 var (
-	// errUnknownBlock is returned when the list of signers is requested for a block
-	// that is not part of the local blockchain.
-	errUnknownBlock = errors.New("unknown block")
-
-	// errInvalidCheckpointBeneficiary is returned if a checkpoint/epoch transition
-	// block has a beneficiary set to non-zeroes.
-	errInvalidCheckpointBeneficiary = errors.New("beneficiary in checkpoint block non-zero")
-
 	// errInvalidNonce is returned if a nonce value is not 0x00..0
 	errInvalidNonce = errors.New("nonce not 0x00..0 ")
-
-	// errMissingVanity is returned if a block's extra-data section is shorter than
-	// 32 bytes, which is required to store the signer vanity.
-	errMissingVanity = errors.New("extra-data 32 byte vanity prefix missing")
 
 	// errExtraSigners is returned if non-checkpoint block contain signer data in
 	// their extra-data fields.
 	errExtraSigners = errors.New("non-checkpoint block contains extra signer list")
 
-	// errInvalidCheckpointSigners is returned if a checkpoint block contains an
-	// invalid list of signers (i.e. non divisible by 20 bytes).
-	errInvalidCheckpointSigners = errors.New("invalid signer list on checkpoint block")
-
-	// errMismatchingCheckpointSigners is returned if a checkpoint block contains a
-	// list of signers different than the one the local node calculated.
-	errMismatchingCheckpointSigners = errors.New("mismatching signer list on checkpoint block")
-
-	// errInvalidMixDigest is returned if a block's mix digest is non-zero.
-	errInvalidMixDigest = errors.New("non-zero mix digest")
-
-	// errInvalidUncleHash is returned if a block contains an non-empty uncle list.
-	errInvalidUncleHash = errors.New("non empty uncle hash")
-
-	// errInvalidDifficulty is returned if the difficulty of a block neither 1 or 2.
-	errInvalidDifficulty = errors.New("invalid difficulty")
-
-	// errWrongDifficulty is returned if the difficulty of a block doesn't match the
-	// turn of the signer.
-	errWrongDifficulty = errors.New("wrong difficulty")
-
 	// ErrInvalidTimestamp is returned if the timestamp of a block is lower than
 	// the previous block's timestamp + the minimum block period.
-	ErrInvalidTimestamp = errors.New("invalid timestamp")
+	errInvalidTimestamp = errors.New("invalid timestamp")
 
 	// errUnauthorizedSigner is returned if a header is signed by a non-authorized entity.
 	errUnauthorizedSigner = errors.New("unauthorized signer")
-
-	// errRecentlySigned is returned if a header is signed by an authorized entity
-	// that already signed a header recently, thus is temporarily not allowed to.
-	errRecentlySigned = errors.New("recently signed")
 
 	// errWrongCoinbase is returned if the coinbase field in header does not match the signer
 	// of that block.
@@ -176,7 +143,7 @@ func (c *Consortium) SetGetFenixValidators(fn func() ([]common.Address, error)) 
 // Author implements consensus.Engine, returning the Ethereum address recovered
 // from the signature in the header's extra-data section.
 func (c *Consortium) Author(header *types.Header) (common.Address, error) {
-	return consortiumCommon.Ecrecover(header, c.signatures)
+	return ecrecover(header, c.signatures)
 }
 
 // VerifyHeader checks whether a header conforms to the consensus rules.
@@ -211,7 +178,7 @@ func (c *Consortium) VerifyHeaders(chain consensus.ChainHeaderReader, headers []
 // a batch of new headers.
 func (c *Consortium) VerifyHeaderAndParents(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header) error {
 	if header.Number == nil {
-		return errUnknownBlock
+		return consortiumCommon.ErrUnknownBlock
 	}
 	number := header.Number.Uint64()
 
@@ -225,7 +192,7 @@ func (c *Consortium) VerifyHeaderAndParents(chain consensus.ChainHeaderReader, h
 	}
 	// Check that the extra-data contains both the vanity and signature
 	if len(header.Extra) < extraVanity {
-		return errMissingVanity
+		return consortiumCommon.ErrMissingVanity
 	}
 	if len(header.Extra) < extraVanity+consortiumCommon.ExtraSeal {
 		return consortiumCommon.ErrMissingSignature
@@ -237,20 +204,20 @@ func (c *Consortium) VerifyHeaderAndParents(chain consensus.ChainHeaderReader, h
 		return errExtraSigners
 	}
 	if checkpoint && signersBytes%common.AddressLength != 0 {
-		return errInvalidCheckpointSigners
+		return consortiumCommon.ErrInvalidCheckpointSigners
 	}
 	// Ensure that the mix digest is zero as we don't have fork protection currently
 	if header.MixDigest != (common.Hash{}) {
-		return errInvalidMixDigest
+		return consortiumCommon.ErrInvalidMixDigest
 	}
 	// Ensure that the block doesn't contain any uncles which are meaningless in PoA
 	if header.UncleHash != uncleHash {
-		return errInvalidUncleHash
+		return consortiumCommon.ErrInvalidUncleHash
 	}
 	// Ensure that the block's difficulty is meaningful (may not be correct at this point)
 	if number > 0 {
 		if header.Difficulty == nil || (header.Difficulty.Cmp(diffInTurn) != 0 && header.Difficulty.Cmp(diffNoTurn) != 0) {
-			return errInvalidDifficulty
+			return consortiumCommon.ErrInvalidDifficulty
 		}
 	}
 	// If all checks passed, validate any special fields for hard forks
@@ -282,7 +249,7 @@ func (c *Consortium) verifyCascadingFields(chain consensus.ChainHeaderReader, he
 		return consensus.ErrUnknownAncestor
 	}
 	if parent.Time+c.config.Period > header.Time {
-		return ErrInvalidTimestamp
+		return errInvalidTimestamp
 	}
 
 	// If the block is a checkpoint block, verify the signer list
@@ -296,29 +263,15 @@ func (c *Consortium) verifyCascadingFields(chain consensus.ChainHeaderReader, he
 	}
 
 	extraSuffix := len(header.Extra) - consortiumCommon.ExtraSeal
-	checkpointHeaders := extractAddressFromBytes(header.Extra[extraVanity:extraSuffix])
-	validSigners := compareSignersLists(checkpointHeaders, signers)
+	checkpointHeaders := consortiumCommon.ExtractAddressFromBytes(header.Extra[extraVanity:extraSuffix])
+	validSigners := consortiumCommon.CompareSignersLists(checkpointHeaders, signers)
 	if !validSigners {
 		log.Error("signers lists are different in checkpoint header and snapshot", "number", number, "signersHeader", checkpointHeaders, "signers", signers)
-		return errInvalidCheckpointSigners
+		return consortiumCommon.ErrInvalidCheckpointSigners
 	}
 
 	// All basic checks passed, verify the seal and return
 	return c.verifySeal(chain, header, parents)
-}
-
-// compare 2 signers lists
-// return true if they are same elements, otherwise return false
-func compareSignersLists(list1 []common.Address, list2 []common.Address) bool {
-	if len(list1) != len(list2) {
-		return false
-	}
-	for i := 0; i < len(list1); i++ {
-		if list1[i].Hex() != list2[i].Hex() {
-			return false
-		}
-	}
-	return true
 }
 
 // snapshot retrieves the authorization snapshot at a given point in time.
@@ -426,7 +379,7 @@ func (c *Consortium) verifySeal(chain consensus.ChainHeaderReader, header *types
 	// Verifying the genesis block is not supported
 	number := header.Number.Uint64()
 	if number == 0 {
-		return errUnknownBlock
+		return consortiumCommon.ErrUnknownBlock
 	}
 
 	// Verifying the genesis block is not supported
@@ -437,7 +390,7 @@ func (c *Consortium) verifySeal(chain consensus.ChainHeaderReader, header *types
 	}
 
 	// Resolve the authorization key and check against signers
-	signer, err := consortiumCommon.Ecrecover(header, c.signatures)
+	signer, err := ecrecover(header, c.signatures)
 	if err != nil {
 		return err
 	}
@@ -454,10 +407,10 @@ func (c *Consortium) verifySeal(chain consensus.ChainHeaderReader, header *types
 	validators := snap.SignerList
 	inturn := c.signerInTurn(signer, header.Number.Uint64(), validators)
 	if inturn && header.Difficulty.Cmp(diffInTurn) != 0 {
-		return errWrongDifficulty
+		return consortiumCommon.ErrWrongDifficulty
 	}
 	if !inturn && header.Difficulty.Cmp(diffNoTurn) != 0 {
-		return errWrongDifficulty
+		return consortiumCommon.ErrWrongDifficulty
 	}
 	return nil
 }
@@ -555,7 +508,7 @@ func (c *Consortium) Seal(chain consensus.ChainHeaderReader, block *types.Block,
 	// Sealing the genesis block is not supported
 	number := header.Number.Uint64()
 	if number == 0 {
-		return errUnknownBlock
+		return consortiumCommon.ErrUnknownBlock
 	}
 	// For 0-period chains, refuse to seal empty blocks (no reward but would spin sealing)
 	if c.config.Period == 0 && len(block.Transactions()) == 0 {
@@ -597,7 +550,7 @@ func (c *Consortium) Seal(chain consensus.ChainHeaderReader, block *types.Block,
 		log.Trace("Out-of-turn signing requested", "wiggle", common.PrettyDuration(wiggle))
 	}
 	// Sign all the things!
-	sighash, err := signFn(accounts.Account{Address: signer}, accounts.MimetypeTextPlain, consortiumCommon.ConsortiumRLP(header))
+	sighash, err := signFn(accounts.Account{Address: signer}, accounts.MimetypeTextPlain, consortiumRLP(header))
 	if err != nil {
 		return err
 	}
@@ -614,7 +567,7 @@ func (c *Consortium) Seal(chain consensus.ChainHeaderReader, block *types.Block,
 		select {
 		case results <- block.WithSeal(header):
 		default:
-			log.Warn("Sealing result is not read by miner", "sealhash", consortiumCommon.SealHash(header))
+			log.Warn("Sealing result is not read by miner", "sealhash", SealHash(header))
 		}
 	}()
 
@@ -623,7 +576,7 @@ func (c *Consortium) Seal(chain consensus.ChainHeaderReader, block *types.Block,
 
 // SealHash returns the hash of a block prior to it being sealed.
 func (c *Consortium) SealHash(header *types.Header) common.Hash {
-	return consortiumCommon.SealHash(header)
+	return SealHash(header)
 }
 
 // Close implements consensus.Engine. It's a noop for consortium as there are no background threads.
@@ -659,17 +612,6 @@ func signerInList(signer common.Address, validators []common.Address) bool {
 		}
 	}
 	return false
-}
-
-func extractAddressFromBytes(bytes []byte) []common.Address {
-	if bytes != nil && len(bytes) < common.AddressLength {
-		return []common.Address{}
-	}
-	results := make([]common.Address, len(bytes)/common.AddressLength)
-	for i := 0; i < len(results); i++ {
-		copy(results[i][:], bytes[i*common.AddressLength:])
-	}
-	return results
 }
 
 func (c *Consortium) doCalcDifficulty(signer common.Address, number uint64, validators []common.Address) *big.Int {
@@ -717,7 +659,7 @@ func (c *Consortium) getValidatorsFromLastCheckpoint(chain consensus.ChainHeader
 		header = chain.GetHeaderByNumber(lastCheckpoint)
 	}
 	extraSuffix := len(header.Extra) - consortiumCommon.ExtraSeal
-	return extractAddressFromBytes(header.Extra[extraVanity:extraSuffix]), nil
+	return consortiumCommon.ExtractAddressFromBytes(header.Extra[extraVanity:extraSuffix]), nil
 }
 
 // Check if it is the turn of the signer from the last checkpoint
@@ -725,4 +667,73 @@ func (c *Consortium) signerInTurn(signer common.Address, number uint64, validato
 	lastCheckpoint := number / c.config.Epoch * c.config.Epoch
 	index := (number - lastCheckpoint) % uint64(len(validators))
 	return validators[index] == signer
+}
+
+// ecrecover extracts the Ethereum account address from a signed header.
+func ecrecover(header *types.Header, sigcache *lru.ARCCache) (common.Address, error) {
+	// If the signature's already cached, return that
+	hash := header.Hash()
+	if address, known := sigcache.Get(hash); known {
+		return address.(common.Address), nil
+	}
+	// Retrieve the signature from the header extra-data
+	if len(header.Extra) < consortiumCommon.ExtraSeal {
+		return common.Address{}, consortiumCommon.ErrMissingSignature
+	}
+	signature := header.Extra[len(header.Extra)-consortiumCommon.ExtraSeal:]
+
+	// Recover the public key and the Ethereum address
+	pubkey, err := crypto.Ecrecover(SealHash(header).Bytes(), signature)
+	if err != nil {
+		return common.Address{}, err
+	}
+	var signer common.Address
+	copy(signer[:], crypto.Keccak256(pubkey[1:])[12:])
+
+	sigcache.Add(hash, signer)
+	return signer, nil
+}
+
+// SealHash returns the hash of a block prior to it being sealed.
+func SealHash(header *types.Header) (hash common.Hash) {
+	hasher := sha3.NewLegacyKeccak256()
+	encodeSigHeader(hasher, header)
+	hasher.Sum(hash[:0])
+	return hash
+}
+
+// consortiumRLP returns the rlp bytes which needs to be signed for the proof-of-authority
+// sealing. The RLP to sign consists of the entire header apart from the 65 byte signature
+// contained at the end of the extra data.
+//
+// Note, the method requires the extra data to be at least 65 bytes, otherwise it
+// panics. This is done to avoid accidentally using both forms (signature present
+// or not), which could be abused to produce different hashes for the same header.
+func consortiumRLP(header *types.Header) []byte {
+	b := new(bytes.Buffer)
+	encodeSigHeader(b, header)
+	return b.Bytes()
+}
+
+func encodeSigHeader(w io.Writer, header *types.Header) {
+	err := rlp.Encode(w, []interface{}{
+		header.ParentHash,
+		header.UncleHash,
+		header.Coinbase,
+		header.Root,
+		header.TxHash,
+		header.ReceiptHash,
+		header.Bloom,
+		header.Difficulty,
+		header.Number,
+		header.GasLimit,
+		header.GasUsed,
+		header.Time,
+		header.Extra[:len(header.Extra)-crypto.SignatureLength], // Yes, this will panic if extra is too short
+		header.MixDigest,
+		header.Nonce,
+	})
+	if err != nil {
+		panic("can't encode: " + err.Error())
+	}
 }

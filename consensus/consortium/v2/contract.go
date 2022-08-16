@@ -91,6 +91,26 @@ func (c *Consortium) distributeIncoming(
 	return c.distributeToValidator(balance, val, state, header, chain, txs, receipts, receivedTxs, usedGas, mining)
 }
 
+// slash spoiled validators
+func (c *Consortium) slash(spoiledVal common.Address, state *state.StateDB, header *types.Header, chain core.ChainContext,
+	txs *[]*types.Transaction, receipts *[]*types.Receipt, receivedTxs *[]*types.Transaction, usedGas *uint64, mining bool) error {
+	// method
+	method := "slash"
+
+	// get packed data
+	data, err := c.slashABI.Pack(method,
+		spoiledVal,
+	)
+	if err != nil {
+		log.Error("Unable to pack tx for slash", "error", err)
+		return err
+	}
+	// get system message
+	msg := c.getSystemMessage(header.Coinbase, common.HexToAddress(systemcontracts.SlashContract), data, common.Big0)
+	// apply message
+	return c.applyTransaction(msg, state, header, chain, txs, receipts, receivedTxs, usedGas, mining)
+}
+
 func (c *Consortium) initContract(
 	state *state.StateDB,
 	header *types.Header,
