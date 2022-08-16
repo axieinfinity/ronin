@@ -1,6 +1,7 @@
 package v2
 
 import (
+	"bytes"
 	"errors"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -15,8 +16,11 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/rpc"
 	lru "github.com/hashicorp/golang-lru"
+	"golang.org/x/crypto/sha3"
+	"io"
 	"math/big"
 	"strings"
 	"sync"
@@ -28,6 +32,9 @@ const (
 	inmemorySignatures = 4096 // Number of recent block signatures to keep in memory
 
 	wiggleTime = 1000 * time.Millisecond // Random delay (per signer) to allow concurrent signers
+
+	nextForkHashSize     = 4 // Fixed number of extra-data suffix bytes reserved for nextForkHash.
+	validatorBytesLength = common.AddressLength
 )
 
 // Consortium proof-of-authority protocol constants.
@@ -53,6 +60,23 @@ var (
 		common.HexToAddress(systemcontracts.ValidatorContract): true,
 		common.HexToAddress(systemcontracts.SlashContract):     true,
 	}
+)
+
+var (
+	// errUnauthorizedValidator is returned if a header is signed by a non-authorized entity.
+	errUnauthorizedValidator = errors.New("unauthorized validator")
+
+	// errOutOfRangeChain is returned if an authorization list is attempted to
+	// be modified via out-of-range or non-contiguous headers.
+	errOutOfRangeChain = errors.New("out of range or non-contiguous chain")
+
+	// errBlockHashInconsistent is returned if an authorization list is attempted to
+	// insert an inconsistent block.
+	errBlockHashInconsistent = errors.New("the block hash is inconsistent")
+
+	// errRecentlySigned is returned if a header is signed by an authorized entity
+	// that already signed a header recently, thus is temporarily not allowed to.
+	errRecentlySigned = errors.New("recently signed")
 )
 
 type SignerTxFn func(accounts.Account, *types.Transaction, *big.Int) (*types.Transaction, error)
@@ -222,4 +246,74 @@ func (c *Consortium) APIs(chain consensus.ChainHeaderReader) []rpc.API {
 
 func (c *Consortium) CalcDifficulty(chain consensus.ChainHeaderReader, time uint64, parent *types.Header) *big.Int {
 	return nil
+}
+
+// ecrecover extracts the Ethereum account address from a signed header.
+func ecrecover(header *types.Header, sigcache *lru.ARCCache, chainId *big.Int) (common.Address, error) {
+	// If the signature's already cached, return that
+	hash := header.Hash()
+	if address, known := sigcache.Get(hash); known {
+		return address.(common.Address), nil
+	}
+	// Retrieve the signature from the header extra-data
+	if len(header.Extra) < consortiumCommon.ExtraSeal {
+		return common.Address{}, consortiumCommon.ErrMissingSignature
+	}
+	signature := header.Extra[len(header.Extra)-consortiumCommon.ExtraSeal:]
+
+	// Recover the public key and the Ethereum address
+	pubkey, err := crypto.Ecrecover(SealHash(header, chainId).Bytes(), signature)
+	if err != nil {
+		return common.Address{}, err
+	}
+	var signer common.Address
+	copy(signer[:], crypto.Keccak256(pubkey[1:])[12:])
+
+	sigcache.Add(hash, signer)
+	return signer, nil
+}
+
+// SealHash returns the hash of a block prior to it being sealed.
+func SealHash(header *types.Header, chainId *big.Int) (hash common.Hash) {
+	hasher := sha3.NewLegacyKeccak256()
+	encodeSigHeader(hasher, header, chainId)
+	hasher.Sum(hash[:0])
+	return hash
+}
+
+// consortiumRLP returns the rlp bytes which needs to be signed for the proof-of-authority
+// sealing. The RLP to sign consists of the entire header apart from the 65 byte signature
+// contained at the end of the extra data.
+//
+// Note, the method requires the extra data to be at least 65 bytes, otherwise it
+// panics. This is done to avoid accidentally using both forms (signature present
+// or not), which could be abused to produce different hashes for the same header.
+func consortiumRLP(header *types.Header, chainId *big.Int) []byte {
+	b := new(bytes.Buffer)
+	encodeSigHeader(b, header, chainId)
+	return b.Bytes()
+}
+
+func encodeSigHeader(w io.Writer, header *types.Header, chainId *big.Int) {
+	err := rlp.Encode(w, []interface{}{
+		chainId,
+		header.ParentHash,
+		header.UncleHash,
+		header.Coinbase,
+		header.Root,
+		header.TxHash,
+		header.ReceiptHash,
+		header.Bloom,
+		header.Difficulty,
+		header.Number,
+		header.GasLimit,
+		header.GasUsed,
+		header.Time,
+		header.Extra[:len(header.Extra)-crypto.SignatureLength], // Yes, this will panic if extra is too short
+		header.MixDigest,
+		header.Nonce,
+	})
+	if err != nil {
+		panic("can't encode: " + err.Error())
+	}
 }
