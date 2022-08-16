@@ -2,7 +2,6 @@ package v2
 
 import (
 	"bytes"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"github.com/ethereum/go-ethereum/common"
@@ -21,11 +20,10 @@ type Snapshot struct {
 	ethAPI   *ethapi.PublicBlockChainAPI
 	sigCache *lru.ARCCache // Cache of recent block signatures to speed up ecrecover
 
-	Number           uint64                      `json:"number"`             // Block number where the snapshot was created
-	Hash             common.Hash                 `json:"hash"`               // Block hash where the snapshot was created
-	Validators       map[common.Address]struct{} `json:"validators"`         // Set of authorized validators at this moment
-	Recents          map[uint64]common.Address   `json:"recents"`            // Set of recent validators for spam protections
-	RecentForkHashes map[uint64]string           `json:"recent_fork_hashes"` // Set of recent forkHash
+	Number     uint64                      `json:"number"`     // Block number where the snapshot was created
+	Hash       common.Hash                 `json:"hash"`       // Block hash where the snapshot was created
+	Validators map[common.Address]struct{} `json:"validators"` // Set of authorized validators at this moment
+	Recents    map[uint64]common.Address   `json:"recents"`    // Set of recent validators for spam protections
 }
 
 // validatorsAscending implements the sort interface to allow sorting a list of addresses
@@ -37,14 +35,13 @@ func (s validatorsAscending) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 
 func newSnapshot(config *params.ConsortiumConfig, sigcache *lru.ARCCache, number uint64, hash common.Hash, validators []common.Address, ethAPI *ethapi.PublicBlockChainAPI) *Snapshot {
 	snap := &Snapshot{
-		config:           config,
-		ethAPI:           ethAPI,
-		sigCache:         sigcache,
-		Number:           number,
-		Hash:             hash,
-		Recents:          make(map[uint64]common.Address),
-		RecentForkHashes: make(map[uint64]string),
-		Validators:       make(map[common.Address]struct{}),
+		config:     config,
+		ethAPI:     ethAPI,
+		sigCache:   sigcache,
+		Number:     number,
+		Hash:       hash,
+		Recents:    make(map[uint64]common.Address),
+		Validators: make(map[common.Address]struct{}),
 	}
 	for _, v := range validators {
 		snap.Validators[v] = struct{}{}
@@ -78,14 +75,13 @@ func (s *Snapshot) store(db ethdb.Database) error {
 
 func (s *Snapshot) copy() *Snapshot {
 	cpy := &Snapshot{
-		config:           s.config,
-		ethAPI:           s.ethAPI,
-		sigCache:         s.sigCache,
-		Number:           s.Number,
-		Hash:             s.Hash,
-		Validators:       make(map[common.Address]struct{}),
-		Recents:          make(map[uint64]common.Address),
-		RecentForkHashes: make(map[uint64]string),
+		config:     s.config,
+		ethAPI:     s.ethAPI,
+		sigCache:   s.sigCache,
+		Number:     s.Number,
+		Hash:       s.Hash,
+		Validators: make(map[common.Address]struct{}),
+		Recents:    make(map[uint64]common.Address),
 	}
 
 	for v := range s.Validators {
@@ -93,9 +89,6 @@ func (s *Snapshot) copy() *Snapshot {
 	}
 	for block, v := range s.Recents {
 		cpy.Recents[block] = v
-	}
-	for block, id := range s.RecentForkHashes {
-		cpy.RecentForkHashes[block] = id
 	}
 	return cpy
 }
@@ -128,9 +121,6 @@ func (s *Snapshot) apply(headers []*types.Header, chain consensus.ChainHeaderRea
 		// Delete the oldest validator from the recent list to allow it signing again
 		if limit := uint64(len(snap.Validators)/2 + 1); number >= limit {
 			delete(snap.Recents, number-limit)
-		}
-		if limit := uint64(len(snap.Validators)); number >= limit {
-			delete(snap.RecentForkHashes, number-limit)
 		}
 		// Resolve the authorization key and check against signers
 		validator, err := ecrecover(header, s.sigCache, chainId)
@@ -172,14 +162,8 @@ func (s *Snapshot) apply(headers []*types.Header, chain consensus.ChainHeaderRea
 			}
 			oldLimit = len(snap.Validators)
 			newLimit = len(newVals)
-			if newLimit < oldLimit {
-				for i := 0; i < oldLimit-newLimit; i++ {
-					delete(snap.RecentForkHashes, number-uint64(newLimit)-uint64(i))
-				}
-			}
 			snap.Validators = newVals
 		}
-		snap.RecentForkHashes[number] = hex.EncodeToString(header.Extra[extraVanity-nextForkHashSize : extraVanity])
 	}
 	snap.Number += uint64(len(headers))
 	snap.Hash = headers[len(headers)-1].Hash()
