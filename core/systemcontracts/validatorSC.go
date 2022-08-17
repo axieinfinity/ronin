@@ -46,11 +46,11 @@ func (c *ValidatorSC) Deposit(from, to common.Address, value *big.Int) error {
 		From:     from,
 		GasPrice: big.NewInt(0),
 		Value:    value,
+		NoSend:   true,
 	}, to)
 	if err != nil {
 		return err
 	}
-
 	return nil
 }
 
