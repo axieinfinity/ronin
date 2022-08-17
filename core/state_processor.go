@@ -83,8 +83,22 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 
 	systemTxs := make([]*types.Transaction, 0, 2)
 
+	posa, isPoSA := p.engine.(consensus.PoSA)
+
+	bloomProcessors := NewAsyncReceiptBloomGenerator(txNum)
+	defer bloomProcessors.Close()
+
 	// Iterate over and process the individual transactions
 	for i, tx := range block.Transactions() {
+		if isPoSA {
+			if isSystemTx, err := posa.IsSystemTransaction(tx, block.Header()); err != nil {
+				return nil, nil, 0, err
+			} else if isSystemTx {
+				systemTxs = append(systemTxs, tx)
+				continue
+			}
+		}
+
 		// set current transaction in block context to each transaction
 		vmenv.Context.CurrentTransaction = tx
 		// reset counter to start counting opcodes in new transaction
@@ -94,7 +108,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 			return nil, nil, 0, fmt.Errorf("could not apply tx %d [%v]: %w", i, tx.Hash().Hex(), err)
 		}
 		statedb.Prepare(tx.Hash(), i)
-		receipt, _, err := applyTransaction(msg, p.config, p.bc, nil, gp, statedb, blockNumber, blockHash, tx, usedGas, vmenv)
+		receipt, _, err := applyTransaction(msg, p.config, p.bc, nil, gp, statedb, blockNumber, blockHash, tx, usedGas, vmenv, bloomProcessors)
 		if err != nil {
 			return nil, nil, 0, fmt.Errorf("could not apply tx %d [%v]: %w", i, tx.Hash().Hex(), err)
 		}
@@ -115,7 +129,19 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	return receipts, allLogs, *usedGas, nil
 }
 
-func applyTransaction(msg types.Message, config *params.ChainConfig, bc ChainContext, author *common.Address, gp *GasPool, statedb *state.StateDB, blockNumber *big.Int, blockHash common.Hash, tx *types.Transaction, usedGas *uint64, evm *vm.EVM) (*types.Receipt, *ExecutionResult, error) {
+func applyTransaction(
+	msg types.Message,
+	config *params.ChainConfig,
+	bc ChainContext,
+	author *common.Address,
+	gp *GasPool,
+	statedb *state.StateDB,
+	blockNumber *big.Int,
+	blockHash common.Hash,
+	tx *types.Transaction,
+	usedGas *uint64, evm *vm.EVM,
+	receiptProcessors ...ReceiptProcessor,
+) (*types.Receipt, *ExecutionResult, error) {
 	// Create a new context to be used in the EVM environment.
 	txContext := NewEVMTxContext(msg)
 	evm.Reset(txContext, statedb)
@@ -174,6 +200,9 @@ func applyTransaction(msg types.Message, config *params.ChainConfig, bc ChainCon
 	receipt.BlockHash = blockHash
 	receipt.BlockNumber = blockNumber
 	receipt.TransactionIndex = uint(statedb.TxIndex())
+	for _, receiptProcessor := range receiptProcessors {
+		receiptProcessor.Apply(receipt)
+	}
 	return receipt, result, err
 }
 

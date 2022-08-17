@@ -1,5 +1,6 @@
 package v2
 
+import "C"
 import (
 	"bytes"
 	"errors"
@@ -20,6 +21,7 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/ethereum/go-ethereum/trie"
 	lru "github.com/hashicorp/golang-lru"
 	"golang.org/x/crypto/sha3"
 	"io"
@@ -522,12 +524,127 @@ func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.He
 
 func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs *[]*types.Transaction,
 	uncles []*types.Header, receipts *[]*types.Receipt, systemTxs *[]*types.Transaction, usedGas *uint64) error {
+	// warn if not in majority fork
+	number := header.Number.Uint64()
+	snap, err := c.snapshot(chain, number-1, header.ParentHash, nil)
+	if err != nil {
+		return err
+	}
+
+	// If the block is a epoch end block, verify the validator list
+	// The verification can only be done when the state is ready, it can't be done in VerifyHeader.
+	if header.Number.Uint64()%c.config.Epoch == 0 {
+		newValidators, err := c.getCurrentValidators(header.ParentHash, new(big.Int).Sub(header.Number, common.Big1))
+		if err != nil {
+			return err
+		}
+		// sort validator by address
+		sort.Sort(validatorsAscending(newValidators))
+		validatorsBytes := make([]byte, len(newValidators)*validatorBytesLength)
+		for i, validator := range newValidators {
+			copy(validatorsBytes[i*validatorBytesLength:], validator.Bytes())
+		}
+
+		extraSuffix := len(header.Extra) - extraSeal
+		if !bytes.Equal(header.Extra[extraVanity:extraSuffix], validatorsBytes) {
+			return errMismatchingEpochValidators
+		}
+	}
+	// No block rewards in PoA, so the state remains as is and uncles are dropped
+	cx := chainContext{Chain: chain, consortium: c}
+	if header.Number.Cmp(common.Big1) == 0 {
+		err := c.initContract(state, header, cx, txs, receipts, systemTxs, usedGas, false)
+		if err != nil {
+			log.Error("init contract failed")
+		}
+	}
+	if header.Difficulty.Cmp(diffInTurn) != 0 {
+		spoiledVal := snap.supposeValidator()
+		signedRecently := false
+		for _, recent := range snap.Recents {
+			if recent == spoiledVal {
+				signedRecently = true
+				break
+			}
+		}
+		if !signedRecently {
+			log.Trace("slash validator", "block hash", header.Hash(), "address", spoiledVal)
+			err = c.slash(spoiledVal, state, header, cx, txs, receipts, systemTxs, usedGas, false)
+			if err != nil {
+				// it is possible that slash validator failed because of the slash channel is disabled.
+				log.Error("slash validator failed", "block hash", header.Hash(), "address", spoiledVal)
+			}
+		}
+	}
+	val := header.Coinbase
+	err = c.distributeIncoming(val, state, header, cx, txs, receipts, systemTxs, usedGas, false)
+	if err != nil {
+		return err
+	}
+	if len(*systemTxs) > 0 {
+		return errors.New("the length of systemTxs do not match")
+	}
 	return nil
 }
 
 func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB,
 	txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt) (*types.Block, error) {
-	return nil, nil
+	// No block rewards in PoA, so the state remains as is and uncles are dropped
+	cx := chainContext{Chain: chain, consortium: c}
+	if txs == nil {
+		txs = make([]*types.Transaction, 0)
+	}
+	if receipts == nil {
+		receipts = make([]*types.Receipt, 0)
+	}
+
+	if header.Difficulty.Cmp(diffInTurn) != 0 {
+		number := header.Number.Uint64()
+		snap, err := c.snapshot(chain, number-1, header.ParentHash, nil)
+		if err != nil {
+			return nil, err
+		}
+		spoiledVal := snap.supposeValidator()
+		signedRecently := false
+		for _, recent := range snap.Recents {
+			if recent == spoiledVal {
+				signedRecently = true
+				break
+			}
+		}
+		if !signedRecently {
+			err = c.slash(spoiledVal, state, header, cx, &txs, &receipts, nil, &header.GasUsed, true)
+			if err != nil {
+				// it is possible that slash validator failed because of the slash channel is disabled.
+				log.Error("slash validator failed", "block hash", header.Hash(), "address", spoiledVal)
+			}
+		}
+	}
+	err := c.distributeIncoming(c.val, state, header, cx, &txs, &receipts, nil, &header.GasUsed, true)
+	if err != nil {
+		return nil, err
+	}
+	// should not happen. Once happen, stop the node is better than broadcast the block
+	if header.GasLimit < header.GasUsed {
+		return nil, errors.New("gas consumption of system txs exceed the gas limit")
+	}
+	header.UncleHash = types.CalcUncleHash(nil)
+	var blk *types.Block
+	var rootHash common.Hash
+	wg := sync.WaitGroup{}
+	wg.Add(2)
+	go func() {
+		rootHash = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
+		wg.Done()
+	}()
+	go func() {
+		blk = types.NewBlock(header, txs, nil, receipts, trie.NewStackTrie(nil))
+		wg.Done()
+	}()
+	wg.Wait()
+	blk.SetRoot(rootHash)
+	// Assemble and return the final block for sealing
+	return blk, nil
 }
 
 func (c *Consortium) Delay(chain consensus.ChainReader, header *types.Header) *time.Duration {
