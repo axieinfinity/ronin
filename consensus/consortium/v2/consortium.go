@@ -1,6 +1,5 @@
 package v2
 
-import "C"
 import (
 	"bytes"
 	"errors"
