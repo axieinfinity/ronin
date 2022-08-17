@@ -24,6 +24,7 @@ import (
 	"golang.org/x/crypto/sha3"
 	"io"
 	"math/big"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -471,6 +472,51 @@ func (c *Consortium) verifySeal(chain consensus.ChainHeaderReader, header *types
 }
 
 func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.Header) error {
+	header.Coinbase = c.val
+	header.Nonce = types.BlockNonce{}
+
+	number := header.Number.Uint64()
+	snap, err := c.snapshot(chain, number-1, header.ParentHash, nil)
+	if err != nil {
+		return err
+	}
+
+	// Set the correct difficulty
+	header.Difficulty = CalcDifficulty(snap, c.val)
+
+	// Ensure the extra data has all it's components
+	if len(header.Extra) < extraVanity {
+		header.Extra = append(header.Extra, bytes.Repeat([]byte{0x00}, extraVanity-len(header.Extra))...)
+	}
+	header.Extra = header.Extra[:extraVanity]
+
+	if number%c.config.Epoch == 0 {
+		newValidators, err := c.getCurrentValidators(header.ParentHash, new(big.Int).Sub(header.Number, common.Big1))
+		if err != nil {
+			return err
+		}
+		// sort validator by address
+		sort.Sort(validatorsAscending(newValidators))
+		for _, validator := range newValidators {
+			header.Extra = append(header.Extra, validator.Bytes()...)
+		}
+	}
+
+	// add extra seal space
+	header.Extra = append(header.Extra, make([]byte, extraSeal)...)
+
+	// Mix digest is reserved for now, set to empty
+	header.MixDigest = common.Hash{}
+
+	// Ensure the timestamp has the correct delay
+	parent := chain.GetHeader(header.ParentHash, number-1)
+	if parent == nil {
+		return consensus.ErrUnknownAncestor
+	}
+	header.Time = c.blockTimeForConsortiumV2Fork(snap, header, parent)
+	if header.Time < uint64(time.Now().Unix()) {
+		header.Time = uint64(time.Now().Unix())
+	}
 	return nil
 }
 
@@ -506,6 +552,16 @@ func (c *Consortium) APIs(chain consensus.ChainHeaderReader) []rpc.API {
 
 func (c *Consortium) CalcDifficulty(chain consensus.ChainHeaderReader, time uint64, parent *types.Header) *big.Int {
 	return nil
+}
+
+// CalcDifficulty is the difficulty adjustment algorithm. It returns the difficulty
+// that a new block should have based on the previous blocks in the chain and the
+// current signer.
+func CalcDifficulty(snap *Snapshot, signer common.Address) *big.Int {
+	if snap.inturn(signer) {
+		return new(big.Int).Set(diffInTurn)
+	}
+	return new(big.Int).Set(diffNoTurn)
 }
 
 func (c *Consortium) getValidatorsFromHeader(header *types.Header) []common.Address {
