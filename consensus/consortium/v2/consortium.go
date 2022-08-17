@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/ethereum/go-ethereum/accounts"
-	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind/backends"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	consortiumCommon "github.com/ethereum/go-ethereum/consensus/consortium/common"
@@ -26,7 +26,6 @@ import (
 	"io"
 	"math/big"
 	"sort"
-	"strings"
 	"sync"
 	"time"
 )
@@ -80,18 +79,7 @@ var (
 	errMismatchingEpochValidators = errors.New("mismatching validator list on epoch block")
 )
 
-var (
-	systemContracts = map[common.Address]bool{
-		common.HexToAddress(systemcontracts.ValidatorContract): true,
-		common.HexToAddress(systemcontracts.SlashContract):     true,
-	}
-)
-
 type SignerTxFn func(accounts.Account, *types.Transaction, *big.Int) (*types.Transaction, error)
-
-func isToSystemContract(to common.Address) bool {
-	return systemContracts[to]
-}
 
 type Consortium struct {
 	chainConfig *params.ChainConfig
@@ -109,9 +97,9 @@ type Consortium struct {
 
 	lock sync.RWMutex // Protects the signer fields
 
-	ethAPI          *ethapi.PublicBlockChainAPI
-	validatorSetABI abi.ABI
-	slashABI        abi.ABI
+	ethAPI *ethapi.PublicBlockChainAPI
+
+	validatorSC *systemcontracts.ValidatorSC
 
 	fakeDiff bool
 }
@@ -120,6 +108,7 @@ func New(
 	chainConfig *params.ChainConfig,
 	db ethdb.Database,
 	ethAPI *ethapi.PublicBlockChainAPI,
+	simBackend *backends.SimulatedBackend,
 	genesisHash common.Hash,
 ) *Consortium {
 	consortiumConfig := chainConfig.Consortium
@@ -131,20 +120,18 @@ func New(
 	// Allocate the snapshot caches and create the engine
 	recents, _ := lru.NewARC(inmemorySnapshots)
 	signatures, _ := lru.NewARC(inmemorySignatures)
-	vABI, _ := abi.JSON(strings.NewReader(validatorSetABI))
-	sABI, _ := abi.JSON(strings.NewReader(slashABI))
+	validatorSC, _ := systemcontracts.NewValidatorSC(chainConfig.ConsortiumV2Contracts.ValidatorSC, simBackend)
 
 	return &Consortium{
-		chainConfig:     chainConfig,
-		config:          consortiumConfig,
-		genesisHash:     genesisHash,
-		db:              db,
-		ethAPI:          ethAPI,
-		recents:         recents,
-		signatures:      signatures,
-		validatorSetABI: vABI,
-		slashABI:        sABI,
-		signer:          types.NewEIP155Signer(chainConfig.ChainID),
+		chainConfig: chainConfig,
+		config:      consortiumConfig,
+		genesisHash: genesisHash,
+		db:          db,
+		ethAPI:      ethAPI,
+		validatorSC: validatorSC,
+		recents:     recents,
+		signatures:  signatures,
+		signer:      types.NewEIP155Signer(chainConfig.ChainID),
 	}
 }
 
@@ -157,7 +144,7 @@ func (c *Consortium) IsSystemTransaction(tx *types.Transaction, header *types.He
 	if err != nil {
 		return false, errors.New("UnAuthorized transaction")
 	}
-	if sender == header.Coinbase && isToSystemContract(*tx.To()) && tx.GasPrice().Cmp(big.NewInt(0)) == 0 {
+	if sender == header.Coinbase && c.IsSystemContract(tx.To()) && tx.GasPrice().Cmp(big.NewInt(0)) == 0 {
 		return true, nil
 	}
 	return false, nil
@@ -167,7 +154,7 @@ func (c *Consortium) IsSystemContract(to *common.Address) bool {
 	if to == nil {
 		return false
 	}
-	return isToSystemContract(*to)
+	return c.chainConfig.ConsortiumV2Contracts.IsSystemContract(*to)
 }
 
 func (c *Consortium) EnoughDistance(chain consensus.ChainReader, header *types.Header) bool {
@@ -492,7 +479,7 @@ func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.He
 	header.Extra = header.Extra[:extraVanity]
 
 	if number%c.config.Epoch == 0 {
-		newValidators, err := c.getCurrentValidators(header.ParentHash, new(big.Int).Sub(header.Number, common.Big1))
+		newValidators, err := c.getCurrentValidators()
 		if err != nil {
 			return err
 		}
@@ -533,7 +520,7 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 	// If the block is a epoch end block, verify the validator list
 	// The verification can only be done when the state is ready, it can't be done in VerifyHeader.
 	if header.Number.Uint64()%c.config.Epoch == 0 {
-		newValidators, err := c.getCurrentValidators(header.ParentHash, new(big.Int).Sub(header.Number, common.Big1))
+		newValidators, err := c.getCurrentValidators()
 		if err != nil {
 			return err
 		}
@@ -550,7 +537,6 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 		}
 	}
 	// No block rewards in PoA, so the state remains as is and uncles are dropped
-	cx := chainContext{Chain: chain, consortium: c}
 	if header.Difficulty.Cmp(diffInTurn) != 0 {
 		spoiledVal := snap.supposeValidator()
 		signedRecently := false
@@ -562,15 +548,14 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 		}
 		if !signedRecently {
 			log.Trace("slash validator", "block hash", header.Hash(), "address", spoiledVal)
-			err = c.slash(spoiledVal, state, header, cx, txs, receipts, systemTxs, usedGas, false)
+			err = c.slash(spoiledVal)
 			if err != nil {
 				// it is possible that slash validator failed because of the slash channel is disabled.
 				log.Error("slash validator failed", "block hash", header.Hash(), "address", spoiledVal)
 			}
 		}
 	}
-	val := header.Coinbase
-	err = c.distributeIncoming(val, state, header, cx, txs, receipts, systemTxs, usedGas, false)
+	err = c.distributeIncoming(state, header)
 	if err != nil {
 		return err
 	}
@@ -583,7 +568,6 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB,
 	txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt) (*types.Block, error) {
 	// No block rewards in PoA, so the state remains as is and uncles are dropped
-	cx := chainContext{Chain: chain, consortium: c}
 	if txs == nil {
 		txs = make([]*types.Transaction, 0)
 	}
@@ -606,14 +590,14 @@ func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, head
 			}
 		}
 		if !signedRecently {
-			err = c.slash(spoiledVal, state, header, cx, &txs, &receipts, nil, &header.GasUsed, true)
+			err = c.slash(spoiledVal)
 			if err != nil {
 				// it is possible that slash validator failed because of the slash channel is disabled.
 				log.Error("slash validator failed", "block hash", header.Hash(), "address", spoiledVal)
 			}
 		}
 	}
-	err := c.distributeIncoming(c.val, state, header, cx, &txs, &receipts, nil, &header.GasUsed, true)
+	err := c.distributeIncoming(state, header)
 	if err != nil {
 		return nil, err
 	}

@@ -18,6 +18,7 @@
 package ethconfig
 
 import (
+	"github.com/ethereum/go-ethereum/accounts/abi/bind/backends"
 	"github.com/ethereum/go-ethereum/consensus/consortium"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"math/big"
@@ -215,7 +216,8 @@ func CreateConsensusEngine(stack *node.Node, chainConfig *params.ChainConfig, co
 		return clique.New(chainConfig.Clique, db)
 	}
 	if chainConfig.Consortium != nil {
-		return consortium.New(chainConfig, db, ee, genesisHash)
+		simBackend := backends.NewSimulatedBackendWithBC(db)
+		return consortium.New(chainConfig, db, ee, simBackend, genesisHash)
 	}
 	// Otherwise assume proof-of-work
 	switch config.PowMode {

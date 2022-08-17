@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts"
+	"github.com/ethereum/go-ethereum/accounts/abi/bind/backends"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/consortium"
@@ -435,7 +436,8 @@ func (b *backend) ChainConfig() *params.ChainConfig {
 
 func (b *backend) Engine() consensus.Engine {
 	ethAPI := ethapi.NewPublicBlockChainAPI(b)
-	return consortium.New(b.ChainConfig(), b.db, ethAPI, b.genesisHash)
+	simBackend := backends.NewSimulatedBackendWithBC(b.db)
+	return consortium.New(b.ChainConfig(), b.db, ethAPI, simBackend, b.genesisHash)
 }
 
 func (b *backend) GetHeader(hash common.Hash, number uint64) *types.Header {

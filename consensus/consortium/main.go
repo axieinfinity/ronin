@@ -1,6 +1,7 @@
 package consortium
 
 import (
+	"github.com/ethereum/go-ethereum/accounts/abi/bind/backends"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	consortiumCommon "github.com/ethereum/go-ethereum/consensus/consortium/common"
@@ -24,16 +25,23 @@ type Consortium struct {
 
 // New creates a Consortium proof-of-stake consensus engine with the initial
 // signers set to the ones provided by the user.
-func New(chainConfig *params.ChainConfig, db ethdb.Database, ee *ethapi.PublicBlockChainAPI, genesisHash common.Hash) *Consortium {
+func New(chainConfig *params.ChainConfig, db ethdb.Database, ee *ethapi.PublicBlockChainAPI, simBackend *backends.SimulatedBackend, genesisHash common.Hash) *Consortium {
 	// Set any missing consensus parameters to their defaults
 	consortiumV1 := v1.New(chainConfig.Consortium, db)
-	consortiumV2 := v2.New(chainConfig, db, ee, genesisHash)
+	consortiumV2 := v2.New(chainConfig, db, ee, simBackend, genesisHash)
 
 	return &Consortium{
 		chainConfig: chainConfig,
 		v1:          consortiumV1,
 		v2:          consortiumV2,
 	}
+}
+
+// NewFaker creates a Consortium consensus engine with a fake PoW scheme that accepts
+// all blocks' seal as valid, though they still have to conform to the Ethereum
+// consensus rules.
+func NewFaker() *Consortium {
+	return &Consortium{}
 }
 
 // Author since v1 and v2 are implemented the same logic, so we don't need to check whether the current block is version 1

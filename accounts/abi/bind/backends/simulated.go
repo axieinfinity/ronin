@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/ethereum/go-ethereum/consensus/consortium"
 	"math/big"
 	"sync"
 	"time"
@@ -85,6 +86,19 @@ func NewSimulatedBackendWithDatabase(database ethdb.Database, alloc core.Genesis
 		blockchain: blockchain,
 		config:     genesis.Config,
 		events:     filters.NewEventSystem(&filterBackend{database, blockchain}, false),
+	}
+	backend.rollback(blockchain.CurrentBlock())
+	return backend
+}
+
+func NewSimulatedBackendWithBC(database ethdb.Database) *SimulatedBackend {
+	var gasLimit uint64 = 10_000_000
+	alloc := make(core.GenesisAlloc)
+	genesis := core.Genesis{Config: params.AllEthashProtocolChanges, GasLimit: gasLimit, Alloc: alloc}
+	blockchain, _ := core.NewBlockChain(database, nil, genesis.Config, consortium.NewFaker(), vm.Config{}, nil, nil)
+	backend := &SimulatedBackend{
+		database:   database,
+		blockchain: blockchain,
 	}
 	backend.rollback(blockchain.CurrentBlock())
 	return backend
