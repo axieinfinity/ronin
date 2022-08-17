@@ -14,16 +14,12 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/ethdb/httpdb"
-	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/getsentry/sentry-go"
 	"github.com/segmentio/kafka-go"
@@ -1095,100 +1091,3 @@ func (s *DefaultEventPublisher) getDialer() (*kafka.Dialer, error) {
 }
 
 func (s *DefaultEventPublisher) close() {}
-
-type ReprocessBlockRequest struct {
-	BC           core.ChainContext
-	ParentRoot   common.Hash
-	Header       *types.Header
-	Transactions []*types.Transaction
-	ChainConfig  *params.ChainConfig
-	DB           state.Database
-	ErrorChannel chan error
-}
-
-type ReprocessBlockResponse struct {
-	TransactionResults   []*TransactionResult
-	InternalTransactions []*types.InternalTransaction
-}
-
-func reprocessBlock2(req *ReprocessBlockRequest) *ReprocessBlockResponse {
-	var (
-		internalTxFeed event.Feed
-		usedGas        = new(uint64)
-		gp             = new(core.GasPool).AddGas(req.Header.GasLimit)
-		internalTxsCh  = make(chan *types.InternalTransaction, 10000)
-		res            ReprocessBlockResponse
-	)
-	internalTxFeed.Subscribe(internalTxsCh)
-	opEvents := []*vm.PublishEvent{
-		{
-			OpCodes: []vm.OpCode{vm.CALL},
-			Event:   core.NewInternalTransferOrSmcCallEvent(&internalTxFeed),
-		},
-		{
-			OpCodes: []vm.OpCode{vm.CREATE, vm.CREATE2},
-			Event:   core.NewInternalTransactionContractCreation(&internalTxFeed),
-		},
-	}
-	defer func() {
-		if err := recover(); err != nil {
-			req.ErrorChannel <- errors.New(fmt.Sprintf("panic occurred: %v", err))
-		}
-	}()
-	log.Debug("[reprocessBlock] start reprocessBlock", "Height", req.Header.Number.Uint64())
-	blockContext := core.NewEVMBlockContext(req.Header, req.BC, nil, opEvents...)
-	statedb, err := state.New(req.ParentRoot, req.DB, nil)
-	if err != nil {
-		req.ErrorChannel <- err
-		return nil
-	}
-	vmenv := vm.NewEVM(blockContext, vm.TxContext{}, statedb, req.ChainConfig, vm.Config{})
-	res.TransactionResults = make([]*TransactionResult, len(req.Transactions))
-	// Iterate over and process the individual transactions
-	startTime := time.Now()
-	for i, tx := range req.Transactions {
-		log.Info("[reprocessBlock] processing tx", "index", i, "tx", tx.Hash().Hex(), "txNonce", tx.Nonce())
-		// set current transaction in block context to each transaction
-		vmenv.Context.CurrentTransaction = tx
-		// reset counter to start counting opcodes in new transaction
-		vmenv.Context.Counter = 0
-		msg, err := tx.AsMessage(types.MakeSigner(req.ChainConfig, req.Header.Number), req.Header.BaseFee)
-		if err != nil {
-			errMsg := fmt.Errorf("could not apply tx %d [%v]: %w", i, tx.Hash().Hex(), err)
-			log.Error("[reprocessBlock] tx to message", "err", err, "tx", tx.Hash().Hex(), "block", req.Header.Number.Uint64())
-			req.ErrorChannel <- errMsg
-			return nil
-		}
-		nonce := statedb.GetNonce(msg.From())
-		log.Debug("[reprocessBlock] get sender nonce", "sender", msg.From().Hex(), "nonce", nonce, "index", i, "txNonce", msg.Nonce(), "tx", tx.Hash().Hex())
-		statedb.Prepare(tx.Hash(), i)
-		_, result, err := core.ApplyTransactionWithVMContext(msg, req.ChainConfig, nil, nil, gp, statedb, req.Header.Number, req.Header.Hash(), tx, usedGas, vmenv)
-		if err != nil {
-			errMsg := fmt.Errorf("could not apply tx %d [%v] [block: %d]: %w", i, tx.Hash().Hex(), req.Header.Number.Uint64(), err)
-			log.Error("[reprocessBlock] ApplyMessage", "err", err, "tx", tx.Hash().Hex(), "block", req.Header.Number.Uint64())
-			req.ErrorChannel <- errMsg
-			return nil
-		}
-		res.TransactionResults[i] = &TransactionResult{
-			TransactionHash: tx.Hash(),
-			UsedGas:         result.UsedGas,
-		}
-		if result.Err != nil {
-			res.TransactionResults[i].Err = result.Err.Error()
-		}
-		if result.ReturnData != nil {
-			res.TransactionResults[i].ReturnData = result.ReturnData
-		}
-	}
-	endTime := time.Now()
-	log.Info("[reprocessBlock] finish processing tx", "txs", len(res.TransactionResults), "internalTxs", len(internalTxsCh), "block", req.Header.Number.Uint64(), "elapsed", endTime.Unix()-startTime.Unix())
-	close(internalTxsCh)
-	if len(internalTxsCh) > 0 {
-		log.Debug("[reprocessBlock] getting internalTxs", "txs", len(internalTxsCh))
-		for internalTx := range internalTxsCh {
-			res.InternalTransactions = append(res.InternalTransactions, internalTx)
-		}
-	}
-	req.ErrorChannel <- nil
-	return &res
-}
