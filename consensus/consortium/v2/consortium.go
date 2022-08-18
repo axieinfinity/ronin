@@ -524,7 +524,7 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 		},
 		Txs:         txs,
 		Receipts:    receipts,
-		ReceivedTxs: nil,
+		ReceivedTxs: systemTxs,
 		UsedGas:     usedGas,
 		Mining:      false,
 		Signer:      c.signer,
