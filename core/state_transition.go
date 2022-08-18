@@ -340,7 +340,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	}
 
 	// if currentBlock is ConsortiumV2 then add balance to system address
-	if st.evm.ChainConfig().ConsortiumV2Block != nil && st.evm.Context.BlockNumber.Cmp(st.evm.ChainConfig().ConsortiumV2Block) >= 0 {
+	if st.evm.ChainConfig().IsConsortiumV2(st.evm.Context.BlockNumber) {
 		st.state.AddBalance(consensus.SystemAddress, new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), effectiveTip))
 	} else {
 		st.state.AddBalance(st.evm.Context.Coinbase, new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), effectiveTip))
