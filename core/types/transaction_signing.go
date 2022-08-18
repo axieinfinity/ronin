@@ -147,6 +147,25 @@ func Sender(signer Signer, tx *Transaction) (common.Address, error) {
 	return addr, nil
 }
 
+func Payer(signer Signer, tx *Transaction) (common.Address, error) {
+	if sc := tx.payer.Load(); sc != nil {
+		sigCache := sc.(sigCache)
+		// If the signer used to derive from in a previous
+		// call is not the same as used current, invalidate
+		// the cache.
+		if sigCache.signer.Equal(signer) {
+			return sigCache.from, nil
+		}
+	}
+
+	addr, err := signer.Payer(tx)
+	if err != nil {
+		return common.Address{}, err
+	}
+	tx.payer.Store(sigCache{signer: signer, from: addr})
+	return addr, nil
+}
+
 // Signer encapsulates transaction signature handling. The name of this type is slightly
 // misleading because Signers don't actually sign, they're just for validating and
 // processing of signatures.
@@ -156,6 +175,8 @@ func Sender(signer Signer, tx *Transaction) (common.Address, error) {
 type Signer interface {
 	// Sender returns the sender address of the transaction.
 	Sender(tx *Transaction) (common.Address, error)
+	// Payer returns the payer address of the transaction
+	Payer(tx *Transaction) (common.Address, error)
 
 	// SignatureValues returns the raw R, S, V values corresponding to the
 	// given signature.
@@ -277,7 +298,7 @@ func (s eip2930Signer) Sender(tx *Transaction) (common.Address, error) {
 
 func (s eip2930Signer) SignatureValues(tx *Transaction, sig []byte) (R, S, V *big.Int, err error) {
 	switch txdata := tx.inner.(type) {
-	case *LegacyTx:
+	case *LegacyTx, *TransactionPassTx:
 		return s.EIP155Signer.SignatureValues(tx, sig)
 	case *AccessListTx:
 		// Check that chain ID of tx matches the signer. We also accept ID zero here,
@@ -320,6 +341,19 @@ func (s eip2930Signer) Hash(tx *Transaction) common.Hash {
 				tx.Data(),
 				tx.AccessList(),
 			})
+	case TransactionPassTxType:
+		return prefixedRlpHash(
+			tx.Type(),
+			[]interface{}{
+				tx.Nonce(),
+				tx.GasPrice(),
+				tx.Gas(),
+				tx.To(),
+				tx.Value(),
+				tx.Data(),
+				s.chainId, uint(0), uint(0),
+				tx.GiftTicket(),
+			})
 	default:
 		// This _should_ not happen, but in case someone sends in a bad
 		// json struct via RPC, it's probably more prudent to return an
@@ -357,7 +391,7 @@ func (s EIP155Signer) Equal(s2 Signer) bool {
 var big8 = big.NewInt(8)
 
 func (s EIP155Signer) Sender(tx *Transaction) (common.Address, error) {
-	if tx.Type() != LegacyTxType {
+	if tx.Type() != LegacyTxType && tx.Type() != TransactionPassTxType {
 		return common.Address{}, ErrTxTypeNotSupported
 	}
 	if !tx.Protected() {
@@ -372,10 +406,25 @@ func (s EIP155Signer) Sender(tx *Transaction) (common.Address, error) {
 	return recoverPlain(s.Hash(tx), R, S, V, true)
 }
 
+func (s EIP155Signer) Payer(tx *Transaction) (common.Address, error) {
+	if tx.Type() != TransactionPassTxType {
+		return common.Address{}, ErrTxTypeNotSupported
+	}
+
+	giftTicket := tx.GiftTicket()
+
+	hash, err := giftTicket.GiftTicket.Hash()
+	if err != nil {
+		return common.Address{}, err
+	}
+
+	return recoverPlain(hash, giftTicket.R, giftTicket.S, giftTicket.V, true)
+}
+
 // SignatureValues returns signature values. This signature
 // needs to be in the [R || S || V] format where V is 0 or 1.
 func (s EIP155Signer) SignatureValues(tx *Transaction, sig []byte) (R, S, V *big.Int, err error) {
-	if tx.Type() != LegacyTxType {
+	if tx.Type() != LegacyTxType && tx.Type() != TransactionPassTxType {
 		return nil, nil, nil, ErrTxTypeNotSupported
 	}
 	R, S, V = decodeSignature(sig)
@@ -389,15 +438,33 @@ func (s EIP155Signer) SignatureValues(tx *Transaction, sig []byte) (R, S, V *big
 // Hash returns the hash to be signed by the sender.
 // It does not uniquely identify the transaction.
 func (s EIP155Signer) Hash(tx *Transaction) common.Hash {
-	return rlpHash([]interface{}{
-		tx.Nonce(),
-		tx.GasPrice(),
-		tx.Gas(),
-		tx.To(),
-		tx.Value(),
-		tx.Data(),
-		s.chainId, uint(0), uint(0),
-	})
+	switch tx.Type() {
+	case LegacyTxType:
+		return rlpHash([]interface{}{
+			tx.Nonce(),
+			tx.GasPrice(),
+			tx.Gas(),
+			tx.To(),
+			tx.Value(),
+			tx.Data(),
+			s.chainId, uint(0), uint(0),
+		})
+	case TransactionPassTxType:
+		return prefixedRlpHash(
+			tx.Type(),
+			[]interface{}{
+				tx.Nonce(),
+				tx.GasPrice(),
+				tx.Gas(),
+				tx.To(),
+				tx.Value(),
+				tx.Data(),
+				s.chainId, uint(0), uint(0),
+				tx.GiftTicket(),
+			})
+	default:
+		return common.Hash{}
+	}
 }
 
 // HomesteadTransaction implements TransactionInterface using the
@@ -420,11 +487,15 @@ func (hs HomesteadSigner) SignatureValues(tx *Transaction, sig []byte) (r, s, v 
 }
 
 func (hs HomesteadSigner) Sender(tx *Transaction) (common.Address, error) {
-	if tx.Type() != LegacyTxType {
+	if tx.Type() != LegacyTxType && tx.Type() != TransactionPassTxType {
 		return common.Address{}, ErrTxTypeNotSupported
 	}
 	v, r, s := tx.RawSignatureValues()
 	return recoverPlain(hs.Hash(tx), r, s, v, true)
+}
+
+func (hs HomesteadSigner) Payer(tx *Transaction) (common.Address, error) {
+	return common.Address{}, ErrTxTypeNotSupported
 }
 
 type FrontierSigner struct{}
@@ -444,6 +515,10 @@ func (fs FrontierSigner) Sender(tx *Transaction) (common.Address, error) {
 	}
 	v, r, s := tx.RawSignatureValues()
 	return recoverPlain(fs.Hash(tx), r, s, v, false)
+}
+
+func (fs FrontierSigner) Payer(tx *Transaction) (common.Address, error) {
+	return common.Address{}, ErrTxTypeNotSupported
 }
 
 // SignatureValues returns signature values. This signature

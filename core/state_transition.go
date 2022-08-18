@@ -23,9 +23,11 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	cmath "github.com/ethereum/go-ethereum/common/math"
+	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -77,6 +79,8 @@ type Message interface {
 	IsFake() bool
 	Data() []byte
 	AccessList() types.AccessList
+	Payer() *common.Address
+	GiftTicket() *types.GiftTicket
 }
 
 // ExecutionResult includes all output after executing given evm
@@ -189,6 +193,52 @@ func (st *StateTransition) to() common.Address {
 	return *st.msg.To()
 }
 
+func (st *StateTransition) verifyGiftTicket(giftTicket *types.GiftTicket, amount *big.Int) bool {
+	// Check the total gas fee is not higher than the gift ticket allowance
+	// FIXME: For multiple uses of 1 gift ticket when there is remaining
+	// allowance, we might need to handle this in the contract
+	if amount.Cmp(giftTicket.Allowance) == 1 {
+		log.Debug("Gas fee is higher than gift ticket's allowance",
+			"allowance", giftTicket.Allowance,
+			"gasFee", new(big.Int).Mul(st.gasPrice, new(big.Int).SetUint64(st.msg.Gas())))
+		return false
+	}
+
+	// Empty recipient list means everyone can use the gift ticket. Otherwise,
+	// check if the sender is in the recipient list. We only check the signature
+	// of the gift ticket when the recipient list is empty.
+	if len(giftTicket.Recipients) > 0 {
+		found := false
+		for _, ticket := range giftTicket.Recipients {
+			if st.msg.From() == ticket {
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			log.Debug("Sender is not in recipient list", "sender", st.msg.From(), "recipients", giftTicket.Recipients)
+			return false
+		}
+	}
+
+	if giftTicket.ExpirationTime.Cmp(st.evm.Context.Time) < 0 {
+		log.Debug("Ticket is expired", "expiration time", giftTicket.ExpirationTime)
+		return false
+	}
+
+	if st.evm.ChainConfig().TransactionPassContractAddress == nil {
+		log.Debug("Transaction Pass Contract is not set")
+		return false
+	}
+
+	if !state.IsGiftTicketUsable(st.evm.StateDB.(*state.StateDB), st.evm.ChainConfig().TransactionPassContractAddress, st.msg.Payer(), giftTicket.Nonce) {
+		log.Debug("No remaining uses for gift ticket")
+		return false
+	}
+	return true
+}
+
 func (st *StateTransition) buyGas() error {
 	mgval := new(big.Int).SetUint64(st.msg.Gas())
 	mgval = mgval.Mul(mgval, st.gasPrice)
@@ -198,7 +248,17 @@ func (st *StateTransition) buyGas() error {
 		balanceCheck = balanceCheck.Mul(balanceCheck, st.gasFeeCap)
 		balanceCheck.Add(balanceCheck, st.value)
 	}
-	if have, want := st.state.GetBalance(st.msg.From()), balanceCheck; have.Cmp(want) < 0 {
+	payerAddress := st.msg.From()
+	payer := st.msg.Payer()
+	if payer != nil {
+		// Only check the gasPrice * gas with the balance of payer in transaction pass tx
+		balanceCheck = mgval
+		if !st.verifyGiftTicket(st.msg.GiftTicket(), balanceCheck) {
+			return ErrInvalidGiftTicket
+		}
+		payerAddress = *payer
+	}
+	if have, want := st.state.GetBalance(payerAddress), balanceCheck; have.Cmp(want) < 0 {
 		return fmt.Errorf("%w: address %v have %v want %v", ErrInsufficientFunds, st.msg.From().Hex(), have, want)
 	}
 	if err := st.gp.SubGas(st.msg.Gas()); err != nil {
@@ -207,7 +267,14 @@ func (st *StateTransition) buyGas() error {
 	st.gas += st.msg.Gas()
 
 	st.initialGas = st.msg.Gas()
-	st.state.SubBalance(st.msg.From(), mgval)
+	st.state.SubBalance(payerAddress, mgval)
+
+	// Change ticket state in contract
+	if payer != nil {
+		// The Transaction Pass address is checked for nil in the above verifyGiftTicket already
+		state.SubGiftTicketRemainingUse(st.evm.StateDB.(*state.StateDB), st.evm.ChainConfig().TransactionPassContractAddress, st.msg.Payer(), st.msg.GiftTicket().Nonce)
+	}
+
 	return nil
 }
 
@@ -355,7 +422,11 @@ func (st *StateTransition) refundGas(refundQuotient uint64) {
 
 	// Return ETH for remaining gas, exchanged at the original rate.
 	remaining := new(big.Int).Mul(new(big.Int).SetUint64(st.gas), st.gasPrice)
-	st.state.AddBalance(st.msg.From(), remaining)
+	if st.msg.Payer() != nil {
+		st.state.AddBalance(*st.msg.Payer(), remaining)
+	} else {
+		st.state.AddBalance(st.msg.From(), remaining)
+	}
 
 	// Also return remaining gas to the block gas counter so it is
 	// available for the next transaction.

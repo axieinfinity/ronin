@@ -51,6 +51,10 @@ func (s *senderFromServer) Sender(tx *types.Transaction) (common.Address, error)
 	return s.addr, nil
 }
 
+func (s *senderFromServer) Payer(tx *types.Transaction) (common.Address, error) {
+	panic("not implemented in senderFromServer")
+}
+
 func (s *senderFromServer) ChainID() *big.Int {
 	panic("can't sign with senderFromServer")
 }

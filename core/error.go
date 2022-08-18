@@ -96,4 +96,8 @@ var (
 
 	// ErrSenderNoEOA is returned if the sender of a transaction is a contract.
 	ErrSenderNoEOA = errors.New("sender not an eoa")
+
+	// ErrInvalidGiftTicket is returned if the gift ticket in transaction pass
+	// is not valid.
+	ErrInvalidGiftTicket = errors.New("invalid gift ticket")
 )

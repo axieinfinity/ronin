@@ -45,6 +45,9 @@ const (
 	LegacyTxType = iota
 	AccessListTxType
 	DynamicFeeTxType
+
+	// Avoid collision with future EIP transaction type
+	TransactionPassTxType = 100
 )
 
 // Transaction is an Ethereum transaction.
@@ -53,9 +56,10 @@ type Transaction struct {
 	time  time.Time // Time first seen locally (spam avoidance)
 
 	// caches
-	hash atomic.Value
-	size atomic.Value
-	from atomic.Value
+	hash  atomic.Value
+	size  atomic.Value
+	from  atomic.Value
+	payer atomic.Value
 }
 
 // NewTx creates a new transaction.
@@ -186,6 +190,10 @@ func (tx *Transaction) decodeTyped(b []byte) (TxData, error) {
 		var inner DynamicFeeTx
 		err := rlp.DecodeBytes(b[1:], &inner)
 		return &inner, err
+	case TransactionPassTxType:
+		var inner TransactionPassTx
+		err := rlp.DecodeBytes(b[1:], &inner)
+		return &inner, err
 	default:
 		return nil, ErrTxTypeNotSupported
 	}
@@ -289,8 +297,10 @@ func (tx *Transaction) To() *common.Address {
 
 // Cost returns gas * gasPrice + value.
 func (tx *Transaction) Cost() *big.Int {
-	total := new(big.Int).Mul(tx.GasPrice(), new(big.Int).SetUint64(tx.Gas()))
-	total.Add(total, tx.Value())
+	total := tx.Value()
+	if tx.Type() != TransactionPassTxType {
+		total.Add(total, new(big.Int).Mul(tx.GasPrice(), new(big.Int).SetUint64(tx.Gas())))
+	}
 	return total
 }
 
@@ -396,6 +406,13 @@ func (tx *Transaction) WithSignature(signer Signer, sig []byte) (*Transaction, e
 	cpy := tx.inner.copy()
 	cpy.setSignatureValues(signer.ChainID(), v, r, s)
 	return &Transaction{inner: cpy, time: tx.time}, nil
+}
+
+func (tx *Transaction) GiftTicket() *FullGiftTicket {
+	if tx.inner.txType() == TransactionPassTxType {
+		return &tx.inner.(*TransactionPassTx).FullGiftTicket
+	}
+	return nil
 }
 
 // Transactions implements DerivableList for transactions.
@@ -574,9 +591,11 @@ type Message struct {
 	data       []byte
 	accessList AccessList
 	isFake     bool
+	payer      *common.Address
+	giftTicket *GiftTicket
 }
 
-func NewMessage(from common.Address, to *common.Address, nonce uint64, amount *big.Int, gasLimit uint64, gasPrice, gasFeeCap, gasTipCap *big.Int, data []byte, accessList AccessList, isFake bool) Message {
+func NewMessage(from common.Address, to *common.Address, nonce uint64, amount *big.Int, gasLimit uint64, gasPrice, gasFeeCap, gasTipCap *big.Int, data []byte, accessList AccessList, isFake bool, payer *common.Address, giftTicket *GiftTicket) Message {
 	return Message{
 		from:       from,
 		to:         to,
@@ -589,6 +608,8 @@ func NewMessage(from common.Address, to *common.Address, nonce uint64, amount *b
 		data:       data,
 		accessList: accessList,
 		isFake:     isFake,
+		payer:      payer,
+		giftTicket: giftTicket,
 	}
 }
 
@@ -612,20 +633,39 @@ func (tx *Transaction) AsMessage(s Signer, baseFee *big.Int) (Message, error) {
 	}
 	var err error
 	msg.from, err = Sender(s, tx)
+	if err != nil {
+		return msg, err
+	}
+	if tx.inner.txType() == TransactionPassTxType {
+		addr, err := Payer(s, tx)
+		if err != nil {
+			return msg, err
+		}
+		msg.payer = &addr
+		giftTicket := tx.GiftTicket()
+		msg.giftTicket = &GiftTicket{
+			Nonce:          giftTicket.Nonce,
+			Allowance:      giftTicket.Allowance,
+			Recipients:     giftTicket.Recipients,
+			ExpirationTime: giftTicket.ExpirationTime,
+		}
+	}
 	return msg, err
 }
 
-func (m Message) From() common.Address   { return m.from }
-func (m Message) To() *common.Address    { return m.to }
-func (m Message) GasPrice() *big.Int     { return m.gasPrice }
-func (m Message) GasFeeCap() *big.Int    { return m.gasFeeCap }
-func (m Message) GasTipCap() *big.Int    { return m.gasTipCap }
-func (m Message) Value() *big.Int        { return m.amount }
-func (m Message) Gas() uint64            { return m.gasLimit }
-func (m Message) Nonce() uint64          { return m.nonce }
-func (m Message) Data() []byte           { return m.data }
-func (m Message) AccessList() AccessList { return m.accessList }
-func (m Message) IsFake() bool           { return m.isFake }
+func (m Message) From() common.Address    { return m.from }
+func (m Message) To() *common.Address     { return m.to }
+func (m Message) GasPrice() *big.Int      { return m.gasPrice }
+func (m Message) GasFeeCap() *big.Int     { return m.gasFeeCap }
+func (m Message) GasTipCap() *big.Int     { return m.gasTipCap }
+func (m Message) Value() *big.Int         { return m.amount }
+func (m Message) Gas() uint64             { return m.gasLimit }
+func (m Message) Nonce() uint64           { return m.nonce }
+func (m Message) Data() []byte            { return m.data }
+func (m Message) AccessList() AccessList  { return m.accessList }
+func (m Message) IsFake() bool            { return m.isFake }
+func (m Message) Payer() *common.Address  { return m.payer }
+func (m Message) GiftTicket() *GiftTicket { return m.giftTicket }
 
 // copyAddressPtr copies an address.
 func copyAddressPtr(a *common.Address) *common.Address {
@@ -656,9 +696,9 @@ type InternalTransaction struct {
 	To              common.Address
 
 	// block info
-	Height          uint64
-	BlockHash       common.Hash
-	BlockTime       uint64
+	Height    uint64
+	BlockHash common.Hash
+	BlockTime uint64
 }
 
 func (internal *InternalTransaction) Hash() common.Hash {

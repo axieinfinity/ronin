@@ -870,6 +870,11 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 			log.Trace("Skipping unsupported transaction type", "sender", from, "type", tx.Type())
 			txs.Pop()
 
+		case errors.Is(err, core.ErrInvalidGiftTicket):
+			// Pop the transaction pass transaction having invalid gift ticket
+			log.Debug("Skipping invalid gift ticket in transacion pass", "sender", from, "type", tx.Type())
+			txs.Pop()
+
 		default:
 			// Strange error, discard the transaction and get the next in line (note, the
 			// nonce-too-high clause will prevent us from executing in vain).
