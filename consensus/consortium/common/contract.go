@@ -272,7 +272,7 @@ func (b *ConsortiumBackend) EstimateGas(ctx context.Context, call ethereum.CallM
 }
 
 func (b *ConsortiumBackend) SendTransaction(ctx context.Context, tx *types.Transaction) error {
-	// No send to transaction
+	// No need to send transaction
 	return errMethodUnimplemented
 }
 
