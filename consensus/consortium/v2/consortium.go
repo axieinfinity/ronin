@@ -633,7 +633,7 @@ func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, head
 		}
 	}
 
-	if header.Number.Uint64()%c.config.Epoch == 0 {
+	if header.Number.Uint64()+1%c.config.Epoch == 0 {
 		if err := c.contract.UpdateValidators(header, transactOpts); err != nil {
 			log.Error("Failed to update validators: ", err)
 		}
