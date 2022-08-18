@@ -46,8 +46,8 @@ var (
 	// invalid list of signers (i.e. non divisible by 20 bytes).
 	ErrInvalidCheckpointSigners = errors.New("invalid signer list on checkpoint block")
 
-	// ErrRecentlySigned is returned if a Header is signed by an authorized entity
-	// that already signed a Header recently, thus is temporarily not allowed to.
+	// ErrRecentlySigned is returned if a header is signed by an authorized entity
+	// that already signed a header recently, thus is temporarily not allowed to.
 	ErrRecentlySigned = errors.New("recently signed")
 
 	// ErrWrongDifficulty is returned if the difficulty of a block doesn't match the
