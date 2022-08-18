@@ -36,13 +36,6 @@ func New(chainConfig *params.ChainConfig, db ethdb.Database, ee *ethapi.PublicBl
 	}
 }
 
-// NewFaker creates a Consortium consensus engine with a fake PoW scheme that accepts
-// all blocks' seal as valid, though they still have to conform to the Ethereum
-// consensus rules.
-func NewFaker() *Consortium {
-	return &Consortium{}
-}
-
 // Author since v1 and v2 are implemented the same logic, so we don't need to check whether the current block is version 1
 // or version 2
 func (c *Consortium) Author(header *types.Header) (common.Address, error) {
