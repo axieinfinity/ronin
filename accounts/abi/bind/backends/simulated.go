@@ -54,29 +54,6 @@ var (
 	errTransactionDoesNotExist = errors.New("transaction does not exist")
 )
 
-type BlockchainContext interface {
-	// Config retrieves the blockchain's chain configuration.
-	Config() *params.ChainConfig
-
-	// CurrentHeader retrieves the current header from the local chain.
-	CurrentHeader() *types.Header
-
-	// GetHeader retrieves a block header from the database by hash and number.
-	GetHeader(hash common.Hash, number uint64) *types.Header
-
-	// GetHeaderByNumber retrieves a block header from the database by number.
-	GetHeaderByNumber(number uint64) *types.Header
-
-	// GetHeaderByHash retrieves a block header from the database by its hash.
-	GetHeaderByHash(hash common.Hash) *types.Header
-
-	// DB returns currently using db object
-	DB() ethdb.Database
-
-	// StateCache returns currently using stateCache
-	StateCache() state.Database
-}
-
 // SimulatedBackend implements bind.ContractBackend, simulating a blockchain in
 // the background. Its main purpose is to allow for easy testing of contract bindings.
 // Simulated backend implements the following interfaces:
@@ -108,16 +85,6 @@ func NewSimulatedBackendWithDatabase(database ethdb.Database, alloc core.Genesis
 		blockchain: blockchain,
 		config:     genesis.Config,
 		events:     filters.NewEventSystem(&filterBackend{database, blockchain}, false),
-	}
-	backend.rollback(blockchain.CurrentBlock())
-	return backend
-}
-
-func NewSimulatedBackendWithBC(bc BlockchainContext, database ethdb.Database) *SimulatedBackend {
-	blockchain, _ := bc.(*core.BlockChain)
-	backend := &SimulatedBackend{
-		database:   database,
-		blockchain: blockchain,
 	}
 	backend.rollback(blockchain.CurrentBlock())
 	return backend

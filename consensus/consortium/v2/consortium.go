@@ -93,6 +93,7 @@ type Consortium struct {
 	lock sync.RWMutex // Protects the signer fields
 
 	ethAPI   *ethapi.PublicBlockChainAPI
+	statedb  *state.StateDB
 	contract *consortiumCommon.ContractIntegrator
 
 	fakeDiff bool
@@ -451,7 +452,7 @@ func (c *Consortium) verifySeal(chain consensus.ChainHeaderReader, header *types
 }
 
 func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.Header) error {
-	if err := c.initContract(chain); err != nil {
+	if err := c.initContract(); err != nil {
 		return err
 	}
 
@@ -505,7 +506,7 @@ func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.He
 
 func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs *[]*types.Transaction,
 	uncles []*types.Header, receipts *[]*types.Receipt, systemTxs *[]*types.Transaction, usedGas *uint64) error {
-	if err := c.initContract(chain); err != nil {
+	if err := c.initContract(); err != nil {
 		return err
 	}
 	// warn if not in majority fork
@@ -529,6 +530,7 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 		Mining:      false,
 		Signer:      c.signer,
 		SignTxFn:    c.signTxFn,
+		EthAPI:      c.ethAPI,
 	}
 
 	// If the block is a epoch end block, verify the validator list
@@ -581,7 +583,7 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 
 func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB,
 	txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt) (*types.Block, error) {
-	if err := c.initContract(chain); err != nil {
+	if err := c.initContract(); err != nil {
 		return nil, err
 	}
 
@@ -696,8 +698,8 @@ func (c *Consortium) getValidatorsFromHeader(header *types.Header) []common.Addr
 	return consortiumCommon.ExtractAddressFromBytes(header.Extra[extraVanity:extraSuffix])
 }
 
-func (c *Consortium) initContract(chain consensus.ChainHeaderReader) error {
-	contract, err := consortiumCommon.NewContractIntegrator(chain, c.chainConfig, c.db)
+func (c *Consortium) initContract() error {
+	contract, err := consortiumCommon.NewContractIntegrator(c.chainConfig, c.ethAPI)
 	if err != nil {
 		return err
 	}

@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"errors"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"github.com/ethereum/go-ethereum/rlp"
 	"golang.org/x/crypto/sha3"
 	"io"
@@ -93,8 +94,9 @@ var (
 // Consortium is the proof-of-authority consensus engine proposed to support the
 // Ethereum testnet following the Ropsten attacks.
 type Consortium struct {
-	config *params.ConsortiumConfig // Consensus engine configuration parameters
-	db     ethdb.Database           // Database to store and retrieve snapshot checkpoints
+	chainConfig *params.ChainConfig
+	config      *params.ConsortiumConfig // Consensus engine configuration parameters
+	db          ethdb.Database           // Database to store and retrieve snapshot checkpoints
 
 	recents    *lru.ARCCache // Snapshots for recent block to speed up reorgs
 	signatures *lru.ARCCache // Signatures of recent blocks to speed up mining
@@ -105,28 +107,33 @@ type Consortium struct {
 	signFn consortiumCommon.SignerFn // Signer function to authorize hashes with
 	lock   sync.RWMutex              // Protects the signer fields
 
+	contract *consortiumCommon.ContractIntegrator
+	ethAPI   *ethapi.PublicBlockChainAPI
+
 	getSCValidators    func() ([]common.Address, error) // Get the list of validator from contract
 	getFenixValidators func() ([]common.Address, error) // Get the validator list from Ronin Validator contract of Fenix hardfork
 }
 
 // New creates a Consortium proof-of-authority consensus engine with the initial
 // signers set to the ones provided by the user.
-func New(config *params.ConsortiumConfig, db ethdb.Database) *Consortium {
+func New(chainConfig *params.ChainConfig, db ethdb.Database, ethAPI *ethapi.PublicBlockChainAPI) *Consortium {
 	// Set any missing consensus parameters to their defaults
-	conf := *config
-	if conf.Epoch == 0 {
-		conf.Epoch = epochLength
+	consortiumConfig := *chainConfig.Consortium
+	if consortiumConfig.Epoch == 0 {
+		consortiumConfig.Epoch = epochLength
 	}
 	// Allocate the snapshot caches and create the engine
 	recents, _ := lru.NewARC(inmemorySnapshots)
 	signatures, _ := lru.NewARC(inmemorySignatures)
 
 	return &Consortium{
-		config:     &conf,
-		db:         db,
-		recents:    recents,
-		signatures: signatures,
-		proposals:  make(map[common.Address]bool),
+		chainConfig: chainConfig,
+		config:      &consortiumConfig,
+		db:          db,
+		recents:     recents,
+		signatures:  signatures,
+		ethAPI:      ethAPI,
+		proposals:   make(map[common.Address]bool),
 	}
 }
 
@@ -418,6 +425,10 @@ func (c *Consortium) verifySeal(chain consensus.ChainHeaderReader, header *types
 // Prepare implements consensus.Engine, preparing all the consensus fields of the
 // header for running the transactions on top.
 func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.Header) error {
+	if err := c.initContract(); err != nil {
+		return err
+	}
+
 	// Set the Coinbase address as the signer
 	header.Coinbase = c.signer
 	header.Nonce = types.BlockNonce{}
@@ -467,6 +478,10 @@ func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.He
 // rewards given.
 func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs *[]*types.Transaction,
 	uncles []*types.Header, receipts *[]*types.Receipt, systemTxs *[]*types.Transaction, usedGas *uint64) error {
+	if err := c.initContract(); err != nil {
+		return err
+	}
+
 	// No block rewards in PoA, so the state remains as is and uncles are dropped
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 	header.UncleHash = types.CalcUncleHash(nil)
@@ -478,9 +493,19 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 // nor block rewards given, and returns the final block.
 func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction,
 	uncles []*types.Header, receipts []*types.Receipt) (*types.Block, error) {
+	if err := c.initContract(); err != nil {
+		return nil, err
+	}
+
 	// No block rewards in PoA, so the state remains as is and uncles are dropped
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 	header.UncleHash = types.CalcUncleHash(nil)
+
+	if header.Number.Uint64()+1%c.config.Epoch == 0 && c.chainConfig.IsConsortiumV2(header.Number) {
+		if err := c.contract.UpdateValidators(header); err != nil {
+			log.Error("Failed to update validators: ", err)
+		}
+	}
 
 	// Assemble and return the final block for sealing
 	return types.NewBlock(header, txs, nil, receipts, new(trie.Trie)), nil
@@ -667,6 +692,16 @@ func (c *Consortium) signerInTurn(signer common.Address, number uint64, validato
 	lastCheckpoint := number / c.config.Epoch * c.config.Epoch
 	index := (number - lastCheckpoint) % uint64(len(validators))
 	return validators[index] == signer
+}
+
+func (c *Consortium) initContract() error {
+	contract, err := consortiumCommon.NewContractIntegrator(c.chainConfig, c.ethAPI)
+	if err != nil {
+		return err
+	}
+	c.contract = contract
+
+	return nil
 }
 
 // ecrecover extracts the Ethereum account address from a signed header.
