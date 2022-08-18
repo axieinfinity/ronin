@@ -56,8 +56,33 @@ func (c *ContractIntegrator) GetValidators(header *types.Header) ([]common.Addre
 	return addresses, nil
 }
 
-func (c *ContractIntegrator) UpdateValidators(header *types.Header) error {
-	return nil
+func (c *ContractIntegrator) UpdateValidators(header *types.Header, opts *ApplyTransactOpts) error {
+	coinbase := opts.Header.Coinbase
+	nonce := opts.State.GetNonce(coinbase)
+
+	tx, err := c.validatorSC.UpdateValidators(&bind.TransactOpts{
+		From:     coinbase,
+		GasLimit: math.MaxUint64 / 2,
+		GasPrice: big.NewInt(0),
+		Value:    new(big.Int).SetUint64(0),
+		Nonce:    new(big.Int).SetUint64(nonce),
+		NoSend:   true,
+	})
+	if err != nil {
+		return err
+	}
+
+	msg, err := tx.AsMessage(c.signer, big.NewInt(0))
+	if err != nil {
+		return err
+	}
+
+	err = applyTransaction(msg, opts)
+	if err != nil {
+		return err
+	}
+
+	return err
 }
 
 func (c *ContractIntegrator) DistributeRewards(to common.Address, opts *ApplyTransactOpts) error {
@@ -76,7 +101,7 @@ func (c *ContractIntegrator) DistributeRewards(to common.Address, opts *ApplyTra
 		GasLimit: math.MaxUint64 / 2,
 		GasPrice: big.NewInt(0),
 		Value:    balance,
-		Nonce:    new(big.Int).SetUint64(nonce + 1),
+		Nonce:    new(big.Int).SetUint64(nonce),
 		NoSend:   true,
 	}, to)
 	if err != nil {
@@ -130,8 +155,8 @@ func applyTransaction(msg types.Message, opts *ApplyTransactOpts) (err error) {
 	header := opts.Header
 	receipts := opts.Receipts
 	usedGas := opts.UsedGas
+	nonce := msg.Nonce()
 
-	nonce := opts.State.GetNonce(msg.From())
 	expectedTx := types.NewTransaction(nonce, *msg.To(), msg.Value(), msg.Gas(), msg.GasPrice(), msg.Data())
 	expectedHash := signer.Hash(expectedTx)
 

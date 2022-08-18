@@ -103,9 +103,12 @@ type Consortium struct {
 
 	proposals map[common.Address]bool // Current list of proposals we are pushing
 
-	signer common.Address            // Ethereum address of the signing key
-	signFn consortiumCommon.SignerFn // Signer function to authorize hashes with
-	lock   sync.RWMutex              // Protects the signer fields
+	val      common.Address // Ethereum address of the signing key
+	signer   types.Signer
+	signFn   consortiumCommon.SignerFn // Signer function to authorize hashes with
+	signTxFn consortiumCommon.SignerTxFn
+
+	lock sync.RWMutex // Protects the signer fields
 
 	contract *consortiumCommon.ContractIntegrator
 	ethAPI   *ethapi.PublicBlockChainAPI
@@ -134,6 +137,7 @@ func New(chainConfig *params.ChainConfig, db ethdb.Database, ethAPI *ethapi.Publ
 		signatures:  signatures,
 		ethAPI:      ethAPI,
 		proposals:   make(map[common.Address]bool),
+		signer:      types.NewEIP155Signer(chainConfig.ChainID),
 	}
 }
 
@@ -430,7 +434,7 @@ func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.He
 	}
 
 	// Set the Coinbase address as the signer
-	header.Coinbase = c.signer
+	header.Coinbase = c.val
 	header.Nonce = types.BlockNonce{}
 
 	number := header.Number.Uint64()
@@ -439,7 +443,7 @@ func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.He
 		return err
 	}
 	// Set the correct difficulty
-	header.Difficulty = c.doCalcDifficulty(c.signer, number, validators)
+	header.Difficulty = c.doCalcDifficulty(c.val, number, validators)
 
 	// Ensure the extra data has all its components
 	if len(header.Extra) < extraVanity {
@@ -501,8 +505,24 @@ func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, head
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 	header.UncleHash = types.CalcUncleHash(nil)
 
-	if header.Number.Uint64()+1%c.config.Epoch == 0 && c.chainConfig.IsConsortiumV2(header.Number) {
-		if err := c.contract.UpdateValidators(header); err != nil {
+	if c.chainConfig.IsOnConsortiumV2(header.Number.Add(header.Number, common.Big1)) {
+		transactOpts := &consortiumCommon.ApplyTransactOpts{
+			ApplyMessageOpts: &consortiumCommon.ApplyMessageOpts{
+				State:        state,
+				Header:       header,
+				ChainConfig:  c.chainConfig,
+				ChainContext: consortiumCommon.ChainContext{Chain: chain, Consortium: c},
+			},
+			Txs:         &txs,
+			Receipts:    &receipts,
+			ReceivedTxs: nil,
+			UsedGas:     &header.GasUsed,
+			Mining:      false,
+			Signer:      c.signer,
+			SignTxFn:    c.signTxFn,
+			EthAPI:      c.ethAPI,
+		}
+		if err := c.contract.UpdateValidators(header, transactOpts); err != nil {
 			log.Error("Failed to update validators: ", err)
 		}
 	}
@@ -513,12 +533,13 @@ func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, head
 
 // Authorize injects a private key into the consensus engine to mint new blocks
 // with.
-func (c *Consortium) Authorize(signer common.Address, signFn consortiumCommon.SignerFn) {
+func (c *Consortium) Authorize(signer common.Address, signFn consortiumCommon.SignerFn, signTxFn consortiumCommon.SignerTxFn) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
-	c.signer = signer
+	c.val = signer
 	c.signFn = signFn
+	c.signTxFn = signTxFn
 }
 
 func (c *Consortium) Delay(chain consensus.ChainReader, header *types.Header) *time.Duration {
@@ -541,14 +562,14 @@ func (c *Consortium) Seal(chain consensus.ChainHeaderReader, block *types.Block,
 	}
 	// Don't hold the signer fields for the entire sealing procedure
 	c.lock.RLock()
-	signer, signFn := c.signer, c.signFn
+	signer, signFn := c.val, c.signFn
 	c.lock.RUnlock()
 
 	validators, err := c.getValidatorsFromLastCheckpoint(chain, number-1, nil)
 	if err != nil {
 		return err
 	}
-	if !signerInList(c.signer, validators) {
+	if !signerInList(c.val, validators) {
 		return errUnauthorizedSigner
 	}
 	snap, err := c.snapshot(chain, number-1, header.ParentHash, nil)
@@ -627,7 +648,7 @@ func (c *Consortium) CalcDifficulty(chain consensus.ChainHeaderReader, time uint
 	if err != nil {
 		return nil
 	}
-	return c.doCalcDifficulty(c.signer, number, validators)
+	return c.doCalcDifficulty(c.val, number, validators)
 }
 
 func signerInList(signer common.Address, validators []common.Address) bool {

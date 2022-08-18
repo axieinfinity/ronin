@@ -521,7 +521,7 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 			State:        state,
 			Header:       header,
 			ChainConfig:  c.chainConfig,
-			ChainContext: chainContext{Chain: chain, consortium: c},
+			ChainContext: consortiumCommon.ChainContext{Chain: chain, Consortium: c},
 		},
 		Txs:         txs,
 		Receipts:    receipts,
@@ -600,7 +600,7 @@ func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, head
 			State:        state,
 			Header:       header,
 			ChainConfig:  c.chainConfig,
-			ChainContext: chainContext{Chain: chain, consortium: c},
+			ChainContext: consortiumCommon.ChainContext{Chain: chain, Consortium: c},
 		},
 		Txs:         &txs,
 		Receipts:    &receipts,
@@ -632,6 +632,13 @@ func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, head
 			}
 		}
 	}
+
+	if header.Number.Uint64()%c.config.Epoch == 0 {
+		if err := c.contract.UpdateValidators(header, transactOpts); err != nil {
+			log.Error("Failed to update validators: ", err)
+		}
+	}
+
 	err := c.contract.DistributeRewards(c.val, transactOpts)
 	if err != nil {
 		return nil, err
@@ -657,6 +664,15 @@ func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, head
 	blk.SetRoot(rootHash)
 	// Assemble and return the final block for sealing
 	return blk, nil
+}
+
+func (c *Consortium) Authorize(signer common.Address, signFn consortiumCommon.SignerFn, signTxFn consortiumCommon.SignerTxFn) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	c.val = signer
+	c.signFn = signFn
+	c.signTxFn = signTxFn
 }
 
 func (c *Consortium) Delay(chain consensus.ChainReader, header *types.Header) *time.Duration {

@@ -155,8 +155,9 @@ func (c *Consortium) CalcDifficulty(chain consensus.ChainHeaderReader, time uint
 }
 
 // Authorize backward compatible for consortium v1
-func (c *Consortium) Authorize(signer common.Address, signFn consortiumCommon.SignerFn) {
-	c.v1.Authorize(signer, signFn)
+func (c *Consortium) Authorize(signer common.Address, signFn consortiumCommon.SignerFn, signTxFn consortiumCommon.SignerTxFn) {
+	c.v1.Authorize(signer, signFn, signTxFn)
+	c.v2.Authorize(signer, signFn, signTxFn)
 }
 
 // SetGetSCValidatorsFn backward compatible for consortium v1
