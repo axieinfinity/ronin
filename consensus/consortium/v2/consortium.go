@@ -474,7 +474,7 @@ func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.He
 	header.Extra = header.Extra[:extraVanity]
 
 	if number%c.config.Epoch == 0 {
-		newValidators, err := c.contract.GetValidators()
+		newValidators, err := c.contract.GetValidators(header)
 		if err != nil {
 			return err
 		}
@@ -534,7 +534,7 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 	// If the block is a epoch end block, verify the validator list
 	// The verification can only be done when the state is ready, it can't be done in VerifyHeader.
 	if header.Number.Uint64()%c.config.Epoch == 0 {
-		newValidators, err := c.contract.GetValidators()
+		newValidators, err := c.contract.GetValidators(header)
 		if err != nil {
 			return err
 		}

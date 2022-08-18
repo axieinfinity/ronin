@@ -43,7 +43,7 @@ func NewContractIntegrator(bc consensus.ChainHeaderReader, config *chainParams.C
 	return contractIntegrator, nil
 }
 
-func (c *ContractIntegrator) GetValidators(header types.Header) ([]common.Address, error) {
+func (c *ContractIntegrator) GetValidators(header *types.Header) ([]common.Address, error) {
 	addresses, err := c.validatorSC.GetValidators(&bind.CallOpts{
 		BlockNumber: new(big.Int).Sub(header.Number, common.Big1),
 	})
