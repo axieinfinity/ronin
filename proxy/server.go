@@ -2,7 +2,6 @@ package proxy
 
 import (
 	"errors"
-	"github.com/ethereum/go-ethereum/accounts/abi/bind/backends"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/consortium"
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
@@ -61,8 +60,7 @@ func NewServer(config *Config, ethConfig *ethconfig.Config, nodeConfig *node.Con
 }
 
 func (s *Server) Start() {
-	simBackend := backends.NewSimulatedBackendWithBC(s.backend.db)
-	engine := consortium.New(&params.ChainConfig{}, s.backend.db, nil, simBackend, common.Hash{})
+	engine := consortium.New(&params.ChainConfig{}, s.backend.db, nil, common.Hash{})
 	var apis = []rpc.API{
 		{
 			Namespace: "eth",

@@ -9,7 +9,7 @@ import (
 const ValidatorBytesLength = common.AddressLength
 
 var (
-	ExtraSeal = crypto.SignatureLength // Fixed number of extra-data suffix bytes reserved for signer seal
+	ExtraSeal = crypto.SignatureLength // Fixed number of extra-data suffix bytes reserved for Signer seal
 )
 
 var (
@@ -22,7 +22,7 @@ var (
 	ErrUnknownBlock = errors.New("unknown block")
 
 	// ErrMissingVanity is returned if a block's extra-data section is shorter than
-	// 32 bytes, which is required to store the signer vanity.
+	// 32 bytes, which is required to store the Signer vanity.
 	ErrMissingVanity = errors.New("extra-data 32 byte vanity prefix missing")
 
 	// ErrExtraValidators is returned if non-sprint-end block contain validator data in
@@ -44,13 +44,13 @@ var (
 
 	// ErrInvalidCheckpointSigners is returned if a checkpoint block contains an
 	// invalid list of signers (i.e. non divisible by 20 bytes).
-	ErrInvalidCheckpointSigners = errors.New("invalid signer list on checkpoint block")
+	ErrInvalidCheckpointSigners = errors.New("invalid Signer list on checkpoint block")
 
-	// ErrRecentlySigned is returned if a header is signed by an authorized entity
-	// that already signed a header recently, thus is temporarily not allowed to.
+	// ErrRecentlySigned is returned if a Header is signed by an authorized entity
+	// that already signed a Header recently, thus is temporarily not allowed to.
 	ErrRecentlySigned = errors.New("recently signed")
 
 	// ErrWrongDifficulty is returned if the difficulty of a block doesn't match the
-	// turn of the signer.
+	// turn of the Signer.
 	ErrWrongDifficulty = errors.New("wrong difficulty")
 )

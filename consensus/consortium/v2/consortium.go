@@ -4,14 +4,11 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/ethereum/go-ethereum/accounts"
-	"github.com/ethereum/go-ethereum/accounts/abi/bind/backends"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	consortiumCommon "github.com/ethereum/go-ethereum/consensus/consortium/common"
 	"github.com/ethereum/go-ethereum/consensus/misc"
 	"github.com/ethereum/go-ethereum/core/state"
-	"github.com/ethereum/go-ethereum/core/systemcontracts"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb"
@@ -79,8 +76,6 @@ var (
 	errMismatchingEpochValidators = errors.New("mismatching validator list on epoch block")
 )
 
-type SignerTxFn func(accounts.Account, *types.Transaction, *big.Int) (*types.Transaction, error)
-
 type Consortium struct {
 	chainConfig *params.ChainConfig
 	config      *params.ConsortiumConfig // Consensus engine configuration parameters
@@ -93,13 +88,12 @@ type Consortium struct {
 	val      common.Address // Ethereum address of the signing key
 	signer   types.Signer
 	signFn   consortiumCommon.SignerFn // Signer function to authorize hashes with
-	signTxFn SignerTxFn
+	signTxFn consortiumCommon.SignerTxFn
 
 	lock sync.RWMutex // Protects the signer fields
 
-	ethAPI *ethapi.PublicBlockChainAPI
-
-	validatorSC *systemcontracts.ValidatorSC
+	ethAPI   *ethapi.PublicBlockChainAPI
+	contract *consortiumCommon.ContractIntegrator
 
 	fakeDiff bool
 }
@@ -108,7 +102,6 @@ func New(
 	chainConfig *params.ChainConfig,
 	db ethdb.Database,
 	ethAPI *ethapi.PublicBlockChainAPI,
-	simBackend *backends.SimulatedBackend,
 	genesisHash common.Hash,
 ) *Consortium {
 	consortiumConfig := chainConfig.Consortium
@@ -120,7 +113,6 @@ func New(
 	// Allocate the snapshot caches and create the engine
 	recents, _ := lru.NewARC(inmemorySnapshots)
 	signatures, _ := lru.NewARC(inmemorySignatures)
-	validatorSC, _ := systemcontracts.NewValidatorSC(chainConfig.ConsortiumV2Contracts.ValidatorSC, simBackend)
 
 	return &Consortium{
 		chainConfig: chainConfig,
@@ -128,7 +120,6 @@ func New(
 		genesisHash: genesisHash,
 		db:          db,
 		ethAPI:      ethAPI,
-		validatorSC: validatorSC,
 		recents:     recents,
 		signatures:  signatures,
 		signer:      types.NewEIP155Signer(chainConfig.ChainID),
@@ -460,6 +451,10 @@ func (c *Consortium) verifySeal(chain consensus.ChainHeaderReader, header *types
 }
 
 func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.Header) error {
+	if err := c.initContract(chain); err != nil {
+		return err
+	}
+
 	header.Coinbase = c.val
 	header.Nonce = types.BlockNonce{}
 
@@ -479,7 +474,7 @@ func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.He
 	header.Extra = header.Extra[:extraVanity]
 
 	if number%c.config.Epoch == 0 {
-		newValidators, err := c.getCurrentValidators()
+		newValidators, err := c.contract.GetValidators()
 		if err != nil {
 			return err
 		}
@@ -510,6 +505,9 @@ func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.He
 
 func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs *[]*types.Transaction,
 	uncles []*types.Header, receipts *[]*types.Receipt, systemTxs *[]*types.Transaction, usedGas *uint64) error {
+	if err := c.initContract(chain); err != nil {
+		return err
+	}
 	// warn if not in majority fork
 	number := header.Number.Uint64()
 	snap, err := c.snapshot(chain, number-1, header.ParentHash, nil)
@@ -517,10 +515,26 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 		return err
 	}
 
+	transactOpts := &consortiumCommon.ApplyTransactOpts{
+		ApplyMessageOpts: &consortiumCommon.ApplyMessageOpts{
+			State:        state,
+			Header:       header,
+			ChainConfig:  c.chainConfig,
+			ChainContext: chainContext{Chain: chain, consortium: c},
+		},
+		Txs:         txs,
+		Receipts:    receipts,
+		ReceivedTxs: nil,
+		UsedGas:     usedGas,
+		Mining:      false,
+		Signer:      c.signer,
+		SignTxFn:    c.signTxFn,
+	}
+
 	// If the block is a epoch end block, verify the validator list
 	// The verification can only be done when the state is ready, it can't be done in VerifyHeader.
 	if header.Number.Uint64()%c.config.Epoch == 0 {
-		newValidators, err := c.getCurrentValidators()
+		newValidators, err := c.contract.GetValidators()
 		if err != nil {
 			return err
 		}
@@ -548,14 +562,14 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 		}
 		if !signedRecently {
 			log.Trace("slash validator", "block hash", header.Hash(), "address", spoiledVal)
-			err = c.slash(spoiledVal)
+			err = c.contract.Slash(spoiledVal, transactOpts)
 			if err != nil {
 				// it is possible that slash validator failed because of the slash channel is disabled.
 				log.Error("slash validator failed", "block hash", header.Hash(), "address", spoiledVal)
 			}
 		}
 	}
-	err = c.distributeIncoming(state, header)
+	err = c.contract.DistributeRewards(c.val, transactOpts)
 	if err != nil {
 		return err
 	}
@@ -567,6 +581,10 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 
 func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB,
 	txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt) (*types.Block, error) {
+	if err := c.initContract(chain); err != nil {
+		return nil, err
+	}
+
 	// No block rewards in PoA, so the state remains as is and uncles are dropped
 	if txs == nil {
 		txs = make([]*types.Transaction, 0)
@@ -575,6 +593,21 @@ func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, head
 		receipts = make([]*types.Receipt, 0)
 	}
 
+	transactOpts := &consortiumCommon.ApplyTransactOpts{
+		ApplyMessageOpts: &consortiumCommon.ApplyMessageOpts{
+			State:        state,
+			Header:       header,
+			ChainConfig:  c.chainConfig,
+			ChainContext: chainContext{Chain: chain, consortium: c},
+		},
+		Txs:         &txs,
+		Receipts:    &receipts,
+		ReceivedTxs: nil,
+		UsedGas:     &header.GasUsed,
+		Mining:      true,
+		Signer:      c.signer,
+		SignTxFn:    c.signTxFn,
+	}
 	if header.Difficulty.Cmp(diffInTurn) != 0 {
 		number := header.Number.Uint64()
 		snap, err := c.snapshot(chain, number-1, header.ParentHash, nil)
@@ -590,14 +623,14 @@ func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, head
 			}
 		}
 		if !signedRecently {
-			err = c.slash(spoiledVal)
+			err = c.contract.Slash(spoiledVal, transactOpts)
 			if err != nil {
 				// it is possible that slash validator failed because of the slash channel is disabled.
 				log.Error("slash validator failed", "block hash", header.Hash(), "address", spoiledVal)
 			}
 		}
 	}
-	err := c.distributeIncoming(state, header)
+	err := c.contract.DistributeRewards(c.val, transactOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -661,6 +694,16 @@ func CalcDifficulty(snap *Snapshot, signer common.Address) *big.Int {
 func (c *Consortium) getValidatorsFromHeader(header *types.Header) []common.Address {
 	extraSuffix := len(header.Extra) - consortiumCommon.ExtraSeal
 	return consortiumCommon.ExtractAddressFromBytes(header.Extra[extraVanity:extraSuffix])
+}
+
+func (c *Consortium) initContract(chain consensus.ChainHeaderReader) error {
+	contract, err := consortiumCommon.NewContractIntegrator(chain, c.chainConfig, c.db)
+	if err != nil {
+		return err
+	}
+	c.contract = contract
+
+	return nil
 }
 
 // ecrecover extracts the Ethereum account address from a signed header.
