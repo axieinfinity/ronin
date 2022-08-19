@@ -21,6 +21,7 @@ import (
 	"bytes"
 	"errors"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"github.com/ethereum/go-ethereum/rlp"
 	"golang.org/x/crypto/sha3"
 	"io"
@@ -93,17 +94,24 @@ var (
 // Consortium is the proof-of-authority consensus engine proposed to support the
 // Ethereum testnet following the Ropsten attacks.
 type Consortium struct {
-	config *params.ConsortiumConfig // Consensus engine configuration parameters
-	db     ethdb.Database           // Database to store and retrieve snapshot checkpoints
+	chainConfig *params.ChainConfig
+	config      *params.ConsortiumConfig // Consensus engine configuration parameters
+	db          ethdb.Database           // Database to store and retrieve snapshot checkpoints
 
 	recents    *lru.ARCCache // Snapshots for recent block to speed up reorgs
 	signatures *lru.ARCCache // Signatures of recent blocks to speed up mining
 
 	proposals map[common.Address]bool // Current list of proposals we are pushing
 
-	signer common.Address            // Ethereum address of the signing key
-	signFn consortiumCommon.SignerFn // Signer function to authorize hashes with
-	lock   sync.RWMutex              // Protects the signer fields
+	val      common.Address // Ethereum address of the signing key
+	signer   types.Signer
+	signFn   consortiumCommon.SignerFn // Signer function to authorize hashes with
+	signTxFn consortiumCommon.SignerTxFn
+
+	lock sync.RWMutex // Protects the signer fields
+
+	contract *consortiumCommon.ContractIntegrator
+	ethAPI   *ethapi.PublicBlockChainAPI
 
 	getSCValidators    func() ([]common.Address, error) // Get the list of validator from contract
 	getFenixValidators func() ([]common.Address, error) // Get the validator list from Ronin Validator contract of Fenix hardfork
@@ -111,22 +119,25 @@ type Consortium struct {
 
 // New creates a Consortium proof-of-authority consensus engine with the initial
 // signers set to the ones provided by the user.
-func New(config *params.ConsortiumConfig, db ethdb.Database) *Consortium {
+func New(chainConfig *params.ChainConfig, db ethdb.Database, ethAPI *ethapi.PublicBlockChainAPI) *Consortium {
 	// Set any missing consensus parameters to their defaults
-	conf := *config
-	if conf.Epoch == 0 {
-		conf.Epoch = epochLength
+	consortiumConfig := *chainConfig.Consortium
+	if consortiumConfig.Epoch == 0 {
+		consortiumConfig.Epoch = epochLength
 	}
 	// Allocate the snapshot caches and create the engine
 	recents, _ := lru.NewARC(inmemorySnapshots)
 	signatures, _ := lru.NewARC(inmemorySignatures)
 
 	return &Consortium{
-		config:     &conf,
-		db:         db,
-		recents:    recents,
-		signatures: signatures,
-		proposals:  make(map[common.Address]bool),
+		chainConfig: chainConfig,
+		config:      &consortiumConfig,
+		db:          db,
+		recents:     recents,
+		signatures:  signatures,
+		ethAPI:      ethAPI,
+		proposals:   make(map[common.Address]bool),
+		signer:      types.NewEIP155Signer(chainConfig.ChainID),
 	}
 }
 
@@ -418,8 +429,12 @@ func (c *Consortium) verifySeal(chain consensus.ChainHeaderReader, header *types
 // Prepare implements consensus.Engine, preparing all the consensus fields of the
 // header for running the transactions on top.
 func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.Header) error {
+	if err := c.initContract(); err != nil {
+		return err
+	}
+
 	// Set the Coinbase address as the signer
-	header.Coinbase = c.signer
+	header.Coinbase = c.val
 	header.Nonce = types.BlockNonce{}
 
 	number := header.Number.Uint64()
@@ -428,7 +443,7 @@ func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.He
 		return err
 	}
 	// Set the correct difficulty
-	header.Difficulty = c.doCalcDifficulty(c.signer, number, validators)
+	header.Difficulty = c.doCalcDifficulty(c.val, number, validators)
 
 	// Ensure the extra data has all its components
 	if len(header.Extra) < extraVanity {
@@ -467,6 +482,10 @@ func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.He
 // rewards given.
 func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs *[]*types.Transaction,
 	uncles []*types.Header, receipts *[]*types.Receipt, systemTxs *[]*types.Transaction, usedGas *uint64) error {
+	if err := c.initContract(); err != nil {
+		return err
+	}
+
 	// No block rewards in PoA, so the state remains as is and uncles are dropped
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 	header.UncleHash = types.CalcUncleHash(nil)
@@ -478,9 +497,35 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 // nor block rewards given, and returns the final block.
 func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction,
 	uncles []*types.Header, receipts []*types.Receipt) (*types.Block, error) {
+	if err := c.initContract(); err != nil {
+		return nil, err
+	}
+
 	// No block rewards in PoA, so the state remains as is and uncles are dropped
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 	header.UncleHash = types.CalcUncleHash(nil)
+
+	if c.chainConfig.IsOnConsortiumV2(header.Number.Add(header.Number, common.Big1)) {
+		transactOpts := &consortiumCommon.ApplyTransactOpts{
+			ApplyMessageOpts: &consortiumCommon.ApplyMessageOpts{
+				State:        state,
+				Header:       header,
+				ChainConfig:  c.chainConfig,
+				ChainContext: consortiumCommon.ChainContext{Chain: chain, Consortium: c},
+			},
+			Txs:         &txs,
+			Receipts:    &receipts,
+			ReceivedTxs: nil,
+			UsedGas:     &header.GasUsed,
+			Mining:      false,
+			Signer:      c.signer,
+			SignTxFn:    c.signTxFn,
+			EthAPI:      c.ethAPI,
+		}
+		if err := c.contract.UpdateValidators(header, transactOpts); err != nil {
+			log.Error("Failed to update validators: ", err)
+		}
+	}
 
 	// Assemble and return the final block for sealing
 	return types.NewBlock(header, txs, nil, receipts, new(trie.Trie)), nil
@@ -488,12 +533,13 @@ func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, head
 
 // Authorize injects a private key into the consensus engine to mint new blocks
 // with.
-func (c *Consortium) Authorize(signer common.Address, signFn consortiumCommon.SignerFn) {
+func (c *Consortium) Authorize(signer common.Address, signFn consortiumCommon.SignerFn, signTxFn consortiumCommon.SignerTxFn) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
-	c.signer = signer
+	c.val = signer
 	c.signFn = signFn
+	c.signTxFn = signTxFn
 }
 
 func (c *Consortium) Delay(chain consensus.ChainReader, header *types.Header) *time.Duration {
@@ -516,14 +562,14 @@ func (c *Consortium) Seal(chain consensus.ChainHeaderReader, block *types.Block,
 	}
 	// Don't hold the signer fields for the entire sealing procedure
 	c.lock.RLock()
-	signer, signFn := c.signer, c.signFn
+	signer, signFn := c.val, c.signFn
 	c.lock.RUnlock()
 
 	validators, err := c.getValidatorsFromLastCheckpoint(chain, number-1, nil)
 	if err != nil {
 		return err
 	}
-	if !signerInList(c.signer, validators) {
+	if !signerInList(c.val, validators) {
 		return errUnauthorizedSigner
 	}
 	snap, err := c.snapshot(chain, number-1, header.ParentHash, nil)
@@ -602,7 +648,7 @@ func (c *Consortium) CalcDifficulty(chain consensus.ChainHeaderReader, time uint
 	if err != nil {
 		return nil
 	}
-	return c.doCalcDifficulty(c.signer, number, validators)
+	return c.doCalcDifficulty(c.val, number, validators)
 }
 
 func signerInList(signer common.Address, validators []common.Address) bool {
@@ -667,6 +713,16 @@ func (c *Consortium) signerInTurn(signer common.Address, number uint64, validato
 	lastCheckpoint := number / c.config.Epoch * c.config.Epoch
 	index := (number - lastCheckpoint) % uint64(len(validators))
 	return validators[index] == signer
+}
+
+func (c *Consortium) initContract() error {
+	contract, err := consortiumCommon.NewContractIntegrator(c.chainConfig, c.ethAPI)
+	if err != nil {
+		return err
+	}
+	c.contract = contract
+
+	return nil
 }
 
 // ecrecover extracts the Ethereum account address from a signed header.

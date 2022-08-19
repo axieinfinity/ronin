@@ -26,7 +26,7 @@ type Consortium struct {
 // signers set to the ones provided by the user.
 func New(chainConfig *params.ChainConfig, db ethdb.Database, ee *ethapi.PublicBlockChainAPI, genesisHash common.Hash) *Consortium {
 	// Set any missing consensus parameters to their defaults
-	consortiumV1 := v1.New(chainConfig.Consortium, db)
+	consortiumV1 := v1.New(chainConfig, db, ee)
 	consortiumV2 := v2.New(chainConfig, db, ee, genesisHash)
 
 	return &Consortium{
@@ -155,8 +155,9 @@ func (c *Consortium) CalcDifficulty(chain consensus.ChainHeaderReader, time uint
 }
 
 // Authorize backward compatible for consortium v1
-func (c *Consortium) Authorize(signer common.Address, signFn consortiumCommon.SignerFn) {
-	c.v1.Authorize(signer, signFn)
+func (c *Consortium) Authorize(signer common.Address, signFn consortiumCommon.SignerFn, signTxFn consortiumCommon.SignerTxFn) {
+	c.v1.Authorize(signer, signFn, signTxFn)
+	c.v2.Authorize(signer, signFn, signTxFn)
 }
 
 // SetGetSCValidatorsFn backward compatible for consortium v1
