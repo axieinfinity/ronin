@@ -30,7 +30,7 @@ var (
 
 // ValidatorsMetaData contains all meta data concerning the Validators contract.
 var ValidatorsMetaData = &bind.MetaData{
-	ABI: "[{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"name\":\"currentValidatorSet\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"consensusAddress\",\"type\":\"address\"},{\"internalType\":\"addresspayable\",\"name\":\"feeAddress\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"totalAmount\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"jailTime\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"reward\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"name\":\"currentValidatorSetMap\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"valAddr\",\"type\":\"address\"}],\"name\":\"depositReward\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getLastUpdated\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getValidators\",\"outputs\":[{\"internalType\":\"address[]\",\"name\":\"\",\"type\":\"address[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"updateValidators\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]",
+	ABI: "[{\"inputs\":[{\"internalType\":\"address\",\"name\":\"consensusAddress\",\"type\":\"address\"},{\"internalType\":\"addresspayable\",\"name\":\"feeAddress\",\"type\":\"address\"}],\"name\":\"addNode\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"name\":\"currentValidatorSet\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"consensusAddress\",\"type\":\"address\"},{\"internalType\":\"addresspayable\",\"name\":\"feeAddress\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"totalAmount\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"jailTime\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"reward\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"name\":\"currentValidatorSetMap\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"valAddr\",\"type\":\"address\"}],\"name\":\"depositReward\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getLastUpdated\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getValidators\",\"outputs\":[{\"internalType\":\"address[]\",\"name\":\"\",\"type\":\"address[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"updateValidators\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"}]",
 }
 
 // ValidatorsABI is the input ABI used to generate the binding from.
@@ -330,6 +330,27 @@ func (_Validators *ValidatorsSession) GetValidators() ([]common.Address, error) 
 // Solidity: function getValidators() view returns(address[])
 func (_Validators *ValidatorsCallerSession) GetValidators() ([]common.Address, error) {
 	return _Validators.Contract.GetValidators(&_Validators.CallOpts)
+}
+
+// AddNode is a paid mutator transaction binding the contract method 0xdb8ec38c.
+//
+// Solidity: function addNode(address consensusAddress, address feeAddress) returns()
+func (_Validators *ValidatorsTransactor) AddNode(opts *bind.TransactOpts, consensusAddress common.Address, feeAddress common.Address) (*types.Transaction, error) {
+	return _Validators.contract.Transact(opts, "addNode", consensusAddress, feeAddress)
+}
+
+// AddNode is a paid mutator transaction binding the contract method 0xdb8ec38c.
+//
+// Solidity: function addNode(address consensusAddress, address feeAddress) returns()
+func (_Validators *ValidatorsSession) AddNode(consensusAddress common.Address, feeAddress common.Address) (*types.Transaction, error) {
+	return _Validators.Contract.AddNode(&_Validators.TransactOpts, consensusAddress, feeAddress)
+}
+
+// AddNode is a paid mutator transaction binding the contract method 0xdb8ec38c.
+//
+// Solidity: function addNode(address consensusAddress, address feeAddress) returns()
+func (_Validators *ValidatorsTransactorSession) AddNode(consensusAddress common.Address, feeAddress common.Address) (*types.Transaction, error) {
+	return _Validators.Contract.AddNode(&_Validators.TransactOpts, consensusAddress, feeAddress)
 }
 
 // DepositReward is a paid mutator transaction binding the contract method 0x6ffa4dc1.
