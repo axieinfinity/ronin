@@ -715,7 +715,7 @@ func (c *Consortium) getValidatorsFromHeader(header *types.Header) []common.Addr
 }
 
 func (c *Consortium) initContract() error {
-	contract, err := consortiumCommon.NewContractIntegrator(c.chainConfig, c.ethAPI)
+	contract, err := consortiumCommon.NewContractIntegrator(c.chainConfig, consortiumCommon.NewConsortiumBackend(c.ethAPI))
 	if err != nil {
 		return err
 	}
