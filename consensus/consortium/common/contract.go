@@ -32,10 +32,8 @@ type ContractIntegrator struct {
 	validatorSC *validators.Validators
 }
 
-func NewContractIntegrator(config *chainParams.ChainConfig, ee *ethapi.PublicBlockChainAPI) (*ContractIntegrator, error) {
-	backend := NewConsortiumBackend(ee)
-
-	validatorSC, err := validators.NewValidators(config.ConsortiumV2Contracts.ValidatorSC, &backend)
+func NewContractIntegrator(config *chainParams.ChainConfig, backend bind.ContractBackend) (*ContractIntegrator, error) {
+	validatorSC, err := validators.NewValidators(config.ConsortiumV2Contracts.ValidatorSC, backend)
 	if err != nil {
 		return nil, err
 	}
@@ -239,8 +237,8 @@ type ConsortiumBackend struct {
 	ee *ethapi.PublicBlockChainAPI
 }
 
-func NewConsortiumBackend(ee *ethapi.PublicBlockChainAPI) ConsortiumBackend {
-	return ConsortiumBackend{
+func NewConsortiumBackend(ee *ethapi.PublicBlockChainAPI) *ConsortiumBackend {
+	return &ConsortiumBackend{
 		ee,
 	}
 }
