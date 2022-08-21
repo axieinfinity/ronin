@@ -21,13 +21,12 @@ import (
 	"errors"
 	"fmt"
 	"github.com/ethereum/go-ethereum/consensus/consortium"
+	"github.com/ethereum/go-ethereum/core/state"
 	"math/big"
 	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"github.com/ethereum/go-ethereum/core/state"
 
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
@@ -234,6 +233,28 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 		return nil, err
 	}
 
+	// set SCValidators function before initiating new miner to prevent miner starts without SCValidators
+	if chainConfig.Consortium != nil {
+		c := eth.engine.(*consortium.Consortium)
+		stack.RegisterAPIs(c.APIs(eth.blockchain))
+		c.SetGetSCValidatorsFn(func() ([]common.Address, error) {
+			stateDb, err := eth.blockchain.State()
+			if err != nil {
+				log.Crit("Cannot get state of blockchain", "err", err)
+				return nil, err
+			}
+			return state.GetSCValidators(stateDb), nil
+		})
+		c.SetGetFenixValidators(func() ([]common.Address, error) {
+			stateDb, err := eth.blockchain.State()
+			if err != nil {
+				log.Crit("Cannot get state of blockchain", "err", err)
+				return nil, err
+			}
+			return state.GetFenixValidators(stateDb, eth.blockchain.Config().FenixValidatorContractAddress), nil
+		})
+	}
+
 	eth.miner = miner.New(eth, &config.Miner, chainConfig, eth.EventMux(), eth.engine, eth.isLocalBlock)
 	eth.miner.SetExtra(makeExtraData(config.Miner.ExtraData))
 
@@ -277,27 +298,6 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 			log.Warn("Unclean shutdown detected", "booted", t,
 				"age", common.PrettyAge(t))
 		}
-	}
-
-	if chainConfig.Consortium != nil {
-		c := eth.engine.(*consortium.Consortium)
-		stack.RegisterAPIs(c.APIs(eth.blockchain))
-		c.SetGetSCValidatorsFn(func() ([]common.Address, error) {
-			stateDb, err := eth.blockchain.State()
-			if err != nil {
-				log.Crit("Cannot get state of blockchain", "err", err)
-				return nil, err
-			}
-			return state.GetSCValidators(stateDb), nil
-		})
-		c.SetGetFenixValidators(func() ([]common.Address, error) {
-			stateDb, err := eth.blockchain.State()
-			if err != nil {
-				log.Crit("Cannot get state of blockchain", "err", err)
-				return nil, err
-			}
-			return state.GetFenixValidators(stateDb, eth.blockchain.Config().FenixValidatorContractAddress), nil
-		})
 	}
 	return eth, nil
 }
