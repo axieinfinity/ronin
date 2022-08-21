@@ -571,6 +571,13 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 			}
 		}
 	}
+
+	if header.Number.Uint64()%c.config.Epoch == c.config.Epoch-1 {
+		if err := c.contract.UpdateValidators(header, transactOpts); err != nil {
+			log.Error("Failed to update validators: ", err)
+		}
+	}
+
 	err = c.contract.DistributeRewards(c.val, transactOpts)
 	if err != nil {
 		return err
@@ -633,7 +640,7 @@ func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, head
 		}
 	}
 
-	if c.chainConfig.IsOnConsortiumV2(header.Number.Add(header.Number, common.Big1)) {
+	if header.Number.Uint64()%c.config.Epoch == c.config.Epoch-1 {
 		if err := c.contract.UpdateValidators(header, transactOpts); err != nil {
 			log.Error("Failed to update validators: ", err)
 		}
