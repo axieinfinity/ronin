@@ -574,8 +574,8 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 	}
 
 	if header.Number.Uint64()%c.config.Epoch == c.config.Epoch-1 {
-		if err := c.contract.UpdateValidators(header, transactOpts); err != nil {
-			log.Error("Failed to update validators: ", err)
+		if err := c.contract.UpdateValidators(transactOpts); err != nil {
+			log.Error("Failed to update validators", "err", err)
 		}
 	}
 
@@ -642,8 +642,8 @@ func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, head
 	}
 
 	if header.Number.Uint64()%c.config.Epoch == c.config.Epoch-1 {
-		if err := c.contract.UpdateValidators(header, transactOpts); err != nil {
-			log.Error("Failed to update validators: ", err)
+		if err := c.contract.UpdateValidators(transactOpts); err != nil {
+			log.Error("Failed to update validators", "err", err)
 		}
 	}
 
@@ -814,7 +814,7 @@ func (c *Consortium) getValidatorsFromHeader(header *types.Header) []common.Addr
 }
 
 func (c *Consortium) initContract() error {
-	contract, err := consortiumCommon.NewContractIntegrator(c.chainConfig, consortiumCommon.NewConsortiumBackend(c.ethAPI))
+	contract, err := consortiumCommon.NewContractIntegrator(c.chainConfig, consortiumCommon.NewConsortiumBackend(c.ethAPI), c.signTxFn)
 	if err != nil {
 		return err
 	}

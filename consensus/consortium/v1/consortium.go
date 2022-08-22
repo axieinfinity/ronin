@@ -429,10 +429,6 @@ func (c *Consortium) verifySeal(chain consensus.ChainHeaderReader, header *types
 // Prepare implements consensus.Engine, preparing all the consensus fields of the
 // header for running the transactions on top.
 func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.Header) error {
-	if err := c.initContract(); err != nil {
-		return err
-	}
-
 	// Set the Coinbase address as the signer
 	header.Coinbase = c.val
 	header.Nonce = types.BlockNonce{}
@@ -522,8 +518,8 @@ func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, head
 			SignTxFn:    c.signTxFn,
 			EthAPI:      c.ethAPI,
 		}
-		if err := c.contract.UpdateValidators(header, transactOpts); err != nil {
-			log.Error("Failed to update validators: ", err)
+		if err := c.contract.UpdateValidators(transactOpts); err != nil {
+			log.Error("Failed to update validators", "err", err)
 		}
 	}
 
@@ -717,7 +713,7 @@ func (c *Consortium) signerInTurn(signer common.Address, number uint64, validato
 
 func (c *Consortium) initContract() error {
 	if c.chainConfig.ConsortiumV2Block != nil && c.chainConfig.ConsortiumV2Contracts != nil {
-		contract, err := consortiumCommon.NewContractIntegrator(c.chainConfig, consortiumCommon.NewConsortiumBackend(c.ethAPI))
+		contract, err := consortiumCommon.NewContractIntegrator(c.chainConfig, consortiumCommon.NewConsortiumBackend(c.ethAPI), c.signTxFn)
 		if err != nil {
 			return err
 		}

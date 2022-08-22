@@ -27,19 +27,38 @@ import (
 
 var errMethodUnimplemented = errors.New("method is unimplemented")
 
-type ContractIntegrator struct {
-	signer      types.Signer
-	validatorSC *validators.Validators
+func getTransactionOpts(from common.Address, nonce uint64, chainId *big.Int, signTxFn SignerTxFn) *bind.TransactOpts {
+	return &bind.TransactOpts{
+		From:     from,
+		GasLimit: math.MaxUint64 / 2,
+		GasPrice: big.NewInt(0),
+		Value:    new(big.Int).SetUint64(0),
+		Nonce:    new(big.Int).SetUint64(nonce),
+		NoSend:   true,
+		Signer: func(address common.Address, tx *types.Transaction) (*types.Transaction, error) {
+			return signTxFn(accounts.Account{Address: from}, tx, chainId)
+		},
+	}
 }
 
-func NewContractIntegrator(config *chainParams.ChainConfig, backend bind.ContractBackend) (*ContractIntegrator, error) {
+type ContractIntegrator struct {
+	chainId     *big.Int
+	signer      types.Signer
+	validatorSC *validators.Validators
+	signTxFn    SignerTxFn
+}
+
+func NewContractIntegrator(config *chainParams.ChainConfig, backend bind.ContractBackend, signTxFn SignerTxFn) (*ContractIntegrator, error) {
 	validatorSC, err := validators.NewValidators(config.ConsortiumV2Contracts.ValidatorSC, backend)
 	if err != nil {
 		return nil, err
 	}
 
 	return &ContractIntegrator{
+		chainId:     config.ChainID,
 		validatorSC: validatorSC,
+		signTxFn:    signTxFn,
+		signer:      types.LatestSignerForChainID(config.ChainID),
 	}, nil
 }
 
@@ -54,18 +73,11 @@ func (c *ContractIntegrator) GetValidators(header *types.Header) ([]common.Addre
 	return addresses, nil
 }
 
-func (c *ContractIntegrator) UpdateValidators(header *types.Header, opts *ApplyTransactOpts) error {
+func (c *ContractIntegrator) UpdateValidators(opts *ApplyTransactOpts) error {
 	coinbase := opts.Header.Coinbase
 	nonce := opts.State.GetNonce(coinbase)
 
-	tx, err := c.validatorSC.UpdateValidators(&bind.TransactOpts{
-		From:     coinbase,
-		GasLimit: math.MaxUint64 / 2,
-		GasPrice: big.NewInt(0),
-		Value:    new(big.Int).SetUint64(0),
-		Nonce:    new(big.Int).SetUint64(nonce),
-		NoSend:   true,
-	})
+	tx, err := c.validatorSC.UpdateValidators(getTransactionOpts(coinbase, nonce, c.chainId, c.signTxFn))
 	if err != nil {
 		return err
 	}
@@ -94,14 +106,7 @@ func (c *ContractIntegrator) DistributeRewards(to common.Address, opts *ApplyTra
 
 	log.Trace("distribute to validator contract", "block hash", opts.Header.Hash(), "amount", balance)
 	nonce := opts.State.GetNonce(coinbase)
-	tx, err := c.validatorSC.DepositReward(&bind.TransactOpts{
-		From:     coinbase,
-		GasLimit: math.MaxUint64 / 2,
-		GasPrice: big.NewInt(0),
-		Value:    balance,
-		Nonce:    new(big.Int).SetUint64(nonce),
-		NoSend:   true,
-	}, to)
+	tx, err := c.validatorSC.DepositReward(getTransactionOpts(coinbase, nonce, c.chainId, c.signTxFn), to)
 	if err != nil {
 		return err
 	}
@@ -164,23 +169,25 @@ func applyTransaction(msg types.Message, opts *ApplyTransactOpts) (err error) {
 			return err
 		}
 	} else {
-		if receivedTxs == nil || len(*receivedTxs) == 0 || (*receivedTxs)[0] == nil {
-			return errors.New("supposed to get a actual transaction, but get none")
+		if opts.ChainConfig.IsConsortiumV2(opts.Header.Number) {
+			if receivedTxs == nil || len(*receivedTxs) == 0 || (*receivedTxs)[0] == nil {
+				return errors.New("supposed to get a actual transaction, but get none")
+			}
+			actualTx := (*receivedTxs)[0]
+			if !bytes.Equal(signer.Hash(actualTx).Bytes(), expectedHash.Bytes()) {
+				return fmt.Errorf("expected tx hash %v, get %v, nonce %d, to %s, value %s, gas %d, gasPrice %s, data %s", expectedHash.String(), actualTx.Hash().String(),
+					expectedTx.Nonce(),
+					expectedTx.To().String(),
+					expectedTx.Value().String(),
+					expectedTx.Gas(),
+					expectedTx.GasPrice().String(),
+					hex.EncodeToString(expectedTx.Data()),
+				)
+			}
+			expectedTx = actualTx
+			// move to next
+			*receivedTxs = (*receivedTxs)[1:]
 		}
-		actualTx := (*receivedTxs)[0]
-		if !bytes.Equal(signer.Hash(actualTx).Bytes(), expectedHash.Bytes()) {
-			return fmt.Errorf("expected tx hash %v, get %v, nonce %d, to %s, value %s, gas %d, gasPrice %s, data %s", expectedHash.String(), actualTx.Hash().String(),
-				expectedTx.Nonce(),
-				expectedTx.To().String(),
-				expectedTx.Value().String(),
-				expectedTx.Gas(),
-				expectedTx.GasPrice().String(),
-				hex.EncodeToString(expectedTx.Data()),
-			)
-		}
-		expectedTx = actualTx
-		// move to next
-		*receivedTxs = (*receivedTxs)[1:]
 	}
 	opts.State.Prepare(expectedTx.Hash(), len(*txs))
 	gasUsed, err := applyMessage(msg, opts.ApplyMessageOpts)
