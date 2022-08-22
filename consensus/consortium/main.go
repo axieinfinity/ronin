@@ -162,7 +162,7 @@ func (c *Consortium) Authorize(signer common.Address, signFn consortiumCommon.Si
 
 // SetGetSCValidatorsFn backward compatible for consortium v1
 func (c *Consortium) SetGetSCValidatorsFn(fn func() ([]common.Address, error)) {
-	c.v1.SetGetFenixValidators(fn)
+	c.v1.SetGetSCValidatorsFn(fn)
 }
 
 // SetGetFenixValidators backward compatible for consortium v1

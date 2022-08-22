@@ -505,7 +505,7 @@ func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, head
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 	header.UncleHash = types.CalcUncleHash(nil)
 
-	if c.chainConfig.IsOnConsortiumV2(header.Number.Add(header.Number, common.Big1)) {
+	if c.chainConfig.IsOnConsortiumV2(big.NewInt(header.Number.Int64() + 1)) {
 		transactOpts := &consortiumCommon.ApplyTransactOpts{
 			ApplyMessageOpts: &consortiumCommon.ApplyMessageOpts{
 				State:        state,
@@ -716,12 +716,13 @@ func (c *Consortium) signerInTurn(signer common.Address, number uint64, validato
 }
 
 func (c *Consortium) initContract() error {
-	contract, err := consortiumCommon.NewContractIntegrator(c.chainConfig, consortiumCommon.NewConsortiumBackend(c.ethAPI))
-	if err != nil {
-		return err
+	if c.chainConfig.ConsortiumV2Block != nil && c.chainConfig.ConsortiumV2Contracts != nil {
+		contract, err := consortiumCommon.NewContractIntegrator(c.chainConfig, consortiumCommon.NewConsortiumBackend(c.ethAPI))
+		if err != nil {
+			return err
+		}
+		c.contract = contract
 	}
-	c.contract = contract
-
 	return nil
 }
 
