@@ -7,13 +7,13 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
-func GetLocSimpleVariable(slot uint64) common.Hash {
-	slotHash := common.BigToHash(new(big.Int).SetUint64(slot))
+func GetLocSimpleVariable(slot *big.Int) common.Hash {
+	slotHash := common.BigToHash(slot)
 	return slotHash
 }
 
-func GetLocMappingAtKey(key common.Hash, slot uint64) common.Hash {
-	slotHash := common.BigToHash(new(big.Int).SetUint64(slot))
+func GetLocMappingAtKey(key common.Hash, slot *big.Int) common.Hash {
+	slotHash := common.BigToHash(slot)
 	retByte := crypto.Keccak256(key.Bytes(), slotHash.Bytes())
 	ret := new(big.Int)
 	ret.SetBytes(retByte)
@@ -27,8 +27,7 @@ func GetLocDynamicArrAtElement(slotHash common.Hash, index uint64, elementSize u
 	return common.BigToHash(arrBig)
 }
 
-func GetLocFixedArrAtElement(slot uint64, index uint64, elementSize uint64) common.Hash {
-	slotBig := new(big.Int).SetUint64(slot)
-	arrBig := slotBig.Add(slotBig, new(big.Int).SetUint64(index*elementSize))
+func GetLocFixedArrAtElement(slot *big.Int, index uint64, elementSize uint64) common.Hash {
+	arrBig := slot.Add(slot, new(big.Int).SetUint64(index*elementSize))
 	return common.BigToHash(arrBig)
 }
