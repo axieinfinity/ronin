@@ -36,31 +36,32 @@ import (
 type alethGenesisSpec struct {
 	SealEngine string `json:"sealEngine"`
 	Params     struct {
-		AccountStartNonce             math2.HexOrDecimal64   `json:"accountStartNonce"`
-		MaximumExtraDataSize          hexutil.Uint64         `json:"maximumExtraDataSize"`
-		HomesteadForkBlock            *hexutil.Big           `json:"homesteadForkBlock,omitempty"`
-		DaoHardforkBlock              math2.HexOrDecimal64   `json:"daoHardforkBlock"`
-		EIP150ForkBlock               *hexutil.Big           `json:"EIP150ForkBlock,omitempty"`
-		EIP158ForkBlock               *hexutil.Big           `json:"EIP158ForkBlock,omitempty"`
-		ByzantiumForkBlock            *hexutil.Big           `json:"byzantiumForkBlock,omitempty"`
-		ConstantinopleForkBlock       *hexutil.Big           `json:"constantinopleForkBlock,omitempty"`
-		ConstantinopleFixForkBlock    *hexutil.Big           `json:"constantinopleFixForkBlock,omitempty"`
-		IstanbulForkBlock             *hexutil.Big           `json:"istanbulForkBlock,omitempty"`
-		OdysseusForkBlock             *hexutil.Big           `json:"odysseusForkBlock,omitempty"`
-		FenixForkBlock                *hexutil.Big           `json:"fenixForkBlock,omitempty"`
-		BlacklistContractAddress      *common.Address        `json:"blacklistContractAddress,omitempty"`
-		FenixValidatorContractAddress *common.Address        `json:"fenixValidatorContractAddress,omitempty"`
-		MinGasLimit                   hexutil.Uint64         `json:"minGasLimit"`
-		MaxGasLimit                   hexutil.Uint64         `json:"maxGasLimit"`
-		TieBreakingGas                bool                   `json:"tieBreakingGas"`
-		GasLimitBoundDivisor          math2.HexOrDecimal64   `json:"gasLimitBoundDivisor"`
-		MinimumDifficulty             *hexutil.Big           `json:"minimumDifficulty"`
-		DifficultyBoundDivisor        *math2.HexOrDecimal256 `json:"difficultyBoundDivisor"`
-		DurationLimit                 *math2.HexOrDecimal256 `json:"durationLimit"`
-		BlockReward                   *hexutil.Big           `json:"blockReward"`
-		NetworkID                     hexutil.Uint64         `json:"networkID"`
-		ChainID                       hexutil.Uint64         `json:"chainID"`
-		AllowFutureBlocks             bool                   `json:"allowFutureBlocks"`
+		AccountStartNonce              math2.HexOrDecimal64   `json:"accountStartNonce"`
+		MaximumExtraDataSize           hexutil.Uint64         `json:"maximumExtraDataSize"`
+		HomesteadForkBlock             *hexutil.Big           `json:"homesteadForkBlock,omitempty"`
+		DaoHardforkBlock               math2.HexOrDecimal64   `json:"daoHardforkBlock"`
+		EIP150ForkBlock                *hexutil.Big           `json:"EIP150ForkBlock,omitempty"`
+		EIP158ForkBlock                *hexutil.Big           `json:"EIP158ForkBlock,omitempty"`
+		ByzantiumForkBlock             *hexutil.Big           `json:"byzantiumForkBlock,omitempty"`
+		ConstantinopleForkBlock        *hexutil.Big           `json:"constantinopleForkBlock,omitempty"`
+		ConstantinopleFixForkBlock     *hexutil.Big           `json:"constantinopleFixForkBlock,omitempty"`
+		IstanbulForkBlock              *hexutil.Big           `json:"istanbulForkBlock,omitempty"`
+		OdysseusForkBlock              *hexutil.Big           `json:"odysseusForkBlock,omitempty"`
+		FenixForkBlock                 *hexutil.Big           `json:"fenixForkBlock,omitempty"`
+		BlacklistContractAddress       *common.Address        `json:"blacklistContractAddress,omitempty"`
+		FenixValidatorContractAddress  *common.Address        `json:"fenixValidatorContractAddress,omitempty"`
+		TransactionPassContractAddress *common.Address        `json:"transactionPassContractAddress,omitempty"`
+		MinGasLimit                    hexutil.Uint64         `json:"minGasLimit"`
+		MaxGasLimit                    hexutil.Uint64         `json:"maxGasLimit"`
+		TieBreakingGas                 bool                   `json:"tieBreakingGas"`
+		GasLimitBoundDivisor           math2.HexOrDecimal64   `json:"gasLimitBoundDivisor"`
+		MinimumDifficulty              *hexutil.Big           `json:"minimumDifficulty"`
+		DifficultyBoundDivisor         *math2.HexOrDecimal256 `json:"difficultyBoundDivisor"`
+		DurationLimit                  *math2.HexOrDecimal256 `json:"durationLimit"`
+		BlockReward                    *hexutil.Big           `json:"blockReward"`
+		NetworkID                      hexutil.Uint64         `json:"networkID"`
+		ChainID                        hexutil.Uint64         `json:"chainID"`
+		AllowFutureBlocks              bool                   `json:"allowFutureBlocks"`
 	} `json:"params"`
 
 	Genesis struct {
@@ -150,6 +151,9 @@ func newAlethGenesisSpec(network string, genesis *core.Genesis) (*alethGenesisSp
 	}
 	if addr := genesis.Config.FenixValidatorContractAddress; addr != nil {
 		spec.Params.FenixValidatorContractAddress = (*common.Address)(addr)
+	}
+	if addr := genesis.Config.TransactionPassContractAddress; addr != nil {
+		spec.Params.TransactionPassContractAddress = (*common.Address)(addr)
 	}
 	spec.Params.NetworkID = (hexutil.Uint64)(genesis.Config.ChainID.Uint64())
 	spec.Params.ChainID = (hexutil.Uint64)(genesis.Config.ChainID.Uint64())

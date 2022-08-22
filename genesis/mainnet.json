@@ -13,6 +13,7 @@
     "blacklistContractAddress": "0x313b24994c93FA0471CB4D7aB796b07467041806",
     "fenixBlock": 14938103,
     "fenixValidatorContractAddress": "0x7f13232Bdc3a010c3f749a1c25bF99f1C053CE70",
+    "transactionPassContractAddress": "",
     "consortium": {
       "period": 3,
       "epoch": 600
