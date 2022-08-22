@@ -492,9 +492,9 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 // FinalizeAndAssemble implements consensus.Engine, ensuring no uncles are set,
 // nor block rewards given, and returns the final block.
 func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction,
-	uncles []*types.Header, receipts []*types.Receipt) (*types.Block, error) {
+	uncles []*types.Header, receipts []*types.Receipt) (*types.Block, []*types.Receipt, error) {
 	if err := c.initContract(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// No block rewards in PoA, so the state remains as is and uncles are dropped
@@ -513,7 +513,7 @@ func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, head
 			Receipts:    &receipts,
 			ReceivedTxs: nil,
 			UsedGas:     &header.GasUsed,
-			Mining:      false,
+			Mining:      true,
 			Signer:      c.signer,
 			SignTxFn:    c.signTxFn,
 			EthAPI:      c.ethAPI,
@@ -524,7 +524,7 @@ func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, head
 	}
 
 	// Assemble and return the final block for sealing
-	return types.NewBlock(header, txs, nil, receipts, new(trie.Trie)), nil
+	return types.NewBlock(header, txs, nil, receipts, new(trie.Trie)), receipts, nil
 }
 
 // Authorize injects a private key into the consensus engine to mint new blocks
@@ -576,7 +576,7 @@ func (c *Consortium) Seal(chain consensus.ChainHeaderReader, block *types.Block,
 	for seen, recent := range snap.Recents {
 		if recent == signer {
 			// Signer is among recents, only wait if the current block doesn't shift it out
-			if limit := uint64(len(validators)/2 + 1); number < limit || seen > number-limit {
+			if limit := uint64(len(validators)/2 + 1); limit > 2 && (number < limit || seen > number-limit) {
 				return errors.New("signed recently, must wait for others")
 			}
 		}

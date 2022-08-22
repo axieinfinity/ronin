@@ -64,12 +64,14 @@ func NewContractIntegrator(config *chainParams.ChainConfig, backend bind.Contrac
 
 func (c *ContractIntegrator) GetValidators(header *types.Header) ([]common.Address, error) {
 	addresses, err := c.validatorSC.GetValidators(&bind.CallOpts{
-		BlockNumber: new(big.Int).Sub(header.Number, common.Big1),
+		Pending:     false,
+		From:        header.Coinbase,
+		BlockNumber: header.Number,
+		Context:     context.Background(),
 	})
 	if err != nil {
 		return nil, err
 	}
-
 	return addresses, nil
 }
 
@@ -222,7 +224,7 @@ func applyMessage(
 	opts *ApplyMessageOpts,
 ) (uint64, error) {
 	// Create a new context to be used in the EVM environment
-	context := core.NewEVMBlockContext(opts.Header, opts.ChainContext, nil)
+	context := core.NewEVMBlockContext(opts.Header, opts.ChainContext, &opts.Header.Coinbase)
 	// Create a new environment which holds all relevant information
 	// about the transaction and calling mechanisms.
 	vmenv := vm.NewEVM(context, vm.TxContext{Origin: msg.From(), GasPrice: big.NewInt(0)}, opts.State, opts.ChainConfig, vm.Config{})
@@ -241,17 +243,23 @@ func applyMessage(
 }
 
 type ConsortiumBackend struct {
-	ee *ethapi.PublicBlockChainAPI
+	ee    *ethapi.PublicBlockChainAPI
+	state *state.StateDB
 }
 
-func NewConsortiumBackend(ee *ethapi.PublicBlockChainAPI) *ConsortiumBackend {
+func NewConsortiumBackend(ee *ethapi.PublicBlockChainAPI, state *state.StateDB) *ConsortiumBackend {
 	return &ConsortiumBackend{
 		ee,
+		state,
 	}
 }
 
 func (b *ConsortiumBackend) CodeAt(ctx context.Context, contract common.Address, blockNumber *big.Int) ([]byte, error) {
-	block := rpc.BlockNumberOrHashWithNumber(rpc.BlockNumber(blockNumber.Int64()))
+	blkNumber := rpc.LatestBlockNumber
+	if blockNumber != nil {
+		blkNumber = rpc.BlockNumber(blockNumber.Int64())
+	}
+	block := rpc.BlockNumberOrHashWithNumber(blkNumber)
 	result, err := b.ee.GetCode(ctx, contract, block)
 	if err != nil {
 		return nil, err
@@ -261,7 +269,11 @@ func (b *ConsortiumBackend) CodeAt(ctx context.Context, contract common.Address,
 }
 
 func (b *ConsortiumBackend) CallContract(ctx context.Context, call ethereum.CallMsg, blockNumber *big.Int) ([]byte, error) {
-	block := rpc.BlockNumberOrHashWithNumber(rpc.BlockNumber(blockNumber.Int64()))
+	blkNumber := rpc.LatestBlockNumber
+	if blockNumber != nil {
+		blkNumber = rpc.BlockNumber(blockNumber.Int64())
+	}
+	block := rpc.BlockNumberOrHashWithNumber(blkNumber)
 	gas := (hexutil.Uint64)(uint64(math.MaxUint64 / 2))
 	data := (hexutil.Bytes)(call.Data)
 
