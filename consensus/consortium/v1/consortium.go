@@ -492,6 +492,36 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 		return err
 	}
 
+	if len(*systemTxs) > 0 {
+		log.Info("processing system tx from consortium v1", "systemTxs", len(*systemTxs), "coinbase", header.Coinbase.Hex())
+		msg, err := (*systemTxs)[0].AsMessage(c.signer, big.NewInt(0))
+		if err != nil {
+			return err
+		}
+		transactOpts := &consortiumCommon.ApplyTransactOpts{
+			ApplyMessageOpts: &consortiumCommon.ApplyMessageOpts{
+				State:        state,
+				Header:       header,
+				ChainConfig:  c.chainConfig,
+				ChainContext: consortiumCommon.ChainContext{Chain: chain, Consortium: c},
+			},
+			Txs:         txs,
+			Receipts:    receipts,
+			ReceivedTxs: systemTxs,
+			UsedGas:     usedGas,
+			Mining:      false,
+			Signer:      c.signer,
+			SignTxFn:    c.signTxFn,
+			EthAPI:      c.ethAPI,
+		}
+		if err = consortiumCommon.ApplyTransaction(msg, transactOpts); err != nil {
+			return err
+		}
+		if len(*systemTxs) > 0 {
+			return errors.New("the length of systemTxs does not match")
+		}
+	}
+
 	// No block rewards in PoA, so the state remains as is and uncles are dropped
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 	header.UncleHash = types.CalcUncleHash(nil)
@@ -531,6 +561,27 @@ func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, head
 		if err := c.contract.UpdateValidators(transactOpts); err != nil {
 			log.Error("Failed to update validators", "err", err)
 		}
+		// should not happen. Once happen, stop the node is better than broadcast the block
+		if header.GasLimit < header.GasUsed {
+			return nil, nil, errors.New("gas consumption of system txs exceed the gas limit")
+		}
+		header.UncleHash = types.CalcUncleHash(nil)
+		var blk *types.Block
+		var rootHash common.Hash
+		wg := sync.WaitGroup{}
+		wg.Add(2)
+		go func() {
+			rootHash = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
+			wg.Done()
+		}()
+		go func() {
+			blk = types.NewBlock(header, txs, nil, receipts, trie.NewStackTrie(nil))
+			wg.Done()
+		}()
+		wg.Wait()
+		blk.SetRoot(rootHash)
+		// Assemble and return the final block for sealing
+		return blk, receipts, nil
 	}
 
 	// Assemble and return the final block for sealing

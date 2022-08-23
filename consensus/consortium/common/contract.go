@@ -30,7 +30,7 @@ var errMethodUnimplemented = errors.New("method is unimplemented")
 func getTransactionOpts(from common.Address, nonce uint64, chainId *big.Int, signTxFn SignerTxFn) *bind.TransactOpts {
 	return &bind.TransactOpts{
 		From:     from,
-		GasLimit: 99999999,
+		GasLimit: 1000000,
 		GasPrice: big.NewInt(0),
 		Value:    new(big.Int).SetUint64(0),
 		Nonce:    new(big.Int).SetUint64(nonce),
@@ -84,7 +84,7 @@ func (c *ContractIntegrator) UpdateValidators(opts *ApplyTransactOpts) error {
 		return err
 	}
 
-	err = applyTransaction(msg, opts)
+	err = ApplyTransaction(msg, opts)
 	if err != nil {
 		return err
 	}
@@ -113,7 +113,7 @@ func (c *ContractIntegrator) DistributeRewards(to common.Address, opts *ApplyTra
 		return err
 	}
 
-	err = applyTransaction(msg, opts)
+	err = ApplyTransaction(msg, opts)
 	if err != nil {
 		return err
 	}
@@ -142,9 +142,10 @@ type ApplyTransactOpts struct {
 	Signer      types.Signer
 	SignTxFn    SignerTxFn
 	EthAPI      *ethapi.PublicBlockChainAPI
+	Coinbase    common.Address
 }
 
-func applyTransaction(msg types.Message, opts *ApplyTransactOpts) (err error) {
+func ApplyTransaction(msg types.Message, opts *ApplyTransactOpts) (err error) {
 	signer := opts.Signer
 	signTxFn := opts.SignTxFn
 	miner := opts.Header.Coinbase
@@ -166,25 +167,23 @@ func applyTransaction(msg types.Message, opts *ApplyTransactOpts) (err error) {
 			return err
 		}
 	} else {
-		if opts.ChainConfig.IsConsortiumV2(opts.Header.Number) {
-			if receivedTxs == nil || len(*receivedTxs) == 0 || (*receivedTxs)[0] == nil {
-				return errors.New("supposed to get a actual transaction, but get none")
-			}
-			actualTx := (*receivedTxs)[0]
-			if !bytes.Equal(signer.Hash(actualTx).Bytes(), expectedHash.Bytes()) {
-				return fmt.Errorf("expected tx hash %v, get %v, nonce %d, to %s, value %s, gas %d, gasPrice %s, data %s", expectedHash.String(), actualTx.Hash().String(),
-					expectedTx.Nonce(),
-					expectedTx.To().String(),
-					expectedTx.Value().String(),
-					expectedTx.Gas(),
-					expectedTx.GasPrice().String(),
-					hex.EncodeToString(expectedTx.Data()),
-				)
-			}
-			expectedTx = actualTx
-			// move to next
-			*receivedTxs = (*receivedTxs)[1:]
+		if receivedTxs == nil || len(*receivedTxs) == 0 || (*receivedTxs)[0] == nil {
+			return errors.New("supposed to get a actual transaction, but get none")
 		}
+		actualTx := (*receivedTxs)[0]
+		if !bytes.Equal(signer.Hash(actualTx).Bytes(), expectedHash.Bytes()) {
+			return fmt.Errorf("expected tx hash %v, get %v, nonce %d, to %s, value %s, gas %d, gasPrice %s, data %s", expectedHash.String(), actualTx.Hash().String(),
+				expectedTx.Nonce(),
+				expectedTx.To().String(),
+				expectedTx.Value().String(),
+				expectedTx.Gas(),
+				expectedTx.GasPrice().String(),
+				hex.EncodeToString(expectedTx.Data()),
+			)
+		}
+		expectedTx = actualTx
+		// move to next
+		*receivedTxs = (*receivedTxs)[1:]
 	}
 	opts.State.Prepare(expectedTx.Hash(), len(*txs))
 	gasUsed, err := applyMessage(msg, opts.ApplyMessageOpts)
