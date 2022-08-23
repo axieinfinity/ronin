@@ -221,10 +221,23 @@ func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus
 	worker.chainHeadSub = eth.BlockChain().SubscribeChainHeadEvent(worker.chainHeadCh)
 	worker.chainSideSub = eth.BlockChain().SubscribeChainSideEvent(worker.chainSideCh)
 
-	//// Submit first work to initialize pending state.
-	//if init {
-	//	worker.startCh <- struct{}{}
-	//}
+	// Sanitize recommit interval if the user-specified one is too short.
+	recommit := worker.config.Recommit
+	if recommit < minRecommitInterval {
+		log.Warn("Sanitizing miner recommit interval", "provided", recommit, "updated", minRecommitInterval)
+		recommit = minRecommitInterval
+	}
+
+	worker.wg.Add(4)
+	go worker.mainLoop()
+	go worker.newWorkLoop(recommit)
+	go worker.resultLoop()
+	go worker.taskLoop()
+
+	// Submit first work to initialize pending state.
+	if init {
+		worker.startCh <- struct{}{}
+	}
 	return worker
 }
 
@@ -292,20 +305,6 @@ func (w *worker) pendingBlockAndReceipts() (*types.Block, types.Receipts) {
 
 // start sets the running status as 1 and triggers new work submitting.
 func (w *worker) start() {
-
-	// Sanitize recommit interval if the user-specified one is too short.
-	recommit := w.config.Recommit
-	if recommit < minRecommitInterval {
-		log.Warn("Sanitizing miner recommit interval", "provided", recommit, "updated", minRecommitInterval)
-		recommit = minRecommitInterval
-	}
-
-	w.wg.Add(4)
-	go w.mainLoop()
-	go w.newWorkLoop(recommit)
-	go w.resultLoop()
-	go w.taskLoop()
-
 	atomic.StoreInt32(&w.running, 1)
 	w.startCh <- struct{}{}
 }

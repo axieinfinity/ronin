@@ -410,12 +410,22 @@ func (c *Consortium) verifySeal(chain consensus.ChainHeaderReader, header *types
 		return errWrongCoinbase
 	}
 
-	if _, ok := snap.SignerSet[signer]; !ok {
-		return errUnauthorizedSigner
+	validators, err := c.getValidatorsFromLastCheckpoint(chain, number-1, nil)
+	if err != nil {
+		return err
+	}
+
+	// If we're amongst the recent signers, wait for the next block
+	for seen, recent := range snap.Recents {
+		if recent == signer {
+			// Signer is among recents, only wait if the current block doesn't shift it out
+			if limit := uint64(len(validators)/2 + 1); seen > number-limit {
+				return errors.New("signed recently, must wait for others")
+			}
+		}
 	}
 
 	// Ensure that the difficulty corresponds to the turn-ness of the signer
-	validators := snap.SignerList
 	inturn := c.signerInTurn(signer, header.Number.Uint64(), validators)
 	if inturn && header.Difficulty.Cmp(diffInTurn) != 0 {
 		return consortiumCommon.ErrWrongDifficulty
@@ -576,7 +586,7 @@ func (c *Consortium) Seal(chain consensus.ChainHeaderReader, block *types.Block,
 	for seen, recent := range snap.Recents {
 		if recent == signer {
 			// Signer is among recents, only wait if the current block doesn't shift it out
-			if limit := uint64(len(validators)/2 + 1); limit > 2 && (number < limit || seen > number-limit) {
+			if limit := uint64(len(validators)/2 + 1); seen > number-limit {
 				return errors.New("signed recently, must wait for others")
 			}
 		}
