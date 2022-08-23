@@ -99,6 +99,12 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 			}
 		}
 
+		if p.config.ConsortiumV2Contracts != nil && p.config.IsOnConsortiumV2(big.NewInt(int64(block.NumberU64()+1))) &&
+			p.config.ConsortiumV2Contracts.IsSystemContract(*tx.To()) {
+			systemTxs = append(systemTxs, tx)
+			continue
+		}
+
 		// set current transaction in block context to each transaction
 		vmenv.Context.CurrentTransaction = tx
 		// reset counter to start counting opcodes in new transaction

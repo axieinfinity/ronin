@@ -314,7 +314,7 @@ func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, 
 		}
 
 		// If an on-disk checkpoint snapshot can be found, use that
-		if number%checkpointInterval == 0 {
+		if number%c.config.Epoch == 0 {
 			if s, err := loadSnapshot(c.config, c.signatures, c.db, hash, c.ethAPI); err == nil {
 				log.Trace("Loaded snapshot from disk", "number", number, "hash", hash)
 				snap = s
@@ -323,20 +323,17 @@ func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, 
 		}
 
 		// If we're at the genesis, snapshot the initial state.
-		if number == 0 {
+		if number == 0 || c.chainConfig.IsConsortiumV2(big.NewInt(0).SetUint64(number+1)) {
 			checkpoint := chain.GetHeaderByNumber(number)
 			if checkpoint != nil {
 				// get checkpoint data
 				hash := checkpoint.Hash()
 
-				validatorBytes := checkpoint.Extra[extraVanity : len(checkpoint.Extra)-extraSeal]
-				// get validators from headers
-				validators, err := ParseValidators(validatorBytes)
+				validators, err := c.contract.GetValidators(checkpoint)
 				if err != nil {
 					return nil, err
 				}
 
-				// new snap shot
 				snap = newSnapshot(c.config, c.signatures, number, hash, validators, c.ethAPI)
 				if err := snap.store(c.db); err != nil {
 					return nil, err
@@ -383,7 +380,7 @@ func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, 
 	c.recents.Add(snap.Hash, snap)
 
 	// If we've generated a new checkpoint snapshot, save to disk
-	if snap.Number%checkpointInterval == 0 && len(headers) > 0 {
+	if snap.Number%c.config.Epoch == 0 && len(headers) > 0 {
 		if err = snap.store(c.db); err != nil {
 			return nil, err
 		}
@@ -475,7 +472,7 @@ func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.He
 	}
 	header.Extra = header.Extra[:extraVanity]
 
-	if number%c.config.Epoch == 0 {
+	if number%c.config.Epoch == 0 || c.chainConfig.IsOnConsortiumV2(big.NewInt(int64(number))) {
 		newValidators, err := c.contract.GetValidators(header)
 		if err != nil {
 			return err
@@ -574,8 +571,8 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 	}
 
 	if header.Number.Uint64()%c.config.Epoch == c.config.Epoch-1 {
-		if err := c.contract.UpdateValidators(header, transactOpts); err != nil {
-			log.Error("Failed to update validators: ", err)
+		if err := c.contract.UpdateValidators(transactOpts); err != nil {
+			log.Error("Failed to update validators", "err", err)
 		}
 	}
 
@@ -590,9 +587,9 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 }
 
 func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB,
-	txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt) (*types.Block, error) {
+	txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt) (*types.Block, []*types.Receipt, error) {
 	if err := c.initContract(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// No block rewards in PoA, so the state remains as is and uncles are dropped
@@ -622,7 +619,7 @@ func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, head
 		number := header.Number.Uint64()
 		snap, err := c.snapshot(chain, number-1, header.ParentHash, nil)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		spoiledVal := snap.supposeValidator()
 		signedRecently := false
@@ -642,18 +639,18 @@ func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, head
 	}
 
 	if header.Number.Uint64()%c.config.Epoch == c.config.Epoch-1 {
-		if err := c.contract.UpdateValidators(header, transactOpts); err != nil {
-			log.Error("Failed to update validators: ", err)
+		if err := c.contract.UpdateValidators(transactOpts); err != nil {
+			log.Error("Failed to update validators", "err", err)
 		}
 	}
 
 	err := c.contract.DistributeRewards(c.val, transactOpts)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	// should not happen. Once happen, stop the node is better than broadcast the block
 	if header.GasLimit < header.GasUsed {
-		return nil, errors.New("gas consumption of system txs exceed the gas limit")
+		return nil, nil, errors.New("gas consumption of system txs exceed the gas limit")
 	}
 	header.UncleHash = types.CalcUncleHash(nil)
 	var blk *types.Block
@@ -671,7 +668,7 @@ func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, head
 	wg.Wait()
 	blk.SetRoot(rootHash)
 	// Assemble and return the final block for sealing
-	return blk, nil
+	return blk, receipts, nil
 }
 
 func (c *Consortium) Authorize(signer common.Address, signFn consortiumCommon.SignerFn, signTxFn consortiumCommon.SignerTxFn) {
@@ -814,7 +811,7 @@ func (c *Consortium) getValidatorsFromHeader(header *types.Header) []common.Addr
 }
 
 func (c *Consortium) initContract() error {
-	contract, err := consortiumCommon.NewContractIntegrator(c.chainConfig, consortiumCommon.NewConsortiumBackend(c.ethAPI))
+	contract, err := consortiumCommon.NewContractIntegrator(c.chainConfig, consortiumCommon.NewConsortiumBackend(c.ethAPI), c.signTxFn)
 	if err != nil {
 		return err
 	}
