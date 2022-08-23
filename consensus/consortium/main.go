@@ -39,6 +39,10 @@ func New(chainConfig *params.ChainConfig, db ethdb.Database, ee *ethapi.PublicBl
 // Author since v1 and v2 are implemented the same logic, so we don't need to check whether the current block is version 1
 // or version 2
 func (c *Consortium) Author(header *types.Header) (common.Address, error) {
+	if c.chainConfig.IsConsortiumV2(header.Number) {
+		return c.v2.Author(header)
+	}
+
 	return c.v1.Author(header)
 }
 
@@ -109,7 +113,11 @@ func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, head
 }
 
 func (c *Consortium) Delay(chain consensus.ChainReader, header *types.Header) *time.Duration {
-	return nil
+	if c.chainConfig.IsConsortiumV2(header.Number) {
+		return c.v2.Delay(chain, header)
+	}
+
+	return c.v1.Delay(chain, header)
 }
 
 func (c *Consortium) Seal(chain consensus.ChainHeaderReader, block *types.Block, results chan<- *types.Block, stop <-chan struct{}) error {
