@@ -447,7 +447,11 @@ func (c *ChainConfig) String() string {
 	default:
 		engine = "unknown"
 	}
-	return fmt.Sprintf("{ChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v Petersburg: %v Istanbul: %v, Odysseus: %v, Fenix: %v, Muir Glacier: %v, Berlin: %v, London: %v, Arrow Glacier: %v, Engine: %v, Blacklist Contract: %v, Fenix Validator Contract: %v}",
+	validatorSC := common.HexToAddress("")
+	if c.ConsortiumV2Contracts != nil {
+		validatorSC = c.ConsortiumV2Contracts.ValidatorSC
+	}
+	return fmt.Sprintf("{ChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v Petersburg: %v Istanbul: %v, Odysseus: %v, Fenix: %v, Muir Glacier: %v, Berlin: %v, London: %v, Arrow Glacier: %v, Engine: %v, Blacklist Contract: %v, Fenix Validator Contract: %v, ConsortiumV2: %v, ConsortiumV2.ValidatorSC: %v}",
 		c.ChainID,
 		c.HomesteadBlock,
 		c.DAOForkBlock,
@@ -468,6 +472,8 @@ func (c *ChainConfig) String() string {
 		engine,
 		c.BlacklistContractAddress,
 		c.FenixValidatorContractAddress,
+		c.ConsortiumV2Block,
+		validatorSC.Hex(),
 	)
 }
 

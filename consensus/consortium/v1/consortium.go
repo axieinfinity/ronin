@@ -410,12 +410,22 @@ func (c *Consortium) verifySeal(chain consensus.ChainHeaderReader, header *types
 		return errWrongCoinbase
 	}
 
-	if _, ok := snap.SignerSet[signer]; !ok {
-		return errUnauthorizedSigner
+	validators, err := c.getValidatorsFromLastCheckpoint(chain, number-1, nil)
+	if err != nil {
+		return err
+	}
+
+	// If we're amongst the recent signers, wait for the next block
+	for seen, recent := range snap.Recents {
+		if recent == signer {
+			// Signer is among recents, only wait if the current block doesn't shift it out
+			if limit := uint64(len(validators)/2 + 1); seen > number-limit {
+				return errors.New("signed recently, must wait for others")
+			}
+		}
 	}
 
 	// Ensure that the difficulty corresponds to the turn-ness of the signer
-	validators := snap.SignerList
 	inturn := c.signerInTurn(signer, header.Number.Uint64(), validators)
 	if inturn && header.Difficulty.Cmp(diffInTurn) != 0 {
 		return consortiumCommon.ErrWrongDifficulty
@@ -429,10 +439,6 @@ func (c *Consortium) verifySeal(chain consensus.ChainHeaderReader, header *types
 // Prepare implements consensus.Engine, preparing all the consensus fields of the
 // header for running the transactions on top.
 func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.Header) error {
-	if err := c.initContract(); err != nil {
-		return err
-	}
-
 	// Set the Coinbase address as the signer
 	header.Coinbase = c.val
 	header.Nonce = types.BlockNonce{}
@@ -486,6 +492,36 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 		return err
 	}
 
+	if len(*systemTxs) > 0 {
+		log.Info("processing system tx from consortium v1", "systemTxs", len(*systemTxs), "coinbase", header.Coinbase.Hex())
+		msg, err := (*systemTxs)[0].AsMessage(c.signer, big.NewInt(0))
+		if err != nil {
+			return err
+		}
+		transactOpts := &consortiumCommon.ApplyTransactOpts{
+			ApplyMessageOpts: &consortiumCommon.ApplyMessageOpts{
+				State:        state,
+				Header:       header,
+				ChainConfig:  c.chainConfig,
+				ChainContext: consortiumCommon.ChainContext{Chain: chain, Consortium: c},
+			},
+			Txs:         txs,
+			Receipts:    receipts,
+			ReceivedTxs: systemTxs,
+			UsedGas:     usedGas,
+			Mining:      false,
+			Signer:      c.signer,
+			SignTxFn:    c.signTxFn,
+			EthAPI:      c.ethAPI,
+		}
+		if err = consortiumCommon.ApplyTransaction(msg, transactOpts); err != nil {
+			return err
+		}
+		if len(*systemTxs) > 0 {
+			return errors.New("the length of systemTxs does not match")
+		}
+	}
+
 	// No block rewards in PoA, so the state remains as is and uncles are dropped
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 	header.UncleHash = types.CalcUncleHash(nil)
@@ -496,9 +532,9 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 // FinalizeAndAssemble implements consensus.Engine, ensuring no uncles are set,
 // nor block rewards given, and returns the final block.
 func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction,
-	uncles []*types.Header, receipts []*types.Receipt) (*types.Block, error) {
+	uncles []*types.Header, receipts []*types.Receipt) (*types.Block, []*types.Receipt, error) {
 	if err := c.initContract(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// No block rewards in PoA, so the state remains as is and uncles are dropped
@@ -517,18 +553,39 @@ func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, head
 			Receipts:    &receipts,
 			ReceivedTxs: nil,
 			UsedGas:     &header.GasUsed,
-			Mining:      false,
+			Mining:      true,
 			Signer:      c.signer,
 			SignTxFn:    c.signTxFn,
 			EthAPI:      c.ethAPI,
 		}
-		if err := c.contract.UpdateValidators(header, transactOpts); err != nil {
-			log.Error("Failed to update validators: ", err)
+		if err := c.contract.UpdateValidators(transactOpts); err != nil {
+			log.Error("Failed to update validators", "err", err)
 		}
+		// should not happen. Once happen, stop the node is better than broadcast the block
+		if header.GasLimit < header.GasUsed {
+			return nil, nil, errors.New("gas consumption of system txs exceed the gas limit")
+		}
+		header.UncleHash = types.CalcUncleHash(nil)
+		var blk *types.Block
+		var rootHash common.Hash
+		wg := sync.WaitGroup{}
+		wg.Add(2)
+		go func() {
+			rootHash = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
+			wg.Done()
+		}()
+		go func() {
+			blk = types.NewBlock(header, txs, nil, receipts, trie.NewStackTrie(nil))
+			wg.Done()
+		}()
+		wg.Wait()
+		blk.SetRoot(rootHash)
+		// Assemble and return the final block for sealing
+		return blk, receipts, nil
 	}
 
 	// Assemble and return the final block for sealing
-	return types.NewBlock(header, txs, nil, receipts, new(trie.Trie)), nil
+	return types.NewBlock(header, txs, nil, receipts, new(trie.Trie)), receipts, nil
 }
 
 // Authorize injects a private key into the consensus engine to mint new blocks
@@ -580,7 +637,7 @@ func (c *Consortium) Seal(chain consensus.ChainHeaderReader, block *types.Block,
 	for seen, recent := range snap.Recents {
 		if recent == signer {
 			// Signer is among recents, only wait if the current block doesn't shift it out
-			if limit := uint64(len(validators)/2 + 1); number < limit || seen > number-limit {
+			if limit := uint64(len(validators)/2 + 1); seen > number-limit {
 				return errors.New("signed recently, must wait for others")
 			}
 		}
@@ -717,7 +774,7 @@ func (c *Consortium) signerInTurn(signer common.Address, number uint64, validato
 
 func (c *Consortium) initContract() error {
 	if c.chainConfig.ConsortiumV2Block != nil && c.chainConfig.ConsortiumV2Contracts != nil {
-		contract, err := consortiumCommon.NewContractIntegrator(c.chainConfig, consortiumCommon.NewConsortiumBackend(c.ethAPI))
+		contract, err := consortiumCommon.NewContractIntegrator(c.chainConfig, consortiumCommon.NewConsortiumBackend(c.ethAPI), c.signTxFn)
 		if err != nil {
 			return err
 		}

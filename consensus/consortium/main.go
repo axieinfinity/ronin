@@ -104,7 +104,7 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 }
 
 func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB,
-	txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt) (*types.Block, error) {
+	txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt) (*types.Block, []*types.Receipt, error) {
 	if c.chainConfig.IsConsortiumV2(header.Number) {
 		return c.v2.FinalizeAndAssemble(chain, header, state, txs, uncles, receipts)
 	}

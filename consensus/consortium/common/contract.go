@@ -27,45 +27,54 @@ import (
 
 var errMethodUnimplemented = errors.New("method is unimplemented")
 
-type ContractIntegrator struct {
-	signer      types.Signer
-	validatorSC *validators.Validators
+func getTransactionOpts(from common.Address, nonce uint64, chainId *big.Int, signTxFn SignerTxFn) *bind.TransactOpts {
+	return &bind.TransactOpts{
+		From:     from,
+		GasLimit: 1000000,
+		GasPrice: big.NewInt(0),
+		Value:    new(big.Int).SetUint64(0),
+		Nonce:    new(big.Int).SetUint64(nonce),
+		NoSend:   true,
+		Signer: func(address common.Address, tx *types.Transaction) (*types.Transaction, error) {
+			return signTxFn(accounts.Account{Address: from}, tx, chainId)
+		},
+	}
 }
 
-func NewContractIntegrator(config *chainParams.ChainConfig, backend bind.ContractBackend) (*ContractIntegrator, error) {
+type ContractIntegrator struct {
+	chainId     *big.Int
+	signer      types.Signer
+	validatorSC *validators.Validators
+	signTxFn    SignerTxFn
+}
+
+func NewContractIntegrator(config *chainParams.ChainConfig, backend bind.ContractBackend, signTxFn SignerTxFn) (*ContractIntegrator, error) {
 	validatorSC, err := validators.NewValidators(config.ConsortiumV2Contracts.ValidatorSC, backend)
 	if err != nil {
 		return nil, err
 	}
 
 	return &ContractIntegrator{
+		chainId:     config.ChainID,
 		validatorSC: validatorSC,
+		signTxFn:    signTxFn,
+		signer:      types.LatestSignerForChainID(config.ChainID),
 	}, nil
 }
 
 func (c *ContractIntegrator) GetValidators(header *types.Header) ([]common.Address, error) {
-	addresses, err := c.validatorSC.GetValidators(&bind.CallOpts{
-		BlockNumber: new(big.Int).Sub(header.Number, common.Big1),
-	})
+	addresses, err := c.validatorSC.GetValidators(nil)
 	if err != nil {
 		return nil, err
 	}
-
 	return addresses, nil
 }
 
-func (c *ContractIntegrator) UpdateValidators(header *types.Header, opts *ApplyTransactOpts) error {
+func (c *ContractIntegrator) UpdateValidators(opts *ApplyTransactOpts) error {
 	coinbase := opts.Header.Coinbase
 	nonce := opts.State.GetNonce(coinbase)
 
-	tx, err := c.validatorSC.UpdateValidators(&bind.TransactOpts{
-		From:     coinbase,
-		GasLimit: math.MaxUint64 / 2,
-		GasPrice: big.NewInt(0),
-		Value:    new(big.Int).SetUint64(0),
-		Nonce:    new(big.Int).SetUint64(nonce),
-		NoSend:   true,
-	})
+	tx, err := c.validatorSC.UpdateValidators(getTransactionOpts(coinbase, nonce, c.chainId, c.signTxFn))
 	if err != nil {
 		return err
 	}
@@ -75,7 +84,7 @@ func (c *ContractIntegrator) UpdateValidators(header *types.Header, opts *ApplyT
 		return err
 	}
 
-	err = applyTransaction(msg, opts)
+	err = ApplyTransaction(msg, opts)
 	if err != nil {
 		return err
 	}
@@ -94,14 +103,7 @@ func (c *ContractIntegrator) DistributeRewards(to common.Address, opts *ApplyTra
 
 	log.Trace("distribute to validator contract", "block hash", opts.Header.Hash(), "amount", balance)
 	nonce := opts.State.GetNonce(coinbase)
-	tx, err := c.validatorSC.DepositReward(&bind.TransactOpts{
-		From:     coinbase,
-		GasLimit: math.MaxUint64 / 2,
-		GasPrice: big.NewInt(0),
-		Value:    balance,
-		Nonce:    new(big.Int).SetUint64(nonce),
-		NoSend:   true,
-	}, to)
+	tx, err := c.validatorSC.DepositReward(getTransactionOpts(coinbase, nonce, c.chainId, c.signTxFn), to)
 	if err != nil {
 		return err
 	}
@@ -111,7 +113,7 @@ func (c *ContractIntegrator) DistributeRewards(to common.Address, opts *ApplyTra
 		return err
 	}
 
-	err = applyTransaction(msg, opts)
+	err = ApplyTransaction(msg, opts)
 	if err != nil {
 		return err
 	}
@@ -140,9 +142,10 @@ type ApplyTransactOpts struct {
 	Signer      types.Signer
 	SignTxFn    SignerTxFn
 	EthAPI      *ethapi.PublicBlockChainAPI
+	Coinbase    common.Address
 }
 
-func applyTransaction(msg types.Message, opts *ApplyTransactOpts) (err error) {
+func ApplyTransaction(msg types.Message, opts *ApplyTransactOpts) (err error) {
 	signer := opts.Signer
 	signTxFn := opts.SignTxFn
 	miner := opts.Header.Coinbase
@@ -215,7 +218,7 @@ func applyMessage(
 	opts *ApplyMessageOpts,
 ) (uint64, error) {
 	// Create a new context to be used in the EVM environment
-	context := core.NewEVMBlockContext(opts.Header, opts.ChainContext, nil)
+	context := core.NewEVMBlockContext(opts.Header, opts.ChainContext, &opts.Header.Coinbase)
 	// Create a new environment which holds all relevant information
 	// about the transaction and calling mechanisms.
 	vmenv := vm.NewEVM(context, vm.TxContext{Origin: msg.From(), GasPrice: big.NewInt(0)}, opts.State, opts.ChainConfig, vm.Config{})
@@ -234,7 +237,7 @@ func applyMessage(
 }
 
 type ConsortiumBackend struct {
-	ee *ethapi.PublicBlockChainAPI
+	*ethapi.PublicBlockChainAPI
 }
 
 func NewConsortiumBackend(ee *ethapi.PublicBlockChainAPI) *ConsortiumBackend {
@@ -244,8 +247,12 @@ func NewConsortiumBackend(ee *ethapi.PublicBlockChainAPI) *ConsortiumBackend {
 }
 
 func (b *ConsortiumBackend) CodeAt(ctx context.Context, contract common.Address, blockNumber *big.Int) ([]byte, error) {
-	block := rpc.BlockNumberOrHashWithNumber(rpc.BlockNumber(blockNumber.Int64()))
-	result, err := b.ee.GetCode(ctx, contract, block)
+	blkNumber := rpc.LatestBlockNumber
+	if blockNumber != nil {
+		blkNumber = rpc.BlockNumber(blockNumber.Int64())
+	}
+	block := rpc.BlockNumberOrHashWithNumber(blkNumber)
+	result, err := b.GetCode(ctx, contract, block)
 	if err != nil {
 		return nil, err
 	}
@@ -254,11 +261,15 @@ func (b *ConsortiumBackend) CodeAt(ctx context.Context, contract common.Address,
 }
 
 func (b *ConsortiumBackend) CallContract(ctx context.Context, call ethereum.CallMsg, blockNumber *big.Int) ([]byte, error) {
-	block := rpc.BlockNumberOrHashWithNumber(rpc.BlockNumber(blockNumber.Int64()))
+	blkNumber := rpc.LatestBlockNumber
+	if blockNumber != nil {
+		blkNumber = rpc.BlockNumber(blockNumber.Int64())
+	}
+	block := rpc.BlockNumberOrHashWithNumber(blkNumber)
 	gas := (hexutil.Uint64)(uint64(math.MaxUint64 / 2))
 	data := (hexutil.Bytes)(call.Data)
 
-	result, err := b.ee.Call(ctx, ethapi.TransactionArgs{
+	result, err := b.Call(ctx, ethapi.TransactionArgs{
 		Gas:  &gas,
 		To:   call.To,
 		Data: &data,
@@ -267,11 +278,11 @@ func (b *ConsortiumBackend) CallContract(ctx context.Context, call ethereum.Call
 		return nil, err
 	}
 
-	return result.MarshalText()
+	return result, nil
 }
 
 func (b *ConsortiumBackend) HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error) {
-	return b.ee.GetHeader(ctx, rpc.BlockNumber(number.Int64()))
+	return b.GetHeader(ctx, rpc.BlockNumber(number.Int64()))
 }
 
 func (b *ConsortiumBackend) PendingCodeAt(ctx context.Context, account common.Address) ([]byte, error) {
