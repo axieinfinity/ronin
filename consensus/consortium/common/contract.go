@@ -30,7 +30,7 @@ var errMethodUnimplemented = errors.New("method is unimplemented")
 func getTransactionOpts(from common.Address, nonce uint64, chainId *big.Int, signTxFn SignerTxFn) *bind.TransactOpts {
 	return &bind.TransactOpts{
 		From:     from,
-		GasLimit: math.MaxUint64 / 2,
+		GasLimit: 99999999,
 		GasPrice: big.NewInt(0),
 		Value:    new(big.Int).SetUint64(0),
 		Nonce:    new(big.Int).SetUint64(nonce),
@@ -63,12 +63,7 @@ func NewContractIntegrator(config *chainParams.ChainConfig, backend bind.Contrac
 }
 
 func (c *ContractIntegrator) GetValidators(header *types.Header) ([]common.Address, error) {
-	addresses, err := c.validatorSC.GetValidators(&bind.CallOpts{
-		Pending:     false,
-		From:        header.Coinbase,
-		BlockNumber: header.Number,
-		Context:     context.Background(),
-	})
+	addresses, err := c.validatorSC.GetValidators(nil)
 	if err != nil {
 		return nil, err
 	}
@@ -243,14 +238,12 @@ func applyMessage(
 }
 
 type ConsortiumBackend struct {
-	ee    *ethapi.PublicBlockChainAPI
-	state *state.StateDB
+	*ethapi.PublicBlockChainAPI
 }
 
-func NewConsortiumBackend(ee *ethapi.PublicBlockChainAPI, state *state.StateDB) *ConsortiumBackend {
+func NewConsortiumBackend(ee *ethapi.PublicBlockChainAPI) *ConsortiumBackend {
 	return &ConsortiumBackend{
 		ee,
-		state,
 	}
 }
 
@@ -260,7 +253,7 @@ func (b *ConsortiumBackend) CodeAt(ctx context.Context, contract common.Address,
 		blkNumber = rpc.BlockNumber(blockNumber.Int64())
 	}
 	block := rpc.BlockNumberOrHashWithNumber(blkNumber)
-	result, err := b.ee.GetCode(ctx, contract, block)
+	result, err := b.GetCode(ctx, contract, block)
 	if err != nil {
 		return nil, err
 	}
@@ -277,7 +270,7 @@ func (b *ConsortiumBackend) CallContract(ctx context.Context, call ethereum.Call
 	gas := (hexutil.Uint64)(uint64(math.MaxUint64 / 2))
 	data := (hexutil.Bytes)(call.Data)
 
-	result, err := b.ee.Call(ctx, ethapi.TransactionArgs{
+	result, err := b.Call(ctx, ethapi.TransactionArgs{
 		Gas:  &gas,
 		To:   call.To,
 		Data: &data,
@@ -286,11 +279,11 @@ func (b *ConsortiumBackend) CallContract(ctx context.Context, call ethereum.Call
 		return nil, err
 	}
 
-	return result.MarshalText()
+	return result, nil
 }
 
 func (b *ConsortiumBackend) HeaderByNumber(ctx context.Context, number *big.Int) (*types.Header, error) {
-	return b.ee.GetHeader(ctx, rpc.BlockNumber(number.Int64()))
+	return b.GetHeader(ctx, rpc.BlockNumber(number.Int64()))
 }
 
 func (b *ConsortiumBackend) PendingCodeAt(ctx context.Context, account common.Address) ([]byte, error) {
