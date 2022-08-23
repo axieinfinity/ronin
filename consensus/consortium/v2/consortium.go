@@ -684,7 +684,18 @@ func (c *Consortium) Authorize(signer common.Address, signFn consortiumCommon.Si
 }
 
 func (c *Consortium) Delay(chain consensus.ChainReader, header *types.Header) *time.Duration {
-	return nil
+	number := header.Number.Uint64()
+	snap, err := c.snapshot(chain, number-1, header.ParentHash, nil)
+	if err != nil {
+		return nil
+	}
+	delay := c.delayForConsortiumV2Fork(snap, header)
+	// The blocking time should be no more than half of period
+	half := time.Duration(c.config.Period) * time.Second / 2
+	if delay > half {
+		delay = half
+	}
+	return &delay
 }
 
 func (c *Consortium) Seal(chain consensus.ChainHeaderReader, block *types.Block, results chan<- *types.Block, stop <-chan struct{}) error {
@@ -780,7 +791,11 @@ func (c *Consortium) APIs(chain consensus.ChainHeaderReader) []rpc.API {
 }
 
 func (c *Consortium) CalcDifficulty(chain consensus.ChainHeaderReader, time uint64, parent *types.Header) *big.Int {
-	return nil
+	snap, err := c.snapshot(chain, parent.Number.Uint64(), parent.Hash(), nil)
+	if err != nil {
+		return nil
+	}
+	return CalcDifficulty(snap, c.val)
 }
 
 // CalcDifficulty is the difficulty adjustment algorithm. It returns the difficulty
