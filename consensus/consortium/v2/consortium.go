@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	consortiumCommon "github.com/ethereum/go-ethereum/consensus/consortium/common"
@@ -687,6 +688,82 @@ func (c *Consortium) Delay(chain consensus.ChainReader, header *types.Header) *t
 }
 
 func (c *Consortium) Seal(chain consensus.ChainHeaderReader, block *types.Block, results chan<- *types.Block, stop <-chan struct{}) error {
+	header := block.Header()
+
+	// Sealing the genesis block is not supported
+	number := header.Number.Uint64()
+	if number == 0 {
+		return consortiumCommon.ErrUnknownBlock
+	}
+	// For 0-period chains, refuse to seal empty blocks (no reward but would spin sealing)
+	if c.config.Period == 0 && len(block.Transactions()) == 0 {
+		log.Info("Sealing paused, waiting for transactions")
+		return nil
+	}
+	// Don't hold the val fields for the entire sealing procedure
+	c.lock.RLock()
+	val, signFn := c.val, c.signFn
+	c.lock.RUnlock()
+
+	snap, err := c.snapshot(chain, number-1, header.ParentHash, nil)
+	if err != nil {
+		return err
+	}
+
+	// Bail out if we're unauthorized to sign a block
+	if _, authorized := snap.Validators[val]; !authorized {
+		return errUnauthorizedValidator
+	}
+
+	// If we're amongst the recent signers, wait for the next block
+	for seen, recent := range snap.Recents {
+		if recent == val {
+			// Signer is among recents, only wait if the current block doesn't shift it out
+			if limit := uint64(len(snap.Validators)/2 + 1); number < limit || seen > number-limit {
+				log.Info("Signed recently, must wait for others")
+				return nil
+			}
+		}
+	}
+
+	// Sweet, the protocol permits us to sign the block, wait for our time
+	delay := c.delayForConsortiumV2Fork(snap, header)
+
+	log.Info("Sealing block with", "number", number, "delay", delay, "headerDifficulty", header.Difficulty, "val", val.Hex())
+
+	// Sign all the things!
+	sig, err := signFn(accounts.Account{Address: val}, accounts.MimetypeConsortium, consortiumRLP(header, c.chainConfig.ChainID))
+	if err != nil {
+		return err
+	}
+	copy(header.Extra[len(header.Extra)-extraSeal:], sig)
+
+	// Wait until sealing is terminated or delay timeout.
+	log.Trace("Waiting for slot to sign and propagate", "delay", common.PrettyDuration(delay))
+	go func() {
+		select {
+		case <-stop:
+			return
+		case <-time.After(delay):
+		}
+		//if c.shouldWaitForCurrentBlockProcess(chain, header, snap) {
+		//	log.Info("Waiting for received in turn block to process")
+		//	select {
+		//	case <-stop:
+		//		log.Info("Received block process finished, abort block seal")
+		//		return
+		//	case <-time.After(time.Duration(processBackOffTime) * time.Second):
+		//		log.Info("Process backoff time exhausted, start to seal block")
+		//	}
+		//}
+
+		select {
+		case results <- block.WithSeal(header):
+		default:
+			log.Warn("Sealing result is not read by miner", "sealhash", SealHash(header, c.chainConfig.ChainID))
+		}
+	}()
+
 	return nil
 }
 
