@@ -1035,7 +1035,12 @@ func DoEstimateGas(ctx context.Context, b Backend, args TransactionArgs, blockNr
 		if err != nil {
 			return 0, err
 		}
-		balance := state.GetBalance(*args.From) // from can't be nil
+		var balance *big.Int
+		if args.TicketPayer != nil {
+			balance = state.GetBalance(*args.TicketPayer)
+		} else {
+			balance = state.GetBalance(*args.From) // from can't be nil
+		}
 		available := new(big.Int).Set(balance)
 		if args.Value != nil {
 			if args.Value.ToInt().Cmp(available) >= 0 {
@@ -1272,25 +1277,34 @@ func (s *PublicBlockChainAPI) rpcMarshalBlock(ctx context.Context, b *types.Bloc
 
 // RPCTransaction represents a transaction that will serialize to the RPC representation of a transaction
 type RPCTransaction struct {
-	BlockHash        *common.Hash      `json:"blockHash"`
-	BlockNumber      *hexutil.Big      `json:"blockNumber"`
-	From             common.Address    `json:"from"`
-	Gas              hexutil.Uint64    `json:"gas"`
-	GasPrice         *hexutil.Big      `json:"gasPrice"`
-	GasFeeCap        *hexutil.Big      `json:"maxFeePerGas,omitempty"`
-	GasTipCap        *hexutil.Big      `json:"maxPriorityFeePerGas,omitempty"`
-	Hash             common.Hash       `json:"hash"`
-	Input            hexutil.Bytes     `json:"input"`
-	Nonce            hexutil.Uint64    `json:"nonce"`
-	To               *common.Address   `json:"to"`
-	TransactionIndex *hexutil.Uint64   `json:"transactionIndex"`
-	Value            *hexutil.Big      `json:"value"`
-	Type             hexutil.Uint64    `json:"type"`
-	Accesses         *types.AccessList `json:"accessList,omitempty"`
-	ChainID          *hexutil.Big      `json:"chainId,omitempty"`
-	V                *hexutil.Big      `json:"v"`
-	R                *hexutil.Big      `json:"r"`
-	S                *hexutil.Big      `json:"s"`
+	BlockHash            *common.Hash      `json:"blockHash"`
+	BlockNumber          *hexutil.Big      `json:"blockNumber"`
+	From                 common.Address    `json:"from"`
+	Gas                  hexutil.Uint64    `json:"gas"`
+	GasPrice             *hexutil.Big      `json:"gasPrice"`
+	GasFeeCap            *hexutil.Big      `json:"maxFeePerGas,omitempty"`
+	GasTipCap            *hexutil.Big      `json:"maxPriorityFeePerGas,omitempty"`
+	Hash                 common.Hash       `json:"hash"`
+	Input                hexutil.Bytes     `json:"input"`
+	Nonce                hexutil.Uint64    `json:"nonce"`
+	To                   *common.Address   `json:"to"`
+	TransactionIndex     *hexutil.Uint64   `json:"transactionIndex"`
+	Value                *hexutil.Big      `json:"value"`
+	Type                 hexutil.Uint64    `json:"type"`
+	Accesses             *types.AccessList `json:"accessList,omitempty"`
+	ChainID              *hexutil.Big      `json:"chainId,omitempty"`
+	Payer                *common.Address   `json:"payer,omitempty"`
+	TicketNonce          *hexutil.Big      `json:"ticketNonce,omitempty"`
+	TicketAllowance      *hexutil.Big      `json:"ticketAllowance,omitempty"`
+	TicketRecipients     *[]common.Address `json:"ticketRecipients,omitempty"`
+	TicketExpirationTime *hexutil.Big      `json:"ticketExpirationTime,omitempty"`
+	TicketMaxUse         *hexutil.Big      `json:"ticketMaxUse,omitempty"`
+	TicketV              *hexutil.Big      `json:"ticketV,omitempty"`
+	TicketR              *hexutil.Big      `json:"ticketR,omitempty"`
+	TicketS              *hexutil.Big      `json:"ticketS,omitempty"`
+	V                    *hexutil.Big      `json:"v"`
+	R                    *hexutil.Big      `json:"r"`
+	S                    *hexutil.Big      `json:"s"`
 }
 
 // newRPCTransaction returns a transaction that will serialize to the RPC
@@ -1337,6 +1351,18 @@ func newRPCTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber
 		} else {
 			result.GasPrice = (*hexutil.Big)(tx.GasFeeCap())
 		}
+	case types.TransactionPassTxType:
+		giftTicket := tx.GiftTicket()
+		payer, _ := types.Payer(signer, tx)
+		result.Payer = &payer
+		result.TicketNonce = (*hexutil.Big)(giftTicket.Nonce)
+		result.TicketRecipients = &giftTicket.Recipients
+		result.TicketAllowance = (*hexutil.Big)(giftTicket.Allowance)
+		result.TicketExpirationTime = (*hexutil.Big)(giftTicket.ExpirationTime)
+		result.TicketMaxUse = (*hexutil.Big)(giftTicket.MaxUse)
+		result.TicketV = (*hexutil.Big)(giftTicket.V)
+		result.TicketR = (*hexutil.Big)(giftTicket.R)
+		result.TicketS = (*hexutil.Big)(giftTicket.S)
 	}
 	return result
 }

@@ -52,6 +52,16 @@ type TransactionArgs struct {
 	// Introduced by AccessListTxType transaction.
 	AccessList *types.AccessList `json:"accessList,omitempty"`
 	ChainID    *hexutil.Big      `json:"chainId,omitempty"`
+
+	// Introduced by TransactionPassTxType transaction.
+	TicketNonce          *hexutil.Big      `json:"ticketNonce,omitempty"`
+	TicketAllowance      *hexutil.Big      `json:"ticketAllowance,omitempty"`
+	TicketRecipients     *[]common.Address `json:"ticketRecipients,omitempty"`
+	TicketExpirationTime *hexutil.Big      `json:"ticketExpirationTime,omitempty"`
+	TicketMaxUse         *hexutil.Big      `json:"ticketMaxUse,omitempty"`
+	TicketV              *hexutil.Big      `json:"ticketV,omitempty"`
+	TicketR              *hexutil.Big      `json:"ticketR,omitempty"`
+	TicketS              *hexutil.Big      `json:"ticketS,omitempty"`
 }
 
 // from retrieves the transaction sender address.
@@ -172,6 +182,31 @@ func (args *TransactionArgs) setDefaults(ctx context.Context, b Backend) error {
 	return nil
 }
 
+func (args *TransactionArgs) isTransactionPassTx() bool {
+	if args.TicketNonce != nil &&
+		args.TicketAllowance != nil &&
+		args.TicketRecipients != nil &&
+		args.TicketExpirationTime != nil &&
+		args.TicketMaxUse != nil &&
+		args.TicketR != nil &&
+		args.TicketS != nil &&
+		args.TicketV != nil {
+		return true
+	}
+
+	return false
+}
+
+func (args *TransactionArgs) getGiftTicket() *types.GiftTicket {
+	return &types.GiftTicket{
+		Nonce:          args.TicketNonce.ToInt(),
+		Allowance:      args.TicketAllowance.ToInt(),
+		Recipients:     *args.TicketRecipients,
+		ExpirationTime: args.TicketExpirationTime.ToInt(),
+		MaxUse:         args.TicketMaxUse.ToInt(),
+	}
+}
+
 // ToMessage converts the transaction arguments to the Message type used by the
 // core evm. This method is used in calls and traces that do not require a real
 // live transaction.
@@ -239,7 +274,23 @@ func (args *TransactionArgs) ToMessage(globalGasCap uint64, baseFee *big.Int) (t
 	if args.AccessList != nil {
 		accessList = *args.AccessList
 	}
-	msg := types.NewMessage(addr, args.To, 0, value, gas, gasPrice, gasFeeCap, gasTipCap, data, accessList, true)
+
+	var giftTicket *types.GiftTicket = nil
+	var payer *common.Address = nil
+	if args.isTransactionPassTx() {
+		giftTicket = args.getGiftTicket()
+		hash, err := giftTicket.Hash()
+		if err != nil {
+			return types.Message{}, errors.New("failed to hash gift ticket")
+		}
+		payerAddress, err := types.RecoverPlain(hash, args.TicketR.ToInt(), args.TicketS.ToInt(), args.TicketV.ToInt(), true)
+		if err != nil {
+			return types.Message{}, errors.New("cannot recover payer from signature")
+		}
+		payer = &payerAddress
+	}
+
+	msg := types.NewMessage(addr, args.To, 0, value, gas, gasPrice, gasFeeCap, gasTipCap, data, accessList, true, payer, giftTicket)
 	return msg, nil
 }
 
@@ -274,6 +325,23 @@ func (args *TransactionArgs) toTransaction() *types.Transaction {
 			Value:      (*big.Int)(args.Value),
 			Data:       args.data(),
 			AccessList: *args.AccessList,
+		}
+	case args.isTransactionPassTx():
+		data = &types.TransactionPassTx{
+			LegacyTx: &types.LegacyTx{
+				To:       args.To,
+				Nonce:    uint64(*args.Nonce),
+				Gas:      uint64(*args.Gas),
+				GasPrice: (*big.Int)(args.GasPrice),
+				Value:    (*big.Int)(args.Value),
+				Data:     args.data(),
+			},
+			FullGiftTicket: types.FullGiftTicket{
+				GiftTicket: *args.getGiftTicket(),
+				V:          (*big.Int)(args.TicketV),
+				R:          (*big.Int)(args.TicketR),
+				S:          (*big.Int)(args.TicketS),
+			},
 		}
 	default:
 		data = &types.LegacyTx{
