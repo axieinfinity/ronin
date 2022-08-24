@@ -206,26 +206,28 @@ type NewLog struct {
 
 // NewTransaction represents a transaction that will be published to message broker when new block has been mined
 type NewTransaction struct {
-	BlockHash         common.Hash     `json:"blockHash"`
-	BlockNumber       uint64          `json:"blockNumber"`
-	TimeStamp         uint64          `json:"timestamp"`
-	From              common.Address  `json:"from"`
-	ContractAddress   common.Address  `json:"contractAddress"`
-	Status            uint64          `json:"status"`
-	Gas               hexutil.Uint64  `json:"gas"`
-	GasPrice          *hexutil.Big    `json:"gasPrice"`
-	GasUsed           uint64          `json:"gasUsed"`
-	CumulativeGasUsed uint64          `json:"cumulativeGasUsed"`
-	Hash              common.Hash     `json:"hash"`
-	Input             hexutil.Bytes   `json:"input"`
-	Nonce             hexutil.Uint64  `json:"nonce"`
-	To                *common.Address `json:"to"`
-	TransactionIndex  hexutil.Uint    `json:"transactionIndex"`
-	Value             *hexutil.Big    `json:"value"`
-	V                 *hexutil.Big    `json:"v"`
-	R                 *hexutil.Big    `json:"r"`
-	S                 *hexutil.Big    `json:"s"`
-	PublishedTime     int64           `json:"publishedTime"`
+	BlockHash         common.Hash           `json:"blockHash"`
+	BlockNumber       uint64                `json:"blockNumber"`
+	TimeStamp         uint64                `json:"timestamp"`
+	From              common.Address        `json:"from"`
+	ContractAddress   common.Address        `json:"contractAddress"`
+	Status            uint64                `json:"status"`
+	Gas               hexutil.Uint64        `json:"gas"`
+	GasPrice          *hexutil.Big          `json:"gasPrice"`
+	GasUsed           uint64                `json:"gasUsed"`
+	CumulativeGasUsed uint64                `json:"cumulativeGasUsed"`
+	Hash              common.Hash           `json:"hash"`
+	Input             hexutil.Bytes         `json:"input"`
+	Nonce             hexutil.Uint64        `json:"nonce"`
+	To                *common.Address       `json:"to"`
+	TransactionIndex  hexutil.Uint          `json:"transactionIndex"`
+	Value             *hexutil.Big          `json:"value"`
+	V                 *hexutil.Big          `json:"v"`
+	R                 *hexutil.Big          `json:"r"`
+	S                 *hexutil.Big          `json:"s"`
+	PublishedTime     int64                 `json:"publishedTime"`
+	Payer             *common.Address       `json:"payer"`
+	GiftTicket        *types.FullGiftTicket `json:"giftTicket"`
 }
 
 // NewBlock represents a block that will be published to message broker when new block has been mined
@@ -282,6 +284,14 @@ func newTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber, t
 	from, _ := types.Sender(signer, tx)
 	v, r, s := tx.RawSignatureValues()
 
+	var payerAddress *common.Address = nil
+	var giftTicket *types.FullGiftTicket = nil
+	if tx.Type() == types.TransactionPassTxType {
+		payer, _ := types.Payer(signer, tx)
+		payerAddress = &payer
+		giftTicket = tx.GiftTicket()
+	}
+
 	result := &NewTransaction{
 		From:          from,
 		TimeStamp:     timestamp,
@@ -296,6 +306,8 @@ func newTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber, t
 		R:             (*hexutil.Big)(r),
 		S:             (*hexutil.Big)(s),
 		PublishedTime: time.Now().UnixNano(),
+		Payer:         payerAddress,
+		GiftTicket:    giftTicket,
 	}
 	if blockHash != (common.Hash{}) {
 		result.BlockHash = blockHash
