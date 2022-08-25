@@ -783,7 +783,7 @@ func (c *Consortium) signerInTurn(signer common.Address, number uint64, validato
 
 func (c *Consortium) initContract() error {
 	if c.chainConfig.ConsortiumV2Block != nil && c.chainConfig.ConsortiumV2Contracts != nil {
-		contract, err := consortiumCommon.NewContractIntegrator(c.chainConfig, consortiumCommon.NewConsortiumBackend(c.ethAPI), c.signTxFn)
+		contract, err := consortiumCommon.NewContractIntegrator(c.chainConfig, consortiumCommon.NewConsortiumBackend(c.ethAPI), c.signTxFn, c.val)
 		if err != nil {
 			return err
 		}
