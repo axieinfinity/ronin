@@ -668,7 +668,6 @@ func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, head
 	if err != nil {
 		return nil, nil, err
 	}
-	header.GasUsed = *transactOpts.UsedGas
 	// should not happen. Once happen, stop the node is better than broadcast the block
 	if header.GasLimit < header.GasUsed {
 		return nil, nil, errors.New("gas consumption of system txs exceed the gas limit")
