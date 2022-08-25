@@ -63,19 +63,19 @@ func TestAddNode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	contractIntegrator, err := NewContractIntegrator(&params.ChainConfig{
-		ConsortiumV2Contracts: &params.ConsortiumV2Contracts{
-			ValidatorSC: common.HexToAddress("0x089f10d52008F962f9E09EFBD2E5275BFf56045b"),
-		},
-	}, client, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
 	key, err := loadKey()
 	if err != nil {
 		t.Fatal(err)
 	}
 	address := common.HexToAddress("da0479bed856764502249bec9a3acd1c3da2cf23")
+	contractIntegrator, err := NewContractIntegrator(&params.ChainConfig{
+		ConsortiumV2Contracts: &params.ConsortiumV2Contracts{
+			ValidatorSC: common.HexToAddress("0x089f10d52008F962f9E09EFBD2E5275BFf56045b"),
+		},
+	}, client, nil, address)
+	if err != nil {
+		t.Fatal(err)
+	}
 	nonce, err := client.NonceAt(context.Background(), address, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -119,7 +119,7 @@ func TestGetLatestValidators(t *testing.T) {
 		ConsortiumV2Contracts: &params.ConsortiumV2Contracts{
 			ValidatorSC: common.HexToAddress("089f10d52008F962f9E09EFBD2E5275BFf56045b"),
 		},
-	}, client, nil)
+	}, client, nil, common.Address{})
 	if err != nil {
 		t.Fatal(err)
 	}

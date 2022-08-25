@@ -46,9 +46,10 @@ type ContractIntegrator struct {
 	signer      types.Signer
 	validatorSC *validators.Validators
 	signTxFn    SignerTxFn
+	coinbase    common.Address
 }
 
-func NewContractIntegrator(config *chainParams.ChainConfig, backend bind.ContractBackend, signTxFn SignerTxFn) (*ContractIntegrator, error) {
+func NewContractIntegrator(config *chainParams.ChainConfig, backend bind.ContractBackend, signTxFn SignerTxFn, coinbase common.Address) (*ContractIntegrator, error) {
 	validatorSC, err := validators.NewValidators(config.ConsortiumV2Contracts.ValidatorSC, backend)
 	if err != nil {
 		return nil, err
@@ -59,6 +60,7 @@ func NewContractIntegrator(config *chainParams.ChainConfig, backend bind.Contrac
 		validatorSC: validatorSC,
 		signTxFn:    signTxFn,
 		signer:      types.LatestSignerForChainID(config.ChainID),
+		coinbase:    coinbase,
 	}, nil
 }
 
@@ -71,19 +73,23 @@ func (c *ContractIntegrator) GetValidators(header *types.Header) ([]common.Addre
 }
 
 func (c *ContractIntegrator) UpdateValidators(opts *ApplyTransactOpts) error {
-	coinbase := opts.Header.Coinbase
-	nonce := opts.State.GetNonce(coinbase)
-
-	tx, err := c.validatorSC.UpdateValidators(getTransactionOpts(coinbase, nonce, c.chainId, c.signTxFn))
+	nonce := opts.State.GetNonce(c.coinbase)
+	tx, err := c.validatorSC.UpdateValidators(getTransactionOpts(c.coinbase, nonce, c.chainId, c.signTxFn))
 	if err != nil {
 		return err
 	}
-
-	msg, err := tx.AsMessage(c.signer, big.NewInt(0))
-	if err != nil {
-		return err
-	}
-
+	msg := types.NewMessage(
+		opts.Header.Coinbase, tx.To(),
+		opts.Header.Nonce.Uint64(),
+		tx.Value(),
+		tx.Gas(),
+		big.NewInt(0),
+		big.NewInt(0),
+		big.NewInt(0),
+		tx.Data(),
+		tx.AccessList(),
+		false,
+	)
 	err = ApplyTransaction(msg, opts)
 	if err != nil {
 		return err
@@ -102,16 +108,24 @@ func (c *ContractIntegrator) DistributeRewards(to common.Address, opts *ApplyTra
 	opts.State.AddBalance(coinbase, balance)
 
 	log.Info("distribute to validator contract", "block hash", opts.Header.Hash(), "amount", balance.String())
-	nonce := opts.State.GetNonce(coinbase)
-	tx, err := c.validatorSC.DepositReward(getTransactionOpts(coinbase, nonce, c.chainId, c.signTxFn), to)
+	nonce := opts.State.GetNonce(c.coinbase)
+	tx, err := c.validatorSC.DepositReward(getTransactionOpts(c.coinbase, nonce, c.chainId, c.signTxFn), to)
 	if err != nil {
 		return err
 	}
 
-	msg, err := tx.AsMessage(c.signer, big.NewInt(0))
-	if err != nil {
-		return err
-	}
+	msg := types.NewMessage(
+		opts.Header.Coinbase, tx.To(),
+		opts.Header.Nonce.Uint64(),
+		tx.Value(),
+		tx.Gas(),
+		big.NewInt(0),
+		big.NewInt(0),
+		big.NewInt(0),
+		tx.Data(),
+		tx.AccessList(),
+		false,
+	)
 
 	err = ApplyTransaction(msg, opts)
 	if err != nil {
