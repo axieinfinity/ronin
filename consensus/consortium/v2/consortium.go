@@ -98,6 +98,7 @@ type Consortium struct {
 	contract *consortiumCommon.ContractIntegrator
 
 	fakeDiff bool
+	v1       consortiumCommon.ConsortiumAdapter
 }
 
 func New(
@@ -105,6 +106,7 @@ func New(
 	db ethdb.Database,
 	ethAPI *ethapi.PublicBlockChainAPI,
 	genesisHash common.Hash,
+	v1 consortiumCommon.ConsortiumAdapter,
 ) *Consortium {
 	consortiumConfig := chainConfig.Consortium
 
@@ -125,6 +127,7 @@ func New(
 		recents:     recents,
 		signatures:  signatures,
 		signer:      types.NewEIP155Signer(chainConfig.ChainID),
+		v1:          v1,
 	}
 }
 
@@ -188,6 +191,10 @@ func (c *Consortium) VerifyHeaders(chain consensus.ChainHeaderReader, headers []
 	return abort, results
 }
 
+func (c *Consortium) GetRecents(chain consensus.ChainHeaderReader, number uint64) map[uint64]common.Address {
+	return nil
+}
+
 func (c *Consortium) VerifyHeaderAndParents(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header) error {
 	if header.Number == nil {
 		return consortiumCommon.ErrUnknownBlock
@@ -206,7 +213,7 @@ func (c *Consortium) VerifyHeaderAndParents(chain consensus.ChainHeaderReader, h
 		return consortiumCommon.ErrMissingSignature
 	}
 	// check extra data
-	isEpoch := number%c.config.Epoch == 0
+	isEpoch := number%c.config.Epoch == 0 || c.chainConfig.IsOnConsortiumV2(header.Number)
 
 	// Ensure that the extra-data contains a signer list on checkpoint, but none otherwise
 	signersBytes := len(header.Extra) - extraVanity - extraSeal
@@ -300,6 +307,9 @@ func (c *Consortium) verifyCascadingFields(chain consensus.ChainHeaderReader, he
 }
 
 func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, hash common.Hash, parents []*types.Header) (*Snapshot, error) {
+	if err := c.initContract(); err != nil {
+		return nil, err
+	}
 	// Search for a snapshot in memory or on disk for checkpoints
 	var (
 		headers []*types.Header
@@ -323,7 +333,7 @@ func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, 
 		}
 
 		// If we're at the genesis, snapshot the initial state.
-		if number == 0 || c.chainConfig.IsConsortiumV2(big.NewInt(0).SetUint64(number+1)) {
+		if number == 0 || c.chainConfig.IsOnConsortiumV2(big.NewInt(0).SetUint64(number+1)) {
 			checkpoint := chain.GetHeaderByNumber(number)
 			if checkpoint != nil {
 				// get checkpoint data
@@ -335,6 +345,15 @@ func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, 
 				}
 
 				snap = newSnapshot(c.config, c.signatures, number, hash, validators, c.ethAPI)
+				// get recents from v1 if number is end of v1
+				if c.chainConfig.IsOnConsortiumV2(big.NewInt(0).SetUint64(number + 1)) {
+					recents := c.v1.GetRecents(chain, number)
+					if recents != nil {
+						log.Info("adding previous recents to current snapshot", "number", number, "hash", hash.Hex(), "recents", recents)
+						snap.Recents = recents
+					}
+				}
+				// store snap to db
 				if err := snap.store(c.db); err != nil {
 					return nil, err
 				}
@@ -513,7 +532,7 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 	if err != nil {
 		return err
 	}
-
+	log.Info("[Finalize] Before applying system contract", "number", header.Number.Uint64(), "root", header.Root.Hex(), "stateRoot", state.IntermediateRoot(chain.Config().IsEIP158(header.Number)).Hex())
 	transactOpts := &consortiumCommon.ApplyTransactOpts{
 		ApplyMessageOpts: &consortiumCommon.ApplyMessageOpts{
 			State:        state,
@@ -580,6 +599,7 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 	if err != nil {
 		return err
 	}
+	log.Info("[Finalize] After applying system contract", "root", header.Root.Hex(), "stateRoot", state.IntermediateRoot(chain.Config().IsEIP158(header.Number)).Hex())
 	if len(*systemTxs) > 0 {
 		return errors.New("the length of systemTxs do not match")
 	}
@@ -662,13 +682,14 @@ func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, head
 		wg.Done()
 	}()
 	go func() {
-		blk = types.NewBlock(header, txs, nil, receipts, trie.NewStackTrie(nil))
+		log.Info("[FinalizeAndAssemble] creating new block", "number", header.Number.Uint64(), "txs", len(*transactOpts.Txs), "receipts", len(*transactOpts.Receipts), "root", header.Root.Hex())
+		blk = types.NewBlock(header, *transactOpts.Txs, nil, *transactOpts.Receipts, trie.NewStackTrie(nil))
 		wg.Done()
 	}()
 	wg.Wait()
 	blk.SetRoot(rootHash)
 	// Assemble and return the final block for sealing
-	return blk, receipts, nil
+	return blk, *transactOpts.Receipts, nil
 }
 
 func (c *Consortium) Authorize(signer common.Address, signFn consortiumCommon.SignerFn, signTxFn consortiumCommon.SignerTxFn) {

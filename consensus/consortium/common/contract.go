@@ -101,7 +101,7 @@ func (c *ContractIntegrator) DistributeRewards(to common.Address, opts *ApplyTra
 	opts.State.SetBalance(consensus.SystemAddress, big.NewInt(0))
 	opts.State.AddBalance(coinbase, balance)
 
-	log.Trace("distribute to validator contract", "block hash", opts.Header.Hash(), "amount", balance)
+	log.Info("distribute to validator contract", "block hash", opts.Header.Hash(), "amount", balance.String())
 	nonce := opts.State.GetNonce(coinbase)
 	tx, err := c.validatorSC.DepositReward(getTransactionOpts(coinbase, nonce, c.chainId, c.signTxFn), to)
 	if err != nil {

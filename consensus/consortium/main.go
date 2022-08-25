@@ -27,7 +27,7 @@ type Consortium struct {
 func New(chainConfig *params.ChainConfig, db ethdb.Database, ee *ethapi.PublicBlockChainAPI, genesisHash common.Hash) *Consortium {
 	// Set any missing consensus parameters to their defaults
 	consortiumV1 := v1.New(chainConfig, db, ee)
-	consortiumV2 := v2.New(chainConfig, db, ee, genesisHash)
+	consortiumV2 := v2.New(chainConfig, db, ee, genesisHash, consortiumV1)
 
 	return &Consortium{
 		chainConfig: chainConfig,

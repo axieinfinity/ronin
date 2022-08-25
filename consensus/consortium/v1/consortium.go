@@ -708,6 +708,15 @@ func (c *Consortium) CalcDifficulty(chain consensus.ChainHeaderReader, time uint
 	return c.doCalcDifficulty(c.val, number, validators)
 }
 
+func (c *Consortium) GetRecents(chain consensus.ChainHeaderReader, number uint64) map[uint64]common.Address {
+	header := chain.GetHeaderByNumber(number)
+	snap, err := c.snapshot(chain, number, header.Hash(), nil)
+	if err != nil {
+		return nil
+	}
+	return snap.Recents
+}
+
 func signerInList(signer common.Address, validators []common.Address) bool {
 	for _, validator := range validators {
 		if signer == validator {
