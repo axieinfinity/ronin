@@ -19,7 +19,6 @@ package miner
 import (
 	"bytes"
 	"errors"
-	"github.com/ethereum/go-ethereum/core/systemcontracts"
 	"math/big"
 	"sync"
 	"sync/atomic"
@@ -686,6 +685,7 @@ func (w *worker) makeCurrent(parent *types.Block, header *types.Header) error {
 	if err != nil {
 		return err
 	}
+	log.Info("[worker][makeCurrent] parent state", "parent", parent.Number().Uint64(), "stateRoot", state.IntermediateRoot(w.chainConfig.IsEIP158(header.Number)), "root", parent.Root().Hex())
 	state.StartPrefetcher("miner")
 
 	env := &environment{
@@ -965,9 +965,6 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 	if w.chainConfig.DAOForkSupport && w.chainConfig.DAOForkBlock != nil && w.chainConfig.DAOForkBlock.Cmp(header.Number) == 0 {
 		misc.ApplyDAOHardFork(env.state)
 	}
-
-	// Handle upgrade build-in system contract code
-	systemcontracts.UpgradeBuildInSystemContract(w.chainConfig, header.Number, env.state)
 
 	// Accumulate the uncles for the current block
 	uncles := make([]*types.Header, 0, 2)

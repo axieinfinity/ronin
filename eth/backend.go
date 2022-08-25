@@ -254,6 +254,10 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 			return state.GetFenixValidators(stateDb, eth.blockchain.Config().FenixValidatorContractAddress), nil
 		})
 	}
+	// The first thing the node will do is reconstruct the verification data for
+	// the head block (ethash cache or clique voting snapshot). Might as well do
+	// it in advance.
+	eth.engine.VerifyHeader(eth.blockchain, eth.blockchain.CurrentHeader(), true)
 
 	eth.miner = miner.New(eth, &config.Miner, chainConfig, eth.EventMux(), eth.engine, eth.isLocalBlock)
 	eth.miner.SetExtra(makeExtraData(config.Miner.ExtraData))
