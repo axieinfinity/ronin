@@ -532,7 +532,6 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 	if err != nil {
 		return err
 	}
-	log.Info("[Finalize] Before applying system contract", "number", header.Number.Uint64(), "root", header.Root.Hex(), "stateRoot", state.IntermediateRoot(chain.Config().IsEIP158(header.Number)).Hex())
 	transactOpts := &consortiumCommon.ApplyTransactOpts{
 		ApplyMessageOpts: &consortiumCommon.ApplyMessageOpts{
 			State:        state,
@@ -595,11 +594,10 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 		}
 	}
 
-	err = c.contract.DistributeRewards(c.val, transactOpts)
+	err = c.contract.DistributeRewards(header.Coinbase, transactOpts)
 	if err != nil {
 		return err
 	}
-	log.Info("[Finalize] After applying system contract", "root", header.Root.Hex(), "stateRoot", state.IntermediateRoot(chain.Config().IsEIP158(header.Number)).Hex())
 	if len(*systemTxs) > 0 {
 		return errors.New("the length of systemTxs do not match")
 	}
@@ -682,7 +680,6 @@ func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, head
 		wg.Done()
 	}()
 	go func() {
-		log.Info("[FinalizeAndAssemble] creating new block", "number", header.Number.Uint64(), "txs", len(*transactOpts.Txs), "receipts", len(*transactOpts.Receipts), "root", header.Root.Hex())
 		blk = types.NewBlock(header, *transactOpts.Txs, nil, *transactOpts.Receipts, trie.NewStackTrie(nil))
 		wg.Done()
 	}()

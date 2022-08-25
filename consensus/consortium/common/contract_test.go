@@ -6,7 +6,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/systemcontracts/generated_contracts/validators"
+	"github.com/ethereum/go-ethereum/consensus/consortium/generated_contracts/validators"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/ethereum/go-ethereum/params"
@@ -117,7 +117,7 @@ func TestGetLatestValidators(t *testing.T) {
 	}
 	contractIntegrator, err := NewContractIntegrator(&params.ChainConfig{
 		ConsortiumV2Contracts: &params.ConsortiumV2Contracts{
-			ValidatorSC: common.HexToAddress("089f10d52008F962f9E09EFBD2E5275BFf56045b"),
+			ValidatorSC: common.HexToAddress("0x332c60a0CCFDF96E78A71Bc924345585425FB25d"),
 		},
 	}, client, nil, common.Address{})
 	if err != nil {
@@ -130,4 +130,36 @@ func TestGetLatestValidators(t *testing.T) {
 	for _, val := range vals {
 		println(val.Hex())
 	}
+}
+
+func TestTransfer(t *testing.T) {
+	client, err := ethclient.Dial("http://localhost:8545")
+	if err != nil {
+		t.Fatal(err)
+	}
+	key, err := loadKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	nonce, err := client.NonceAt(context.Background(), key.Address, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	to := common.HexToAddress("0xBD1baEa7e8a4F6C156039Adc536C5BBcE68ADd59")
+	signer := types.LatestSignerForChainID(big.NewInt(2022))
+	tx, err := types.SignNewTx(key.PrivateKey, signer,
+		&types.LegacyTx{
+			Nonce:    nonce,
+			GasPrice: big.NewInt(500),
+			Gas:      21000,
+			To:       &to,
+			Value:    big.NewInt(0).Mul(big.NewInt(1), big.NewInt(0).Exp(big.NewInt(10), big.NewInt(18), nil)),
+		})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = client.SendTransaction(context.Background(), tx); err != nil {
+		t.Fatal(err)
+	}
+	println(tx.Hash().Hex())
 }
