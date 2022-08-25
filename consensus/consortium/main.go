@@ -177,3 +177,23 @@ func (c *Consortium) SetGetSCValidatorsFn(fn func() ([]common.Address, error)) {
 func (c *Consortium) SetGetFenixValidators(fn func() ([]common.Address, error)) {
 	c.v1.SetGetFenixValidators(fn)
 }
+
+func (c *Consortium) IsSystemTransaction(tx *types.Transaction, header *types.Header) (bool, error) {
+	return c.v2.IsSystemTransaction(tx, header)
+}
+
+func (c *Consortium) IsSystemContract(to *common.Address) bool {
+	return c.v2.IsSystemContract(to)
+}
+
+func (c *Consortium) EnoughDistance(chain consensus.ChainReader, header *types.Header) bool {
+	return c.v2.EnoughDistance(chain, header)
+}
+
+func (c *Consortium) IsLocalBlock(header *types.Header) bool {
+	return c.v2.IsLocalBlock(header)
+}
+
+func (c *Consortium) AllowLightProcess(chain consensus.ChainReader, currentHeader *types.Header) bool {
+	return c.v2.AllowLightProcess(chain, currentHeader)
+}

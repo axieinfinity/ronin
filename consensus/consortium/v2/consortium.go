@@ -668,6 +668,7 @@ func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, head
 	if err != nil {
 		return nil, nil, err
 	}
+	header.GasUsed = *transactOpts.UsedGas
 	// should not happen. Once happen, stop the node is better than broadcast the block
 	if header.GasLimit < header.GasUsed {
 		return nil, nil, errors.New("gas consumption of system txs exceed the gas limit")
@@ -832,7 +833,7 @@ func (c *Consortium) getValidatorsFromHeader(header *types.Header) []common.Addr
 }
 
 func (c *Consortium) initContract() error {
-	contract, err := consortiumCommon.NewContractIntegrator(c.chainConfig, consortiumCommon.NewConsortiumBackend(c.ethAPI), c.signTxFn)
+	contract, err := consortiumCommon.NewContractIntegrator(c.chainConfig, consortiumCommon.NewConsortiumBackend(c.ethAPI), c.signTxFn, c.val)
 	if err != nil {
 		return err
 	}
