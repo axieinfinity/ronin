@@ -685,7 +685,6 @@ func (w *worker) makeCurrent(parent *types.Block, header *types.Header) error {
 	if err != nil {
 		return err
 	}
-	log.Info("[worker][makeCurrent] parent state", "parent", parent.Number().Uint64(), "stateRoot", state.IntermediateRoot(w.chainConfig.IsEIP158(header.Number)), "root", parent.Root().Hex())
 	state.StartPrefetcher("miner")
 
 	env := &environment{
