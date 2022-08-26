@@ -13,9 +13,9 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/consensus"
+	"github.com/ethereum/go-ethereum/consensus/consortium/generated_contracts/validators"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
-	"github.com/ethereum/go-ethereum/core/systemcontracts/generated_contracts/validators"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
@@ -47,6 +47,7 @@ type ContractIntegrator struct {
 	validatorSC *validators.Validators
 	signTxFn    SignerTxFn
 	coinbase    common.Address
+	config      *chainParams.ChainConfig
 }
 
 func NewContractIntegrator(config *chainParams.ChainConfig, backend bind.ContractBackend, signTxFn SignerTxFn, coinbase common.Address) (*ContractIntegrator, error) {
@@ -117,7 +118,7 @@ func (c *ContractIntegrator) DistributeRewards(to common.Address, opts *ApplyTra
 	msg := types.NewMessage(
 		opts.Header.Coinbase, tx.To(),
 		opts.Header.Nonce.Uint64(),
-		tx.Value(),
+		balance,
 		tx.Gas(),
 		big.NewInt(0),
 		big.NewInt(0),
@@ -156,7 +157,6 @@ type ApplyTransactOpts struct {
 	Signer      types.Signer
 	SignTxFn    SignerTxFn
 	EthAPI      *ethapi.PublicBlockChainAPI
-	Coinbase    common.Address
 }
 
 func ApplyTransaction(msg types.Message, opts *ApplyTransactOpts) (err error) {
