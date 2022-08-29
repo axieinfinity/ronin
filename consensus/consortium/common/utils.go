@@ -4,6 +4,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
+// ExtractAddressFromBytes extracts validators' address from extra data in header
+// and return a list addresses
 func ExtractAddressFromBytes(bytes []byte) []common.Address {
 	if bytes != nil && len(bytes) < common.AddressLength {
 		return []common.Address{}
