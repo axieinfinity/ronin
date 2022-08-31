@@ -872,8 +872,9 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 
 		case errors.Is(err, core.ErrInvalidGiftTicket):
 			// Pop the transaction pass transaction having invalid gift ticket
-			log.Debug("Skipping invalid gift ticket in transacion pass", "sender", from, "type", tx.Type())
+			log.Debug("Skipping invalid gift ticket in transaction pass", "sender", from, "type", tx.Type())
 			txs.Pop()
+			w.eth.TxPool().RemoveTx(tx.Hash(), true)
 
 		default:
 			// Strange error, discard the transaction and get the next in line (note, the
