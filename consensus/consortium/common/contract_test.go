@@ -15,6 +15,8 @@ import (
 	"testing"
 )
 
+const contractAddress = "0x089f10d52008F962f9E09EFBD2E5275BFf56045b"
+
 func loadKey() (*keystore.Key, error) {
 	keyjson, err := ioutil.ReadFile("/Users/mac/coding/ronin/PoS/local1/keystore/UTC--2022-08-21T07-22-03.047965000Z--da0479bed856764502249bec9a3acd1c3da2cf23")
 	if err != nil {
@@ -70,7 +72,7 @@ func TestAddNode(t *testing.T) {
 	address := common.HexToAddress("da0479bed856764502249bec9a3acd1c3da2cf23")
 	contractIntegrator, err := NewContractIntegrator(&params.ChainConfig{
 		ConsortiumV2Contracts: &params.ConsortiumV2Contracts{
-			ValidatorSC: common.HexToAddress("0x089f10d52008F962f9E09EFBD2E5275BFf56045b"),
+			ValidatorSC: common.HexToAddress(contractAddress),
 		},
 	}, client, nil, address)
 	if err != nil {
@@ -110,6 +112,60 @@ func TestAddNode(t *testing.T) {
 	println(fmt.Sprintf("address:%s has been added, tx:%s", address2.Hex(), tx.Hash().Hex()))
 }
 
+func TestGetNonce(t *testing.T) {
+	client, err := ethclient.Dial("http://localhost:8545")
+	if err != nil {
+		t.Fatal(err)
+	}
+	key, err := loadKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	nonce, err := client.NonceAt(context.Background(), key.Address, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	println(nonce)
+}
+
+func TestAddMoreNode(t *testing.T) {
+	client, err := ethclient.Dial("http://localhost:8545")
+	if err != nil {
+		t.Fatal(err)
+	}
+	key, err := loadKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	address := common.HexToAddress("089c3107402ae0d06d5953347a4c82ac8ce66f6c")
+	contractIntegrator, err := NewContractIntegrator(&params.ChainConfig{
+		ConsortiumV2Contracts: &params.ConsortiumV2Contracts{
+			ValidatorSC: common.HexToAddress(contractAddress),
+		},
+	}, client, nil, address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	nonce, err := client.NonceAt(context.Background(), key.Address, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tx, err := contractIntegrator.validatorSC.AddNode(&bind.TransactOpts{
+		From:  key.Address,
+		Nonce: big.NewInt(int64(nonce)),
+		Signer: func(addr common.Address, tx *types.Transaction) (*types.Transaction, error) {
+			signer := types.LatestSignerForChainID(big.NewInt(2022))
+			return types.SignTx(tx, signer, key.PrivateKey)
+		},
+		Context: context.Background(),
+	}, address, address)
+	if err != nil {
+		t.Fatal(err)
+	}
+	println(fmt.Sprintf("address:%s has been added, tx:%s", address.Hex(), tx.Hash().Hex()))
+
+}
+
 func TestGetLatestValidators(t *testing.T) {
 	client, err := ethclient.Dial("http://localhost:8545")
 	if err != nil {
@@ -117,7 +173,7 @@ func TestGetLatestValidators(t *testing.T) {
 	}
 	contractIntegrator, err := NewContractIntegrator(&params.ChainConfig{
 		ConsortiumV2Contracts: &params.ConsortiumV2Contracts{
-			ValidatorSC: common.HexToAddress("0x332c60a0CCFDF96E78A71Bc924345585425FB25d"),
+			ValidatorSC: common.HexToAddress(contractAddress),
 		},
 	}, client, nil, common.Address{})
 	if err != nil {
