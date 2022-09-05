@@ -626,7 +626,7 @@ func (c *Consortium) Seal(chain consensus.ChainHeaderReader, block *types.Block,
 	if err != nil {
 		return err
 	}
-	if !signerInList(c.val, validators) {
+	if !consortiumCommon.SignerInList(c.val, validators) {
 		return errUnauthorizedSigner
 	}
 	snap, err := c.snapshot(chain, number-1, header.ParentHash, nil)
@@ -715,15 +715,6 @@ func (c *Consortium) GetRecents(chain consensus.ChainHeaderReader, number uint64
 		return nil
 	}
 	return snap.Recents
-}
-
-func signerInList(signer common.Address, validators []common.Address) bool {
-	for _, validator := range validators {
-		if signer == validator {
-			return true
-		}
-	}
-	return false
 }
 
 func (c *Consortium) doCalcDifficulty(signer common.Address, number uint64, validators []common.Address) *big.Int {

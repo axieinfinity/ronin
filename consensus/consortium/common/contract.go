@@ -81,7 +81,7 @@ func (c *ContractIntegrator) UpdateValidators(opts *ApplyTransactOpts) error {
 	}
 	msg := types.NewMessage(
 		opts.Header.Coinbase, tx.To(),
-		opts.Header.Nonce.Uint64(),
+		opts.State.GetNonce(opts.Header.Coinbase),
 		tx.Value(),
 		tx.Gas(),
 		big.NewInt(0),
@@ -108,8 +108,8 @@ func (c *ContractIntegrator) DistributeRewards(to common.Address, opts *ApplyTra
 	opts.State.SetBalance(consensus.SystemAddress, big.NewInt(0))
 	opts.State.AddBalance(coinbase, balance)
 
-	log.Info("distribute to validator contract", "block hash", opts.Header.Hash(), "amount", balance.String())
 	nonce := opts.State.GetNonce(c.coinbase)
+	log.Info("distribute to validator contract", "block hash", opts.Header.Hash(), "amount", balance.String(), "coinbase", c.coinbase.Hex(), "nonce", nonce)
 	tx, err := c.validatorSC.DepositReward(getTransactionOpts(c.coinbase, nonce, c.chainId, c.signTxFn), to)
 	if err != nil {
 		return err
@@ -117,7 +117,7 @@ func (c *ContractIntegrator) DistributeRewards(to common.Address, opts *ApplyTra
 
 	msg := types.NewMessage(
 		opts.Header.Coinbase, tx.To(),
-		opts.Header.Nonce.Uint64(),
+		opts.State.GetNonce(opts.Header.Coinbase),
 		balance,
 		tx.Gas(),
 		big.NewInt(0),
