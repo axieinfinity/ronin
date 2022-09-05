@@ -194,9 +194,12 @@ func (st *StateTransition) to() common.Address {
 }
 
 func (st *StateTransition) verifyGiftTicket(giftTicket *types.GiftTicket, amount *big.Int) bool {
+	if *st.msg.Payer() != giftTicket.Payer {
+		log.Debug("Gift ticket's payer mismatches with recovered address", "payer", giftTicket.Payer, "recovered", *st.msg.Payer())
+		return false
+	}
+
 	// Check the total gas fee is not higher than the gift ticket allowance
-	// FIXME: For multiple uses of 1 gift ticket when there is remaining
-	// allowance, we might need to handle this in the contract
 	if amount.Cmp(giftTicket.Allowance) == 1 {
 		log.Debug("Gas fee is higher than gift ticket's allowance",
 			"allowance", giftTicket.Allowance,

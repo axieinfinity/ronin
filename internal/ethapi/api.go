@@ -1293,8 +1293,8 @@ type RPCTransaction struct {
 	Type                 hexutil.Uint64    `json:"type"`
 	Accesses             *types.AccessList `json:"accessList,omitempty"`
 	ChainID              *hexutil.Big      `json:"chainId,omitempty"`
-	Payer                *common.Address   `json:"payer,omitempty"`
 	TicketNonce          *hexutil.Big      `json:"ticketNonce,omitempty"`
+	TicketPayer          *common.Address   `json:"ticketPayer,omitempty"`
 	TicketAllowance      *hexutil.Big      `json:"ticketAllowance,omitempty"`
 	TicketRecipients     *[]common.Address `json:"ticketRecipients,omitempty"`
 	TicketExpirationTime *hexutil.Big      `json:"ticketExpirationTime,omitempty"`
@@ -1354,7 +1354,10 @@ func newRPCTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber
 	case types.TransactionPassTxType:
 		giftTicket := tx.GiftTicket()
 		payer, _ := types.Payer(signer, tx)
-		result.Payer = &payer
+		if payer != giftTicket.Payer {
+			return nil
+		}
+		result.TicketPayer = &payer
 		result.TicketNonce = (*hexutil.Big)(giftTicket.Nonce)
 		result.TicketRecipients = &giftTicket.Recipients
 		result.TicketAllowance = (*hexutil.Big)(giftTicket.Allowance)

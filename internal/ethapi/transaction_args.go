@@ -55,6 +55,7 @@ type TransactionArgs struct {
 
 	// Introduced by TransactionPassTxType transaction.
 	TicketNonce          *hexutil.Big      `json:"ticketNonce,omitempty"`
+	TicketPayer          *common.Address   `json:"ticketPayer,omitempty"`
 	TicketAllowance      *hexutil.Big      `json:"ticketAllowance,omitempty"`
 	TicketRecipients     *[]common.Address `json:"ticketRecipients,omitempty"`
 	TicketExpirationTime *hexutil.Big      `json:"ticketExpirationTime,omitempty"`
@@ -184,6 +185,7 @@ func (args *TransactionArgs) setDefaults(ctx context.Context, b Backend) error {
 
 func (args *TransactionArgs) isTransactionPassTx() bool {
 	if args.TicketNonce != nil &&
+		args.TicketPayer != nil &&
 		args.TicketAllowance != nil &&
 		args.TicketRecipients != nil &&
 		args.TicketExpirationTime != nil &&
@@ -200,6 +202,7 @@ func (args *TransactionArgs) isTransactionPassTx() bool {
 func (args *TransactionArgs) getGiftTicket() *types.GiftTicket {
 	return &types.GiftTicket{
 		Nonce:          args.TicketNonce.ToInt(),
+		Payer:          *args.TicketPayer,
 		Allowance:      args.TicketAllowance.ToInt(),
 		Recipients:     *args.TicketRecipients,
 		ExpirationTime: args.TicketExpirationTime.ToInt(),
@@ -288,6 +291,9 @@ func (args *TransactionArgs) ToMessage(globalGasCap uint64, baseFee *big.Int) (t
 			return types.Message{}, errors.New("cannot recover payer from signature")
 		}
 		payer = &payerAddress
+		if payerAddress != giftTicket.Payer {
+			return types.Message{}, errors.New("invalid payer in gift ticket")
+		}
 	}
 
 	msg := types.NewMessage(addr, args.To, 0, value, gas, gasPrice, gasFeeCap, gasTipCap, data, accessList, true, payer, giftTicket)

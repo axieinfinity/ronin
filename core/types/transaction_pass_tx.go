@@ -16,6 +16,7 @@ type FullGiftTicket struct {
 
 type GiftTicket struct {
 	Nonce          *big.Int
+	Payer          common.Address   // The address of payer for the gift ticket
 	Allowance      *big.Int         // Max amount the payer pays for gas fee
 	Recipients     []common.Address // The recipient account that can use gift ticket, empty array means everyone can use the gift ticket
 	ExpirationTime *big.Int         // The gift ticket's expiration timestamp
@@ -36,6 +37,7 @@ func (g *GiftTicket) Hash() (common.Hash, error) {
 			},
 			"GiftTicket": []Type{
 				{Name: "nonce", Type: "uint256"},
+				{Name: "payer", Type: "address"},
 				{Name: "allowance", Type: "uint256"},
 				{Name: "recipients", Type: "address[]"},
 				{Name: "expirationTime", Type: "uint256"},
@@ -50,6 +52,7 @@ func (g *GiftTicket) Hash() (common.Hash, error) {
 		PrimaryType: "GiftTicket",
 		Message: TypedDataMessage{
 			"nonce":          g.Nonce.String(),
+			"payer":          g.Payer.String(),
 			"allowance":      g.Allowance.String(),
 			"recipients":     recipients,
 			"expirationTime": g.ExpirationTime.String(),
@@ -84,6 +87,7 @@ func (g *FullGiftTicket) copy() *FullGiftTicket {
 		R: new(big.Int),
 		S: new(big.Int),
 	}
+	copy(cpy.Payer[:], g.Payer[:])
 	if g.Nonce != nil {
 		cpy.Nonce.Set(g.Nonce)
 	}

@@ -645,6 +645,7 @@ func (tx *Transaction) AsMessage(s Signer, baseFee *big.Int) (Message, error) {
 		giftTicket := tx.GiftTicket()
 		msg.giftTicket = &GiftTicket{
 			Nonce:          giftTicket.Nonce,
+			Payer:          giftTicket.Payer,
 			Allowance:      giftTicket.Allowance,
 			Recipients:     giftTicket.Recipients,
 			ExpirationTime: giftTicket.ExpirationTime,
