@@ -733,17 +733,14 @@ func (c *Consortium) Seal(chain consensus.ChainHeaderReader, block *types.Block,
 	val, signFn := c.val, c.signFn
 	c.lock.RUnlock()
 
-	validators, err := c.getValidatorsFromLastCheckpoint(chain, number-1, nil)
-	if err != nil {
-		return err
-	}
-	if !consortiumCommon.SignerInList(c.val, validators) {
-		return errUnauthorizedValidator
-	}
-
 	snap, err := c.snapshot(chain, number-1, header.ParentHash, nil)
 	if err != nil {
 		return err
+	}
+
+	// Bail out if we're unauthorized to sign a block
+	if _, authorized := snap.Validators[val]; !authorized {
+		return errUnauthorizedValidator
 	}
 
 	// If we're amongst the recent signers, wait for the next block
@@ -759,9 +756,9 @@ func (c *Consortium) Seal(chain consensus.ChainHeaderReader, block *types.Block,
 
 	// Sweet, the protocol permits us to sign the block, wait for our time
 	delay := time.Unix(int64(header.Time), 0).Sub(time.Now()) // nolint: gosimple
-	if !c.signerInTurn(val, number, validators) {
+	if !c.signerInTurn(val, number, snap.validators()) {
 		// It's not our turn explicitly to sign, delay it a bit
-		wiggle := time.Duration(len(validators)/2+1) * wiggleTime
+		wiggle := time.Duration(len(snap.Validators)/2+1) * wiggleTime
 		delay += time.Duration(rand.Int63n(int64(wiggle))) + wiggleTime // delay for 0.5s more
 
 		log.Trace("Out-of-turn signing requested", "wiggle", common.PrettyDuration(wiggle))
@@ -845,27 +842,6 @@ func (c *Consortium) signerInTurn(signer common.Address, number uint64, validato
 	lastCheckpoint := number / c.config.Epoch * c.config.Epoch
 	index := (number - lastCheckpoint) % uint64(len(validators))
 	return validators[index] == signer
-}
-
-// getValidatorsFromLastCheckpoint gets the list of validator in the Extra field in the last checkpoint
-// Sometime, when syncing the database have not stored the recent headers yet, so we need to look them up by passing them directly
-func (c *Consortium) getValidatorsFromLastCheckpoint(chain consensus.ChainHeaderReader, number uint64, recents []*types.Header) ([]common.Address, error) {
-	lastCheckpoint := number / c.config.Epoch * c.config.Epoch
-	if lastCheckpoint == 0 {
-		return c.contract.GetValidators(chain.GetHeaderByNumber(number))
-	}
-	var header *types.Header
-	if recents != nil {
-		for _, parent := range recents {
-			if parent.Number.Uint64() == lastCheckpoint {
-				header = parent
-			}
-		}
-	}
-	if header == nil {
-		header = chain.GetHeaderByNumber(lastCheckpoint)
-	}
-	return c.getValidatorsFromHeader(header), nil
 }
 
 // ecrecover extracts the Ethereum account address from a signed header.
