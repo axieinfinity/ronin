@@ -23,6 +23,7 @@ import (
 	"golang.org/x/crypto/sha3"
 	"io"
 	"math/big"
+	"math/rand"
 	"sort"
 	"sync"
 	"time"
@@ -38,6 +39,7 @@ const (
 	extraSeal   = 65 // Fixed number of extra-data suffix bytes reserved for signer seal
 
 	validatorBytesLength = common.AddressLength
+	wiggleTime           = 1000 * time.Millisecond // Random delay (per signer) to allow concurrent signers
 )
 
 // Consortium proof-of-authority protocol constants.
@@ -753,9 +755,16 @@ func (c *Consortium) Seal(chain consensus.ChainHeaderReader, block *types.Block,
 	}
 
 	// Sweet, the protocol permits us to sign the block, wait for our time
-	delay := c.delayForConsortiumV2Fork(snap, header)
+	delay := time.Unix(int64(header.Time), 0).Sub(time.Now()) // nolint: gosimple
+	if !c.signerInTurn(val, number, snap.validators()) {
+		// It's not our turn explicitly to sign, delay it a bit
+		wiggle := time.Duration(len(snap.Validators)/2+1) * wiggleTime
+		delay += time.Duration(rand.Int63n(int64(wiggle))) + wiggleTime // delay for 0.5s more
 
-	log.Info("Sealing block with", "number", number, "delay", delay, "headerDifficulty", header.Difficulty, "val", val.Hex())
+		log.Trace("Out-of-turn signing requested", "wiggle", common.PrettyDuration(wiggle))
+	}
+
+	log.Info("Sealing block with", "number", number, "delay", delay, "headerDifficulty", header.Difficulty, "val", val.Hex(), "txs", len(block.Transactions()))
 
 	// Sign all the things!
 	sig, err := signFn(accounts.Account{Address: val}, accounts.MimetypeConsortium, consortiumRLP(header, c.chainConfig.ChainID))
@@ -772,16 +781,6 @@ func (c *Consortium) Seal(chain consensus.ChainHeaderReader, block *types.Block,
 			return
 		case <-time.After(delay):
 		}
-		//if c.shouldWaitForCurrentBlockProcess(chain, header, snap) {
-		//	log.Info("Waiting for received in turn block to process")
-		//	select {
-		//	case <-stop:
-		//		log.Info("Received block process finished, abort block seal")
-		//		return
-		//	case <-time.After(time.Duration(processBackOffTime) * time.Second):
-		//		log.Info("Process backoff time exhausted, start to seal block")
-		//	}
-		//}
 
 		select {
 		case results <- block.WithSeal(header):
@@ -836,6 +835,13 @@ func (c *Consortium) initContract() error {
 	c.contract = contract
 
 	return nil
+}
+
+// Check if it is the turn of the signer from the last checkpoint
+func (c *Consortium) signerInTurn(signer common.Address, number uint64, validators []common.Address) bool {
+	lastCheckpoint := number / c.config.Epoch * c.config.Epoch
+	index := (number - lastCheckpoint) % uint64(len(validators))
+	return validators[index] == signer
 }
 
 // ecrecover extracts the Ethereum account address from a signed header.

@@ -2176,13 +2176,14 @@ func (bc *BlockChain) reportBlock(block *types.Block, receipts types.Receipts, e
 ########## BAD BLOCK #########
 Chain config: %v
 
+Coinbase: %v
 Number: %v
 Hash: 0x%x
 %v
 
 Error: %v
 ##############################
-`, bc.chainConfig, block.Number(), block.Hash(), receiptString, err))
+`, bc.chainConfig, block.Coinbase().Hex(), block.Number(), block.Hash(), receiptString, err))
 }
 
 // InsertHeaderChain attempts to insert the given header chain in to the local

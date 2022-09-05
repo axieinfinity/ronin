@@ -30,3 +30,12 @@ func CompareSignersLists(list1 []common.Address, list2 []common.Address) bool {
 	}
 	return true
 }
+
+func SignerInList(signer common.Address, validators []common.Address) bool {
+	for _, validator := range validators {
+		if signer == validator {
+			return true
+		}
+	}
+	return false
+}
