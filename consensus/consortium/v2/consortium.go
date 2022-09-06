@@ -756,7 +756,7 @@ func (c *Consortium) Seal(chain consensus.ChainHeaderReader, block *types.Block,
 
 	// Sweet, the protocol permits us to sign the block, wait for our time
 	delay := time.Unix(int64(header.Time), 0).Sub(time.Now()) // nolint: gosimple
-	if !c.signerInTurn(val, number, snap.validators()) {
+	if header.Difficulty.Cmp(diffInTurn) != 0 {
 		// It's not our turn explicitly to sign, delay it a bit
 		wiggle := time.Duration(len(snap.Validators)/2+1) * wiggleTime
 		delay += time.Duration(rand.Int63n(int64(wiggle))) + wiggleTime // delay for 0.5s more
