@@ -422,7 +422,6 @@ func (c *ConsortiumConfig) String() string {
 type ConsortiumV2Contracts struct {
 	RoninValidatorSet common.Address `json:"roninValidatorSet"`
 	SlashIndicator    common.Address `json:"slashIndicator"`
-	DPOSStaking       common.Address `json:"dposStaking"`
 }
 
 func (c *ConsortiumV2Contracts) IsSystemContract(address common.Address) bool {
@@ -459,12 +458,7 @@ func (c *ChainConfig) String() string {
 		slashIndicatorSC = c.ConsortiumV2Contracts.SlashIndicator
 	}
 
-	dposStakingSC := common.HexToAddress("")
-	if c.ConsortiumV2Contracts != nil {
-		dposStakingSC = c.ConsortiumV2Contracts.DPOSStaking
-	}
-
-	return fmt.Sprintf("{ChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v Petersburg: %v Istanbul: %v, Odysseus: %v, Fenix: %v, Muir Glacier: %v, Berlin: %v, London: %v, Arrow Glacier: %v, Engine: %v, Blacklist Contract: %v, Fenix Validator Contract: %v, ConsortiumV2: %v, ConsortiumV2.RoninValidatorSet: %v, ConsortiumV2.SlashIndicator: %v, ConsortiumV2.DPoSStaking: %v}",
+	return fmt.Sprintf("{ChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v Petersburg: %v Istanbul: %v, Odysseus: %v, Fenix: %v, Muir Glacier: %v, Berlin: %v, London: %v, Arrow Glacier: %v, Engine: %v, Blacklist Contract: %v, Fenix Validator Contract: %v, ConsortiumV2: %v, ConsortiumV2.RoninValidatorSet: %v, ConsortiumV2.SlashIndicator: %v}",
 		c.ChainID,
 		c.HomesteadBlock,
 		c.DAOForkBlock,
@@ -488,7 +482,6 @@ func (c *ChainConfig) String() string {
 		c.ConsortiumV2Block,
 		roninValidatorSetSC.Hex(),
 		slashIndicatorSC.Hex(),
-		dposStakingSC.Hex(),
 	)
 }
 
