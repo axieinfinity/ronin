@@ -558,7 +558,7 @@ func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, head
 			SignTxFn:    c.signTxFn,
 			EthAPI:      c.ethAPI,
 		}
-		if err := c.contract.UpdateValidators(transactOpts); err != nil {
+		if err := c.contract.WrapUpEpoch(transactOpts); err != nil {
 			log.Error("Failed to update validators", "err", err)
 		}
 		// should not happen. Once happen, stop the node is better than broadcast the block
