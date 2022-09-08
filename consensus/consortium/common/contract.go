@@ -124,7 +124,8 @@ func (c *ContractIntegrator) SubmitBlockReward(opts *ApplyTransactOpts) error {
 	}
 
 	msg := types.NewMessage(
-		opts.Header.Coinbase, tx.To(),
+		opts.Header.Coinbase,
+		tx.To(),
 		opts.State.GetNonce(opts.Header.Coinbase),
 		balance,
 		tx.Gas(),
@@ -279,7 +280,7 @@ func applyMessage(
 		msg.Value(),
 	)
 	if err != nil {
-		log.Error("apply message failed", "msg", string(ret), "err", err)
+		log.Error("Apply message failed", "message", string(ret), "error", err)
 	}
 	return msg.Gas() - returnGas, err
 }
