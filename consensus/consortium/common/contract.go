@@ -33,9 +33,10 @@ func getTransactionOpts(from common.Address, nonce uint64, chainId *big.Int, sig
 		From:     from,
 		GasLimit: 1000000,
 		GasPrice: big.NewInt(0),
-		Value:    new(big.Int).SetUint64(0),
-		Nonce:    new(big.Int).SetUint64(nonce),
-		NoSend:   true,
+		// Set dummy value always equal 0 since it will be overridden when creating a new message
+		Value:  new(big.Int).SetUint64(0),
+		Nonce:  new(big.Int).SetUint64(nonce),
+		NoSend: true,
 		Signer: func(address common.Address, tx *types.Transaction) (*types.Transaction, error) {
 			return signTxFn(accounts.Account{Address: from}, tx, chainId)
 		},
@@ -127,6 +128,7 @@ func (c *ContractIntegrator) SubmitBlockReward(opts *ApplyTransactOpts) error {
 		opts.Header.Coinbase,
 		tx.To(),
 		opts.State.GetNonce(opts.Header.Coinbase),
+		// Reassign value with the current balance. It will be overridden the current one.
 		balance,
 		tx.Gas(),
 		big.NewInt(0),
