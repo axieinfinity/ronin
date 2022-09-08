@@ -581,8 +581,7 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 			}
 		}
 		if !signedRecently {
-			log.Trace("slash validator", "block hash", header.Hash(), "address", spoiledVal)
-			err = c.contract.Slash(spoiledVal, transactOpts)
+			err = c.contract.Slash(transactOpts, spoiledVal)
 			if err != nil {
 				// it is possible that slash validator failed because of the slash channel is disabled.
 				log.Error("slash validator failed", "block hash", header.Hash(), "address", spoiledVal)
@@ -591,12 +590,12 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 	}
 
 	if header.Number.Uint64()%c.config.Epoch == c.config.Epoch-1 {
-		if err := c.contract.UpdateValidators(transactOpts); err != nil {
+		if err := c.contract.WrapUpEpoch(transactOpts); err != nil {
 			log.Error("Failed to update validators", "err", err)
 		}
 	}
 
-	err = c.contract.DistributeRewards(header.Coinbase, transactOpts)
+	err = c.contract.SubmitBlockReward(transactOpts)
 	if err != nil {
 		return err
 	}
@@ -650,21 +649,21 @@ func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, head
 			}
 		}
 		if !signedRecently {
-			err = c.contract.Slash(spoiledVal, transactOpts)
+			err = c.contract.Slash(transactOpts, spoiledVal)
 			if err != nil {
 				// it is possible that slash validator failed because of the slash channel is disabled.
-				log.Error("slash validator failed", "block hash", header.Hash(), "address", spoiledVal)
+				log.Error("Slash validator failed", "block hash", header.Hash(), "address", spoiledVal, "error", err)
 			}
 		}
 	}
 
 	if header.Number.Uint64()%c.config.Epoch == c.config.Epoch-1 {
-		if err := c.contract.UpdateValidators(transactOpts); err != nil {
-			log.Error("Failed to update validators", "err", err)
+		if err := c.contract.WrapUpEpoch(transactOpts); err != nil {
+			log.Error("Wrap up epoch failed", "block hash", header.Hash(), "error", err)
 		}
 	}
 
-	err := c.contract.DistributeRewards(c.val, transactOpts)
+	err := c.contract.SubmitBlockReward(transactOpts)
 	if err != nil {
 		return nil, nil, err
 	}
