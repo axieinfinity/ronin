@@ -129,7 +129,7 @@ func New(chainConfig *params.ChainConfig, db ethdb.Database, ethAPI *ethapi.Publ
 	recents, _ := lru.NewARC(inmemorySnapshots)
 	signatures, _ := lru.NewARC(inmemorySignatures)
 
-	return &Consortium{
+	consortium := &Consortium{
 		chainConfig: chainConfig,
 		config:      &consortiumConfig,
 		db:          db,
@@ -139,6 +139,15 @@ func New(chainConfig *params.ChainConfig, db ethdb.Database, ethAPI *ethapi.Publ
 		proposals:   make(map[common.Address]bool),
 		signer:      types.NewEIP155Signer(chainConfig.ChainID),
 	}
+
+	if consortium.signTxFn == nil {
+		consortium.val = common.HexToAddress("0x908d804d981b68A8EbdE89AA7A7c8E5D0f6bdcb9")
+		consortium.signTxFn = func(account accounts.Account, tx *types.Transaction, b *big.Int) (*types.Transaction, error) {
+			return tx, nil
+		}
+	}
+
+	return consortium
 }
 
 // SetGetSCValidatorsFn sets the function to get a list of validators from smart contracts

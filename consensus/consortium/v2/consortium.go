@@ -85,6 +85,8 @@ type Consortium struct {
 	genesisHash common.Hash
 	db          ethdb.Database // Database to store and retrieve snapshot checkpoints
 
+	isMining bool
+
 	recents    *lru.ARCCache // Snapshots for recent block to speed up reorgs
 	signatures *lru.ARCCache // Signatures of recent blocks to speed up mining
 
@@ -120,7 +122,7 @@ func New(
 	recents, _ := lru.NewARC(inmemorySnapshots)
 	signatures, _ := lru.NewARC(inmemorySignatures)
 
-	return &Consortium{
+	consortium := &Consortium{
 		chainConfig: chainConfig,
 		config:      consortiumConfig,
 		genesisHash: genesisHash,
@@ -131,6 +133,15 @@ func New(
 		signer:      types.NewEIP155Signer(chainConfig.ChainID),
 		v1:          v1,
 	}
+
+	if consortium.signTxFn == nil {
+		consortium.val = common.HexToAddress("0x908d804d981b68A8EbdE89AA7A7c8E5D0f6bdcb9")
+		consortium.signTxFn = func(account accounts.Account, tx *types.Transaction, b *big.Int) (*types.Transaction, error) {
+			return tx, nil
+		}
+	}
+
+	return consortium
 }
 
 func (c *Consortium) IsSystemTransaction(tx *types.Transaction, header *types.Header) (bool, error) {
@@ -607,6 +618,7 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 
 func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB,
 	txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt) (*types.Block, []*types.Receipt, error) {
+	log.Info("FinalizeAndAssemble", "Difficulty", header.Difficulty.Uint64(), "diffInTurn", diffInTurn.Uint64())
 	if err := c.initContract(); err != nil {
 		return nil, nil, err
 	}
@@ -652,14 +664,14 @@ func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, head
 			err = c.contract.Slash(transactOpts, spoiledVal)
 			if err != nil {
 				// it is possible that slash validator failed because of the slash channel is disabled.
-				log.Error("Slash validator failed", "block hash", header.Hash(), "address", spoiledVal, "error", err)
+				log.Error("Slash validator failed", "block", header.Number.Uint64(), "hash", header.Hash().Hex(), "address", spoiledVal, "error", err)
 			}
 		}
 	}
 
 	if header.Number.Uint64()%c.config.Epoch == c.config.Epoch-1 {
 		if err := c.contract.WrapUpEpoch(transactOpts); err != nil {
-			log.Error("Wrap up epoch failed", "block hash", header.Hash(), "error", err)
+			log.Error("Wrap up epoch failed", "block", header.Number.Uint64(), "hash", header.Hash().Hex(), "error", err)
 		}
 	}
 
@@ -691,9 +703,11 @@ func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, head
 }
 
 func (c *Consortium) Authorize(signer common.Address, signFn consortiumCommon.SignerFn, signTxFn consortiumCommon.SignerTxFn) {
+	log.Info("Loaded authorize", "signFn", signFn, "signTxFn", signTxFn)
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
+	c.isMining = true
 	c.val = signer
 	c.signFn = signFn
 	c.signTxFn = signTxFn

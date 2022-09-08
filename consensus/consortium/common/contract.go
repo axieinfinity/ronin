@@ -32,7 +32,7 @@ func getTransactionOpts(from common.Address, nonce uint64, chainId *big.Int, sig
 	return &bind.TransactOpts{
 		From:     from,
 		GasLimit: 1000000,
-		GasPrice: big.NewInt(0),
+		GasPrice: common.Big0,
 		// Set dummy value always equal 0 since it will be overridden when creating a new message
 		Value:  new(big.Int).SetUint64(0),
 		Nonce:  new(big.Int).SetUint64(nonce),
@@ -82,6 +82,7 @@ func (c *ContractIntegrator) GetValidators(header *types.Header) ([]common.Addre
 }
 
 func (c *ContractIntegrator) WrapUpEpoch(opts *ApplyTransactOpts) error {
+	log.Info("Wrap up epoch", "block", opts.Header.Number.Uint64(), "hash", opts.Header.Hash().Hex())
 	nonce := opts.State.GetNonce(c.coinbase)
 	tx, err := c.roninValidatorSetSC.WrapUpEpoch(getTransactionOpts(c.coinbase, nonce, c.chainId, c.signTxFn))
 	if err != nil {
@@ -93,9 +94,9 @@ func (c *ContractIntegrator) WrapUpEpoch(opts *ApplyTransactOpts) error {
 		opts.State.GetNonce(opts.Header.Coinbase),
 		tx.Value(),
 		tx.Gas(),
-		big.NewInt(0),
-		big.NewInt(0),
-		big.NewInt(0),
+		common.Big0,
+		common.Big0,
+		common.Big0,
 		tx.Data(),
 		tx.AccessList(),
 		false,
@@ -114,11 +115,11 @@ func (c *ContractIntegrator) SubmitBlockReward(opts *ApplyTransactOpts) error {
 	if balance.Cmp(common.Big0) <= 0 {
 		return nil
 	}
-	opts.State.SetBalance(consensus.SystemAddress, big.NewInt(0))
+	opts.State.SetBalance(consensus.SystemAddress, common.Big0)
 	opts.State.AddBalance(coinbase, balance)
 
 	nonce := opts.State.GetNonce(c.coinbase)
-	log.Info("Submitted block reward", "block hash", opts.Header.Hash(), "amount", balance.String(), "coinbase", c.coinbase.Hex(), "nonce", nonce)
+	log.Info("Submitted block reward", "block", opts.Header.Number.Uint64(), "hash", opts.Header.Hash().Hex(), "amount", balance.String(), "coinbase", c.coinbase.Hex(), "nonce", nonce)
 	tx, err := c.roninValidatorSetSC.SubmitBlockReward(getTransactionOpts(c.coinbase, nonce, c.chainId, c.signTxFn))
 	if err != nil {
 		return err
@@ -131,9 +132,9 @@ func (c *ContractIntegrator) SubmitBlockReward(opts *ApplyTransactOpts) error {
 		// Reassign value with the current balance. It will be overridden the current one.
 		balance,
 		tx.Gas(),
-		big.NewInt(0),
-		big.NewInt(0),
-		big.NewInt(0),
+		common.Big0,
+		common.Big0,
+		common.Big0,
 		tx.Data(),
 		tx.AccessList(),
 		false,
@@ -148,7 +149,7 @@ func (c *ContractIntegrator) SubmitBlockReward(opts *ApplyTransactOpts) error {
 }
 
 func (c *ContractIntegrator) Slash(opts *ApplyTransactOpts, spoiledValidator common.Address) error {
-	log.Info("Slash validator", "block hash", opts.Header.Hash(), "address", spoiledValidator)
+	log.Info("Slash validator", "block", opts.Header.Number.Uint64(), "hash", opts.Header.Hash().Hex(), "address", spoiledValidator)
 
 	nonce := opts.State.GetNonce(c.coinbase)
 	tx, err := c.slashIndicatorSC.Slash(getTransactionOpts(c.coinbase, nonce, c.chainId, c.signTxFn), spoiledValidator)
@@ -162,9 +163,9 @@ func (c *ContractIntegrator) Slash(opts *ApplyTransactOpts, spoiledValidator com
 		opts.State.GetNonce(opts.Header.Coinbase),
 		tx.Value(),
 		tx.Gas(),
-		big.NewInt(0),
-		big.NewInt(0),
-		big.NewInt(0),
+		common.Big0,
+		common.Big0,
+		common.Big0,
 		tx.Data(),
 		tx.AccessList(),
 		false,
@@ -272,7 +273,7 @@ func applyMessage(
 	context := core.NewEVMBlockContext(opts.Header, opts.ChainContext, &opts.Header.Coinbase)
 	// Create a new environment which holds all relevant information
 	// about the transaction and calling mechanisms.
-	vmenv := vm.NewEVM(context, vm.TxContext{Origin: msg.From(), GasPrice: big.NewInt(0)}, opts.State, opts.ChainConfig, vm.Config{})
+	vmenv := vm.NewEVM(context, vm.TxContext{Origin: msg.From(), GasPrice: common.Big0}, opts.State, opts.ChainConfig, vm.Config{})
 	// Apply the transaction to the current State (included in the env)
 	ret, returnGas, err := vmenv.Call(
 		vm.AccountRef(msg.From()),
@@ -345,11 +346,11 @@ func (b *ConsortiumBackend) PendingNonceAt(ctx context.Context, account common.A
 }
 
 func (b *ConsortiumBackend) SuggestGasPrice(ctx context.Context) (*big.Int, error) {
-	return big.NewInt(0), nil
+	return common.Big0, nil
 }
 
 func (b *ConsortiumBackend) SuggestGasTipCap(ctx context.Context) (*big.Int, error) {
-	return big.NewInt(0), nil
+	return common.Big0, nil
 }
 
 func (b *ConsortiumBackend) EstimateGas(ctx context.Context, call ethereum.CallMsg) (gas uint64, err error) {

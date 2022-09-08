@@ -478,6 +478,7 @@ func (s *Ethereum) StartMining(threads int) error {
 	type threaded interface {
 		SetThreads(threads int)
 	}
+	log.Info("Start mining")
 	if th, ok := s.engine.(threaded); ok {
 		log.Info("Updated mining threads", "threads", threads)
 		if threads == 0 {
@@ -510,7 +511,7 @@ func (s *Ethereum) StartMining(threads int) error {
 		if consortium, ok := s.engine.(*consortium.Consortium); ok {
 			wallet, err := s.accountManager.Find(accounts.Account{Address: eb})
 			if wallet == nil || err != nil {
-				log.Error("Etherbase account unavailable locally", "err", err)
+				log.Error("Ronin account unavailable locally", "err", err)
 				return fmt.Errorf("signer missing: %v", err)
 			}
 			consortium.Authorize(eb, wallet.SignData, wallet.SignTx)
