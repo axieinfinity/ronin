@@ -13,7 +13,8 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/consensus"
-	"github.com/ethereum/go-ethereum/consensus/consortium/generated_contracts/validators"
+	"github.com/ethereum/go-ethereum/consensus/consortium/generated_contracts/ronin_validator_set"
+	"github.com/ethereum/go-ethereum/consensus/consortium/generated_contracts/slash_indicator"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -32,9 +33,10 @@ func getTransactionOpts(from common.Address, nonce uint64, chainId *big.Int, sig
 		From:     from,
 		GasLimit: 1000000,
 		GasPrice: big.NewInt(0),
-		Value:    new(big.Int).SetUint64(0),
-		Nonce:    new(big.Int).SetUint64(nonce),
-		NoSend:   true,
+		// Set dummy value always equal 0 since it will be overridden when creating a new message
+		Value:  new(big.Int).SetUint64(0),
+		Nonce:  new(big.Int).SetUint64(nonce),
+		NoSend: true,
 		Signer: func(address common.Address, tx *types.Transaction) (*types.Transaction, error) {
 			return signTxFn(accounts.Account{Address: from}, tx, chainId)
 		},
@@ -42,45 +44,52 @@ func getTransactionOpts(from common.Address, nonce uint64, chainId *big.Int, sig
 }
 
 type ContractIntegrator struct {
-	chainId     *big.Int
-	signer      types.Signer
-	validatorSC *validators.Validators
-	signTxFn    SignerTxFn
-	coinbase    common.Address
-	config      *chainParams.ChainConfig
+	chainId             *big.Int
+	signer              types.Signer
+	roninValidatorSetSC *roninValidatorSet.RoninValidatorSet
+	slashIndicatorSC    *slashIndicator.SlashIndicator
+	signTxFn            SignerTxFn
+	coinbase            common.Address
+	config              *chainParams.ChainConfig
 }
 
 func NewContractIntegrator(config *chainParams.ChainConfig, backend bind.ContractBackend, signTxFn SignerTxFn, coinbase common.Address) (*ContractIntegrator, error) {
-	validatorSC, err := validators.NewValidators(config.ConsortiumV2Contracts.ValidatorSC, backend)
+	roninValidatorSetSC, err := roninValidatorSet.NewRoninValidatorSet(config.ConsortiumV2Contracts.RoninValidatorSet, backend)
+	if err != nil {
+		return nil, err
+	}
+	slashIndicatorSC, err := slashIndicator.NewSlashIndicator(config.ConsortiumV2Contracts.SlashIndicator, backend)
 	if err != nil {
 		return nil, err
 	}
 
 	return &ContractIntegrator{
-		chainId:     config.ChainID,
-		validatorSC: validatorSC,
-		signTxFn:    signTxFn,
-		signer:      types.LatestSignerForChainID(config.ChainID),
-		coinbase:    coinbase,
+		chainId:             config.ChainID,
+		roninValidatorSetSC: roninValidatorSetSC,
+		slashIndicatorSC:    slashIndicatorSC,
+		signTxFn:            signTxFn,
+		signer:              types.LatestSignerForChainID(config.ChainID),
+		coinbase:            coinbase,
 	}, nil
 }
 
 func (c *ContractIntegrator) GetValidators(header *types.Header) ([]common.Address, error) {
-	addresses, err := c.validatorSC.GetValidators(nil)
+	addresses, err := c.roninValidatorSetSC.GetValidators(nil)
 	if err != nil {
 		return nil, err
 	}
 	return addresses, nil
 }
 
-func (c *ContractIntegrator) UpdateValidators(opts *ApplyTransactOpts) error {
+func (c *ContractIntegrator) WrapUpEpoch(opts *ApplyTransactOpts) error {
 	nonce := opts.State.GetNonce(c.coinbase)
-	tx, err := c.validatorSC.UpdateValidators(getTransactionOpts(c.coinbase, nonce, c.chainId, c.signTxFn))
+	tx, err := c.roninValidatorSetSC.WrapUpEpoch(getTransactionOpts(c.coinbase, nonce, c.chainId, c.signTxFn))
 	if err != nil {
 		return err
 	}
 	msg := types.NewMessage(
-		opts.Header.Coinbase, tx.To(),
+		opts.Header.Coinbase,
+		tx.To(),
 		opts.State.GetNonce(opts.Header.Coinbase),
 		tx.Value(),
 		tx.Gas(),
@@ -99,7 +108,7 @@ func (c *ContractIntegrator) UpdateValidators(opts *ApplyTransactOpts) error {
 	return err
 }
 
-func (c *ContractIntegrator) DistributeRewards(to common.Address, opts *ApplyTransactOpts) error {
+func (c *ContractIntegrator) SubmitBlockReward(opts *ApplyTransactOpts) error {
 	coinbase := opts.Header.Coinbase
 	balance := opts.State.GetBalance(consensus.SystemAddress)
 	if balance.Cmp(common.Big0) <= 0 {
@@ -109,15 +118,17 @@ func (c *ContractIntegrator) DistributeRewards(to common.Address, opts *ApplyTra
 	opts.State.AddBalance(coinbase, balance)
 
 	nonce := opts.State.GetNonce(c.coinbase)
-	log.Info("distribute to validator contract", "block hash", opts.Header.Hash(), "amount", balance.String(), "coinbase", c.coinbase.Hex(), "nonce", nonce)
-	tx, err := c.validatorSC.DepositReward(getTransactionOpts(c.coinbase, nonce, c.chainId, c.signTxFn), to)
+	log.Info("Submitted block reward", "block hash", opts.Header.Hash(), "amount", balance.String(), "coinbase", c.coinbase.Hex(), "nonce", nonce)
+	tx, err := c.roninValidatorSetSC.SubmitBlockReward(getTransactionOpts(c.coinbase, nonce, c.chainId, c.signTxFn))
 	if err != nil {
 		return err
 	}
 
 	msg := types.NewMessage(
-		opts.Header.Coinbase, tx.To(),
+		opts.Header.Coinbase,
+		tx.To(),
 		opts.State.GetNonce(opts.Header.Coinbase),
+		// Reassign value with the current balance. It will be overridden the current one.
 		balance,
 		tx.Gas(),
 		big.NewInt(0),
@@ -136,8 +147,34 @@ func (c *ContractIntegrator) DistributeRewards(to common.Address, opts *ApplyTra
 	return nil
 }
 
-func (c *ContractIntegrator) Slash(to common.Address, opts *ApplyTransactOpts) error {
-	return nil
+func (c *ContractIntegrator) Slash(opts *ApplyTransactOpts, spoiledValidator common.Address) error {
+	log.Info("Slash validator", "block hash", opts.Header.Hash(), "address", spoiledValidator)
+
+	nonce := opts.State.GetNonce(c.coinbase)
+	tx, err := c.slashIndicatorSC.Slash(getTransactionOpts(c.coinbase, nonce, c.chainId, c.signTxFn), spoiledValidator)
+	if err != nil {
+		return err
+	}
+
+	msg := types.NewMessage(
+		opts.Header.Coinbase,
+		tx.To(),
+		opts.State.GetNonce(opts.Header.Coinbase),
+		tx.Value(),
+		tx.Gas(),
+		big.NewInt(0),
+		big.NewInt(0),
+		big.NewInt(0),
+		tx.Data(),
+		tx.AccessList(),
+		false,
+	)
+	err = ApplyTransaction(msg, opts)
+	if err != nil {
+		return err
+	}
+
+	return err
 }
 
 type ApplyMessageOpts struct {
@@ -245,7 +282,7 @@ func applyMessage(
 		msg.Value(),
 	)
 	if err != nil {
-		log.Error("apply message failed", "msg", string(ret), "err", err)
+		log.Error("Apply message failed", "message", string(ret), "error", err)
 	}
 	return msg.Gas() - returnGas, err
 }
