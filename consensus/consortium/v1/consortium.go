@@ -410,21 +410,25 @@ func (c *Consortium) verifySeal(chain consensus.ChainHeaderReader, header *types
 		return errWrongCoinbase
 	}
 
-	validators, err := c.getValidatorsFromLastCheckpoint(chain, number-1, nil)
-	if err != nil {
-		return err
-	}
+	//validators, err := c.getValidatorsFromLastCheckpoint(chain, number-1, nil)
+	//if err != nil {
+	//	return err
+	//}
 
+	validators := snap.SignerList
 	// If we're amongst the recent signers, wait for the next block
-	for seen, recent := range snap.Recents {
-		if recent == signer {
-			// Signer is among recents, only wait if the current block doesn't shift it out
-			if limit := uint64(len(validators)/2 + 1); seen > number-limit {
-				return errors.New("signed recently, must wait for others")
-			}
-		}
-	}
+	//for seen, recent := range snap.Recents {
+	//	if recent == signer {
+	//		// Signer is among recents, only wait if the current block doesn't shift it out
+	//		if limit := uint64(len(validators)/2 + 1); seen > number-limit {
+	//			return errors.New("signed recently, must wait for others")
+	//		}
+	//	}
+	//}
 
+	if _, ok := snap.SignerSet[signer]; !ok {
+		return errUnauthorizedSigner
+	}
 	// Ensure that the difficulty corresponds to the turn-ness of the signer
 	inturn := c.signerInTurn(signer, header.Number.Uint64(), validators)
 	if inturn && header.Difficulty.Cmp(diffInTurn) != 0 {
