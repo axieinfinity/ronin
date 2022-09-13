@@ -425,6 +425,11 @@ type ConsortiumV2Contracts struct {
 }
 
 func (c *ConsortiumV2Contracts) IsSystemContract(address common.Address) bool {
+	// Prevent panic if the consortiumV2Contracts is not set
+	if c == nil {
+		return false
+	}
+
 	e := reflect.ValueOf(c).Elem()
 	for i := 0; i < e.NumField(); i++ {
 		if e.Field(i).Interface().(common.Address) == address {
