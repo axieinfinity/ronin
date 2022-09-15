@@ -96,8 +96,9 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 			}
 		}
 
-		if p.config.ConsortiumV2Contracts != nil && p.config.IsOnConsortiumV2(big.NewInt(int64(block.NumberU64()+1))) &&
-			p.config.ConsortiumV2Contracts.IsSystemContract(*tx.To()) {
+		hasConsortiumV2Contracts := p.config.ConsortiumV2Contracts != nil
+		isConsortiumV2 := p.config.IsOnConsortiumV2(big.NewInt(int64(block.NumberU64() + 1)))
+		if hasConsortiumV2Contracts && isConsortiumV2 && tx != nil && p.config.ConsortiumV2Contracts.IsSystemContract(*tx.To()) {
 			systemTxs = append(systemTxs, tx)
 			continue
 		}
