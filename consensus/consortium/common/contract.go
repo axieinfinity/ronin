@@ -38,6 +38,10 @@ func getTransactionOpts(from common.Address, nonce uint64, chainId *big.Int, sig
 		Nonce:  new(big.Int).SetUint64(nonce),
 		NoSend: true,
 		Signer: func(address common.Address, tx *types.Transaction) (*types.Transaction, error) {
+			if signTxFn == nil {
+				return tx, nil
+			}
+
 			return signTxFn(accounts.Account{Address: from}, tx, chainId)
 		},
 	}
@@ -148,7 +152,7 @@ func (c *ContractIntegrator) SubmitBlockReward(opts *ApplyTransactOpts) error {
 }
 
 func (c *ContractIntegrator) Slash(opts *ApplyTransactOpts, spoiledValidator common.Address) error {
-	log.Info("Slash validator", "block hash", opts.Header.Hash(), "address", spoiledValidator)
+	log.Warn("Slash validator", "number", opts.Header.Number.Uint64(), "coinbase", c.coinbase.Hex(), "spoiled", spoiledValidator.Hex())
 
 	nonce := opts.State.GetNonce(c.coinbase)
 	tx, err := c.slashIndicatorSC.Slash(getTransactionOpts(c.coinbase, nonce, c.chainId, c.signTxFn), spoiledValidator)
@@ -174,7 +178,7 @@ func (c *ContractIntegrator) Slash(opts *ApplyTransactOpts, spoiledValidator com
 		return err
 	}
 
-	return err
+	return nil
 }
 
 type ApplyMessageOpts struct {

@@ -349,7 +349,8 @@ func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, 
 				snap = newSnapshot(c.config, c.signatures, number, hash, validators, c.ethAPI)
 				// get recents from v1 if number is end of v1
 				if c.chainConfig.IsOnConsortiumV2(big.NewInt(0).SetUint64(number + 1)) {
-					recents := c.v1.GetRecents(chain, number)
+					recents := consortiumCommon.RemoveOutdatedRecents(c.v1.GetRecents(chain, number), number)
+
 					if recents != nil {
 						log.Info("adding previous recents to current snapshot", "number", number, "hash", hash.Hex(), "recents", recents)
 						snap.Recents = recents
@@ -747,8 +748,7 @@ func (c *Consortium) Seal(chain consensus.ChainHeaderReader, block *types.Block,
 		if recent == val {
 			// Signer is among recents, only wait if the current block doesn't shift it out
 			if limit := uint64(len(snap.Validators)/2 + 1); number < limit || seen > number-limit {
-				log.Info("Signed recently, must wait for others")
-				return nil
+				return errors.New("signed recently, must wait for others")
 			}
 		}
 	}
