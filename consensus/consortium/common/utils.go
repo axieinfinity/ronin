@@ -2,6 +2,7 @@ package common
 
 import (
 	"github.com/ethereum/go-ethereum/common"
+	"sort"
 )
 
 // ExtractAddressFromBytes extracts validators' address from extra data in header
@@ -38,4 +39,22 @@ func SignerInList(signer common.Address, validators []common.Address) bool {
 		}
 	}
 	return false
+}
+
+func RemoveOutdatedRecents(recents map[uint64]common.Address, currentBlock uint64) map[uint64]common.Address {
+	var blocks []uint64
+	for n, _ := range recents {
+		blocks = append(blocks, n)
+	}
+	sort.Slice(blocks, func(i, j int) bool { return blocks[i] > blocks[j] })
+
+	newRecents := make(map[uint64]common.Address)
+	for _, n := range blocks {
+		if currentBlock == n {
+			newRecents[n] = recents[n]
+		}
+		currentBlock -= 1
+	}
+
+	return newRecents
 }
