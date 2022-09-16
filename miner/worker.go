@@ -1035,7 +1035,7 @@ func (w *worker) commit(uncles []*types.Header, interval func(), update bool, st
 		// Deep copy receipts here to avoid interaction between different tasks.
 		receiptsCpy := copyReceipts(w.current.receipts)
 		s := w.current.state.Copy()
-		block, receipts, err := w.engine.FinalizeAndAssemble(w.chain, w.current.header, s, w.current.txs, uncles, receiptsCpy)
+		block, receipts, err := w.engine.FinalizeAndAssemble(w.chain, types.CopyHeader(w.current.header), s, w.current.txs, uncles, receiptsCpy)
 		if err != nil {
 			return err
 		}
