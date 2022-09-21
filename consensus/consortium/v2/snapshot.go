@@ -94,7 +94,7 @@ func (s *Snapshot) store(db ethdb.Database) error {
 	if err != nil {
 		return err
 	}
-	return db.Put(append([]byte("consortium-v2-"), s.Hash[:]...), blob)
+	return db.Put(append([]byte("consortium-"), s.Hash[:]...), blob)
 }
 
 func (s *Snapshot) copy() *Snapshot {
