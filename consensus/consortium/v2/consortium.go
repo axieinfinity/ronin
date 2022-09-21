@@ -318,6 +318,7 @@ func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, 
 		snap    *Snapshot
 	)
 
+	cpyNumber := number
 	for snap == nil {
 		// If an in-memory snapshot was found, use that
 		if s, ok := c.recents.Get(hash); ok {
@@ -327,16 +328,24 @@ func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, 
 
 		// If an on-disk checkpoint snapshot can be found, use that
 		if number%c.config.Epoch == 0 {
-			if s, err := loadSnapshot(c.config, c.signatures, c.db, hash, c.ethAPI); err == nil {
+			var err error
+
+			if c.chainConfig.IsOnConsortiumV2(common.Big0.SetUint64(number + 1)) {
+				snap, err = loadSnapshotV1(c.config, c.signatures, c.db, hash, c.ethAPI)
+			} else {
+				snap, err = loadSnapshot(c.config, c.signatures, c.db, hash, c.ethAPI)
+			}
+
+			if err == nil {
 				log.Trace("Loaded snapshot from disk", "number", number, "hash", hash)
-				snap = s
 				break
 			}
 		}
 
 		// If we're at the genesis, snapshot the initial state.
-		if number == 0 || c.chainConfig.IsOnConsortiumV2(big.NewInt(0).SetUint64(number+1)) {
+		if number == 0 || c.chainConfig.IsOnConsortiumV2(common.Big0.SetUint64(number+1)) {
 			checkpoint := chain.GetHeaderByNumber(number)
+			log.Info("Checking snapshot", "number", number, "checkpoint", checkpoint == nil)
 			if checkpoint != nil {
 				// get checkpoint data
 				hash := checkpoint.Hash()
@@ -383,8 +392,10 @@ func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, 
 		}
 		headers = append(headers, header)
 		number, hash = number-1, header.ParentHash
+		log.Info("Finding snapshot", "cpyNumber", cpyNumber, "number", number)
 	}
 
+	log.Info("Snapshot result", "isNil", snap == nil)
 	// check if snapshot is nil
 	if snap == nil {
 		return nil, fmt.Errorf("unknown error while retrieving snapshot at block number %v", number)

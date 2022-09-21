@@ -6,6 +6,7 @@ import (
 	"errors"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
+	v1 "github.com/ethereum/go-ethereum/consensus/consortium/v1"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
@@ -49,8 +50,31 @@ func newSnapshot(config *params.ConsortiumConfig, sigcache *lru.ARCCache, number
 	return snap
 }
 
+func loadSnapshotV1(config *params.ConsortiumConfig, sigcache *lru.ARCCache, db ethdb.Database, hash common.Hash, ethAPI *ethapi.PublicBlockChainAPI) (*Snapshot, error) {
+	blob, err := db.Get(append([]byte("consortium-"), hash[:]...))
+	if err != nil {
+		return nil, err
+	}
+	snap := new(v1.Snapshot)
+	if err := json.Unmarshal(blob, snap); err != nil {
+		return nil, err
+	}
+
+	snapV2 := &Snapshot{
+		config:     config,
+		ethAPI:     ethAPI,
+		sigCache:   sigcache,
+		Number:     snap.Number,
+		Hash:       snap.Hash,
+		Validators: snap.SignerSet,
+		Recents:    snap.Recents,
+	}
+
+	return snapV2, nil
+}
+
 func loadSnapshot(config *params.ConsortiumConfig, sigcache *lru.ARCCache, db ethdb.Database, hash common.Hash, ethAPI *ethapi.PublicBlockChainAPI) (*Snapshot, error) {
-	blob, err := db.Get(append([]byte("consortium-v2-"), hash[:]...))
+	blob, err := db.Get(append([]byte("consortium-"), hash[:]...))
 	if err != nil {
 		return nil, err
 	}
