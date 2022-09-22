@@ -170,6 +170,8 @@ func (s *Snapshot) apply(headers []*types.Header, chain consensus.ChainHeaderRea
 			validator common.Address
 			err       error
 		)
+		// If the headers come from v1 the block hash function does not include chainId,
+		// we need to use the correct ecrecover function the get the correct signer
 		if !snap.chainConfig.IsConsortiumV2(header.Number) {
 			validator, err = v1.Ecrecover(header, s.sigCache)
 		} else {
