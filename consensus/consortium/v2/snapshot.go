@@ -17,9 +17,10 @@ import (
 )
 
 type Snapshot struct {
-	config   *params.ConsortiumConfig // Consensus engine parameters to fine tune behavior
-	ethAPI   *ethapi.PublicBlockChainAPI
-	sigCache *lru.ARCCache // Cache of recent block signatures to speed up ecrecover
+	chainConfig *params.ChainConfig
+	config      *params.ConsortiumConfig // Consensus engine parameters to fine tune behavior
+	ethAPI      *ethapi.PublicBlockChainAPI
+	sigCache    *lru.ARCCache // Cache of recent block signatures to speed up ecrecover
 
 	Number     uint64                      `json:"number"`     // Block number where the snapshot was created
 	Hash       common.Hash                 `json:"hash"`       // Block hash where the snapshot was created
@@ -50,7 +51,15 @@ func newSnapshot(config *params.ConsortiumConfig, sigcache *lru.ARCCache, number
 	return snap
 }
 
-func loadSnapshotV1(config *params.ConsortiumConfig, sigcache *lru.ARCCache, db ethdb.Database, hash common.Hash, ethAPI *ethapi.PublicBlockChainAPI) (*Snapshot, error) {
+func loadSnapshotV1(
+	config *params.ConsortiumConfig,
+	sigcache *lru.ARCCache,
+	db ethdb.Database,
+	hash common.Hash,
+	ethAPI *ethapi.PublicBlockChainAPI,
+	chainConfig *params.ChainConfig,
+) (*Snapshot, error) {
+
 	blob, err := db.Get(append([]byte("consortium-"), hash[:]...))
 	if err != nil {
 		return nil, err
@@ -61,19 +70,27 @@ func loadSnapshotV1(config *params.ConsortiumConfig, sigcache *lru.ARCCache, db 
 	}
 
 	snapV2 := &Snapshot{
-		config:     config,
-		ethAPI:     ethAPI,
-		sigCache:   sigcache,
-		Number:     snap.Number,
-		Hash:       snap.Hash,
-		Validators: snap.SignerSet,
-		Recents:    snap.Recents,
+		chainConfig: chainConfig,
+		config:      config,
+		ethAPI:      ethAPI,
+		sigCache:    sigcache,
+		Number:      snap.Number,
+		Hash:        snap.Hash,
+		Validators:  snap.SignerSet,
+		Recents:     snap.Recents,
 	}
 
 	return snapV2, nil
 }
 
-func loadSnapshot(config *params.ConsortiumConfig, sigcache *lru.ARCCache, db ethdb.Database, hash common.Hash, ethAPI *ethapi.PublicBlockChainAPI) (*Snapshot, error) {
+func loadSnapshot(
+	config *params.ConsortiumConfig,
+	sigcache *lru.ARCCache,
+	db ethdb.Database,
+	hash common.Hash,
+	ethAPI *ethapi.PublicBlockChainAPI,
+	chainConfig *params.ChainConfig,
+) (*Snapshot, error) {
 	blob, err := db.Get(append([]byte("consortium-"), hash[:]...))
 	if err != nil {
 		return nil, err
@@ -85,6 +102,7 @@ func loadSnapshot(config *params.ConsortiumConfig, sigcache *lru.ARCCache, db et
 	snap.config = config
 	snap.sigCache = sigcache
 	snap.ethAPI = ethAPI
+	snap.chainConfig = chainConfig
 
 	return snap, nil
 }
@@ -99,13 +117,14 @@ func (s *Snapshot) store(db ethdb.Database) error {
 
 func (s *Snapshot) copy() *Snapshot {
 	cpy := &Snapshot{
-		config:     s.config,
-		ethAPI:     s.ethAPI,
-		sigCache:   s.sigCache,
-		Number:     s.Number,
-		Hash:       s.Hash,
-		Validators: make(map[common.Address]struct{}),
-		Recents:    make(map[uint64]common.Address),
+		chainConfig: s.chainConfig,
+		config:      s.config,
+		ethAPI:      s.ethAPI,
+		sigCache:    s.sigCache,
+		Number:      s.Number,
+		Hash:        s.Hash,
+		Validators:  make(map[common.Address]struct{}),
+		Recents:     make(map[uint64]common.Address),
 	}
 
 	for v := range s.Validators {
@@ -147,7 +166,15 @@ func (s *Snapshot) apply(headers []*types.Header, chain consensus.ChainHeaderRea
 			delete(snap.Recents, number-limit)
 		}
 		// Resolve the authorization key and check against signers
-		validator, err := ecrecover(header, s.sigCache, chainId)
+		var (
+			validator common.Address
+			err       error
+		)
+		if !snap.chainConfig.IsConsortiumV2(header.Number) {
+			validator, err = v1.Ecrecover(header, s.sigCache)
+		} else {
+			validator, err = ecrecover(header, s.sigCache, chainId)
+		}
 		if err != nil {
 			return nil, err
 		}

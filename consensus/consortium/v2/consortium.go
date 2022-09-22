@@ -330,9 +330,9 @@ func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, 
 			var err error
 
 			if !c.chainConfig.IsConsortiumV2(common.Big0.SetUint64(number)) {
-				snap, err = loadSnapshotV1(c.config, c.signatures, c.db, hash, c.ethAPI)
+				snap, err = loadSnapshotV1(c.config, c.signatures, c.db, hash, c.ethAPI, c.chainConfig)
 			} else {
-				snap, err = loadSnapshot(c.config, c.signatures, c.db, hash, c.ethAPI)
+				snap, err = loadSnapshot(c.config, c.signatures, c.db, hash, c.ethAPI, c.chainConfig)
 			}
 
 			if err != nil {
@@ -341,13 +341,9 @@ func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, 
 
 			if err == nil {
 				log.Trace("Loaded snapshot from disk", "number", number, "hash", hash.Hex())
-				if c.chainConfig.IsOnConsortiumV2(common.Big0.SetUint64(number + 1)) {
-					recents := consortiumCommon.RemoveOutdatedRecents(snap.Recents, number)
-
-					if recents != nil {
-						snap.Recents = recents
-						log.Info("Added previous recents to current snapshot", "number", number, "hash", hash.Hex(), "recents", recents)
-					}
+				if !c.chainConfig.IsConsortiumV2(common.Big0.SetUint64(snap.Number)) {
+					snap.Recents = consortiumCommon.RemoveOutdatedRecents(snap.Recents, number)
+					log.Info("Added previous recents to current snapshot", "number", number, "hash", hash.Hex(), "recents", snap.Recents)
 				}
 				break
 			}
