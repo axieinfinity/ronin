@@ -318,7 +318,7 @@ func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, 
 		snap    *Snapshot
 		// Author: linh
 		//
-		// We must copy parents before going to the loop because parents are modified on line 368.
+		// We must copy parents before going to the loop because parents are modified.
 		// If not, the FindAncientHeader function can not find its block ancestor
 		cpyParents = parents
 	)
