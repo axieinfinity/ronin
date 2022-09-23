@@ -443,7 +443,9 @@ func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.He
 	header.Extra = header.Extra[:extraVanity]
 
 	if number%c.config.Epoch == 0 || c.chainConfig.IsOnConsortiumV2(big.NewInt(int64(number))) {
-		newValidators, err := c.contract.GetValidators(header)
+		// This block is not inserted, the transactions in this block are not applied, so we need
+		// the call GetValidators at the context of previous block
+		newValidators, err := c.contract.GetValidators(new(big.Int).Sub(header.Number, common.Big1))
 		if err != nil {
 			return err
 		}
@@ -503,7 +505,9 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 	// If the block is a epoch end block, verify the validator list
 	// The verification can only be done when the state is ready, it can't be done in VerifyHeader.
 	if header.Number.Uint64()%c.config.Epoch == 0 {
-		newValidators, err := c.contract.GetValidators(header)
+		// The GetValidators in Prepare is called on the context of previous block so here it must
+		// be called on context of previous block too
+		newValidators, err := c.contract.GetValidators(new(big.Int).Sub(header.Number, common.Big1))
 		if err != nil {
 			return err
 		}
