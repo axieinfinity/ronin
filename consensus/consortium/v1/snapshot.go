@@ -135,7 +135,7 @@ func (s *Snapshot) apply(chain consensus.ChainHeaderReader, c *Consortium, heade
 		}
 
 		// Resolve the authorization key and check against signers
-		signer, err := ecrecover(header, s.sigcache)
+		signer, err := Ecrecover(header, s.sigcache)
 		if err != nil {
 			return nil, err
 		}

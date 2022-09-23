@@ -152,8 +152,6 @@ func (c *ContractIntegrator) SubmitBlockReward(opts *ApplyTransactOpts) error {
 }
 
 func (c *ContractIntegrator) Slash(opts *ApplyTransactOpts, spoiledValidator common.Address) error {
-	log.Warn("Slash validator", "number", opts.Header.Number.Uint64(), "coinbase", c.coinbase.Hex(), "spoiled", spoiledValidator.Hex())
-
 	nonce := opts.State.GetNonce(c.coinbase)
 	tx, err := c.slashIndicatorSC.Slash(getTransactionOpts(c.coinbase, nonce, c.chainId, c.signTxFn), spoiledValidator)
 	if err != nil {
