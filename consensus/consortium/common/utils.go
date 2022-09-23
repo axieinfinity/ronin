@@ -41,6 +41,7 @@ func SignerInList(signer common.Address, validators []common.Address) bool {
 	return false
 }
 
+// RemoveOutdatedRecents removes outdated recents list
 func RemoveOutdatedRecents(recents map[uint64]common.Address, currentBlock uint64) map[uint64]common.Address {
 	var blocks []uint64
 	for n, _ := range recents {

@@ -48,7 +48,7 @@ var (
 
 	// ErrRecentlySigned is returned if a header is signed by an authorized entity
 	// that already signed a header recently, thus is temporarily not allowed to.
-	ErrRecentlySigned = errors.New("recently signed")
+	ErrRecentlySigned = errors.New("signed recently, must wait for others")
 
 	// ErrWrongDifficulty is returned if the difficulty of a block doesn't match the
 	// turn of the signer.

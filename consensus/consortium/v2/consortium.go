@@ -316,6 +316,11 @@ func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, 
 	var (
 		headers []*types.Header
 		snap    *Snapshot
+		// Author: linh
+		//
+		// We must copy parents before going to the loop because parents are modified on line 368.
+		// If not, the FindAncientHeader function can not find its block ancestor
+		cpyParents = parents
 	)
 
 	for snap == nil {
@@ -329,6 +334,8 @@ func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, 
 		if number%c.config.Epoch == 0 {
 			var err error
 
+			// Author: minh
+			//
 			// In case the snapshot of hardfork - 1 is requested, we find the latest snapshot in the last
 			// checkpoint of v1. We need to use the correct load snapshot version to load the snapshot coming
 			// from v1.
@@ -345,7 +352,16 @@ func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, 
 			if err == nil {
 				log.Trace("Loaded snapshot from disk", "number", number, "hash", hash.Hex())
 				if !c.chainConfig.IsConsortiumV2(common.Big0.SetUint64(snap.Number)) {
-					// Clean up the incorrect data in recent list
+					// Author: linh
+					//
+					// In version 1, the snapshot is not used correctly, so we must clean up incorrect data in
+					// the recent list before going to version 2
+					//
+					// Example: The current block is 1000, and the recents list is
+					// [2: address1, 3: address2, ...,998: addressN - 1,999: addressN]
+					// So we need to remove these elements are not continuously
+					// So the final result must be
+					// [998: addressN - 1,999: addressN]
 					snap.Recents = consortiumCommon.RemoveOutdatedRecents(snap.Recents, number)
 					log.Info("Added previous recents to current snapshot", "number", number, "hash", hash.Hex(), "recents", snap.Recents)
 				}
@@ -354,6 +370,7 @@ func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, 
 		}
 
 		// No snapshot for this header, gather the header and move backward
+		// NOTE: We are modifying parents in here
 		var header *types.Header
 		if len(parents) > 0 {
 			// If we have explicit parents, pick from there (enforced)
@@ -383,7 +400,7 @@ func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, 
 		headers[i], headers[len(headers)-1-i] = headers[len(headers)-1-i], headers[i]
 	}
 
-	snap, err := snap.apply(headers, chain, parents, c.chainConfig.ChainID)
+	snap, err := snap.apply(headers, chain, cpyParents, c.chainConfig.ChainID)
 	if err != nil {
 		return nil, err
 	}
@@ -737,7 +754,7 @@ func (c *Consortium) Seal(chain consensus.ChainHeaderReader, block *types.Block,
 		if recent == val {
 			// Signer is among recents, only wait if the current block doesn't shift it out
 			if limit := uint64(len(snap.Validators)/2 + 1); number < limit || seen > number-limit {
-				return errors.New("signed recently, must wait for others")
+				return consortiumCommon.ErrRecentlySigned
 			}
 		}
 	}

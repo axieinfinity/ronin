@@ -642,7 +642,7 @@ func (c *Consortium) Seal(chain consensus.ChainHeaderReader, block *types.Block,
 		if recent == signer {
 			// Signer is among recents, only wait if the current block doesn't shift it out
 			if limit := uint64(len(validators)/2 + 1); seen > number-limit {
-				return errors.New("signed recently, must wait for others")
+				return consortiumCommon.ErrRecentlySigned
 			}
 		}
 	}
