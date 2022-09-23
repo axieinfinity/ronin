@@ -316,9 +316,7 @@ func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, 
 	var (
 		headers []*types.Header
 		snap    *Snapshot
-		// Author: linh
-		//
-		// We must copy parents before going to the loop because parents are modified.
+		// @linh: We must copy parents before going to the loop because parents are modified.
 		// If not, the FindAncientHeader function can not find its block ancestor
 		cpyParents = parents
 	)
@@ -334,9 +332,7 @@ func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, 
 		if number%c.config.Epoch == 0 {
 			var err error
 
-			// Author: minh
-			//
-			// In case the snapshot of hardfork - 1 is requested, we find the latest snapshot in the last
+			// @linh: In case the snapshot of hardfork - 1 is requested, we find the latest snapshot in the last
 			// checkpoint of v1. We need to use the correct load snapshot version to load the snapshot coming
 			// from v1.
 			if !c.chainConfig.IsConsortiumV2(common.Big0.SetUint64(number)) {
@@ -352,9 +348,7 @@ func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, 
 			if err == nil {
 				log.Trace("Loaded snapshot from disk", "number", number, "hash", hash.Hex())
 				if !c.chainConfig.IsConsortiumV2(common.Big0.SetUint64(snap.Number)) {
-					// Author: linh
-					//
-					// In version 1, the snapshot is not used correctly, so we must clean up incorrect data in
+					// @linh: In version 1, the snapshot is not used correctly, so we must clean up incorrect data in
 					// the recent list before going to version 2
 					//
 					// Example: The current block is 1000, and the recents list is
