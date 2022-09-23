@@ -327,40 +327,28 @@ func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, 
 
 		// If an on-disk checkpoint snapshot can be found, use that
 		if number%c.config.Epoch == 0 {
-			if s, err := loadSnapshot(c.config, c.signatures, c.db, hash, c.ethAPI); err == nil {
-				log.Trace("Loaded snapshot from disk", "number", number, "hash", hash)
-				snap = s
-				break
+			var err error
+
+			// In case the snapshot of hardfork - 1 is requested, we find the latest snapshot in the last
+			// checkpoint of v1. We need to use the correct load snapshot version to load the snapshot coming
+			// from v1.
+			if !c.chainConfig.IsConsortiumV2(common.Big0.SetUint64(number)) {
+				snap, err = loadSnapshotV1(c.config, c.signatures, c.db, hash, c.ethAPI, c.chainConfig)
+			} else {
+				snap, err = loadSnapshot(c.config, c.signatures, c.db, hash, c.ethAPI, c.chainConfig)
 			}
-		}
 
-		// If we're at the genesis, snapshot the initial state.
-		if number == 0 || c.chainConfig.IsOnConsortiumV2(big.NewInt(0).SetUint64(number+1)) {
-			checkpoint := chain.GetHeaderByNumber(number)
-			if checkpoint != nil {
-				// get checkpoint data
-				hash := checkpoint.Hash()
+			if err != nil {
+				log.Debug("Load snapshot failed", "number", number, "hash", hash.Hex())
+			}
 
-				validators, err := c.contract.GetValidators(checkpoint)
-				if err != nil {
-					return nil, err
+			if err == nil {
+				log.Trace("Loaded snapshot from disk", "number", number, "hash", hash.Hex())
+				if !c.chainConfig.IsConsortiumV2(common.Big0.SetUint64(snap.Number)) {
+					// Clean up the incorrect data in recent list
+					snap.Recents = consortiumCommon.RemoveOutdatedRecents(snap.Recents, number)
+					log.Info("Added previous recents to current snapshot", "number", number, "hash", hash.Hex(), "recents", snap.Recents)
 				}
-
-				snap = newSnapshot(c.config, c.signatures, number, hash, validators, c.ethAPI)
-				// get recents from v1 if number is end of v1
-				if c.chainConfig.IsOnConsortiumV2(big.NewInt(0).SetUint64(number + 1)) {
-					recents := consortiumCommon.RemoveOutdatedRecents(c.v1.GetRecents(chain, number), number)
-
-					if recents != nil {
-						log.Info("adding previous recents to current snapshot", "number", number, "hash", hash.Hex(), "recents", recents)
-						snap.Recents = recents
-					}
-				}
-				// store snap to db
-				if err := snap.store(c.db); err != nil {
-					return nil, err
-				}
-				log.Info("Stored checkpoint snapshot to disk", "number", number, "hash", hash)
 				break
 			}
 		}
@@ -582,6 +570,7 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 			}
 		}
 		if !signedRecently {
+			log.Info("Slash validator", "number", header.Number, "spoiled", spoiledVal)
 			err = c.contract.Slash(transactOpts, spoiledVal)
 			if err != nil {
 				// it is possible that slash validator failed because of the slash channel is disabled.

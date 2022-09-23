@@ -154,7 +154,7 @@ func (c *Consortium) SetGetFenixValidators(fn func() ([]common.Address, error)) 
 // Author implements consensus.Engine, returning the Ethereum address recovered
 // from the signature in the header's extra-data section.
 func (c *Consortium) Author(header *types.Header) (common.Address, error) {
-	return ecrecover(header, c.signatures)
+	return Ecrecover(header, c.signatures)
 }
 
 // VerifyHeader checks whether a header conforms to the consensus rules.
@@ -401,7 +401,7 @@ func (c *Consortium) verifySeal(chain consensus.ChainHeaderReader, header *types
 	}
 
 	// Resolve the authorization key and check against signers
-	signer, err := ecrecover(header, c.signatures)
+	signer, err := Ecrecover(header, c.signatures)
 	if err != nil {
 		return err
 	}
@@ -788,7 +788,7 @@ func (c *Consortium) initContract() error {
 }
 
 // ecrecover extracts the Ethereum account address from a signed header.
-func ecrecover(header *types.Header, sigcache *lru.ARCCache) (common.Address, error) {
+func Ecrecover(header *types.Header, sigcache *lru.ARCCache) (common.Address, error) {
 	// If the signature's already cached, return that
 	hash := header.Hash()
 	if address, known := sigcache.Get(hash); known {
