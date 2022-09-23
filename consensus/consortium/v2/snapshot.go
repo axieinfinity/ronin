@@ -10,7 +10,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	lru "github.com/hashicorp/golang-lru"
 	"math/big"
@@ -194,7 +193,6 @@ func (s *Snapshot) apply(headers []*types.Header, chain consensus.ChainHeaderRea
 		if number > 0 && number%s.config.Epoch == uint64(len(snap.Validators)/2) {
 			checkpointHeader := FindAncientHeader(header, uint64(len(snap.Validators)/2), chain, parents)
 			if checkpointHeader == nil {
-				log.Warn("Apply snapshot v2, checkpoint missing", "number", number, "err", consensus.ErrUnknownAncestor.Error(), "parents", len(parents), "headers", len(headers))
 				return nil, consensus.ErrUnknownAncestor
 			}
 
