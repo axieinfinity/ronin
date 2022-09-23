@@ -6,6 +6,7 @@ import (
 	"errors"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
+	v1 "github.com/ethereum/go-ethereum/consensus/consortium/v1"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
@@ -16,9 +17,10 @@ import (
 )
 
 type Snapshot struct {
-	config   *params.ConsortiumConfig // Consensus engine parameters to fine tune behavior
-	ethAPI   *ethapi.PublicBlockChainAPI
-	sigCache *lru.ARCCache // Cache of recent block signatures to speed up ecrecover
+	chainConfig *params.ChainConfig
+	config      *params.ConsortiumConfig // Consensus engine parameters to fine tune behavior
+	ethAPI      *ethapi.PublicBlockChainAPI
+	sigCache    *lru.ARCCache // Cache of recent block signatures to speed up ecrecover
 
 	Number     uint64                      `json:"number"`     // Block number where the snapshot was created
 	Hash       common.Hash                 `json:"hash"`       // Block hash where the snapshot was created
@@ -49,8 +51,47 @@ func newSnapshot(config *params.ConsortiumConfig, sigcache *lru.ARCCache, number
 	return snap
 }
 
-func loadSnapshot(config *params.ConsortiumConfig, sigcache *lru.ARCCache, db ethdb.Database, hash common.Hash, ethAPI *ethapi.PublicBlockChainAPI) (*Snapshot, error) {
-	blob, err := db.Get(append([]byte("consortium-v2-"), hash[:]...))
+func loadSnapshotV1(
+	config *params.ConsortiumConfig,
+	sigcache *lru.ARCCache,
+	db ethdb.Database,
+	hash common.Hash,
+	ethAPI *ethapi.PublicBlockChainAPI,
+	chainConfig *params.ChainConfig,
+) (*Snapshot, error) {
+
+	blob, err := db.Get(append([]byte("consortium-"), hash[:]...))
+	if err != nil {
+		return nil, err
+	}
+	snap := new(v1.Snapshot)
+	if err := json.Unmarshal(blob, snap); err != nil {
+		return nil, err
+	}
+
+	snapV2 := &Snapshot{
+		chainConfig: chainConfig,
+		config:      config,
+		ethAPI:      ethAPI,
+		sigCache:    sigcache,
+		Number:      snap.Number,
+		Hash:        snap.Hash,
+		Validators:  snap.SignerSet,
+		Recents:     snap.Recents,
+	}
+
+	return snapV2, nil
+}
+
+func loadSnapshot(
+	config *params.ConsortiumConfig,
+	sigcache *lru.ARCCache,
+	db ethdb.Database,
+	hash common.Hash,
+	ethAPI *ethapi.PublicBlockChainAPI,
+	chainConfig *params.ChainConfig,
+) (*Snapshot, error) {
+	blob, err := db.Get(append([]byte("consortium-"), hash[:]...))
 	if err != nil {
 		return nil, err
 	}
@@ -61,6 +102,7 @@ func loadSnapshot(config *params.ConsortiumConfig, sigcache *lru.ARCCache, db et
 	snap.config = config
 	snap.sigCache = sigcache
 	snap.ethAPI = ethAPI
+	snap.chainConfig = chainConfig
 
 	return snap, nil
 }
@@ -70,18 +112,19 @@ func (s *Snapshot) store(db ethdb.Database) error {
 	if err != nil {
 		return err
 	}
-	return db.Put(append([]byte("consortium-v2-"), s.Hash[:]...), blob)
+	return db.Put(append([]byte("consortium-"), s.Hash[:]...), blob)
 }
 
 func (s *Snapshot) copy() *Snapshot {
 	cpy := &Snapshot{
-		config:     s.config,
-		ethAPI:     s.ethAPI,
-		sigCache:   s.sigCache,
-		Number:     s.Number,
-		Hash:       s.Hash,
-		Validators: make(map[common.Address]struct{}),
-		Recents:    make(map[uint64]common.Address),
+		chainConfig: s.chainConfig,
+		config:      s.config,
+		ethAPI:      s.ethAPI,
+		sigCache:    s.sigCache,
+		Number:      s.Number,
+		Hash:        s.Hash,
+		Validators:  make(map[common.Address]struct{}),
+		Recents:     make(map[uint64]common.Address),
 	}
 
 	for v := range s.Validators {
@@ -123,7 +166,17 @@ func (s *Snapshot) apply(headers []*types.Header, chain consensus.ChainHeaderRea
 			delete(snap.Recents, number-limit)
 		}
 		// Resolve the authorization key and check against signers
-		validator, err := ecrecover(header, s.sigCache, chainId)
+		var (
+			validator common.Address
+			err       error
+		)
+		// If the headers come from v1 the block hash function does not include chainId,
+		// we need to use the correct ecrecover function the get the correct signer
+		if !snap.chainConfig.IsConsortiumV2(header.Number) {
+			validator, err = v1.Ecrecover(header, s.sigCache)
+		} else {
+			validator, err = ecrecover(header, s.sigCache, chainId)
+		}
 		if err != nil {
 			return nil, err
 		}
