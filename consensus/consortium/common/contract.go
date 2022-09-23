@@ -77,8 +77,11 @@ func NewContractIntegrator(config *chainParams.ChainConfig, backend bind.Contrac
 	}, nil
 }
 
-func (c *ContractIntegrator) GetValidators(header *types.Header) ([]common.Address, error) {
-	addresses, err := c.roninValidatorSetSC.GetValidators(nil)
+func (c *ContractIntegrator) GetValidators(blockNumber *big.Int) ([]common.Address, error) {
+	callOpts := bind.CallOpts{
+		BlockNumber: blockNumber,
+	}
+	addresses, err := c.roninValidatorSetSC.GetValidators(&callOpts)
 	if err != nil {
 		return nil, err
 	}
