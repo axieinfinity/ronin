@@ -4,6 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"math/big"
+	"sort"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	v1 "github.com/ethereum/go-ethereum/consensus/consortium/v1"
@@ -12,8 +15,6 @@ import (
 	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"github.com/ethereum/go-ethereum/params"
 	lru "github.com/hashicorp/golang-lru"
-	"math/big"
-	"sort"
 )
 
 type Snapshot struct {
@@ -213,8 +214,6 @@ func (s *Snapshot) apply(headers []*types.Header, chain consensus.ChainHeaderRea
 					delete(snap.Recents, number-uint64(newLimit)-uint64(i))
 				}
 			}
-			oldLimit = len(snap.Validators)
-			newLimit = len(newVals)
 			snap.Validators = newVals
 		}
 	}
@@ -231,36 +230,6 @@ func (s *Snapshot) validators() []common.Address {
 	}
 	sort.Sort(validatorsAscending(validators))
 	return validators
-}
-
-func (s *Snapshot) enoughDistance(validator common.Address, header *types.Header) bool {
-	idx := s.indexOfVal(validator)
-	if idx < 0 {
-		return true
-	}
-	validatorNum := int64(len(s.validators()))
-	if validatorNum == 1 {
-		return true
-	}
-	if validator == header.Coinbase {
-		return false
-	}
-	offset := (int64(s.Number) + 1) % validatorNum
-	if int64(idx) >= offset {
-		return int64(idx)-offset >= validatorNum-2
-	} else {
-		return validatorNum+int64(idx)-offset >= validatorNum-2
-	}
-}
-
-func (s *Snapshot) indexOfVal(validator common.Address) int {
-	validators := s.validators()
-	for idx, val := range validators {
-		if val == validator {
-			return idx
-		}
-	}
-	return -1
 }
 
 // inturn returns if a validator at a given block height is in-turn or not.
@@ -316,13 +285,3 @@ func FindAncientHeader(header *types.Header, ite uint64, chain consensus.ChainHe
 	}
 	return ancient
 }
-
-//func (s *Snapshot) isMajorityFork(forkHash string) bool {
-//	ally := 0
-//	for _, h := range s.RecentForkHashes {
-//		if h == forkHash {
-//			ally++
-//		}
-//	}
-//	return ally > len(s.RecentForkHashes)/2
-//}

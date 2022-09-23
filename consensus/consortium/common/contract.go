@@ -6,6 +6,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"math/big"
+
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
@@ -13,8 +15,8 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/consensus"
-	"github.com/ethereum/go-ethereum/consensus/consortium/generated_contracts/ronin_validator_set"
-	"github.com/ethereum/go-ethereum/consensus/consortium/generated_contracts/slash_indicator"
+	roninValidatorSet "github.com/ethereum/go-ethereum/consensus/consortium/generated_contracts/ronin_validator_set"
+	slashIndicator "github.com/ethereum/go-ethereum/consensus/consortium/generated_contracts/slash_indicator"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -23,7 +25,6 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	chainParams "github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
-	"math/big"
 )
 
 var errMethodUnimplemented = errors.New("method is unimplemented")
@@ -54,7 +55,6 @@ type ContractIntegrator struct {
 	slashIndicatorSC    *slashIndicator.SlashIndicator
 	signTxFn            SignerTxFn
 	coinbase            common.Address
-	config              *chainParams.ChainConfig
 }
 
 func NewContractIntegrator(config *chainParams.ChainConfig, backend bind.ContractBackend, signTxFn SignerTxFn, coinbase common.Address) (*ContractIntegrator, error) {

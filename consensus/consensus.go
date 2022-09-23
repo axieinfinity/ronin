@@ -18,9 +18,10 @@
 package consensus
 
 import (
-	"github.com/ethereum/go-ethereum/ethdb"
 	"math/big"
 	"time"
+
+	"github.com/ethereum/go-ethereum/ethdb"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/state"
@@ -146,7 +147,4 @@ type PoSA interface {
 
 	IsSystemTransaction(tx *types.Transaction, header *types.Header) (bool, error)
 	IsSystemContract(to *common.Address) bool
-	EnoughDistance(chain ChainReader, header *types.Header) bool
-	IsLocalBlock(header *types.Header) bool
-	AllowLightProcess(chain ChainReader, currentHeader *types.Header) bool
 }

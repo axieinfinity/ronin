@@ -1,6 +1,9 @@
 package consortium
 
 import (
+	"math/big"
+	"time"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	consortiumCommon "github.com/ethereum/go-ethereum/consensus/consortium/common"
@@ -12,8 +15,6 @@ import (
 	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
-	"math/big"
-	"time"
 )
 
 type Consortium struct {
@@ -36,8 +37,6 @@ func New(chainConfig *params.ChainConfig, db ethdb.Database, ee *ethapi.PublicBl
 	}
 }
 
-// Author since v1 and v2 are implemented the same logic, so we don't need to check whether the current block is version 1
-// or version 2
 func (c *Consortium) Author(header *types.Header) (common.Address, error) {
 	if c.chainConfig.IsConsortiumV2(header.Number) {
 		return c.v2.Author(header)
@@ -184,16 +183,4 @@ func (c *Consortium) IsSystemTransaction(tx *types.Transaction, header *types.He
 
 func (c *Consortium) IsSystemContract(to *common.Address) bool {
 	return c.v2.IsSystemContract(to)
-}
-
-func (c *Consortium) EnoughDistance(chain consensus.ChainReader, header *types.Header) bool {
-	return c.v2.EnoughDistance(chain, header)
-}
-
-func (c *Consortium) IsLocalBlock(header *types.Header) bool {
-	return c.v2.IsLocalBlock(header)
-}
-
-func (c *Consortium) AllowLightProcess(chain consensus.ChainReader, currentHeader *types.Header) bool {
-	return c.v2.AllowLightProcess(chain, currentHeader)
 }

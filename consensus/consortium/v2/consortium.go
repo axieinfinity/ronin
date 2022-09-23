@@ -4,6 +4,13 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
+	"math/big"
+	"math/rand"
+	"sort"
+	"sync"
+	"time"
+
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -21,19 +28,11 @@ import (
 	"github.com/ethereum/go-ethereum/trie"
 	lru "github.com/hashicorp/golang-lru"
 	"golang.org/x/crypto/sha3"
-	"io"
-	"math/big"
-	"math/rand"
-	"sort"
-	"sync"
-	"time"
 )
 
 const (
 	inmemorySnapshots  = 128  // Number of recent vote snapshots to keep in memory
 	inmemorySignatures = 4096 // Number of recent block signatures to keep in memory
-
-	checkpointInterval = 1024 // Number of blocks after which to save the snapshot to the database
 
 	extraVanity = 32 // Fixed number of extra-data prefix bytes reserved for signer vanity
 	extraSeal   = 65 // Fixed number of extra-data suffix bytes reserved for signer seal
@@ -68,9 +67,6 @@ var (
 	// that already signed a header recently, thus is temporarily not allowed to.
 	errRecentlySigned = errors.New("recently signed")
 
-	// errMissingValidators is returned if you can not get list of validators.
-	errMissingValidators = errors.New("missing validators")
-
 	// errCoinBaseMisMatch is returned if a header's coinbase do not match with signature
 	errCoinBaseMisMatch = errors.New("coinbase do not match with signature")
 
@@ -96,7 +92,6 @@ type Consortium struct {
 	lock sync.RWMutex // Protects the signer fields
 
 	ethAPI   *ethapi.PublicBlockChainAPI
-	statedb  *state.StateDB
 	contract *consortiumCommon.ContractIntegrator
 
 	fakeDiff bool
@@ -153,29 +148,6 @@ func (c *Consortium) IsSystemContract(to *common.Address) bool {
 		return false
 	}
 	return c.chainConfig.ConsortiumV2Contracts.IsSystemContract(*to)
-}
-
-func (c *Consortium) EnoughDistance(chain consensus.ChainReader, header *types.Header) bool {
-	snap, err := c.snapshot(chain, header.Number.Uint64()-1, header.ParentHash, nil)
-	if err != nil {
-		return true
-	}
-	return snap.enoughDistance(c.val, header)
-}
-
-func (c *Consortium) IsLocalBlock(header *types.Header) bool {
-	return c.val == header.Coinbase
-}
-
-func (c *Consortium) AllowLightProcess(chain consensus.ChainReader, currentHeader *types.Header) bool {
-	snap, err := c.snapshot(chain, currentHeader.Number.Uint64()-1, currentHeader.ParentHash, nil)
-	if err != nil {
-		return true
-	}
-
-	idx := snap.indexOfVal(c.val)
-	// validator is not allowed to diff sync
-	return idx < 0
 }
 
 func (c *Consortium) Author(header *types.Header) (common.Address, error) {
@@ -267,19 +239,6 @@ func (c *Consortium) verifyCascadingFields(chain consensus.ChainHeaderReader, he
 		return consensus.ErrUnknownAncestor
 	}
 
-	// Verify list validators
-	// Note: Verify it in Finalize
-	//validators, err := c.getCurrentValidators(header.Hash(), header.Number)
-	//if err != nil {
-	//	return errMissingValidators
-	//}
-	//checkpointValidators := c.getValidatorsFromHeader(header)
-	//validValidators := consortiumCommon.CompareSignersLists(validators, checkpointValidators)
-	//if !validValidators {
-	//	log.Error("signers lists are different in checkpoint header and snapshot", "number", number, "validatorsHeader", checkpointValidators, "signers", validators)
-	//	return consortiumCommon.ErrInvalidCheckpointSigners
-	//}
-
 	// Verify that the gas limit is <= 2^63-1
 	capacity := uint64(0x7fffffffffffffff)
 	if header.GasLimit > capacity {
@@ -290,16 +249,6 @@ func (c *Consortium) verifyCascadingFields(chain consensus.ChainHeaderReader, he
 		return fmt.Errorf("invalid gasUsed: have %d, gasLimit %d", header.GasUsed, header.GasLimit)
 	}
 
-	// Verify that the gas limit remains within allowed bounds
-	//diff := int64(parent.GasLimit) - int64(header.GasLimit)
-	//if diff < 0 {
-	//	diff *= -1
-	//}
-	//limit := parent.GasLimit / params.ConsortiumGasLimitBoundDivisor
-	//
-	//if uint64(diff) >= limit || header.GasLimit < params.MinGasLimit {
-	//	return fmt.Errorf("invalid gas limit: have %d, want %d += %d", header.GasLimit, parent.GasLimit, limit)
-	//}
 	if err := misc.VerifyGaslimit(parent.GasLimit, header.GasLimit); err != nil {
 		return err
 	}
@@ -821,11 +770,6 @@ func CalcDifficulty(snap *Snapshot, signer common.Address) *big.Int {
 	return new(big.Int).Set(diffNoTurn)
 }
 
-func (c *Consortium) getValidatorsFromHeader(header *types.Header) []common.Address {
-	extraSuffix := len(header.Extra) - consortiumCommon.ExtraSeal
-	return consortiumCommon.ExtractAddressFromBytes(header.Extra[extraVanity:extraSuffix])
-}
-
 func (c *Consortium) initContract() error {
 	contract, err := consortiumCommon.NewContractIntegrator(c.chainConfig, consortiumCommon.NewConsortiumBackend(c.ethAPI), c.signTxFn, c.val)
 	if err != nil {
@@ -834,13 +778,6 @@ func (c *Consortium) initContract() error {
 	c.contract = contract
 
 	return nil
-}
-
-// Check if it is the turn of the signer from the last checkpoint
-func (c *Consortium) signerInTurn(signer common.Address, number uint64, validators []common.Address) bool {
-	lastCheckpoint := number / c.config.Epoch * c.config.Epoch
-	index := (number - lastCheckpoint) % uint64(len(validators))
-	return validators[index] == signer
 }
 
 // ecrecover extracts the Ethereum account address from a signed header.
