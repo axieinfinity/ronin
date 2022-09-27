@@ -661,9 +661,19 @@ func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, head
 		}
 	}
 
-	if err := c.contract.SubmitBlockReward(transactOpts); err != nil {
-		return nil, nil, err
+	coinbase := transactOpts.Header.Coinbase
+	balance := transactOpts.State.GetBalance(consensus.SystemAddress)
+	if balance.Cmp(common.Big0) > 0 {
+		transactOpts.State.SetBalance(consensus.SystemAddress, big.NewInt(0))
+		transactOpts.State.AddBalance(coinbase, balance)
 	}
+
+	/*
+		err := c.contract.SubmitBlockReward(transactOpts)
+		if err != nil {
+			return nil, nil, err
+		}
+	*/
 	// should not happen. Once happen, stop the node is better than broadcast the block
 	if header.GasLimit < header.GasUsed {
 		return nil, nil, errors.New("gas consumption of system txs exceed the gas limit")
