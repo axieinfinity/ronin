@@ -24,6 +24,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/log"
 	"math/big"
+	"os"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -1079,7 +1080,9 @@ func (c *consortiumLog) RequiredGas(input []byte) uint64 {
 }
 
 func (c *consortiumLog) Run(input []byte) ([]byte, error) {
-	// TODO: trigger this function only in debug mode
+	if os.Getenv("DEBUG") != "true" {
+		return input, nil
+	}
 	var (
 		pAbi   abi.ABI
 		err    error

@@ -1659,6 +1659,8 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 	if ctx.GlobalIsSet(VMEnableDebugFlag.Name) {
 		// TODO(fjl): force-enable this in --dev mode
 		cfg.EnablePreimageRecording = ctx.GlobalBool(VMEnableDebugFlag.Name)
+		// set debug environment to true
+		os.Setenv("DEBUG", "true")
 	}
 
 	if ctx.GlobalIsSet(RPCGlobalGasCapFlag.Name) {
