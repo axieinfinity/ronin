@@ -20,7 +20,11 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"errors"
+	"fmt"
+	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/log"
 	"math/big"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
@@ -106,11 +110,16 @@ var PrecompiledContractsBLS = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{18}): &bls12381MapG2{},
 }
 
+var PrecompiledContractsConsortium = map[common.Address]PrecompiledContract{
+	common.BytesToAddress([]byte{101}): &consortiumLog{},
+}
+
 var (
-	PrecompiledAddressesBerlin    []common.Address
-	PrecompiledAddressesIstanbul  []common.Address
-	PrecompiledAddressesByzantium []common.Address
-	PrecompiledAddressesHomestead []common.Address
+	PrecompiledAddressesBerlin     []common.Address
+	PrecompiledAddressesIstanbul   []common.Address
+	PrecompiledAddressesByzantium  []common.Address
+	PrecompiledAddressesHomestead  []common.Address
+	PrecompiledAddressesConsortium []common.Address
 )
 
 func init() {
@@ -125,6 +134,9 @@ func init() {
 	}
 	for k := range PrecompiledContractsBerlin {
 		PrecompiledAddressesBerlin = append(PrecompiledAddressesBerlin, k)
+	}
+	for k := range PrecompiledContractsConsortium {
+		PrecompiledAddressesConsortium = append(PrecompiledAddressesConsortium, k)
 	}
 }
 
@@ -1056,4 +1068,54 @@ func (c *bls12381MapG2) Run(input []byte) ([]byte, error) {
 
 	// Encode the G2 point to 256 bytes
 	return g.EncodePoint(r), nil
+}
+
+var consortiumLogAbi = "[\n\t{\n\t\t\"inputs\": [\n\t\t\t{\n\t\t\t\t\"internalType\": \"string\",\n\t\t\t\t\"name\": \"message\",\n\t\t\t\t\"type\": \"string\"\n\t\t\t}\n\t\t],\n\t\t\"name\": \"log\",\n\t\t\"outputs\": [],\n\t\t\"stateMutability\": \"nonpayable\",\n\t\t\"type\": \"function\"\n\t}\n]"
+
+type consortiumLog struct{}
+
+func (c *consortiumLog) RequiredGas(input []byte) uint64 {
+	return 0
+}
+
+func (c *consortiumLog) Run(input []byte) ([]byte, error) {
+	// TODO: trigger this function only in debug mode
+	var (
+		pAbi   abi.ABI
+		err    error
+		method *abi.Method
+		args   []interface{}
+	)
+	if pAbi, err = abi.JSON(strings.NewReader(consortiumLogAbi)); err != nil {
+		return nil, err
+	}
+	if method, err = getMethod(pAbi, input); err != nil {
+		return nil, err
+	}
+	switch method.Name {
+	case "log":
+		if args, err = method.Inputs.Unpack(input[4:]); err != nil {
+			return nil, err
+		}
+		if len(args) == 0 {
+			return input, nil
+		}
+		if _, ok := args[0].(string); ok {
+			log.Info("[consortiumLog] log message from smart contract", "message", args[0].(string))
+		}
+	}
+	return input, nil
+}
+
+func getMethod(smcABI abi.ABI, input []byte) (*abi.Method, error) {
+	method, err := smcABI.MethodById(input)
+	if err != nil {
+		return nil, err
+	}
+	for k, _ := range smcABI.Methods {
+		if k == method.Name {
+			return method, nil
+		}
+	}
+	return nil, fmt.Errorf("method not found")
 }
