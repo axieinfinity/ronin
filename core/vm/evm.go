@@ -61,7 +61,7 @@ func (evm *EVM) precompile(addr common.Address) (PrecompiledContract, bool) {
 		return &blacklistedAddress{}, true
 	}
 
-	var precompiles, tmpPrecompiles map[common.Address]PrecompiledContract
+	var tmpPrecompiles map[common.Address]PrecompiledContract
 	// add eth precompile contracts
 	switch {
 	case evm.chainRules.IsBerlin:
@@ -74,6 +74,7 @@ func (evm *EVM) precompile(addr common.Address) (PrecompiledContract, bool) {
 		tmpPrecompiles = PrecompiledContractsHomestead
 	}
 
+	precompiles := make(map[common.Address]PrecompiledContract)
 	for address, contract := range tmpPrecompiles {
 		precompiles[address] = contract
 	}
