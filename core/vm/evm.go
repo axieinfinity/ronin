@@ -61,16 +61,21 @@ func (evm *EVM) precompile(addr common.Address) (PrecompiledContract, bool) {
 		return &blacklistedAddress{}, true
 	}
 
-	var precompiles map[common.Address]PrecompiledContract
+	var precompiles, tmpPrecompiles map[common.Address]PrecompiledContract
+	// add eth precompile contracts
 	switch {
 	case evm.chainRules.IsBerlin:
-		precompiles = PrecompiledContractsBerlin
+		tmpPrecompiles = PrecompiledContractsBerlin
 	case evm.chainRules.IsIstanbul:
-		precompiles = PrecompiledContractsIstanbul
+		tmpPrecompiles = PrecompiledContractsIstanbul
 	case evm.chainRules.IsByzantium:
-		precompiles = PrecompiledContractsByzantium
+		tmpPrecompiles = PrecompiledContractsByzantium
 	default:
-		precompiles = PrecompiledContractsHomestead
+		tmpPrecompiles = PrecompiledContractsHomestead
+	}
+
+	for address, contract := range tmpPrecompiles {
+		precompiles[address] = contract
 	}
 
 	// add consortium precompiled contracts to list
