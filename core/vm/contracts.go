@@ -20,7 +20,6 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"errors"
-	"fmt"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/log"
 	"math/big"
@@ -1092,7 +1091,7 @@ func (c *consortiumLog) Run(input []byte) ([]byte, error) {
 	if pAbi, err = abi.JSON(strings.NewReader(consortiumLogAbi)); err != nil {
 		return nil, err
 	}
-	if method, err = getMethod(pAbi, input); err != nil {
+	if method, err = pAbi.MethodById(input); err != nil {
 		return nil, err
 	}
 	switch method.Name {
@@ -1108,17 +1107,4 @@ func (c *consortiumLog) Run(input []byte) ([]byte, error) {
 		}
 	}
 	return input, nil
-}
-
-func getMethod(smcABI abi.ABI, input []byte) (*abi.Method, error) {
-	method, err := smcABI.MethodById(input)
-	if err != nil {
-		return nil, err
-	}
-	for k, _ := range smcABI.Methods {
-		if k == method.Name {
-			return method, nil
-		}
-	}
-	return nil, fmt.Errorf("method not found")
 }
