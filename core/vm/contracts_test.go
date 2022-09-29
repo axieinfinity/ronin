@@ -20,7 +20,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/log"
 	"io/ioutil"
+	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -65,6 +69,7 @@ var allPrecompiles = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{16}):   &bls12381Pairing{},
 	common.BytesToAddress([]byte{17}):   &bls12381MapG1{},
 	common.BytesToAddress([]byte{18}):   &bls12381MapG2{},
+	common.BytesToAddress([]byte{101}):  &consortiumLog{},
 }
 
 // EIP-152 test vectors
@@ -311,6 +316,31 @@ func TestPrecompiledBLS12381G2MultiExp(t *testing.T) { testJson("blsG2MultiExp",
 func TestPrecompiledBLS12381Pairing(t *testing.T)    { testJson("blsPairing", "10", t) }
 func TestPrecompiledBLS12381MapG1(t *testing.T)      { testJson("blsMapG1", "11", t) }
 func TestPrecompiledBLS12381MapG2(t *testing.T)      { testJson("blsMapG2", "12", t) }
+func TestPrecompiledConsortiumLog(t *testing.T) {
+	glogger := log.NewGlogHandler(log.StreamHandler(os.Stderr, log.TerminalFormat(false)))
+	glogger.Verbosity(log.LvlInfo)
+	log.Root().SetHandler(glogger)
+	var (
+		pAbi abi.ABI
+		err  error
+	)
+	if pAbi, err = abi.JSON(strings.NewReader(consortiumLogAbi)); err != nil {
+		t.Fatal(err)
+	}
+	data, err := pAbi.Pack("log", "hello world")
+	if err != nil {
+		panic(err)
+	}
+	test := precompiledTest{
+		Name:        "test consortium log",
+		Input:       common.Bytes2Hex(data),
+		Expected:    common.Bytes2Hex(data),
+		Gas:         0,
+		NoBenchmark: true,
+	}
+	// 0x65 is hex of 101
+	testPrecompiled("65", test, t)
+}
 
 func BenchmarkPrecompiledBLS12381G1Add(b *testing.B)      { benchJson("blsG1Add", "0a", b) }
 func BenchmarkPrecompiledBLS12381G1Mul(b *testing.B)      { benchJson("blsG1Mul", "0b", b) }

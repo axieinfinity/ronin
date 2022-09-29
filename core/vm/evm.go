@@ -72,6 +72,12 @@ func (evm *EVM) precompile(addr common.Address) (PrecompiledContract, bool) {
 	default:
 		precompiles = PrecompiledContractsHomestead
 	}
+
+	// add consortium precompiled contracts to list
+	for address, contract := range PrecompiledContractsConsortium {
+		precompiles[address] = contract
+	}
+
 	p, ok := precompiles[addr]
 	return p, ok
 }
