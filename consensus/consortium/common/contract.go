@@ -32,7 +32,7 @@ var errMethodUnimplemented = errors.New("method is unimplemented")
 func getTransactionOpts(from common.Address, nonce uint64, chainId *big.Int, signTxFn SignerTxFn) *bind.TransactOpts {
 	return &bind.TransactOpts{
 		From:     from,
-		GasLimit: 1000000,
+		GasLimit: uint64(math.MaxUint64 / 2),
 		GasPrice: big.NewInt(0),
 		// Set dummy value always equal 0 since it will be overridden when creating a new message
 		Value:  new(big.Int).SetUint64(0),
@@ -243,6 +243,7 @@ func ApplyTransaction(msg types.Message, opts *ApplyTransactOpts) (err error) {
 	}
 	opts.State.Prepare(expectedTx.Hash(), len(*txs))
 	gasUsed, err := applyMessage(msg, opts.ApplyMessageOpts)
+	log.Debug("ApplyTransaction", "gasUsed", gasUsed)
 	if err != nil {
 		return err
 	}
