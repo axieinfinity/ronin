@@ -6,7 +6,6 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"math/big"
 	"math/rand"
@@ -26,10 +25,10 @@ const (
 	totalBalancesMethod  = "totalBalances"
 )
 
-func PrecompiledContractsConsortium(evm *EVM) map[common.Address]PrecompiledContract {
+func PrecompiledContractsConsortium(caller ContractRef, evm *EVM) map[common.Address]PrecompiledContract {
 	return map[common.Address]PrecompiledContract{
 		common.BytesToAddress([]byte{101}): &consortiumLog{},
-		common.BytesToAddress([]byte{102}): &consortiumValidatorSorting{evm: evm},
+		common.BytesToAddress([]byte{102}): &consortiumValidatorSorting{caller: caller, evm: evm},
 	}
 }
 
@@ -60,7 +59,8 @@ func (c *consortiumLog) Run(input []byte) ([]byte, error) {
 }
 
 type consortiumValidatorSorting struct {
-	evm *EVM
+	caller ContractRef
+	evm    *EVM
 }
 
 func (c *consortiumValidatorSorting) RequiredGas(input []byte) uint64 {
@@ -68,15 +68,10 @@ func (c *consortiumValidatorSorting) RequiredGas(input []byte) uint64 {
 }
 
 func (c *consortiumValidatorSorting) Run(input []byte) ([]byte, error) {
-	// get sender from evm
-	sender, err := types.Sender(types.LatestSigner(c.evm.ChainConfig()), c.evm.Context.CurrentTransaction)
-	if err != nil {
-		return nil, err
-	}
 	if c.evm.ChainConfig().ConsortiumV2Contracts == nil {
 		return nil, errors.New("cannot find consortium v2 contracts")
 	}
-	if !c.evm.ChainConfig().ConsortiumV2Contracts.IsSystemContract(sender) {
+	if !c.evm.ChainConfig().ConsortiumV2Contracts.IsSystemContract(c.caller.Address()) {
 		return nil, errors.New("unauthorized sender")
 	}
 	// get method, args from abi
@@ -95,11 +90,11 @@ func (c *consortiumValidatorSorting) Run(input []byte) ([]byte, error) {
 	if !ok {
 		return nil, errors.New("invalid argument type")
 	}
-	validators, err := loadValidators(c.evm, smcAbi, sender)
+	validators, err := loadValidators(c.evm, smcAbi, c.caller.Address())
 	if err != nil {
 		return nil, err
 	}
-	totalBalances, err := loadTotalBalances(c.evm, smcAbi, sender, validators)
+	totalBalances, err := loadTotalBalances(c.evm, smcAbi, c.caller.Address(), validators)
 	if err != nil {
 		return nil, err
 	}

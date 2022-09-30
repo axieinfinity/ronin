@@ -8,7 +8,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/stretchr/testify/require"
 	"math/big"
@@ -126,13 +125,8 @@ var expectedValidators = []common.Address{
 
 func TestConsortiumValidatorSorting_Run(t *testing.T) {
 
-	key, err := crypto.HexToECDSA("b40c75be238f4d9e17913c724951ffce43fdcdb9d991a80f299401868ecb5add")
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	var (
-		caller      = crypto.PubkeyToAddress(key.PublicKey)
+		caller      = common.BytesToAddress([]byte("sender"))
 		statedb, _  = state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
 		chainConfig = params.TestChainConfig
 		limit       = 21
@@ -147,26 +141,21 @@ func TestConsortiumValidatorSorting_Run(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	signedTx, err := types.SignTx(types.NewTx(&types.LegacyTx{
-		Nonce:    1,
-		To:       nil,
-		Value:    big.NewInt(0),
-		Gas:      0,
-		GasPrice: big.NewInt(0),
-		Data:     []byte(""),
-	}), types.LatestSigner(chainConfig), key)
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	statedb.SetBalance(caller, math.BigPow(10, 18))
 	statedb.SetNonce(caller, 1)
 
 	evm := &EVM{
 		Context: BlockContext{
-			CurrentTransaction: signedTx,
-			CanTransfer:        func(state StateDB, addr common.Address, value *big.Int) bool { return true },
-			Transfer:           func(StateDB, common.Address, common.Address, *big.Int) {},
+			CurrentTransaction: types.NewTx(&types.LegacyTx{
+				Nonce:    1,
+				To:       nil,
+				Value:    big.NewInt(0),
+				Gas:      0,
+				GasPrice: big.NewInt(0),
+				Data:     []byte(""),
+			}),
+			CanTransfer: func(state StateDB, addr common.Address, value *big.Int) bool { return true },
+			Transfer:    func(StateDB, common.Address, common.Address, *big.Int) {},
 		},
 		chainConfig: chainConfig,
 		StateDB:     statedb,
@@ -182,7 +171,7 @@ func TestConsortiumValidatorSorting_Run(t *testing.T) {
 		RoninValidatorSet: contract,
 		SlashIndicator:    caller,
 	}
-	c := &consortiumValidatorSorting{evm: evm}
+	c := &consortiumValidatorSorting{caller: AccountRef(caller), evm: evm}
 	output, err := c.Run(input)
 	if err != nil {
 		t.Fatal(err)
