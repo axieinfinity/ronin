@@ -800,7 +800,7 @@ func (c *Consortium) SealHash(header *types.Header) common.Hash {
 	return SealHash(header, c.chainConfig.ChainID)
 }
 
-// Close implements consensus.Engine. It's a noop for clique as there are no background threads.
+// Close implements consensus.Engine. It's a noop for Consortium as there are no background threads.
 func (c *Consortium) Close() error {
 	return nil
 }
