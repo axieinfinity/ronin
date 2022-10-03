@@ -420,6 +420,7 @@ func (c *ConsortiumConfig) String() string {
 }
 
 type ConsortiumV2Contracts struct {
+	StakingContract   common.Address `json:"stakingContract"`
 	RoninValidatorSet common.Address `json:"roninValidatorSet"`
 	SlashIndicator    common.Address `json:"slashIndicator"`
 }
