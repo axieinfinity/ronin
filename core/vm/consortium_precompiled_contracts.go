@@ -15,13 +15,13 @@ import (
 
 var (
 	consortiumLogAbi           = `[{"inputs":[{"internalType":"string","name":"message","type":"string"}],"name":"log","outputs":[],"stateMutability":"nonpayable","type":"function"}]`
-	consortiumSortValidatorAbi = `[{"inputs":[],"name":"getValidators","outputs":[{"internalType":"address[]","name":"_validatorList","type":"address[]"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint256","name":"limit","type":"uint256"}],"name":"sortValidators","outputs":[{"internalType":"address[]","name":"validators","type":"address[]"}],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address[]","name":"_poolList","type":"address[]"}],"name":"totalBalances","outputs":[{"internalType":"uint256[]","name":"_balances","type":"uint256[]"}],"stateMutability":"view","type":"function"}]`
+	consortiumSortValidatorAbi = `[{"inputs":[],"name":"getValidatorCandidates","outputs":[{"internalType":"address[]","name":"","type":"address[]"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint256","name":"limit","type":"uint256"}],"name":"sortValidators","outputs":[{"internalType":"address[]","name":"validators","type":"address[]"}],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address[]","name":"_poolList","type":"address[]"}],"name":"totalBalances","outputs":[{"internalType":"uint256[]","name":"_balances","type":"uint256[]"}],"stateMutability":"view","type":"function"}]`
 )
 
 const (
 	sortValidatorsMethod = "sortValidators"
 	logMethod            = "log"
-	getValidatorsMethod  = "getValidators"
+	getValidatorsMethod  = "getValidatorCandidates"
 	totalBalancesMethod  = "totalBalances"
 )
 
