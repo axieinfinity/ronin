@@ -32,6 +32,7 @@ func CompareSignersLists(list1 []common.Address, list2 []common.Address) bool {
 	return true
 }
 
+// SignerInList checks the given signer address is whether in the validators set or not
 func SignerInList(signer common.Address, validators []common.Address) bool {
 	for _, validator := range validators {
 		if signer == validator {
