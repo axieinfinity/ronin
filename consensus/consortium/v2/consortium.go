@@ -539,6 +539,7 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 			if err != nil {
 				// it is possible that slash validator failed because of the slash channel is disabled.
 				log.Error("slash validator failed", "block hash", header.Hash(), "address", spoiledVal)
+				return err
 			}
 		}
 	}
@@ -546,6 +547,7 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 	if header.Number.Uint64()%c.config.Epoch == c.config.Epoch-1 {
 		if err := c.contract.WrapUpEpoch(transactOpts); err != nil {
 			log.Error("Failed to update validators", "err", err)
+			return err
 		}
 	}
 
@@ -607,6 +609,7 @@ func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, head
 			if err != nil {
 				// it is possible that slash validator failed because of the slash channel is disabled.
 				log.Error("Slash validator failed", "block hash", header.Hash(), "address", spoiledVal, "error", err)
+				return nil, nil, err
 			}
 		}
 	}
@@ -614,6 +617,7 @@ func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, head
 	if header.Number.Uint64()%c.config.Epoch == c.config.Epoch-1 {
 		if err := c.contract.WrapUpEpoch(transactOpts); err != nil {
 			log.Error("Wrap up epoch failed", "block hash", header.Hash(), "error", err)
+			return nil, nil, err
 		}
 	}
 
