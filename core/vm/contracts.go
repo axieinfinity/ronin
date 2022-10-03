@@ -20,12 +20,6 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"errors"
-	"github.com/ethereum/go-ethereum/accounts/abi"
-	"github.com/ethereum/go-ethereum/log"
-	"math/big"
-	"os"
-	"strings"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -33,6 +27,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto/bls12381"
 	"github.com/ethereum/go-ethereum/crypto/bn256"
 	"github.com/ethereum/go-ethereum/params"
+	"math/big"
 
 	//lint:ignore SA1019 Needed for precompile
 	"golang.org/x/crypto/ripemd160"
@@ -110,16 +105,11 @@ var PrecompiledContractsBLS = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{18}): &bls12381MapG2{},
 }
 
-var PrecompiledContractsConsortium = map[common.Address]PrecompiledContract{
-	common.BytesToAddress([]byte{101}): &consortiumLog{},
-}
-
 var (
-	PrecompiledAddressesBerlin     []common.Address
-	PrecompiledAddressesIstanbul   []common.Address
-	PrecompiledAddressesByzantium  []common.Address
-	PrecompiledAddressesHomestead  []common.Address
-	PrecompiledAddressesConsortium []common.Address
+	PrecompiledAddressesBerlin    []common.Address
+	PrecompiledAddressesIstanbul  []common.Address
+	PrecompiledAddressesByzantium []common.Address
+	PrecompiledAddressesHomestead []common.Address
 )
 
 func init() {
@@ -134,9 +124,6 @@ func init() {
 	}
 	for k := range PrecompiledContractsBerlin {
 		PrecompiledAddressesBerlin = append(PrecompiledAddressesBerlin, k)
-	}
-	for k := range PrecompiledContractsConsortium {
-		PrecompiledAddressesConsortium = append(PrecompiledAddressesConsortium, k)
 	}
 }
 
@@ -1068,43 +1055,4 @@ func (c *bls12381MapG2) Run(input []byte) ([]byte, error) {
 
 	// Encode the G2 point to 256 bytes
 	return g.EncodePoint(r), nil
-}
-
-var consortiumLogAbi = `[{"inputs":[{"internalType":"string","name":"message","type":"string"}],"name":"log","outputs":[],"stateMutability":"nonpayable","type":"function"}]`
-
-type consortiumLog struct{}
-
-func (c *consortiumLog) RequiredGas(input []byte) uint64 {
-	return 0
-}
-
-func (c *consortiumLog) Run(input []byte) ([]byte, error) {
-	if os.Getenv("DEBUG") != "true" {
-		return input, nil
-	}
-	var (
-		pAbi   abi.ABI
-		err    error
-		method *abi.Method
-		args   []interface{}
-	)
-	if pAbi, err = abi.JSON(strings.NewReader(consortiumLogAbi)); err != nil {
-		return nil, err
-	}
-	if method, err = pAbi.MethodById(input); err != nil {
-		return nil, err
-	}
-	switch method.Name {
-	case "log":
-		if args, err = method.Inputs.Unpack(input[4:]); err != nil {
-			return nil, err
-		}
-		if len(args) == 0 {
-			return input, nil
-		}
-		if _, ok := args[0].(string); ok {
-			log.Info("[consortiumLog] log message from smart contract", "message", args[0].(string))
-		}
-	}
-	return input, nil
 }
