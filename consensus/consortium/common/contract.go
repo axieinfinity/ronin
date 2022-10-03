@@ -85,7 +85,7 @@ func NewContractIntegrator(config *chainParams.ChainConfig, backend bind.Contrac
 	}, nil
 }
 
-// GetValidators retrieves a list of validators
+// GetValidators retrieves top validators addresses
 func (c *ContractIntegrator) GetValidators(blockNumber *big.Int) ([]common.Address, error) {
 	callOpts := bind.CallOpts{
 		BlockNumber: blockNumber,
