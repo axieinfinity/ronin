@@ -41,7 +41,7 @@ const (
 	wiggleTime           = 1000 * time.Millisecond // Random delay (per signer) to allow concurrent signers
 )
 
-// Consortium delegate proof-of-stack protocol constants.
+// Consortium delegated proof-of-stake protocol constants.
 var (
 	epochLength = uint64(30000) // Default number of blocks after which to checkpoint
 
@@ -75,8 +75,8 @@ var (
 	errMismatchingEpochValidators = errors.New("mismatching validator list on epoch block")
 )
 
-// Consortium is the delegate proof-of-stack consensus engine proposed to support the
-// Ronin to become more decentralize
+// Consortium is the delegated proof-of-stake consensus engine proposed to support the
+// Ronin to become more decentralized
 type Consortium struct {
 	chainConfig *params.ChainConfig
 	config      *params.ConsortiumConfig // Consensus engine configuration parameters
@@ -100,7 +100,7 @@ type Consortium struct {
 	v1       consortiumCommon.ConsortiumAdapter
 }
 
-// New creates a Consortium delegate proof-of-stack consensus engine
+// New creates a Consortium delegated proof-of-stake consensus engine
 func New(
 	chainConfig *params.ChainConfig,
 	db ethdb.Database,
@@ -503,10 +503,9 @@ func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.He
 	return nil
 }
 
-// Finalize implements consensus.Engine, ensuring no uncles are set, nor block rewards given.
-// Finalize calls three methods from smart contracts:
+// Finalize implements consensus.Engine that calls three methods from smart contracts:
 // - WrapUpEpoch at epoch to distribute rewards and sort the validators set
-// - Splash the validator who does not sign if it is in-turn
+// - Slash the validator who does not sign if it is in-turn
 // - SubmitBlockRewards of the current block
 func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs *[]*types.Transaction,
 	uncles []*types.Header, receipts *[]*types.Receipt, systemTxs *[]*types.Transaction, usedGas *uint64) error {
@@ -596,11 +595,9 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 	return nil
 }
 
-// FinalizeAndAssemble implements consensus.Engine, ensuring no uncles are set,
-// nor block rewards given, and returns the final block.
-// FinalizeAndAssemble calls three methods from smart contracts:
+// FinalizeAndAssemble implements consensus.Engine that calls three methods from smart contracts:
 // - WrapUpEpoch at epoch to distribute rewards and sort the validators set
-// - Splash the validator who does not sign if it is in-turn
+// - Slash the validator who does not sign if it is in-turn
 // - SubmitBlockRewards of the current block
 func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB,
 	txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt) (*types.Block, []*types.Receipt, error) {
