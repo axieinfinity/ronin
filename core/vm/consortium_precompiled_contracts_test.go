@@ -1,14 +1,19 @@
 package vm
 
 import (
+	"bytes"
 	"fmt"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"math/big"
+	"os"
 	"strings"
 	"testing"
 )
@@ -112,6 +117,112 @@ var (
 		common.HexToAddress("0x0000000000000000000000000000000000000013"),
 		common.HexToAddress("0x0000000000000000000000000000000000000010"),
 	}
+)
+
+/**
+verifyHeadersTestCode represents the following smart contract code
+
+// SPDX-License-Identifier: GPL-3.0
+pragma solidity >=0.8.0 <0.9.0;
+
+contract VerifyHeaderTestContract {
+
+    // Convert an hexadecimal character to their value
+    function fromHexChar(uint8 c) public pure returns (uint8) {
+        if (bytes1(c) >= bytes1('0') && bytes1(c) <= bytes1('9')) {
+            return c - uint8(bytes1('0'));
+        }
+        if (bytes1(c) >= bytes1('a') && bytes1(c) <= bytes1('f')) {
+            return 10 + c - uint8(bytes1('a'));
+        }
+        if (bytes1(c) >= bytes1('A') && bytes1(c) <= bytes1('F')) {
+            return 10 + c - uint8(bytes1('A'));
+        }
+        revert("fail");
+    }
+
+    // Convert an hexadecimal string to raw bytes
+    function fromHex(string memory s) public pure returns (bytes memory) {
+        bytes memory ss = bytes(s);
+        require(ss.length%2 == 0); // length must be even
+        bytes memory r = new bytes(ss.length/2);
+        for (uint i=0; i<ss.length/2; ++i) {
+            r[i] = bytes1(fromHexChar(uint8(ss[2*i])) * 16 + fromHexChar(uint8(ss[2*i+1])));
+        }
+        return r;
+    }
+
+    struct BlockHeader {
+        bytes32 parentHash;
+        bytes32 ommersHash;
+        bytes32 stateRoot;
+        bytes32 transactionsRoot;
+        bytes32 receiptsRoot;
+        uint8[256] logsBloom;
+        uint256 difficulty;
+        uint64 number;
+        uint64 gasLimit;
+        uint64 gasUsed;
+        uint64 timestamp;
+        bytes extraData;
+        bytes32 mixHash;
+        uint64 nonce;
+    }
+
+    constructor() {}
+
+    function verify() public view returns (bool) {
+        uint8[256] memory bloom;
+        bytes memory ex1 = fromHex("00000000000000000000000000000000000000000000000000000000000000000000000000000000000076616c696461746f72310000000000000000000076616c696461746f72321b8e2142d31f1b0fe686285ba79f7fe652ae3e0dada8450f7c1bacb22bbc1db06d48e0cae9392612797660c54d0a002c394a899d78869864b8cb07d926aac33301");
+        bytes memory ex2 = fromHex("00000000000000000000000000000000000000000000000000000000000000000000000000000000000076616c696461746f72310000000000000000000076616c696461746f723251ed4084e48b910519506e98b829ae733590707a03264ae1b096a3668874163c036a7033caf7693821d9724cba1c409a6e3bafdb25817ebfab42e7de95d1fd0f01");
+        BlockHeader memory header1 = BlockHeader("11", "", "123", "abc", "def", bloom, 1000, 1000, 100000000, 0, 1000, ex1, "", 1000);
+        BlockHeader memory header2 = BlockHeader("11", "", "1232", "abcd", "defd", bloom, 1000, 1000, 100000000, 0, 1000, ex2, "", 1000);
+
+        bytes memory data1 = _packBlockHeader(header1);
+        bytes memory data2 = _packBlockHeader(header2);
+
+        bytes memory payload = abi.encodeWithSignature("verifyHeaders(bytes,bytes)", data1, data2);
+        uint payloadLength = payload.length;
+        address _smc = address(0x67);
+        uint[1] memory _output;
+        assembly {
+            let payloadStart := add(payload, 32)
+            if iszero(staticcall(0, _smc, payloadStart, payloadLength, _output, 0x20)) {
+                revert(0, 0)
+            }
+        }
+        return (_output[0] != 0);
+    }
+
+    function _packBlockHeader(BlockHeader memory _header) private pure returns (bytes memory) {
+    return
+    abi.encodePacked(
+      abi.encode(
+        _header.parentHash,
+        _header.ommersHash,
+        _header.stateRoot,
+        _header.transactionsRoot,
+        _header.receiptsRoot,
+        _header.logsBloom,
+        _header.difficulty,
+        _header.number,
+        _header.gasLimit,
+        _header.gasUsed,
+        _header.timestamp,
+        _header.extraData
+      ),
+      abi.encode(
+        _header.mixHash,
+        _header.nonce
+      )
+    );
+  }
+}
+
+*/
+var (
+	verifyHeadersTestCode = "608060405234801561001057600080fd5b50610c2a806100206000396000f3fe608060405234801561001057600080fd5b50600436106100415760003560e01c80632ecb20d3146100465780638e7e34d714610070578063fc735e9914610090575b600080fd5b61005961005436600461065d565b6100a8565b60405160ff90911681526020015b60405180910390f35b61008361007e36600461069d565b6101c4565b604051610067919061079d565b6100986102ec565b6040519015158152602001610067565b6000600360fc1b60f883901b6001600160f81b031916108015906100de5750603960f81b60f883901b6001600160f81b03191611155b156100f4576100ee6030836107c6565b92915050565b606160f81b60f883901b6001600160f81b031916108015906101285750603360f91b60f883901b6001600160f81b03191611155b1561014457606161013a83600a6107df565b6100ee91906107c6565b604160f81b60f883901b6001600160f81b031916108015906101785750602360f91b60f883901b6001600160f81b03191611155b1561018a57604161013a83600a6107df565b60405162461bcd60e51b81526004016101bb9060208082526004908201526319985a5b60e21b604082015260600190565b60405180910390fd5b805160609082906101d79060029061080e565b156101e157600080fd5b6000600282516101f19190610822565b6001600160401b0381111561020857610208610687565b6040519080825280601f01601f191660200182016040528015610232576020820181803683370190505b50905060005b600283516102469190610822565b8110156102e4576102848361025c836002610836565b61026790600161084d565b8151811061027757610277610860565b016020015160f81c6100a8565b61029384610267846002610836565b61029e906010610876565b6102a891906107df565b60f81b8282815181106102bd576102bd610860565b60200101906001600160f81b031916908160001a9053506102dd81610899565b9050610238565b509392505050565b60006102f661061f565b600061031c6040518061014001604052806101128152602001610ae361011291396101c4565b9050600061034460405180610140016040528061011281526020016109d161011291396101c4565b90506000604051806101c0016040528061313160f01b8152602001600080191681526020016231323360e81b81526020016261626360e81b8152602001623232b360e91b81526020018581526020016103e881526020016103e86001600160401b031681526020016305f5e1006001600160401b0316815260200160006001600160401b031681526020016103e86001600160401b03168152602001848152602001600080191681526020016103e86001600160401b031681525090506000604051806101c0016040528061313160f01b815260200160008019168152602001631899199960e11b815260200163185898d960e21b8152602001631919599960e21b81526020018681526020016103e881526020016103e86001600160401b031681526020016305f5e1006001600160401b0316815260200160006001600160401b031681526020016103e86001600160401b03168152602001848152602001600080191681526020016103e86001600160401b0316815250905060006104ca83610550565b905060006104d783610550565b9050600082826040516024016104ee9291906108b2565b60408051601f198184030181529190526020810180516001600160e01b03166344ce662b60e01b1790528051909150606761052761063f565b602084016020828583866000fa61053d57600080fd5b505115159b9a5050505050505050505050565b6060816000015182602001518360400151846060015185608001518660a001518760c001518860e001518961010001518a61012001518b61014001518c61016001516040516020016105ad9c9b9a999897969594939291906108e0565b604051602081830303815290604052826101800151836101a001516040516020016105eb9291909182526001600160401b0316602082015260400190565b60408051601f198184030181529082905261060992916020016109a1565b6040516020818303038152906040529050919050565b604051806120000160405280610100906020820280368337509192915050565b60405180602001604052806001906020820280368337509192915050565b60006020828403121561066f57600080fd5b813560ff8116811461068057600080fd5b9392505050565b634e487b7160e01b600052604160045260246000fd5b6000602082840312156106af57600080fd5b81356001600160401b03808211156106c657600080fd5b818401915084601f8301126106da57600080fd5b8135818111156106ec576106ec610687565b604051601f8201601f19908116603f0116810190838211818310171561071457610714610687565b8160405282815287602084870101111561072d57600080fd5b826020860160208301376000928101602001929092525095945050505050565b60005b83811015610768578181015183820152602001610750565b50506000910152565b6000815180845261078981602086016020860161074d565b601f01601f19169290920160200192915050565b6020815260006106806020830184610771565b634e487b7160e01b600052601160045260246000fd5b60ff82811682821603908111156100ee576100ee6107b0565b60ff81811683821601908111156100ee576100ee6107b0565b634e487b7160e01b600052601260045260246000fd5b60008261081d5761081d6107f8565b500690565b600082610831576108316107f8565b500490565b80820281158282048414176100ee576100ee6107b0565b808201808211156100ee576100ee6107b0565b634e487b7160e01b600052603260045260246000fd5b60ff8181168382160290811690818114610892576108926107b0565b5092915050565b6000600182016108ab576108ab6107b0565b5060010190565b6040815260006108c56040830185610771565b82810360208401526108d78185610771565b95945050505050565b60006121608e835260208e818501528d60408501528c60608501528b608085015260a084018b60005b61010081101561092a57815160ff1683529183019190830190600101610909565b50505050886120a084015261094b6120c08401896001600160401b03169052565b6001600160401b0387166120e08401526001600160401b0386166121008401526001600160401b0385166121208401528061214084015261098e81840185610771565b9f9e505050505050505050505050505050565b600083516109b381846020880161074d565b8351908301906109c781836020880161074d565b0194935050505056fe3030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303736363136633639363436313734366637323331303030303030303030303030303030303030303037363631366336393634363137343666373233323531656434303834653438623931303531393530366539386238323961653733333539303730376130333236346165316230393661333636383837343136336330333661373033336361663736393338323164393732346362613163343039613665336261666462323538313765626661623432653764653935643166643066303130303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303037363631366336393634363137343666373233313030303030303030303030303030303030303030373636313663363936343631373436663732333231623865323134326433316631623066653638363238356261373966376665363532616533653064616461383435306637633162616362323262626331646230366434386530636165393339323631323739373636306335346430613030326333393461383939643738383639383634623863623037643932366161633333333031a2646970667358221220276adff4e07a2fce591f03f80dc4c293983aaff0314861cd1d54318dfd77ed0f64736f6c63430008110033"
+	verifyHeadersTestAbi  = `[{"inputs":[],"stateMutability":"nonpayable","type":"constructor"},{"inputs":[],"name":"verify","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"view","type":"function"}]`
 )
 
 func TestSort(t *testing.T) {
@@ -246,6 +357,182 @@ func TestConsortiumValidatorSorting_Run2(t *testing.T) {
 			t.Fatal(fmt.Sprintf("mismatched addr at %d, expected:%s got:%s", i, expectedValidators[i].Hex(), addr.Hex()))
 		}
 	}
+}
+
+// TestConsortiumVerifyHeaders_verify tests verify function
+func TestConsortiumVerifyHeaders_verify(t *testing.T) {
+	header1, header2, err := prepareHeader(big1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := &consortiumVerifyHeaders{evm: &EVM{chainConfig: &params.ChainConfig{ChainID: big1}}}
+	if !c.verify(*fromHeader(header1), *fromHeader(header2)) {
+		t.Fatal("expected true, got false")
+	}
+}
+
+// TestConsortiumVerifyHeaders_Run init 2 headers, pack them and call `Run` function directly
+func TestConsortiumVerifyHeaders_Run(t *testing.T) {
+	var (
+		statedb, _ = state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
+	)
+	smcAbi, err := abi.JSON(strings.NewReader(consortiumVerifyHeadersAbi))
+	if err != nil {
+		t.Fatal(err)
+	}
+	evm, err := newEVM(caller, statedb)
+	if err != nil {
+		t.Fatal(err)
+	}
+	header1, header2, err := prepareHeader(evm.chainConfig.ChainID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	encodedHeader1, err := fromHeader(header1).Bytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	encodedHeader2, err := fromHeader(header2).Bytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	input, err := smcAbi.Pack(verifyHeaders, encodedHeader1, encodedHeader2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := &consortiumVerifyHeaders{evm: evm, caller: AccountRef(caller)}
+	result, err := c.Run(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result) != 32 {
+		t.Fatal(fmt.Sprintf("expected len 32 got %d", len(result)))
+	}
+	if result[len(result)-1] != 1 {
+		t.Fatal(fmt.Sprintf("expected 1 (true) got %d", result[len(result)-1]))
+	}
+}
+
+// TestConsortiumVerifyHeaders_Run2 deploys smart contract and call precompiled contracts via this contract
+func TestConsortiumVerifyHeaders_Run2(t *testing.T) {
+	glogger := log.NewGlogHandler(log.StreamHandler(os.Stderr, log.TerminalFormat(false)))
+	glogger.Verbosity(log.LvlInfo)
+	log.Root().SetHandler(glogger)
+	var (
+		statedb, _ = state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
+	)
+	smcAbi, err := abi.JSON(strings.NewReader(verifyHeadersTestAbi))
+	if err != nil {
+		t.Fatal(err)
+	}
+	input, err := smcAbi.Pack("verify")
+	if err != nil {
+		t.Fatal(err)
+	}
+	evm, err := newEVM(caller, statedb)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, contract, _, err := evm.Create(AccountRef(caller), common.FromHex(verifyHeadersTestCode), math.MaxUint64/2, big0)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// set this contract into consortiumV2Contracts to make it become a system contract
+	evm.chainConfig.ConsortiumV2Contracts.SlashIndicator = contract
+
+	ret, _, err := evm.StaticCall(AccountRef(caller), contract, input, 1000000)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	res, err := smcAbi.Methods["verify"].Outputs.Unpack(ret)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result := *abi.ConvertType(res[0], new(bool)).(*bool)
+	if !result {
+		t.Fatal("expected true got false")
+	}
+}
+
+func prepareHeader(chainId *big.Int) (*types.Header, *types.Header, error) {
+	privateKey, err := crypto.GenerateKey()
+	if err != nil {
+		return nil, nil, err
+	}
+	// init extraData with extraVanity
+	extraData := bytes.Repeat([]byte{0x00}, extraVanity)
+
+	// append to extraData with validators set
+	extraData = append(extraData, common.BytesToAddress([]byte("validator1")).Bytes()...)
+	extraData = append(extraData, common.BytesToAddress([]byte("validator2")).Bytes()...)
+
+	// add extra seal space
+	extraData = append(extraData, make([]byte, crypto.SignatureLength)...)
+
+	// create header1
+	header1 := &types.Header{
+		ParentHash:  common.BytesToHash([]byte("11")),
+		UncleHash:   common.Hash{},
+		Coinbase:    crypto.PubkeyToAddress(privateKey.PublicKey),
+		Root:        common.BytesToHash([]byte("123")),
+		TxHash:      common.BytesToHash([]byte("abc")),
+		ReceiptHash: common.BytesToHash([]byte("def")),
+		Bloom:       types.Bloom{},
+		Difficulty:  big.NewInt(1000),
+		Number:      big.NewInt(1000),
+		GasLimit:    100000000,
+		GasUsed:     0,
+		Time:        1000,
+		Extra:       make([]byte, len(extraData)),
+		MixDigest:   common.Hash{},
+		Nonce:       types.EncodeNonce(1000),
+	}
+
+	// create header2
+	header2 := &types.Header{
+		ParentHash:  common.BytesToHash([]byte("11")),
+		UncleHash:   common.Hash{},
+		Coinbase:    crypto.PubkeyToAddress(privateKey.PublicKey),
+		Root:        common.BytesToHash([]byte("1232")),
+		TxHash:      common.BytesToHash([]byte("abcd")),
+		ReceiptHash: common.BytesToHash([]byte("defd")),
+		Bloom:       types.Bloom{},
+		Difficulty:  big.NewInt(1000),
+		Number:      big.NewInt(1000),
+		GasLimit:    100000000,
+		GasUsed:     0,
+		Time:        1000,
+		Extra:       make([]byte, len(extraData)),
+		MixDigest:   common.Hash{},
+		Nonce:       types.EncodeNonce(1000),
+	}
+
+	// copy extraData
+	copy(header1.Extra[:], extraData)
+	copy(header2.Extra[:], extraData)
+
+	// signing and add to extraData
+	sig1, err := crypto.Sign(crypto.Keccak256(consortiumRlp(header1, chainId)), privateKey)
+	if err != nil {
+		return nil, nil, err
+	}
+	sig2, err := crypto.Sign(crypto.Keccak256(consortiumRlp(header2, chainId)), privateKey)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	copy(header1.Extra[len(header1.Extra)-crypto.SignatureLength:], sig1)
+	copy(header2.Extra[len(header2.Extra)-crypto.SignatureLength:], sig2)
+
+	return header1, header2, nil
+}
+
+func consortiumRlp(header *types.Header, chainId *big.Int) []byte {
+	b := new(bytes.Buffer)
+	encodeSigHeader(b, header, chainId)
+	return b.Bytes()
 }
 
 func newEVM(caller common.Address, statedb StateDB) (*EVM, error) {
