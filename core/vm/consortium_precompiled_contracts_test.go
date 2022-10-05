@@ -10,10 +10,8 @@ import (
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"math/big"
-	"os"
 	"strings"
 	"testing"
 )
@@ -415,9 +413,6 @@ func TestConsortiumVerifyHeaders_Run(t *testing.T) {
 
 // TestConsortiumVerifyHeaders_Run2 deploys smart contract and call precompiled contracts via this contract
 func TestConsortiumVerifyHeaders_Run2(t *testing.T) {
-	glogger := log.NewGlogHandler(log.StreamHandler(os.Stderr, log.TerminalFormat(false)))
-	glogger.Verbosity(log.LvlInfo)
-	log.Root().SetHandler(glogger)
 	var (
 		statedb, _ = state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
 	)
