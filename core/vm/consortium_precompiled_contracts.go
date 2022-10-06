@@ -22,7 +22,7 @@ import (
 var (
 	consortiumLogAbi           = `[{"inputs":[{"internalType":"string","name":"message","type":"string"}],"name":"log","outputs":[],"stateMutability":"nonpayable","type":"function"}]`
 	consortiumSortValidatorAbi = `[{"inputs":[],"name":"getValidatorCandidates","outputs":[{"internalType":"address[]","name":"","type":"address[]"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint256","name":"limit","type":"uint256"}],"name":"sortValidators","outputs":[{"internalType":"address[]","name":"validators","type":"address[]"}],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address[]","name":"_poolList","type":"address[]"}],"name":"totalBalances","outputs":[{"internalType":"uint256[]","name":"_balances","type":"uint256[]"}],"stateMutability":"view","type":"function"}]`
-	consortiumVerifyHeadersAbi = `[{"outputs":[],"name":"getHeader","inputs":[{"internalType":"bytes32","name":"parentHash","type":"bytes32"},{"internalType":"bytes32","name":"ommersHash","type":"bytes32"},{"internalType":"bytes32","name":"stateRoot","type":"bytes32"},{"internalType":"bytes32","name":"transactionsRoot","type":"bytes32"},{"internalType":"bytes32","name":"receiptsRoot","type":"bytes32"},{"internalType":"uint8[256]","name":"logsBloom","type":"uint8[256]"},{"internalType":"uint256","name":"difficulty","type":"uint256"},{"internalType":"uint64","name":"number","type":"uint64"},{"internalType":"uint64","name":"gasLimit","type":"uint64"},{"internalType":"uint64","name":"gasUsed","type":"uint64"},{"internalType":"uint64","name":"timestamp","type":"uint64"},{"internalType":"bytes","name":"extraData","type":"bytes"},{"internalType":"bytes32","name":"mixHash","type":"bytes32"},{"internalType":"uint64","name":"nonce","type":"uint64"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"bytes","name":"header1","type":"bytes"},{"internalType":"bytes","name":"header2","type":"bytes"}],"name":"verifyHeaders","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"view","type":"function"}]`
+	consortiumVerifyHeadersAbi = `[{"outputs":[],"name":"getHeader","inputs":[{"internalType":"uint256","name":"chainId","type":"uint256"},{"internalType":"bytes32","name":"parentHash","type":"bytes32"},{"internalType":"bytes32","name":"ommersHash","type":"bytes32"},{"internalType":"address","name":"coinbase","type":"address"},{"internalType":"bytes32","name":"stateRoot","type":"bytes32"},{"internalType":"bytes32","name":"transactionsRoot","type":"bytes32"},{"internalType":"bytes32","name":"receiptsRoot","type":"bytes32"},{"internalType":"uint8[256]","name":"logsBloom","type":"uint8[256]"},{"internalType":"uint256","name":"difficulty","type":"uint256"},{"internalType":"uint256","name":"number","type":"uint256"},{"internalType":"uint64","name":"gasLimit","type":"uint64"},{"internalType":"uint64","name":"gasUsed","type":"uint64"},{"internalType":"uint64","name":"timestamp","type":"uint64"},{"internalType":"bytes","name":"extraData","type":"bytes"},{"internalType":"bytes32","name":"mixHash","type":"bytes32"},{"internalType":"uint64","name":"nonce","type":"uint64"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"bytes","name":"header1","type":"bytes"},{"internalType":"bytes","name":"header2","type":"bytes"}],"name":"verifyHeaders","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"view","type":"function"}]`
 )
 
 const (
@@ -207,32 +207,36 @@ func loadMethodAndArgs(smcAbi string, input []byte) (abi.ABI, *abi.Method, []int
 }
 
 type BlockHeader struct {
-	ParentHash       [32]uint8  `abi:"parentHash"`
-	OmmersHash       [32]uint8  `abi:"ommersHash"`
-	StateRoot        [32]uint8  `abi:"stateRoot"`
-	TransactionsRoot [32]uint8  `abi:"transactionsRoot"`
-	ReceiptsRoot     [32]uint8  `abi:"receiptsRoot"`
-	LogsBloom        [256]uint8 `abi:"logsBloom"`
-	Difficulty       *big.Int   `abi:"difficulty"`
-	Number           uint64     `abi:"number"`
-	GasLimit         uint64     `abi:"gasLimit"`
-	GasUsed          uint64     `abi:"gasUsed"`
-	Timestamp        uint64     `abi:"timestamp"`
-	ExtraData        []uint8    `abi:"extraData"`
-	MixHash          [32]uint8  `abi:"mixHash"`
-	Nonce            uint64     `abi:"nonce"`
+	ChainId          *big.Int       `abi:"chainId"`
+	ParentHash       [32]uint8      `abi:"parentHash"`
+	OmmersHash       [32]uint8      `abi:"ommersHash"`
+	Benificiary      common.Address `abi:"coinbase"`
+	StateRoot        [32]uint8      `abi:"stateRoot"`
+	TransactionsRoot [32]uint8      `abi:"transactionsRoot"`
+	ReceiptsRoot     [32]uint8      `abi:"receiptsRoot"`
+	LogsBloom        [256]uint8     `abi:"logsBloom"`
+	Difficulty       *big.Int       `abi:"difficulty"`
+	Number           *big.Int       `abi:"number"`
+	GasLimit         uint64         `abi:"gasLimit"`
+	GasUsed          uint64         `abi:"gasUsed"`
+	Timestamp        uint64         `abi:"timestamp"`
+	ExtraData        []byte         `abi:"extraData"`
+	MixHash          [32]uint8      `abi:"mixHash"`
+	Nonce            uint64         `abi:"nonce"`
 }
 
-func fromHeader(header *types.Header) *BlockHeader {
+func fromHeader(header *types.Header, chainId *big.Int) *BlockHeader {
 	blockHeader := &BlockHeader{
-		Difficulty: header.Difficulty,
-		Number:     header.Number.Uint64(),
-		GasLimit:   header.GasLimit,
-		GasUsed:    header.GasUsed,
-		Timestamp:  header.Time,
-		Nonce:      header.Nonce.Uint64(),
-		ExtraData:  header.Extra,
-		LogsBloom:  header.Bloom,
+		ChainId:     chainId,
+		Difficulty:  header.Difficulty,
+		Number:      header.Number,
+		GasLimit:    header.GasLimit,
+		GasUsed:     header.GasUsed,
+		Timestamp:   header.Time,
+		Nonce:       header.Nonce.Uint64(),
+		ExtraData:   header.Extra,
+		LogsBloom:   header.Bloom,
+		Benificiary: header.Coinbase,
 	}
 	copy(blockHeader.ParentHash[:], header.ParentHash.Bytes())
 	copy(blockHeader.StateRoot[:], header.Root.Bytes())
@@ -250,13 +254,14 @@ func (b *BlockHeader) toHeader() *types.Header {
 		ReceiptHash: common.BytesToHash(b.ReceiptsRoot[:]),
 		Bloom:       types.BytesToBloom(b.LogsBloom[:]),
 		Difficulty:  b.Difficulty,
-		Number:      big.NewInt(0).SetUint64(b.Number),
+		Number:      b.Number,
 		GasLimit:    b.GasLimit,
 		GasUsed:     b.GasUsed,
 		Time:        b.Timestamp,
 		Extra:       b.ExtraData,
 		MixDigest:   common.BytesToHash(b.MixHash[:]),
 		Nonce:       types.EncodeNonce(b.Nonce),
+		Coinbase:    b.Benificiary,
 	}
 }
 
@@ -264,7 +269,7 @@ func (b *BlockHeader) Bytes() ([]byte, error) {
 	pAbi, _ := abi.JSON(strings.NewReader(consortiumVerifyHeadersAbi))
 	bloom := types.BytesToBloom(b.LogsBloom[:])
 	var uncles [32]uint8
-	return pAbi.Methods[getHeader].Inputs.Pack(b.ParentHash, uncles, b.StateRoot, b.TransactionsRoot, b.ReceiptsRoot, bloom.Bytes(), b.Difficulty, b.Number, b.GasLimit, b.GasUsed, b.Timestamp, b.ExtraData, b.MixHash, b.Nonce)
+	return pAbi.Methods[getHeader].Inputs.Pack(b.ChainId, b.ParentHash, uncles, b.Benificiary, b.StateRoot, b.TransactionsRoot, b.ReceiptsRoot, bloom.Bytes(), b.Difficulty, b.Number, b.GasLimit, b.GasUsed, b.Timestamp, b.ExtraData, b.MixHash, b.Nonce)
 }
 
 type consortiumVerifyHeaders struct {
@@ -316,7 +321,7 @@ func (c *consortiumVerifyHeaders) unpack(smcAbi abi.ABI, v interface{}, input []
 }
 
 func (c *consortiumVerifyHeaders) getSigner(header BlockHeader) (common.Address, error) {
-	if header.Number == 0 || header.Timestamp > uint64(time.Now().Unix()) || len(header.ExtraData) < crypto.SignatureLength {
+	if header.Number == nil || header.Timestamp > uint64(time.Now().Unix()) || len(header.ExtraData) < crypto.SignatureLength {
 		return common.Address{}, errors.New("invalid header")
 	}
 	signature := header.ExtraData[len(header.ExtraData)-crypto.SignatureLength:]
@@ -341,7 +346,7 @@ func (c *consortiumVerifyHeaders) verify(header1, header2 BlockHeader) bool {
 		log.Trace("[consortiumVerifyHeaders][verify] error while getting signer from header1", "err", err)
 		return false
 	}
-	signer2, err := c.getSigner(header1)
+	signer2, err := c.getSigner(header2)
 	if err != nil {
 		log.Trace("[consortiumVerifyHeaders][verify] error while getting signer from header2", "err", err)
 		return false
