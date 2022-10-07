@@ -352,7 +352,7 @@ func (c *consortiumVerifyHeaders) verify(header1, header2 BlockHeader) bool {
 		log.Trace("[consortiumVerifyHeaders][verify] error while getting signer from header2", "err", err)
 		return false
 	}
-	return signer1.Hex() == signer2.Hex()
+	return signer1.Hex() == signer2.Hex() && signer2.Hex() == header2.Benificiary.Hex()
 }
 
 // SealHash returns the hash of a block prior to it being sealed.
