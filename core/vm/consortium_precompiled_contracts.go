@@ -312,6 +312,7 @@ func (c *consortiumVerifyHeaders) Run(input []byte) ([]byte, error) {
 }
 
 func (c *consortiumVerifyHeaders) unpack(smcAbi abi.ABI, v interface{}, input []byte) error {
+	// use `getHeader` abi which contains params defined in `BlockHeader` to unmarshal `input` data into `BlockHeader`
 	args := smcAbi.Methods[getHeader].Inputs
 	output, err := args.Unpack(input)
 	if err != nil {
@@ -327,7 +328,7 @@ func (c *consortiumVerifyHeaders) getSigner(header BlockHeader) (common.Address,
 	signature := header.ExtraData[len(header.ExtraData)-crypto.SignatureLength:]
 
 	// Recover the public key and the Ethereum address
-	pubkey, err := crypto.Ecrecover(SealHash(header.toHeader(), c.evm.ChainConfig().ChainID).Bytes(), signature)
+	pubkey, err := crypto.Ecrecover(SealHash(header.toHeader(), header.ChainId).Bytes(), signature)
 	if err != nil {
 		return common.Address{}, err
 	}
