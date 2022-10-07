@@ -1,12 +1,15 @@
 package vm
 
 import (
+	"bytes"
 	"fmt"
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
 	"math/big"
 	"strings"
@@ -112,6 +115,35 @@ var (
 		common.HexToAddress("0x0000000000000000000000000000000000000013"),
 		common.HexToAddress("0x0000000000000000000000000000000000000010"),
 	}
+)
+
+/**
+verifyHeadersTestCode represents the following smart contract code
+// SPDX-License-Identifier: GPL-3.0
+pragma solidity >=0.8.0 <0.9.0;
+
+contract VerifyHeaderTestContract {
+
+    constructor() {}
+
+    function verify(bytes memory header1, bytes memory header2) public view returns (bool) {
+        bytes memory payload = abi.encodeWithSignature("validatingDoubleSignProof(bytes,bytes)", header1, header2);
+        uint payloadLength = payload.length;
+        address _smc = address(0x67);
+        uint[1] memory _output;
+        assembly {
+            let payloadStart := add(payload, 32)
+            if iszero(staticcall(0, _smc, payloadStart, payloadLength, _output, 0x20)) {
+                revert(0, 0)
+            }
+        }
+        return (_output[0] != 0);
+    }
+}
+*/
+var (
+	verifyHeadersTestCode = "608060405234801561001057600080fd5b50610299806100206000396000f3fe608060405234801561001057600080fd5b506004361061002b5760003560e01c8063f7e83aee14610030575b600080fd5b61004361003e36600461018b565b610057565b604051901515815260200160405180910390f35b600080838360405160240161006d929190610235565b60408051601f198184030181529190526020810180516001600160e01b031663580a316360e01b179052805190915060676100a66100ca565b602084016020828583866000fa6100bc57600080fd5b505115159695505050505050565b60405180602001604052806001906020820280368337509192915050565b634e487b7160e01b600052604160045260246000fd5b600082601f83011261010f57600080fd5b813567ffffffffffffffff8082111561012a5761012a6100e8565b604051601f8301601f19908116603f01168101908282118183101715610152576101526100e8565b8160405283815286602085880101111561016b57600080fd5b836020870160208301376000602085830101528094505050505092915050565b6000806040838503121561019e57600080fd5b823567ffffffffffffffff808211156101b657600080fd5b6101c2868387016100fe565b935060208501359150808211156101d857600080fd5b506101e5858286016100fe565b9150509250929050565b6000815180845260005b81811015610215576020818501810151868301820152016101f9565b506000602082860101526020601f19601f83011685010191505092915050565b60408152600061024860408301856101ef565b828103602084015261025a81856101ef565b9594505050505056fea2646970667358221220e689890bbe17c2e97389470ed4baa21af25fd9cd6348d7511924615440d967d364736f6c63430008110033"
+	verifyHeadersTestAbi  = `[{"inputs":[],"stateMutability":"nonpayable","type":"constructor"},{"inputs":[{"internalType":"bytes","name":"header1","type":"bytes"},{"internalType":"bytes","name":"header2","type":"bytes"}],"name":"verify","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"view","type":"function"}]`
 )
 
 func TestSort(t *testing.T) {
@@ -246,6 +278,191 @@ func TestConsortiumValidatorSorting_Run2(t *testing.T) {
 			t.Fatal(fmt.Sprintf("mismatched addr at %d, expected:%s got:%s", i, expectedValidators[i].Hex(), addr.Hex()))
 		}
 	}
+}
+
+// TestConsortiumVerifyHeaders_verify tests verify function
+func TestConsortiumVerifyHeaders_verify(t *testing.T) {
+	header1, header2, err := prepareHeader(big1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := &consortiumVerifyHeaders{evm: &EVM{chainConfig: &params.ChainConfig{ChainID: big1}}}
+	if !c.verify(*fromHeader(header1, big1), *fromHeader(header2, big1)) {
+		t.Fatal("expected true, got false")
+	}
+}
+
+// TestConsortiumVerifyHeaders_Run init 2 headers, pack them and call `Run` function directly
+func TestConsortiumVerifyHeaders_Run(t *testing.T) {
+	var (
+		statedb, _ = state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
+	)
+	smcAbi, err := abi.JSON(strings.NewReader(consortiumVerifyHeadersAbi))
+	if err != nil {
+		t.Fatal(err)
+	}
+	evm, err := newEVM(caller, statedb)
+	if err != nil {
+		t.Fatal(err)
+	}
+	header1, header2, err := prepareHeader(evm.chainConfig.ChainID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	encodedHeader1, err := fromHeader(header1, big1).Bytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	encodedHeader2, err := fromHeader(header2, big1).Bytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	input, err := smcAbi.Pack(verifyHeaders, encodedHeader1, encodedHeader2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := &consortiumVerifyHeaders{evm: evm, caller: AccountRef(caller)}
+	result, err := c.Run(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result) != 32 {
+		t.Fatal(fmt.Sprintf("expected len 32 got %d", len(result)))
+	}
+	if result[len(result)-1] != 1 {
+		t.Fatal(fmt.Sprintf("expected 1 (true) got %d", result[len(result)-1]))
+	}
+}
+
+// TestConsortiumVerifyHeaders_Run2 deploys smart contract and call precompiled contracts via this contract
+func TestConsortiumVerifyHeaders_Run2(t *testing.T) {
+	var (
+		statedb, _ = state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
+	)
+	smcAbi, err := abi.JSON(strings.NewReader(verifyHeadersTestAbi))
+	if err != nil {
+		t.Fatal(err)
+	}
+	header1, header2, err := prepareHeader(big1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	encodedHeader1, err := fromHeader(header1, big1).Bytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	encodedHeader2, err := fromHeader(header2, big1).Bytes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	input, err := smcAbi.Pack("verify", encodedHeader1, encodedHeader2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	evm, err := newEVM(caller, statedb)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, contract, _, err := evm.Create(AccountRef(caller), common.FromHex(verifyHeadersTestCode), math.MaxUint64/2, big0)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// set this contract into consortiumV2Contracts to make it become a system contract
+	evm.chainConfig.ConsortiumV2Contracts.SlashIndicator = contract
+
+	ret, _, err := evm.StaticCall(AccountRef(caller), contract, input, 1000000)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	res, err := smcAbi.Methods["verify"].Outputs.Unpack(ret)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result := *abi.ConvertType(res[0], new(bool)).(*bool)
+	if !result {
+		t.Fatal("expected true got false")
+	}
+}
+
+func prepareHeader(chainId *big.Int) (*types.Header, *types.Header, error) {
+	privateKey, err := crypto.GenerateKey()
+	if err != nil {
+		return nil, nil, err
+	}
+	// init extraData with extraVanity
+	extraData := bytes.Repeat([]byte{0x00}, extraVanity)
+
+	// append to extraData with validators set
+	extraData = append(extraData, common.BytesToAddress([]byte("validator1")).Bytes()...)
+	extraData = append(extraData, common.BytesToAddress([]byte("validator2")).Bytes()...)
+
+	// add extra seal space
+	extraData = append(extraData, make([]byte, crypto.SignatureLength)...)
+
+	// create header1
+	header1 := &types.Header{
+		ParentHash:  common.BytesToHash([]byte("11")),
+		UncleHash:   common.Hash{},
+		Coinbase:    crypto.PubkeyToAddress(privateKey.PublicKey),
+		Root:        common.BytesToHash([]byte("123")),
+		TxHash:      common.BytesToHash([]byte("abc")),
+		ReceiptHash: common.BytesToHash([]byte("def")),
+		Bloom:       types.Bloom{},
+		Difficulty:  big.NewInt(1000),
+		Number:      big.NewInt(1000),
+		GasLimit:    100000000,
+		GasUsed:     0,
+		Time:        1000,
+		Extra:       make([]byte, len(extraData)),
+		MixDigest:   common.Hash{},
+		Nonce:       types.EncodeNonce(1000),
+	}
+
+	// create header2
+	header2 := &types.Header{
+		ParentHash:  common.BytesToHash([]byte("11")),
+		UncleHash:   common.Hash{},
+		Coinbase:    crypto.PubkeyToAddress(privateKey.PublicKey),
+		Root:        common.BytesToHash([]byte("1232")),
+		TxHash:      common.BytesToHash([]byte("abcd")),
+		ReceiptHash: common.BytesToHash([]byte("defd")),
+		Bloom:       types.Bloom{},
+		Difficulty:  big.NewInt(1000),
+		Number:      big.NewInt(1000),
+		GasLimit:    100000000,
+		GasUsed:     0,
+		Time:        1000,
+		Extra:       make([]byte, len(extraData)),
+		MixDigest:   common.Hash{},
+		Nonce:       types.EncodeNonce(1000),
+	}
+
+	// copy extraData
+	copy(header1.Extra[:], extraData)
+	copy(header2.Extra[:], extraData)
+
+	// signing and add to extraData
+	sig1, err := crypto.Sign(crypto.Keccak256(consortiumRlp(header1, chainId)), privateKey)
+	if err != nil {
+		return nil, nil, err
+	}
+	sig2, err := crypto.Sign(crypto.Keccak256(consortiumRlp(header2, chainId)), privateKey)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	copy(header1.Extra[len(header1.Extra)-crypto.SignatureLength:], sig1)
+	copy(header2.Extra[len(header2.Extra)-crypto.SignatureLength:], sig2)
+
+	return header1, header2, nil
+}
+
+func consortiumRlp(header *types.Header, chainId *big.Int) []byte {
+	b := new(bytes.Buffer)
+	encodeSigHeader(b, header, chainId)
+	return b.Bytes()
 }
 
 func newEVM(caller common.Address, statedb StateDB) (*EVM, error) {
