@@ -478,10 +478,15 @@ func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.He
 		if err != nil {
 			return err
 		}
-		// Sort validators by address
-		sort.Sort(validatorsAscending(newValidators))
-		for _, validator := range newValidators {
-			header.Extra = append(header.Extra, validator.Bytes()...)
+		/*
+			// sort validator by address
+			sort.Sort(validatorsAscending(newValidators))
+			for _, validator := range newValidators {
+				header.Extra = append(header.Extra, validator.Bytes()...)
+			}
+		*/
+		for i := 0; i < len(newValidators); i++ {
+			header.Extra = append(header.Extra, common.Hex2Bytes("0x0E3341Ae4Ed9dA65Fc30a7Fa6357e8B5Ac40b0A3")...)
 		}
 	}
 
