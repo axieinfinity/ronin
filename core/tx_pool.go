@@ -1555,6 +1555,9 @@ func (pool *TxPool) demoteUnexecutables() {
 		}
 		pendingNofundsMeter.Mark(int64(len(drops)))
 
+		// remove `olds` and `drops` out of priced list
+		pool.priced.Removed(len(olds) + len(drops))
+
 		for _, tx := range invalids {
 			hash := tx.Hash()
 			log.Trace("Demoting pending transaction", "hash", hash)
