@@ -41,7 +41,7 @@ const (
 	wiggleTime           = 1000 * time.Millisecond // Random delay (per signer) to allow concurrent signers
 )
 
-// Consortium proof-of-authority protocol constants.
+// Consortium delegated proof-of-stake protocol constants.
 var (
 	epochLength = uint64(30000) // Default number of blocks after which to checkpoint
 
@@ -75,6 +75,8 @@ var (
 	errMismatchingEpochValidators = errors.New("mismatching validator list on epoch block")
 )
 
+// Consortium is the delegated proof-of-stake consensus engine proposed to support the
+// Ronin to become more decentralized
 type Consortium struct {
 	chainConfig *params.ChainConfig
 	config      *params.ConsortiumConfig // Consensus engine configuration parameters
@@ -98,6 +100,7 @@ type Consortium struct {
 	v1       consortiumCommon.ConsortiumAdapter
 }
 
+// New creates a Consortium delegated proof-of-stake consensus engine
 func New(
 	chainConfig *params.ChainConfig,
 	db ethdb.Database,
@@ -128,6 +131,10 @@ func New(
 	}
 }
 
+// IsSystemTransaction implements consensus.PoSA, checking whether a transaction is a system
+// transaction or not.
+// A system transaction is a transaction that has the recipient of the contract address
+// is defined in params.ConsortiumV2Contracts
 func (c *Consortium) IsSystemTransaction(tx *types.Transaction, header *types.Header) (bool, error) {
 	// deploy a contract
 	if tx.To() == nil {
@@ -143,6 +150,9 @@ func (c *Consortium) IsSystemTransaction(tx *types.Transaction, header *types.He
 	return false, nil
 }
 
+// IsSystemContract implements consensus.PoSA, checking whether a contract is a system
+// contract or not
+// A system contract is a contract is defined in params.ConsortiumV2Contracts
 func (c *Consortium) IsSystemContract(to *common.Address) bool {
 	if to == nil {
 		return false
@@ -150,14 +160,18 @@ func (c *Consortium) IsSystemContract(to *common.Address) bool {
 	return c.chainConfig.ConsortiumV2Contracts.IsSystemContract(*to)
 }
 
+// Author implements consensus.Engine, returning the coinbase directly
 func (c *Consortium) Author(header *types.Header) (common.Address, error) {
 	return header.Coinbase, nil
 }
 
+// VerifyHeader checks whether a header conforms to the consensus rules.
 func (c *Consortium) VerifyHeader(chain consensus.ChainHeaderReader, header *types.Header, seal bool) error {
 	return c.VerifyHeaderAndParents(chain, header, nil)
 }
 
+// VerifyHeaders implements consensus.Engine, always returning an empty abort and results channels.
+// This method will be handled consortium/main.go instead
 func (c *Consortium) VerifyHeaders(chain consensus.ChainHeaderReader, headers []*types.Header, seals []bool) (chan<- struct{}, <-chan error) {
 	abort := make(chan struct{})
 	results := make(chan error, len(headers))
@@ -165,10 +179,16 @@ func (c *Consortium) VerifyHeaders(chain consensus.ChainHeaderReader, headers []
 	return abort, results
 }
 
+// GetRecents implements common.ConsortiumAdapter, always returning nil
+// as this consensus mechanism doesn't need to get recents
 func (c *Consortium) GetRecents(chain consensus.ChainHeaderReader, number uint64) map[uint64]common.Address {
 	return nil
 }
 
+// VerifyHeaderAndParents checks whether a header conforms to the consensus rules.The
+// caller may optionally pass in a batch of parents (ascending order) to avoid
+// looking those up from the database. This is useful for concurrently verifying
+// a batch of new headers.
 func (c *Consortium) VerifyHeaderAndParents(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header) error {
 	if header.Number == nil {
 		return consortiumCommon.ErrUnknownBlock
@@ -186,7 +206,7 @@ func (c *Consortium) VerifyHeaderAndParents(chain consensus.ChainHeaderReader, h
 	if len(header.Extra) < extraVanity+extraSeal {
 		return consortiumCommon.ErrMissingSignature
 	}
-	// check extra data
+	// Check extra data
 	isEpoch := number%c.config.Epoch == 0 || c.chainConfig.IsOnConsortiumV2(header.Number)
 
 	// Ensure that the extra-data contains a signer list on checkpoint, but none otherwise
@@ -221,6 +241,10 @@ func (c *Consortium) VerifyHeaderAndParents(chain consensus.ChainHeaderReader, h
 	return c.verifyCascadingFields(chain, header, parents)
 }
 
+// verifyCascadingFields verifies all the header fields that are not standalone,
+// rather depend on a batch of previous headers. The caller may optionally pass
+// in a batch of parents (ascending order) to avoid looking those up from the
+// database. This is useful for concurrently verifying a batch of new headers.
 func (c *Consortium) verifyCascadingFields(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header) error {
 	// The genesis block is the always valid dead-end
 	number := header.Number.Uint64()
@@ -257,6 +281,7 @@ func (c *Consortium) verifyCascadingFields(chain consensus.ChainHeaderReader, he
 	return c.verifySeal(chain, header, parents)
 }
 
+// snapshot retrieves the authorization snapshot at a given point in time.
 func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, hash common.Hash, parents []*types.Header) (*Snapshot, error) {
 	if err := c.initContract(); err != nil {
 		return nil, err
@@ -265,7 +290,7 @@ func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, 
 	var (
 		headers []*types.Header
 		snap    *Snapshot
-		// @linh: We must copy parents before going to the loop because parents are modified.
+		// NOTE(linh): We must copy parents before going to the loop because parents are modified.
 		// If not, the FindAncientHeader function can not find its block ancestor
 		cpyParents = parents
 	)
@@ -281,9 +306,9 @@ func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, 
 		if number%c.config.Epoch == 0 {
 			var err error
 
-			// @linh: In case the snapshot of hardfork - 1 is requested, we find the latest snapshot in the last
-			// checkpoint of v1. We need to use the correct load snapshot version to load the snapshot coming
-			// from v1.
+			// NOTE(linh): In case the snapshot of hardfork - 1 is requested, we find the latest snapshot
+			// in the last checkpoint of v1. We need to use the correct load snapshot version
+			// to load the snapshot coming from v1.
 			if !c.chainConfig.IsConsortiumV2(common.Big0.SetUint64(number)) {
 				snap, err = loadSnapshotV1(c.config, c.signatures, c.db, hash, c.ethAPI, c.chainConfig)
 			} else {
@@ -297,8 +322,8 @@ func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, 
 			if err == nil {
 				log.Trace("Loaded snapshot from disk", "number", number, "hash", hash.Hex())
 				if !c.chainConfig.IsConsortiumV2(common.Big0.SetUint64(snap.Number)) {
-					// @linh: In version 1, the snapshot is not used correctly, so we must clean up incorrect data in
-					// the recent list before going to version 2
+					// NOTE(linh): In version 1, the snapshot is not used correctly, so we must clean up
+					// incorrect data in the recent list before going to version 2
 					//
 					// Example: The current block is 1000, and the recents list is
 					// [2: address1, 3: address2, ...,998: addressN - 1,999: addressN]
@@ -359,6 +384,8 @@ func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, 
 	return snap, err
 }
 
+// VerifyUncles implements consensus.Engine, always returning an error for any
+// uncles as this consensus mechanism doesn't permit uncles.
 func (c *Consortium) VerifyUncles(chain consensus.ChainReader, block *types.Block) error {
 	if len(block.Uncles()) > 0 {
 		return errors.New("uncles not allowed")
@@ -419,6 +446,8 @@ func (c *Consortium) verifySeal(chain consensus.ChainHeaderReader, header *types
 	return nil
 }
 
+// Prepare implements consensus.Engine, preparing all the consensus fields of the
+// header for running the transactions on top.
 func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.Header) error {
 	if err := c.initContract(); err != nil {
 		return err
@@ -449,14 +478,14 @@ func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.He
 		if err != nil {
 			return err
 		}
-		// sort validator by address
+		// Sort validators by address
 		sort.Sort(validatorsAscending(newValidators))
 		for _, validator := range newValidators {
 			header.Extra = append(header.Extra, validator.Bytes()...)
 		}
 	}
 
-	// add extra seal space
+	// Add extra seal space
 	header.Extra = append(header.Extra, make([]byte, extraSeal)...)
 
 	// Mix digest is reserved for now, set to empty
@@ -474,12 +503,16 @@ func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.He
 	return nil
 }
 
+// Finalize implements consensus.Engine that calls three methods from smart contracts:
+// - WrapUpEpoch at epoch to distribute rewards and sort the validators set
+// - Slash the validator who does not sign if it is in-turn
+// - SubmitBlockRewards of the current block
 func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs *[]*types.Transaction,
 	uncles []*types.Header, receipts *[]*types.Receipt, systemTxs *[]*types.Transaction, usedGas *uint64) error {
 	if err := c.initContract(); err != nil {
 		return err
 	}
-	// warn if not in majority fork
+
 	number := header.Number.Uint64()
 	snap, err := c.snapshot(chain, number-1, header.ParentHash, nil)
 	if err != nil {
@@ -492,8 +525,10 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 			ChainConfig:  c.chainConfig,
 			ChainContext: consortiumCommon.ChainContext{Chain: chain, Consortium: c},
 		},
-		Txs:         txs,
-		Receipts:    receipts,
+		Txs:      txs,
+		Receipts: receipts,
+		// a.k.a. System Txs
+		// systemTxs is received from other nodes
 		ReceivedTxs: systemTxs,
 		UsedGas:     usedGas,
 		Mining:      false,
@@ -502,7 +537,7 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 		EthAPI:      c.ethAPI,
 	}
 
-	// If the block is a epoch end block, verify the validator list
+	// If the block is an epoch end block, verify the validator list
 	// The verification can only be done when the state is ready, it can't be done in VerifyHeader.
 	if header.Number.Uint64()%c.config.Epoch == 0 {
 		// The GetValidators in Prepare is called on the context of previous block so here it must
@@ -551,8 +586,7 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 		}
 	}
 
-	err = c.contract.SubmitBlockReward(transactOpts)
-	if err != nil {
+	if err = c.contract.SubmitBlockReward(transactOpts); err != nil {
 		return err
 	}
 	if len(*systemTxs) > 0 {
@@ -561,6 +595,10 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 	return nil
 }
 
+// FinalizeAndAssemble implements consensus.Engine that calls three methods from smart contracts:
+// - WrapUpEpoch at epoch to distribute rewards and sort the validators set
+// - Slash the validator who does not sign if it is in-turn
+// - SubmitBlockRewards of the current block
 func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB,
 	txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt) (*types.Block, []*types.Receipt, error) {
 	if err := c.initContract(); err != nil {
@@ -582,8 +620,10 @@ func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, head
 			ChainConfig:  c.chainConfig,
 			ChainContext: consortiumCommon.ChainContext{Chain: chain, Consortium: c},
 		},
-		Txs:         &txs,
-		Receipts:    &receipts,
+		Txs:      &txs,
+		Receipts: &receipts,
+		// a.k.a. System Txs
+		// It always equals nil since FinalizeAndAssemble doesn't receive any transactions
 		ReceivedTxs: nil,
 		UsedGas:     &header.GasUsed,
 		Mining:      true,
@@ -607,7 +647,7 @@ func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, head
 		if !signedRecently {
 			err = c.contract.Slash(transactOpts, spoiledVal)
 			if err != nil {
-				// it is possible that slash validator failed because of the slash channel is disabled.
+				// It is possible that slash validator failed because of the slash channel is disabled.
 				log.Error("Slash validator failed", "block hash", header.Hash(), "address", spoiledVal, "error", err)
 				return nil, nil, err
 			}
@@ -621,8 +661,7 @@ func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, head
 		}
 	}
 
-	err := c.contract.SubmitBlockReward(transactOpts)
-	if err != nil {
+	if err := c.contract.SubmitBlockReward(transactOpts); err != nil {
 		return nil, nil, err
 	}
 	// should not happen. Once happen, stop the node is better than broadcast the block
@@ -648,6 +687,7 @@ func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, head
 	return blk, *transactOpts.Receipts, nil
 }
 
+// Authorize injects a private key into the consensus engine to mint new blocks with
 func (c *Consortium) Authorize(signer common.Address, signFn consortiumCommon.SignerFn, signTxFn consortiumCommon.SignerTxFn) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
@@ -657,6 +697,8 @@ func (c *Consortium) Authorize(signer common.Address, signFn consortiumCommon.Si
 	c.signTxFn = signTxFn
 }
 
+// Delay implements consensus.Engine, returning the max duration the miner can commit txs.
+// Related issue: https://skymavis.atlassian.net/browse/RON-273
 func (c *Consortium) Delay(chain consensus.ChainReader, header *types.Header) *time.Duration {
 	number := header.Number.Uint64()
 	snap, err := c.snapshot(chain, number-1, header.ParentHash, nil)
@@ -672,6 +714,8 @@ func (c *Consortium) Delay(chain consensus.ChainReader, header *types.Header) *t
 	return &delay
 }
 
+// Seal implements consensus.Engine, attempting to create a sealed block using
+// the local signing credentials.
 func (c *Consortium) Seal(chain consensus.ChainHeaderReader, block *types.Block, results chan<- *types.Block, stop <-chan struct{}) error {
 	header := block.Header()
 
@@ -748,18 +792,25 @@ func (c *Consortium) Seal(chain consensus.ChainHeaderReader, block *types.Block,
 	return nil
 }
 
+// SealHash returns the hash of a block prior to it being sealed.
 func (c *Consortium) SealHash(header *types.Header) common.Hash {
 	return SealHash(header, c.chainConfig.ChainID)
 }
 
+// Close implements consensus.Engine. It's a noop for Consortium as there are no background threads.
 func (c *Consortium) Close() error {
 	return nil
 }
 
+// APIs are backward compatible with the v1, so we do not to implement it again
 func (c *Consortium) APIs(chain consensus.ChainHeaderReader) []rpc.API {
 	return []rpc.API{}
 }
 
+// CalcDifficulty is the difficulty adjustment algorithm. It returns the difficulty
+// that a new block should have:
+// * DIFF_NOTURN(3) if (BLOCK_NUMBER + 1) / VALIDATOR_COUNT != VALIDATOR_INDEX
+// * DIFF_INTURN(7) if (BLOCK_NUMBER + 1) / VALIDATOR_COUNT == VALIDATOR_INDEX
 func (c *Consortium) CalcDifficulty(chain consensus.ChainHeaderReader, time uint64, parent *types.Header) *big.Int {
 	snap, err := c.snapshot(chain, parent.Number.Uint64(), parent.Hash(), nil)
 	if err != nil {
@@ -770,7 +821,7 @@ func (c *Consortium) CalcDifficulty(chain consensus.ChainHeaderReader, time uint
 
 // CalcDifficulty is the difficulty adjustment algorithm. It returns the difficulty
 // that a new block should have based on the previous blocks in the chain and the
-// current signer.
+// current validator.
 func CalcDifficulty(snap *Snapshot, signer common.Address) *big.Int {
 	if snap.inturn(signer) {
 		return new(big.Int).Set(diffInTurn)
@@ -778,6 +829,7 @@ func CalcDifficulty(snap *Snapshot, signer common.Address) *big.Int {
 	return new(big.Int).Set(diffNoTurn)
 }
 
+// initContract creates NewContractIntegrator instance
 func (c *Consortium) initContract() error {
 	contract, err := consortiumCommon.NewContractIntegrator(c.chainConfig, consortiumCommon.NewConsortiumBackend(c.ethAPI), c.signTxFn, c.val)
 	if err != nil {
@@ -788,7 +840,7 @@ func (c *Consortium) initContract() error {
 	return nil
 }
 
-// ecrecover extracts the Ethereum account address from a signed header.
+// ecrecover extracts the Ronin account address from a signed header.
 func ecrecover(header *types.Header, sigcache *lru.ARCCache, chainId *big.Int) (common.Address, error) {
 	// If the signature's already cached, return that
 	hash := header.Hash()
@@ -834,6 +886,9 @@ func consortiumRLP(header *types.Header, chainId *big.Int) []byte {
 	return b.Bytes()
 }
 
+// encodeSigHeader encodes the whole header with chainId.
+// chainID was introduced in EIP-155 to prevent replay attacks between the main ETH and ETC chains,
+// which both have a networkID of 1
 func encodeSigHeader(w io.Writer, header *types.Header, chainId *big.Int) {
 	err := rlp.Encode(w, []interface{}{
 		chainId,
