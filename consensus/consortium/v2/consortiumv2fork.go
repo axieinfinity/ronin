@@ -25,6 +25,7 @@ func (c *Consortium) delayForConsortiumV2Fork(snap *Snapshot, header *types.Head
 	return delay
 }
 
+// Ensure the timestamp has the correct delay
 func (c *Consortium) blockTimeForConsortiumV2Fork(snap *Snapshot, header, parent *types.Header) uint64 {
 	blockTime := parent.Time + c.config.Period
 	return blockTime
