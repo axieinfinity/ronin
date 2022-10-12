@@ -17,6 +17,7 @@ import (
 	lru "github.com/hashicorp/golang-lru"
 )
 
+// Snapshot is the state of the authorization validators at a given point in time.
 type Snapshot struct {
 	chainConfig *params.ChainConfig
 	config      *params.ConsortiumConfig // Consensus engine parameters to fine tune behavior
@@ -36,6 +37,9 @@ func (s validatorsAscending) Len() int           { return len(s) }
 func (s validatorsAscending) Less(i, j int) bool { return bytes.Compare(s[i][:], s[j][:]) < 0 }
 func (s validatorsAscending) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 
+// newSnapshot creates a new snapshot with the specified startup parameters. This
+// method does not initialize the set of recent validators, so only ever use if for
+// the genesis block
 func newSnapshot(config *params.ConsortiumConfig, sigcache *lru.ARCCache, number uint64, hash common.Hash, validators []common.Address, ethAPI *ethapi.PublicBlockChainAPI) *Snapshot {
 	snap := &Snapshot{
 		config:     config,
@@ -52,6 +56,8 @@ func newSnapshot(config *params.ConsortiumConfig, sigcache *lru.ARCCache, number
 	return snap
 }
 
+// loadSnapshotV1 loads an existing snapshot of v1 from the database
+// and convert it into v2 for backward compatible
 func loadSnapshotV1(
 	config *params.ConsortiumConfig,
 	sigcache *lru.ARCCache,
@@ -84,6 +90,7 @@ func loadSnapshotV1(
 	return snapV2, nil
 }
 
+// loadSnapshot loads an existing snapshot from the database.
 func loadSnapshot(
 	config *params.ConsortiumConfig,
 	sigcache *lru.ARCCache,
@@ -108,6 +115,7 @@ func loadSnapshot(
 	return snap, nil
 }
 
+// store inserts the snapshot into the database.
 func (s *Snapshot) store(db ethdb.Database) error {
 	blob, err := json.Marshal(s)
 	if err != nil {
@@ -116,6 +124,7 @@ func (s *Snapshot) store(db ethdb.Database) error {
 	return db.Put(append([]byte("consortium-"), s.Hash[:]...), blob)
 }
 
+// copy creates a deep copy of the snapshot.
 func (s *Snapshot) copy() *Snapshot {
 	cpy := &Snapshot{
 		chainConfig: s.chainConfig,
@@ -137,6 +146,8 @@ func (s *Snapshot) copy() *Snapshot {
 	return cpy
 }
 
+// apply creates a new authorization snapshot by applying the given headers to
+// the original one.
 func (s *Snapshot) apply(headers []*types.Header, chain consensus.ChainHeaderReader, parents []*types.Header, chainId *big.Int) (*Snapshot, error) {
 	// Allow passing in no headers for cleaner code
 	if len(headers) == 0 {
@@ -160,10 +171,13 @@ func (s *Snapshot) apply(headers []*types.Header, chain consensus.ChainHeaderRea
 	// Iterate through the headers and create a new snapshot
 	snap := s.copy()
 
+	// Number of consecutive blocks out of which a validator may only sign one.
+	// Must be len(snap.Validators)/2 + 1 to enforce majority consensus on a chain
+	validatorLimit := len(snap.Validators)/2 + 1
 	for _, header := range headers {
 		number := header.Number.Uint64()
-		// Delete the oldest validator from the recent list to allow it signing again
-		if limit := uint64(len(snap.Validators)/2 + 1); number >= limit {
+		// Delete the oldest validators from the recent list to allow it signing again
+		if limit := uint64(validatorLimit); number >= limit {
 			delete(snap.Recents, number-limit)
 		}
 		// Resolve the authorization key and check against signers
@@ -190,15 +204,16 @@ func (s *Snapshot) apply(headers []*types.Header, chain consensus.ChainHeaderRea
 			}
 		}
 		snap.Recents[number] = validator
-		// change validator set
+		// Change the validator set base on the size of the validators set
 		if number > 0 && number%s.config.Epoch == uint64(len(snap.Validators)/2) {
+			// Get the most recent checkpoint header
 			checkpointHeader := FindAncientHeader(header, uint64(len(snap.Validators)/2), chain, parents)
 			if checkpointHeader == nil {
 				return nil, consensus.ErrUnknownAncestor
 			}
 
 			validatorBytes := checkpointHeader.Extra[extraVanity : len(checkpointHeader.Extra)-extraSeal]
-			// get validators from headers and use that for new validator set
+			// Get validator set from headers and use that for new validator set
 			newValArr, err := ParseValidators(validatorBytes)
 			if err != nil {
 				return nil, err
@@ -207,7 +222,7 @@ func (s *Snapshot) apply(headers []*types.Header, chain consensus.ChainHeaderRea
 			for _, val := range newValArr {
 				newVals[val] = struct{}{}
 			}
-			oldLimit := len(snap.Validators)/2 + 1
+			oldLimit := validatorLimit
 			newLimit := len(newVals)/2 + 1
 			if newLimit < oldLimit {
 				for i := 0; i < oldLimit-newLimit; i++ {
@@ -239,12 +254,14 @@ func (s *Snapshot) inturn(validator common.Address) bool {
 	return validators[offset] == validator
 }
 
+// supposeValidator returns the in-turn validator at a given block height
 func (s *Snapshot) supposeValidator() common.Address {
 	validators := s.validators()
 	index := (s.Number + 1) % uint64(len(validators))
 	return validators[index]
 }
 
+// ParseValidators retrieves the list of validators
 func ParseValidators(validatorsBytes []byte) ([]common.Address, error) {
 	if len(validatorsBytes)%validatorBytesLength != 0 {
 		return nil, errors.New("invalid validators bytes")
@@ -259,6 +276,13 @@ func ParseValidators(validatorsBytes []byte) ([]common.Address, error) {
 	return result, nil
 }
 
+// FindAncientHeader finds the most recent checkpoint header
+// Travel through the candidateParents to find the ancient header.
+// If all headers in candidateParents have the number is larger than the header number,
+// the search function will return the index, but it is not valid if we check with the
+// header since the number and hash is not equals. The candidateParents is
+// only available when it downloads blocks from the network.
+// Otherwise, the candidateParents is nil, and it will be found by header hash and number.
 func FindAncientHeader(header *types.Header, ite uint64, chain consensus.ChainHeaderReader, candidateParents []*types.Header) *types.Header {
 	ancient := header
 	for i := uint64(1); i <= ite; i++ {
