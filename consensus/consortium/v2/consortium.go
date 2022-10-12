@@ -215,7 +215,7 @@ func (c *Consortium) VerifyHeaderAndParents(chain consensus.ChainHeaderReader, h
 		return consortiumCommon.ErrExtraValidators
 	}
 
-	if isEpoch && signersBytes%consortiumCommon.ValidatorBytesLength != 0 {
+	if isEpoch && signersBytes%common.AddressLength != 0 {
 		return consortiumCommon.ErrInvalidSpanValidators
 	}
 
@@ -904,7 +904,7 @@ func encodeSigHeader(w io.Writer, header *types.Header, chainId *big.Int) {
 		header.GasLimit,
 		header.GasUsed,
 		header.Time,
-		header.Extra[:len(header.Extra)-crypto.SignatureLength], // Yes, this will panic if extra is too short
+		header.Extra[:len(header.Extra)-consortiumCommon.ExtraSeal], // Yes, this will panic if extra is too short
 		header.MixDigest,
 		header.Nonce,
 	})
