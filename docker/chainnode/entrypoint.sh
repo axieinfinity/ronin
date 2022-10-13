@@ -46,7 +46,7 @@ if [[ ! -z $NETWORK_ID ]]; then
       echo "network id not supported"
       ;;
   esac
-  params="$params --networkid $NETWORK_ID"
+  params="$params --networkid $NETWORK_ID $RONIN_PARAMS"
 fi
 
 # custom genesis path
