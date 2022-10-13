@@ -21,7 +21,7 @@ import (
 
 var (
 	consortiumLogAbi           = `[{"inputs":[{"internalType":"string","name":"message","type":"string"}],"name":"log","outputs":[],"stateMutability":"nonpayable","type":"function"}]`
-	consortiumSortValidatorAbi = `[{"inputs":[],"stateMutability":"nonpayable","type":"constructor"},{"inputs":[{"internalType":"address[]","name":"validators","type":"address[]"},{"internalType":"uint256[]","name":"weights","type":"uint256[]"},{"internalType":"uint256","name":"limit","type":"uint256"}],"name":"sortValidators","outputs":[{"internalType":"address[]","name":"_validators","type":"address[]"}],"stateMutability":"view","type":"function"}]`
+	consortiumSortValidatorAbi = `[{"inputs":[],"stateMutability":"nonpayable","type":"constructor"},{"inputs":[{"internalType":"address[]","name":"validators","type":"address[]"},{"internalType":"uint256[]","name":"weights","type":"uint256[]"}],"name":"sortValidators","outputs":[{"internalType":"address[]","name":"_validators","type":"address[]"}],"stateMutability":"view","type":"function"}]`
 	consortiumVerifyHeadersAbi = `[{"outputs":[],"name":"getHeader","inputs":[{"internalType":"uint256","name":"chainId","type":"uint256"},{"internalType":"bytes32","name":"parentHash","type":"bytes32"},{"internalType":"bytes32","name":"ommersHash","type":"bytes32"},{"internalType":"address","name":"coinbase","type":"address"},{"internalType":"bytes32","name":"stateRoot","type":"bytes32"},{"internalType":"bytes32","name":"transactionsRoot","type":"bytes32"},{"internalType":"bytes32","name":"receiptsRoot","type":"bytes32"},{"internalType":"uint8[256]","name":"logsBloom","type":"uint8[256]"},{"internalType":"uint256","name":"difficulty","type":"uint256"},{"internalType":"uint256","name":"number","type":"uint256"},{"internalType":"uint64","name":"gasLimit","type":"uint64"},{"internalType":"uint64","name":"gasUsed","type":"uint64"},{"internalType":"uint64","name":"timestamp","type":"uint64"},{"internalType":"bytes","name":"extraData","type":"bytes"},{"internalType":"bytes32","name":"mixHash","type":"bytes32"},{"internalType":"uint64","name":"nonce","type":"uint64"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"bytes","name":"header1","type":"bytes"},{"internalType":"bytes","name":"header2","type":"bytes"}],"name":"validatingDoubleSignProof","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"view","type":"function"}]`
 )
 
@@ -93,8 +93,8 @@ func (c *consortiumValidatorSorting) Run(input []byte) ([]byte, error) {
 	if method.Name != sortValidatorsMethod {
 		return nil, errors.New("invalid method")
 	}
-	if len(args) != 3 {
-		return nil, errors.New(fmt.Sprintf("invalid arguments, expected 3 got %d", len(args)))
+	if len(args) != 2 {
+		return nil, errors.New(fmt.Sprintf("invalid arguments, expected 2 got %d", len(args)))
 	}
 	// cast args[0] to number
 	validators, ok := args[0].([]common.Address)
@@ -108,22 +108,12 @@ func (c *consortiumValidatorSorting) Run(input []byte) ([]byte, error) {
 		return nil, errors.New("invalid second argument type")
 	}
 
-	// cast args[2] to number
-	limit, ok := args[2].(*big.Int)
-	if !ok {
-		return nil, errors.New("invalid third argument type")
-	}
-
 	if len(validators) != len(weights) {
 		return nil, errors.New("balances and validators length mismatched")
 	}
 	sortValidators(validators, weights)
 
-	if limit.Int64() > int64(len(validators)) {
-		limit = big.NewInt(int64(len(validators)))
-	}
-
-	return method.Outputs.Pack(validators[:limit.Int64()])
+	return method.Outputs.Pack(validators)
 }
 
 func sortValidators(validators []common.Address, weights []*big.Int) {

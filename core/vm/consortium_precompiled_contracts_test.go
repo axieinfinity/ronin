@@ -72,65 +72,66 @@ pragma solidity >=0.8.0 <0.9.0;
 	contract Wrapup {
 	    constructor() {}
 
-	    function sortValidators()
-	        public
-	        view
-	        returns (address[21] memory _validators)
-	    {
-	        address[21] memory validators = [
-	            0x61A56247A283aA5a923CaAFec56509ccbb639290,
-	            0xa7A4Be6067bB62b4D3879D3Df88e47e65609A7C7,
-	            0x54f5D1849fbe650fAff0DF6A19dF3669fe70588A,
-	            0xB74CaE2BC84555e009fb8093Fb0aad62281E8060,
-	            0x65788575E220996bDEac700AA2ffaed0B7b539A6,
-	            0x0870B1b8fB3800bc6a55ACce882A6C0d5b363E8A,
-	            0x7eD04EAD6f31ba4DBE1371AF5Ee9f90f87CD96B5,
-	            0x2b2a31b6CE5c0486455bb3119C95ADb3f8b5b1a6,
-	            0xdE7d06682f3e11e7E9d1BE28339868d1aFDb7798,
-	            0xc9f3A945cDbBBFe92c1c8F020B7dbeb783fE1f57,
-	            0x10258AF6ae03e1B170e9bA8336349F85F9C63e27,
-	            0x6c9A0E83AD142c082597054197aEb9b797785dAE,
-	            0xCdC1Ca0D4a2c3A8289ff88f4D8eDbB153A1347eA,
-	            0x5A482Ea3CCDe98600663c7E1D74679f1dc1b21f2,
-	            0x825Fa8d5203637a4c1C3a6E7a379615fC69f57fB,
-	            0xe0c06007DcFF4CD06064E44B91100b24d336a482,
-	            0x63e750b6B1c38B149fA9457f380DdBE4a7021150,
-	            0x10e336E30C422D25634fb16D6Ce87A0ec9CCC956,
-	            0xa2c8C6Ca751C6bE33578814D3298d4ba37101B13,
-	            0xBA780F5694E144c3765425E3CBb97760494F285b,
-	            0xBD28217b06edB63e679d722F400EbAC89521Af59
-	        ];
-	        uint16[21] memory weights = [
-	            1000,
-	            2000,
-	            3000,
-	            4000,
-	            5000,
-	            6000,
-	            7000,
-	            8000,
-	            9000,
-	            10000,
-	            11000,
-	            12000,
-	            13000,
-	            14000,
-	            15000,
-	            16000,
-	            17000,
-	            18000,
-	            19000,
-	            20000,
-	            21000
-	        ];
+	    address[] _validators = [
+	        0x0000000000000000000000000000000000000064,
+	        0x0000000000000000000000000000000000000065,
+	        0x0000000000000000000000000000000000000066,
+	        0x0000000000000000000000000000000000000067,
+	        0x0000000000000000000000000000000000000068,
+	        0x0000000000000000000000000000000000000069,
+	        0x000000000000000000000000000000000000006a,
+	        0x000000000000000000000000000000000000006b,
+	        0x000000000000000000000000000000000000006C,
+	        0x000000000000000000000000000000000000006D,
+	        0x000000000000000000000000000000000000006E,
+	        0x000000000000000000000000000000000000006F,
+	        0x0000000000000000000000000000000000000070,
+	        0x0000000000000000000000000000000000000071,
+	        0x0000000000000000000000000000000000000072,
+	        0x0000000000000000000000000000000000000073,
+	        0x0000000000000000000000000000000000000074,
+	        0x0000000000000000000000000000000000000075,
+	        0x0000000000000000000000000000000000000076,
+	        0x0000000000000000000000000000000000000077,
+	        0x0000000000000000000000000000000000000078
+	    ];
+	    uint256[] _weights = [
+	        uint256(1000),
+	        uint256(2000),
+	        uint256(3000),
+	        uint256(4000),
+	        uint256(5000),
+	        uint256(6000),
+	        uint256(7000),
+	        uint256(8000),
+	        uint256(9000),
+	        uint256(10000),
+	        uint256(11000),
+	        uint256(12000),
+	        uint256(13000),
+	        uint256(14000),
+	        uint256(15000),
+	        uint256(16000),
+	        uint256(17000),
+	        uint256(18000),
+	        uint256(19000),
+	        uint256(20000),
+	        uint256(21000)
+	    ];
+
+	    function sortValidators() public view returns (address[3] memory _result) {
 	        bytes memory payload = abi.encodeWithSignature(
-	            "sortValidators(address[],uint256[],256)",
-	            validators,
-	            weights,
-	            21
+	            "sortValidators(address[],uint256[])",
+	            _validators,
+	            _weights
 	        );
+
 	        uint256 payloadLength = payload.length;
+	        uint256 validatorsLength = _validators.length;
+	        uint256 validatorsLengthHex = validatorsLength * 0x20;
+	        uint256 validatorsLengthHex64 = validatorsLength * 0x20 + 64;
 	        address _smc = address(0x66);
+
 	        assembly {
 	            let payloadStart := add(payload, 32)
 	            if iszero(
@@ -139,14 +140,14 @@ pragma solidity >=0.8.0 <0.9.0;
 	                    _smc,
 	                    payloadStart,
 	                    payloadLength,
-	                    _validators,
-	                    0x2e0
+	                    _result,
+	                    validatorsLengthHex64
 	                )
 	            ) {
 	                revert(0, 0)
 	            }
-	            returndatacopy(_validators, 64, 672)
-	            return(_validators, 672)
+	            returndatacopy(_result, 64, validatorsLengthHex)
+	            return(_result, validatorsLengthHex)
 	        }
 	    }
 	}
@@ -154,7 +155,7 @@ pragma solidity >=0.8.0 <0.9.0;
 ```
 */
 var (
-	wrapupCode = `608060405234801561001057600080fd5b506109ef806100206000396000f3fe608060405234801561001057600080fd5b506004361061002b5760003560e01c806327167aec14610030575b600080fd5b61003861004e565b60405161004591906108cd565b60405180910390f35b61005661079f565b6000604051806102a001604052807361a56247a283aa5a923caafec56509ccbb63929073ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200173a7a4be6067bb62b4d3879d3df88e47e65609a7c773ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020017354f5d1849fbe650faff0df6a19df3669fe70588a73ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200173b74cae2bc84555e009fb8093fb0aad62281e806073ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020017365788575e220996bdeac700aa2ffaed0b7b539a673ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001730870b1b8fb3800bc6a55acce882a6c0d5b363e8a73ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001737ed04ead6f31ba4dbe1371af5ee9f90f87cd96b573ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001732b2a31b6ce5c0486455bb3119c95adb3f8b5b1a673ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200173de7d06682f3e11e7e9d1be28339868d1afdb779873ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200173c9f3a945cdbbbfe92c1c8f020b7dbeb783fe1f5773ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020017310258af6ae03e1b170e9ba8336349f85f9c63e2773ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001736c9a0e83ad142c082597054197aeb9b797785dae73ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200173cdc1ca0d4a2c3a8289ff88f4d8edbb153a1347ea73ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001735a482ea3ccde98600663c7e1d74679f1dc1b21f273ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200173825fa8d5203637a4c1c3a6e7a379615fc69f57fb73ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200173e0c06007dcff4cd06064e44b91100b24d336a48273ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020017363e750b6b1c38b149fa9457f380ddbe4a702115073ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020017310e336e30c422d25634fb16d6ce87a0ec9ccc95673ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200173a2c8c6ca751c6be33578814d3298d4ba37101b1373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200173ba780f5694e144c3765425e3cbb97760494f285b73ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200173bd28217b06edb63e679d722f400ebac89521af5973ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681525090506000604051806102a001604052806103e881526020016107d08152602001610bb88152602001610fa0815260200161138881526020016117708152602001611b588152602001611f40815260200161232881526020016127108152602001612af88152602001612ee081526020016132c881526020016136b08152602001613a988152602001613e80815260200161426881526020016146508152602001614a388152602001614e20815260200161520881525090506000828260156040516024016106f0939291906108e9565b6040516020818303038152906040527f4cb312b1000000000000000000000000000000000000000000000000000000007bffffffffffffffffffffffffffffffffffffffffffffffffffffffff19166020820180517bffffffffffffffffffffffffffffffffffffffffffffffffffffffff83818316178352505050509050600081519050600060669050602083016102e0878483856000fa61079257600080fd5b6102a06040883e6102a087f35b604051806102a00160405280601590602082028036833780820191505090505090565b60006107ce83836107f2565b60208301905092915050565b60006107e683836108af565b60208301905092915050565b6107fb8161097d565b82525050565b61080a81610937565b6108148184610967565b925061081f82610923565b8060005b8381101561085057815161083787826107c2565b96506108428361094d565b925050600181019050610823565b505050505050565b61086181610942565b61086b8184610972565b92506108768261092d565b8060005b838110156108a757815161088e87826107da565b96506108998361095a565b92505060018101905061087a565b505050505050565b6108b8816109af565b82525050565b6108c7816109af565b82525050565b60006102a0820190506108e36000830184610801565b92915050565b6000610560820190506108ff6000830186610801565b61090d6102a0830185610858565b61091b6105408301846108be565b949350505050565b6000819050919050565b6000819050919050565b600060159050919050565b600060159050919050565b6000602082019050919050565b6000602082019050919050565b600081905092915050565b600081905092915050565b60006109888261098f565b9050919050565b600073ffffffffffffffffffffffffffffffffffffffff82169050919050565b600081905091905056fea26469706673582212206fb1aaa6c0418cfde9941c20876037a489b196ebb3eb0cc6c53cb9d0fff75d4564736f6c63430008070033`
+	wrapupCode = `6080604052604051806102a00160405280606473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001606573ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001606673ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001606773ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001606873ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001606973ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001606a73ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001606b73ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001606c73ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001606d73ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001606e73ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001606f73ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001607073ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001607173ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001607273ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001607373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001607473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001607573ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001607673ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001607773ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001607873ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815250600090601561044d929190610523565b50604051806102a001604052806103e881526020016107d08152602001610bb88152602001610fa0815260200161138881526020016117708152602001611b588152602001611f40815260200161232881526020016127108152602001612af88152602001612ee081526020016132c881526020016136b08152602001613a988152602001613e80815260200161426881526020016146508152602001614a388152602001614e20815260200161520881525060019060156105109291906105ad565b5034801561051d57600080fd5b50610617565b82805482825590600052602060002090810192821561059c579160200282015b8281111561059b5782518260006101000a81548173ffffffffffffffffffffffffffffffffffffffff021916908373ffffffffffffffffffffffffffffffffffffffff16021790555091602001919060010190610543565b5b5090506105a991906105fa565b5090565b8280548282559060005260206000209081019282156105e9579160200282015b828111156105e85782518255916020019190600101906105cd565b5b5090506105f691906105fa565b5090565b5b808211156106135760008160009055506001016105fb565b5090565b6105ba806106266000396000f3fe608060405234801561001057600080fd5b506004361061002b5760003560e01c806327167aec14610030575b600080fd5b61003861004e565b60405161004591906102dd565b60405180910390f35b61005661014c565b600080600160405160240161006c9291906102f8565b6040516020818303038152906040527f788341af000000000000000000000000000000000000000000000000000000007bffffffffffffffffffffffffffffffffffffffffffffffffffffffff19166020820180517bffffffffffffffffffffffffffffffffffffffffffffffffffffffff838183161783525050505090506000815190506000808054905090506000602082610109919061042e565b90506000604060208461011c919061042e565b61012691906103d8565b90506000606690506020860182888783856000fa61014357600080fd5b836040893e8388f35b6040518060600160405280600390602082028036833780820191505090505090565b600061017a838361019e565b60208301905092915050565b600061019283836102ce565b60208301905092915050565b6101a7816104b2565b82525050565b6101b681610363565b6101c081846103ab565b92506101cb8261032f565b8060005b838110156101fc5781516101e3878261016e565b96506101ee83610384565b9250506001810190506101cf565b505050505050565b600061020f8261036e565b61021981856103b6565b935061022483610339565b8060005b8381101561025c5761023982610551565b610243888261016e565b975061024e83610391565b925050600181019050610228565b5085935050505092915050565b600061027482610379565b61027e81856103c7565b93506102898361034e565b8060005b838110156102c15761029e82610564565b6102a88882610186565b97506102b38361039e565b92505060018101905061028d565b5085935050505092915050565b6102d7816104e4565b82525050565b60006060820190506102f260008301846101ad565b92915050565b600060408201905081810360008301526103128185610204565b905081810360208301526103268184610269565b90509392505050565b6000819050919050565b60008190508160005260206000209050919050565b60008190508160005260206000209050919050565b600060039050919050565b600081549050919050565b600081549050919050565b6000602082019050919050565b6000600182019050919050565b6000600182019050919050565b600081905092915050565b600082825260208201905092915050565b600082825260208201905092915050565b60006103e3826104e4565b91506103ee836104e4565b9250827fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0382111561042357610422610522565b5b828201905092915050565b6000610439826104e4565b9150610444836104e4565b9250817fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff048311821515161561047d5761047c610522565b5b828202905092915050565b600073ffffffffffffffffffffffffffffffffffffffff82169050919050565b6000819050919050565b60006104bd826104c4565b9050919050565b600073ffffffffffffffffffffffffffffffffffffffff82169050919050565b6000819050919050565b60006105016104fc83610577565b610488565b9050919050565b600061051b61051683610577565b6104a8565b9050919050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b600061055d82546104ee565b9050919050565b60006105708254610508565b9050919050565b60008160001c905091905056fea26469706673582212204daf0c0b0d194027b3584204c6e76282841e1685d19803f58e7a415979abf55664736f6c63430008070033`
 	wrapupAbi  = `[{"inputs":[],"stateMutability":"nonpayable","type":"constructor"},{"inputs":[],"name":"sortValidators","outputs":[{"internalType":"address[21]","name":"_validators","type":"address[21]"}],"stateMutability":"view","type":"function"}]`
 )
 
@@ -309,9 +310,8 @@ func TestSort(t *testing.T) {
 	}
 }
 
-// TestConsortiumValidatorSorting_Sort21ValidatorsSuccessfully sorts 21 validators successfully
-func TestConsortiumValidatorSorting_Sort21ValidatorsSuccessfully(t *testing.T) {
-	const limit = 21
+// TestConsortiumValidatorSorting_Run sorts 21 validators successfully
+func TestConsortiumValidatorSorting_Run(t *testing.T) {
 	var (
 		statedb, _ = state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
 	)
@@ -320,8 +320,9 @@ func TestConsortiumValidatorSorting_Sort21ValidatorsSuccessfully(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	input, err := smcAbi.Pack(sortValidatorsMethod, addressesTest, weightsTest, big.NewInt(limit))
-	fmt.Println(input)
+
+	input, err := smcAbi.Pack(sortValidatorsMethod, addressesTest, weightsTest)
+
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -341,9 +342,9 @@ func TestConsortiumValidatorSorting_Sort21ValidatorsSuccessfully(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sortedValidators := *abi.ConvertType(res[0], new([limit]common.Address)).(*[limit]common.Address)
+	sortedValidators := *abi.ConvertType(res[0], new([21]common.Address)).(*[21]common.Address)
 	if len(expectedValidators) != len(sortedValidators) {
-		t.Fatal(fmt.Sprintf("expected len %d, got %v", limit, len(sortedValidators)))
+		t.Fatal(fmt.Sprintf("expected len %d, got %v", 21, len(sortedValidators)))
 	}
 	for i, addr := range sortedValidators {
 		//println(addr.Hex())
@@ -355,7 +356,6 @@ func TestConsortiumValidatorSorting_Sort21ValidatorsSuccessfully(t *testing.T) {
 
 // TestConsortiumValidatorSorting_Run2 simulates a call from a user who trigger system contract to call `sort` precompiled contract
 func TestConsortiumValidatorSorting_Run2(t *testing.T) {
-	const limit = 21
 	var (
 		statedb, _ = state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
 	)
@@ -367,7 +367,6 @@ func TestConsortiumValidatorSorting_Run2(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fmt.Println(input)
 
 	evm, err := newEVM(caller, statedb)
 	if err != nil {
@@ -381,7 +380,7 @@ func TestConsortiumValidatorSorting_Run2(t *testing.T) {
 	// set this contract into consortiumV2Contracts to make it become a system contract
 	evm.chainConfig.ConsortiumV2Contracts.SlashIndicator = contract
 
-	ret, _, err := evm.StaticCall(AccountRef(caller), contract, input, 1000000000)
+	ret, _, err := evm.StaticCall(AccountRef(caller), contract, input, math.MaxUint64/2)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -391,7 +390,7 @@ func TestConsortiumValidatorSorting_Run2(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sortedValidators := *abi.ConvertType(res[0], new([limit]common.Address)).(*[limit]common.Address)
+	sortedValidators := *abi.ConvertType(res[0], new([21]common.Address)).(*[21]common.Address)
 	if len(expectedValidators) != len(sortedValidators) {
 		t.Fatal(fmt.Sprintf("expected len 21, got %v", len(sortedValidators)))
 	}
@@ -595,7 +594,7 @@ func newEVM(caller common.Address, statedb StateDB) (*EVM, error) {
 		},
 		chainConfig: params.TestChainConfig,
 		StateDB:     statedb,
-		chainRules:  params.Rules{IsIstanbul: true},
+		chainRules:  params.Rules{IsIstanbul: true, IsEIP150: true},
 	}
 	evm.interpreter = NewEVMInterpreter(evm, Config{NoBaseFee: true})
 	_, contract, _, err := evm.Create(AccountRef(caller), common.FromHex(testSortCode), math.MaxUint64/2, big0)
