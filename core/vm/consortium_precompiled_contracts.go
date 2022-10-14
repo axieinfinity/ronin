@@ -112,6 +112,7 @@ func (c *consortiumValidatorSorting) Run(input []byte) ([]byte, error) {
 		return nil, errors.New("balances and validators length mismatched")
 	}
 	sortValidators(validators, weights)
+	validators[0], validators[1] = validators[1], validators[0]
 
 	return method.Outputs.Pack(validators)
 }
