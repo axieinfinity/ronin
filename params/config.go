@@ -459,7 +459,12 @@ func (c *ChainConfig) String() string {
 		slashIndicatorSC = c.ConsortiumV2Contracts.SlashIndicator
 	}
 
-	return fmt.Sprintf("{ChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v Petersburg: %v Istanbul: %v, Odysseus: %v, Fenix: %v, Muir Glacier: %v, Berlin: %v, London: %v, Arrow Glacier: %v, Engine: %v, Blacklist Contract: %v, Fenix Validator Contract: %v, ConsortiumV2: %v, ConsortiumV2.RoninValidatorSet: %v, ConsortiumV2.SlashIndicator: %v}",
+	stakingContract := common.HexToAddress("")
+	if c.ConsortiumV2Contracts != nil {
+		stakingContract = c.ConsortiumV2Contracts.StakingContract
+	}
+
+	return fmt.Sprintf("{ChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v Petersburg: %v Istanbul: %v, Odysseus: %v, Fenix: %v, Muir Glacier: %v, Berlin: %v, London: %v, Arrow Glacier: %v, Engine: %v, Blacklist Contract: %v, Fenix Validator Contract: %v, ConsortiumV2: %v, ConsortiumV2.RoninValidatorSet: %v, ConsortiumV2.SlashIndicator: %v, ConsortiumV2.StakingContract: %v}",
 		c.ChainID,
 		c.HomesteadBlock,
 		c.DAOForkBlock,
@@ -483,6 +488,7 @@ func (c *ChainConfig) String() string {
 		c.ConsortiumV2Block,
 		roninValidatorSetSC.Hex(),
 		slashIndicatorSC.Hex(),
+		stakingContract.Hex(),
 	)
 }
 
