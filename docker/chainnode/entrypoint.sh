@@ -13,7 +13,7 @@
 # constants
 datadir="/ronin/data"
 KEYSTORE_DIR="/ronin/keystore"
-PASSWORD_FILE="$KEYSTORE_DIR/password"
+PASSWORD_FILE="/ronin/password"
 
 # variables
 genesisPath=""
