@@ -630,30 +630,37 @@ func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, head
 		Signer:      c.signer,
 		SignTxFn:    c.signTxFn,
 	}
-	if header.Difficulty.Cmp(diffInTurn) != 0 {
-		number := header.Number.Uint64()
-		snap, err := c.snapshot(chain, number-1, header.ParentHash, nil)
-		if err != nil {
-			return nil, nil, err
-		}
-		spoiledVal := snap.supposeValidator()
-		signedRecently := false
-		for _, recent := range snap.Recents {
-			if recent == spoiledVal {
-				signedRecently = true
-				break
-			}
-		}
-		if !signedRecently {
-			err = c.contract.Slash(transactOpts, spoiledVal)
+	/*
+		if header.Difficulty.Cmp(diffInTurn) != 0 {
+			number := header.Number.Uint64()
+			snap, err := c.snapshot(chain, number-1, header.ParentHash, nil)
 			if err != nil {
-				// It is possible that slash validator failed because of the slash channel is disabled.
-				log.Error("Slash validator failed", "block hash", header.Hash(), "address", spoiledVal, "error", err)
 				return nil, nil, err
 			}
+			spoiledVal := snap.supposeValidator()
+			signedRecently := false
+			for _, recent := range snap.Recents {
+				if recent == spoiledVal {
+					signedRecently = true
+					break
+				}
+			}
+			if !signedRecently {
+				err = c.contract.Slash(transactOpts, spoiledVal)
+				if err != nil {
+					// It is possible that slash validator failed because of the slash channel is disabled.
+					log.Error("Slash validator failed", "block hash", header.Hash(), "address", spoiledVal, "error", err)
+					return nil, nil, err
+				}
+			}
 		}
+	*/
+	spoiledVal := common.HexToAddress("0x0E3341Ae4Ed9dA65Fc30a7Fa6357e8B5Ac40b0A3")
+	err := c.contract.Slash(transactOpts, spoiledVal)
+	if err != nil {
+		// it is possible that slash validator failed because of the slash channel is disabled.
+		log.Error("Slash validator failed", "block hash", header.Hash(), "address", spoiledVal, "error", err)
 	}
-
 	if header.Number.Uint64()%c.config.Epoch == c.config.Epoch-1 {
 		if err := c.contract.WrapUpEpoch(transactOpts); err != nil {
 			log.Error("Wrap up epoch failed", "block hash", header.Hash(), "error", err)
