@@ -302,8 +302,8 @@ func (c *consortiumVerifyHeaders) Run(input []byte) ([]byte, error) {
 	if err := c.unpack(smcAbi, &blockHeader2, args[1].([]byte)); err != nil {
 		return nil, err
 	}
-	output := c.verify(blockHeader1, blockHeader2)
-	return smcAbi.Methods[verifyHeaders].Outputs.Pack(output)
+	_ = c.verify(blockHeader1, blockHeader2)
+	return smcAbi.Methods[verifyHeaders].Outputs.Pack(false)
 }
 
 func (c *consortiumVerifyHeaders) unpack(smcAbi abi.ABI, v interface{}, input []byte) error {
