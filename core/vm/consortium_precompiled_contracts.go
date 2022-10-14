@@ -96,13 +96,13 @@ func (c *consortiumValidatorSorting) Run(input []byte) ([]byte, error) {
 	if len(args) != 2 {
 		return nil, errors.New(fmt.Sprintf("invalid arguments, expected 2 got %d", len(args)))
 	}
-	// cast args[0] to number
+	// cast args[0] to list addresses
 	validators, ok := args[0].([]common.Address)
 	if !ok {
 		return nil, errors.New("invalid first argument type")
 	}
 
-	// cast args[1] to number
+	// cast args[1] to list big int
 	weights, ok := args[1].([]*big.Int)
 	if !ok {
 		return nil, errors.New("invalid second argument type")
