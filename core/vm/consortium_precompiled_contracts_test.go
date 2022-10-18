@@ -960,8 +960,8 @@ func TestArrangeValidatorCandidates_Has15TrustedNodes(t *testing.T) {
 	}
 }
 
-// TestFilterCandidatesUnmaintained returns unmaintained candidates
-func TestFilterCandidatesUnmaintained(t *testing.T) {
+// TestPickCandidatesIsRunning returns unmaintained candidates
+func TestPickCandidatesIsRunning(t *testing.T) {
 	isMaintainings := []bool{
 		false,
 		false,
@@ -988,7 +988,7 @@ func TestFilterCandidatesUnmaintained(t *testing.T) {
 	}
 	newValidatorCount := uint64(21)
 
-	result := filterCandidatesUnmaintained(addressesTest, isMaintainings, newValidatorCount)
+	result := pickCandidatesIsRunning(addressesTest, isMaintainings, newValidatorCount)
 
 	expectedCandidates := []common.Address{
 		common.BytesToAddress([]byte{100}),
@@ -1019,8 +1019,8 @@ func TestFilterCandidatesUnmaintained(t *testing.T) {
 	}
 }
 
-// TestFilterCandidatesUnmaintained_AllNodesMaintaining returns empty array since all candidates are maintaining
-func TestFilterCandidatesUnmaintained_AllNodesMaintaining(t *testing.T) {
+// TestPickCandidatesIsRunning_AllNodesMaintaining returns empty array since all candidates are maintaining
+func TestPickCandidatesIsRunning_AllNodesMaintaining(t *testing.T) {
 	isMaintainings := []bool{
 		true,
 		true,
@@ -1046,7 +1046,7 @@ func TestFilterCandidatesUnmaintained_AllNodesMaintaining(t *testing.T) {
 	}
 	newValidatorCount := uint64(21)
 
-	result := filterCandidatesUnmaintained(addressesTest, isMaintainings, newValidatorCount)
+	result := pickCandidatesIsRunning(addressesTest, isMaintainings, newValidatorCount)
 
 	if len(result) != 0 {
 		t.Fatal(fmt.Sprintf("mismatched candidate length, expected:%d got:%d", 0, len(result)))

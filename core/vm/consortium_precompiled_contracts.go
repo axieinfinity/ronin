@@ -145,11 +145,11 @@ func (c *consortiumPickValidatorSet) Run(input []byte) ([]byte, error) {
 
 	sortValidators(candidates, weights)
 	arrangeValidatorCandidates(candidates, newValidatorCount, isTrustedOrganizations, maxPrioritizedValidatorNumber)
-	candidatesUnmaintained := filterCandidatesUnmaintained(candidates, isMaintainings, newValidatorCount)
+	candidatesIsRunning := pickCandidatesIsRunning(candidates, isMaintainings, newValidatorCount)
 
-	log.Debug("Precompiled pick validator set", "candidatesUnmaintained", candidatesUnmaintained)
+	log.Debug("Precompiled pick validator set", "candidatesIsRunning", candidatesIsRunning)
 
-	return method.Outputs.Pack(candidatesUnmaintained)
+	return method.Outputs.Pack(candidatesIsRunning)
 }
 
 func arrangeValidatorCandidates(candidates []common.Address, newValidatorCount uint64, isTrustedOrganizations []bool, maxPrioritizedValidatorNumber *big.Int) {
@@ -174,17 +174,17 @@ func arrangeValidatorCandidates(candidates []common.Address, newValidatorCount u
 	}
 }
 
-func filterCandidatesUnmaintained(candidates []common.Address, isMaintainings []bool, newValidatorCount uint64) []common.Address {
-	var unmaintained []common.Address
+func pickCandidatesIsRunning(candidates []common.Address, isMaintainings []bool, newValidatorCount uint64) []common.Address {
+	var candidatesIsRunning []common.Address
 	for i := uint64(0); i < newValidatorCount; i++ {
 		if isMaintainings[i] {
 			continue
 		}
 
-		unmaintained = append(unmaintained, candidates[i])
+		candidatesIsRunning = append(candidatesIsRunning, candidates[i])
 	}
 
-	return unmaintained
+	return candidatesIsRunning
 }
 
 type consortiumValidatorSorting struct {
