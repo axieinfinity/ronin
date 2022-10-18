@@ -20,19 +20,21 @@ import (
 )
 
 var (
-	consortiumLogAbi           = `[{"inputs":[{"internalType":"string","name":"message","type":"string"}],"name":"log","outputs":[],"stateMutability":"nonpayable","type":"function"}]`
-	consortiumSortValidatorAbi = `[{"inputs":[],"stateMutability":"nonpayable","type":"constructor"},{"inputs":[{"internalType":"address[]","name":"validators","type":"address[]"},{"internalType":"uint256[]","name":"weights","type":"uint256[]"}],"name":"sortValidators","outputs":[{"internalType":"address[]","name":"_validators","type":"address[]"}],"stateMutability":"view","type":"function"}]`
-	consortiumVerifyHeadersAbi = `[{"outputs":[],"name":"getHeader","inputs":[{"internalType":"uint256","name":"chainId","type":"uint256"},{"internalType":"bytes32","name":"parentHash","type":"bytes32"},{"internalType":"bytes32","name":"ommersHash","type":"bytes32"},{"internalType":"address","name":"coinbase","type":"address"},{"internalType":"bytes32","name":"stateRoot","type":"bytes32"},{"internalType":"bytes32","name":"transactionsRoot","type":"bytes32"},{"internalType":"bytes32","name":"receiptsRoot","type":"bytes32"},{"internalType":"uint8[256]","name":"logsBloom","type":"uint8[256]"},{"internalType":"uint256","name":"difficulty","type":"uint256"},{"internalType":"uint256","name":"number","type":"uint256"},{"internalType":"uint64","name":"gasLimit","type":"uint64"},{"internalType":"uint64","name":"gasUsed","type":"uint64"},{"internalType":"uint64","name":"timestamp","type":"uint64"},{"internalType":"bytes","name":"extraData","type":"bytes"},{"internalType":"bytes32","name":"mixHash","type":"bytes32"},{"internalType":"uint64","name":"nonce","type":"uint64"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"bytes","name":"header1","type":"bytes"},{"internalType":"bytes","name":"header2","type":"bytes"}],"name":"validatingDoubleSignProof","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"view","type":"function"}]`
+	consortiumLogAbi              = `[{"inputs":[{"internalType":"string","name":"message","type":"string"}],"name":"log","outputs":[],"stateMutability":"nonpayable","type":"function"}]`
+	consortiumSortValidatorAbi    = `[{"inputs":[],"stateMutability":"nonpayable","type":"constructor"},{"inputs":[{"internalType":"address[]","name":"validators","type":"address[]"},{"internalType":"uint256[]","name":"weights","type":"uint256[]"}],"name":"sortValidators","outputs":[{"internalType":"address[]","name":"_validators","type":"address[]"}],"stateMutability":"view","type":"function"}]`
+	consortiumVerifyHeadersAbi    = `[{"outputs":[],"name":"getHeader","inputs":[{"internalType":"uint256","name":"chainId","type":"uint256"},{"internalType":"bytes32","name":"parentHash","type":"bytes32"},{"internalType":"bytes32","name":"ommersHash","type":"bytes32"},{"internalType":"address","name":"coinbase","type":"address"},{"internalType":"bytes32","name":"stateRoot","type":"bytes32"},{"internalType":"bytes32","name":"transactionsRoot","type":"bytes32"},{"internalType":"bytes32","name":"receiptsRoot","type":"bytes32"},{"internalType":"uint8[256]","name":"logsBloom","type":"uint8[256]"},{"internalType":"uint256","name":"difficulty","type":"uint256"},{"internalType":"uint256","name":"number","type":"uint256"},{"internalType":"uint64","name":"gasLimit","type":"uint64"},{"internalType":"uint64","name":"gasUsed","type":"uint64"},{"internalType":"uint64","name":"timestamp","type":"uint64"},{"internalType":"bytes","name":"extraData","type":"bytes"},{"internalType":"bytes32","name":"mixHash","type":"bytes32"},{"internalType":"uint64","name":"nonce","type":"uint64"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"bytes","name":"header1","type":"bytes"},{"internalType":"bytes","name":"header2","type":"bytes"}],"name":"validatingDoubleSignProof","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"view","type":"function"}]`
+	consortiumPickValidatorSetAbi = `[{"inputs":[],"stateMutability":"nonpayable","type":"constructor"},{"inputs":[{"internalType":"address[]","name":"_candidates","type":"address[]"},{"internalType":"uint256[]","name":"_weights","type":"uint256[]"},{"internalType":"bool[]","name":"_isTrustedOrganizations","type":"bool[]"},{"internalType":"bool[]","name":"_isMaintainings","type":"bool[]"},{"internalType":"uint256","name":"_maxValidatorNumber","type":"uint256"},{"internalType":"uint256","name":"_maxPrioritizedValidatorNumber","type":"uint256"}],"name":"pickValidatorSet","outputs":[{"internalType":"address[]","name":"_validators","type":"address[]"}],"stateMutability":"view","type":"function"}]`
 )
 
 const (
-	sortValidatorsMethod = "sortValidators"
-	logMethod            = "log"
-	getValidatorsMethod  = "getValidatorCandidates"
-	totalBalancesMethod  = "totalBalances"
-	verifyHeaders        = "validatingDoubleSignProof"
-	getHeader            = "getHeader"
-	extraVanity          = 32
+	sortValidatorsMethod   = "sortValidators"
+	pickValidatorSetMethod = "pickValidatorSet"
+	logMethod              = "log"
+	getValidatorsMethod    = "getValidatorCandidates"
+	totalBalancesMethod    = "totalBalances"
+	verifyHeaders          = "validatingDoubleSignProof"
+	getHeader              = "getHeader"
+	extraVanity            = 32
 )
 
 func PrecompiledContractsConsortium(caller ContractRef, evm *EVM) map[common.Address]PrecompiledContract {
@@ -40,12 +42,13 @@ func PrecompiledContractsConsortium(caller ContractRef, evm *EVM) map[common.Add
 		common.BytesToAddress([]byte{101}): &consortiumLog{},
 		common.BytesToAddress([]byte{102}): &consortiumValidatorSorting{caller: caller, evm: evm},
 		common.BytesToAddress([]byte{103}): &consortiumVerifyHeaders{caller: caller, evm: evm},
+		common.BytesToAddress([]byte{104}): &consortiumPickValidatorSet{caller: caller, evm: evm},
 	}
 }
 
 type consortiumLog struct{}
 
-func (c *consortiumLog) RequiredGas(input []byte) uint64 {
+func (c *consortiumLog) RequiredGas(_ []byte) uint64 {
 	return 0
 }
 
@@ -69,12 +72,127 @@ func (c *consortiumLog) Run(input []byte) ([]byte, error) {
 	return input, nil
 }
 
+type consortiumPickValidatorSet struct {
+	caller ContractRef
+	evm    *EVM
+}
+
+func (c *consortiumPickValidatorSet) RequiredGas(_ []byte) uint64 {
+	return 0
+}
+
+func (c *consortiumPickValidatorSet) Run(input []byte) ([]byte, error) {
+	if c.evm.ChainConfig().ConsortiumV2Contracts == nil {
+		return nil, errors.New("cannot find consortium v2 contracts")
+	}
+	if !c.evm.ChainConfig().ConsortiumV2Contracts.IsSystemContract(c.caller.Address()) {
+		return nil, errors.New("unauthorized sender")
+	}
+	// get method, args from abi
+	_, method, args, err := loadMethodAndArgs(consortiumPickValidatorSetAbi, input)
+	if err != nil {
+		return nil, err
+	}
+	if method.Name != pickValidatorSetMethod {
+		return nil, errors.New("invalid method")
+	}
+
+	if len(args) != 6 {
+		return nil, errors.New(fmt.Sprintf("invalid arguments, expected 6 got %d", len(args)))
+	}
+
+	// cast args[0] to list addresses
+	candidates, ok := args[0].([]common.Address)
+	if !ok {
+		return nil, errors.New("invalid candidateList argument type")
+	}
+
+	// cast args[1] to list big int
+	weights, ok := args[1].([]*big.Int)
+	if !ok {
+		return nil, errors.New("invalid weights argument type")
+	}
+
+	isTrustedOrganizations, ok := args[2].([]bool)
+	if !ok {
+		return nil, errors.New("invalid isTrustedOrganizations argument type")
+	}
+
+	isMaintainings, ok := args[3].([]bool)
+	if !ok {
+		return nil, errors.New("invalid isMaintainings argument type")
+	}
+
+	if len(candidates) != len(weights) || len(weights) != len(isTrustedOrganizations) || len(isTrustedOrganizations) != len(isMaintainings) {
+		return nil, errors.New("array length is mismatch")
+	}
+
+	maxValidatorNumber, ok := args[4].(*big.Int)
+	if !ok {
+		return nil, errors.New("invalid maxValidatorNumber argument type")
+	}
+
+	maxPrioritizedValidatorNumber, ok := args[5].(*big.Int)
+	if !ok {
+		return nil, errors.New("invalid maxPrioritizedValidatorNumber argument type")
+	}
+
+	newValidatorCount := maxValidatorNumber.Uint64()
+	candidateLen := uint64(len(candidates))
+	if newValidatorCount < candidateLen {
+		newValidatorCount = candidateLen
+	}
+
+	sortValidators(candidates, weights)
+	arrangeValidatorCandidates(candidates, newValidatorCount, isTrustedOrganizations, maxPrioritizedValidatorNumber)
+	candidatesUnmaintained := filterCandidatesUnmaintained(candidates, isMaintainings, newValidatorCount)
+
+	log.Debug("Precompiled pick validator set", "candidatesUnmaintained", candidatesUnmaintained)
+
+	return method.Outputs.Pack(candidatesUnmaintained)
+}
+
+func arrangeValidatorCandidates(candidates []common.Address, newValidatorCount uint64, isTrustedOrganizations []bool, maxPrioritizedValidatorNumber *big.Int) {
+	waitingCandidates := make([]common.Address, newValidatorCount, newValidatorCount)
+	var waitingCounter uint64
+	var prioritySlotCounter uint64
+
+	for i := 0; i < len(candidates); i++ {
+		if isTrustedOrganizations[i] && prioritySlotCounter < maxPrioritizedValidatorNumber.Uint64() {
+			candidates[prioritySlotCounter] = candidates[i]
+			prioritySlotCounter++
+			continue
+		}
+		waitingCandidates[waitingCounter] = candidates[i]
+		waitingCounter++
+	}
+
+	waitingCounter = 0
+	for i := prioritySlotCounter; i < newValidatorCount; i++ {
+		candidates[i] = waitingCandidates[waitingCounter]
+		waitingCounter++
+	}
+}
+
+func filterCandidatesUnmaintained(candidates []common.Address, isMaintainings []bool, newValidatorCount uint64) []common.Address {
+	var unmaintained []common.Address
+	for i := uint64(0); i < newValidatorCount; i++ {
+		if isMaintainings[i] {
+			continue
+		}
+
+		unmaintained = append(unmaintained, candidates[i])
+	}
+
+	return unmaintained
+}
+
 type consortiumValidatorSorting struct {
 	caller ContractRef
 	evm    *EVM
 }
 
-func (c *consortiumValidatorSorting) RequiredGas(input []byte) uint64 {
+func (c *consortiumValidatorSorting) RequiredGas(_ []byte) uint64 {
 	return 0
 }
 
@@ -113,6 +231,8 @@ func (c *consortiumValidatorSorting) Run(input []byte) ([]byte, error) {
 	}
 	sortValidators(validators, weights)
 
+	log.Debug("Precompiled sorting", "validators", validators, "weights", weights)
+
 	return method.Outputs.Pack(validators)
 }
 
@@ -128,7 +248,7 @@ func sortValidators(validators []common.Address, weights []*big.Int) {
 	validators[pivot], validators[right] = validators[right], validators[pivot]
 	weights[pivot], weights[right] = weights[right], weights[pivot]
 
-	for i, _ := range validators {
+	for i := range validators {
 		cmp := weights[i].Cmp(weights[right])
 		addrsCmp := big.NewInt(0).SetBytes(validators[i].Bytes()).Cmp(big.NewInt(0).SetBytes(validators[right].Bytes())) > 0
 		if cmp > 0 || (cmp == 0 && addrsCmp) {
@@ -147,20 +267,30 @@ func sortValidators(validators []common.Address, weights []*big.Int) {
 	return
 }
 
-func loadValidators(evm *EVM, smcAbi abi.ABI, sender common.Address) ([]common.Address, error) {
-	res, err := staticCall(evm, smcAbi, getValidatorsMethod, evm.ChainConfig().ConsortiumV2Contracts.RoninValidatorSet, sender)
+type SmartContractCaller struct {
+	evm    *EVM
+	smcAbi abi.ABI
+	sender common.Address
+}
+
+func (c *SmartContractCaller) validators() ([]common.Address, error) {
+	res, err := c.staticCall(getValidatorsMethod, c.evm.ChainConfig().ConsortiumV2Contracts.RoninValidatorSet)
 	if err != nil {
 		return nil, err
 	}
 	return *abi.ConvertType(res[0], new([]common.Address)).(*[]common.Address), nil
 }
 
-func loadTotalBalances(evm *EVM, smcAbi abi.ABI, sender common.Address, validators []common.Address) ([]*big.Int, error) {
-	res, err := staticCall(evm, smcAbi, totalBalancesMethod, evm.ChainConfig().ConsortiumV2Contracts.StakingContract, sender, validators)
+func (c *SmartContractCaller) totalBalances(validators []common.Address) ([]*big.Int, error) {
+	res, err := c.staticCall(totalBalancesMethod, c.evm.ChainConfig().ConsortiumV2Contracts.RoninValidatorSet, validators)
 	if err != nil {
 		return nil, err
 	}
 	return *abi.ConvertType(res[0], new([]*big.Int)).(*[]*big.Int), nil
+}
+
+func (c *SmartContractCaller) staticCall(method string, contract common.Address, args ...interface{}) ([]interface{}, error) {
+	return staticCall(c.evm, c.smcAbi, method, contract, c.sender, args...)
 }
 
 func staticCall(evm *EVM, smcAbi abi.ABI, method string, contract, sender common.Address, args ...interface{}) ([]interface{}, error) {
@@ -272,7 +402,7 @@ type consortiumVerifyHeaders struct {
 	evm    *EVM
 }
 
-func (c *consortiumVerifyHeaders) RequiredGas(input []byte) uint64 {
+func (c *consortiumVerifyHeaders) RequiredGas(_ []byte) uint64 {
 	return 0
 }
 
