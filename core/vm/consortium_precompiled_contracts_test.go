@@ -358,7 +358,190 @@ const (
 	verifyHeadersTestAbi  = `[{"inputs":[],"stateMutability":"nonpayable","type":"constructor"},{"inputs":[{"internalType":"bytes","name":"header1","type":"bytes"},{"internalType":"bytes","name":"header2","type":"bytes"}],"name":"verify","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"view","type":"function"}]`
 )
 
+type Scenario struct {
+	Address       common.Address
+	Weight        *big.Int
+	IsPriority    bool
+	IsMaintaining bool
+}
+
+func getAddresses(scenarios []Scenario) []common.Address {
+	var result []common.Address
+	for _, s := range scenarios {
+		result = append(result, s.Address)
+	}
+
+	return result
+}
+
+func getWeights(scenarios []Scenario) []*big.Int {
+	var result []*big.Int
+	for _, s := range scenarios {
+		result = append(result, s.Weight)
+	}
+
+	return result
+}
+
+func getPriorities(scenarios []Scenario) []bool {
+	var result []bool
+	for _, s := range scenarios {
+		result = append(result, s.IsPriority)
+	}
+
+	return result
+}
+
+func setPrioritiesAt(scenarios []Scenario, indexes ...int64) {
+	for _, i := range indexes {
+		scenarios[i].IsPriority = true
+	}
+}
+
+func getMaintaining(scenarios []Scenario) []bool {
+	var result []bool
+	for _, s := range scenarios {
+		result = append(result, s.IsMaintaining)
+	}
+
+	return result
+}
+
+func setMaintainingAt(scenarios []Scenario, indexes ...int64) {
+	for _, i := range indexes {
+		scenarios[i].IsMaintaining = true
+	}
+}
+
 var (
+	scenarios = []Scenario{
+		{
+			Address:       common.BytesToAddress([]byte{100}),
+			Weight:        big.NewInt(1_000_000),
+			IsPriority:    false,
+			IsMaintaining: false,
+		},
+		{
+			Address:       common.BytesToAddress([]byte{101}),
+			Weight:        big.NewInt(2_000_000),
+			IsPriority:    false,
+			IsMaintaining: false,
+		},
+		{
+			Address:       common.BytesToAddress([]byte{102}),
+			Weight:        big.NewInt(3_000_000),
+			IsPriority:    false,
+			IsMaintaining: false,
+		},
+		{
+			Address:       common.BytesToAddress([]byte{103}),
+			Weight:        big.NewInt(4_000_000),
+			IsPriority:    false,
+			IsMaintaining: false,
+		},
+		{
+			Address:       common.BytesToAddress([]byte{104}),
+			Weight:        big.NewInt(5_000_000),
+			IsPriority:    false,
+			IsMaintaining: false,
+		},
+		{
+			Address:       common.BytesToAddress([]byte{105}),
+			Weight:        big.NewInt(6_000_000),
+			IsPriority:    false,
+			IsMaintaining: false,
+		},
+		{
+			Address:       common.BytesToAddress([]byte{106}),
+			Weight:        big.NewInt(7_000_000),
+			IsPriority:    false,
+			IsMaintaining: false,
+		},
+		{
+			Address:       common.BytesToAddress([]byte{107}),
+			Weight:        big.NewInt(8_000_000),
+			IsPriority:    false,
+			IsMaintaining: false,
+		},
+		{
+			Address:       common.BytesToAddress([]byte{108}),
+			Weight:        big.NewInt(9_000_000),
+			IsPriority:    false,
+			IsMaintaining: false,
+		},
+		{
+			Address:       common.BytesToAddress([]byte{109}),
+			Weight:        big.NewInt(10_000_000),
+			IsPriority:    false,
+			IsMaintaining: false,
+		},
+		{
+			Address:       common.BytesToAddress([]byte{110}),
+			Weight:        big.NewInt(11_000_000),
+			IsPriority:    false,
+			IsMaintaining: false,
+		},
+		{
+			Address:       common.BytesToAddress([]byte{111}),
+			Weight:        big.NewInt(12_000_000),
+			IsPriority:    false,
+			IsMaintaining: false,
+		},
+		{
+			Address:       common.BytesToAddress([]byte{112}),
+			Weight:        big.NewInt(13_000_000),
+			IsPriority:    false,
+			IsMaintaining: false,
+		},
+		{
+			Address:       common.BytesToAddress([]byte{113}),
+			Weight:        big.NewInt(14_000_000),
+			IsPriority:    false,
+			IsMaintaining: false,
+		},
+		{
+			Address:       common.BytesToAddress([]byte{114}),
+			Weight:        big.NewInt(15_000_000),
+			IsPriority:    false,
+			IsMaintaining: false,
+		},
+		{
+			Address:       common.BytesToAddress([]byte{115}),
+			Weight:        big.NewInt(16_000_000),
+			IsPriority:    false,
+			IsMaintaining: false,
+		},
+		{
+			Address:       common.BytesToAddress([]byte{116}),
+			Weight:        big.NewInt(17_000_000),
+			IsPriority:    false,
+			IsMaintaining: false,
+		},
+		{
+			Address:       common.BytesToAddress([]byte{117}),
+			Weight:        big.NewInt(18_000_000),
+			IsPriority:    false,
+			IsMaintaining: false,
+		},
+		{
+			Address:       common.BytesToAddress([]byte{118}),
+			Weight:        big.NewInt(19_000_000),
+			IsPriority:    false,
+			IsMaintaining: false,
+		},
+		{
+			Address:       common.BytesToAddress([]byte{119}),
+			Weight:        big.NewInt(20_000_000),
+			IsPriority:    false,
+			IsMaintaining: false,
+		},
+		{
+			Address:       common.BytesToAddress([]byte{120}),
+			Weight:        big.NewInt(21_000_000),
+			IsPriority:    false,
+			IsMaintaining: false,
+		},
+	}
 	addressesTest = []common.Address{
 		common.BytesToAddress([]byte{100}),
 		common.BytesToAddress([]byte{101}),
@@ -651,234 +834,40 @@ func TestConsortiumVerifyHeaders_Run2(t *testing.T) {
 
 // TestArrangeValidatorCandidates arranges 21 candidates with 11 trusted nodes (ordering)
 func TestArrangeValidatorCandidates(t *testing.T) {
-	isTrustedOrganizations := []bool{
-		false,
-		false,
-		false,
-		false,
-		false,
-		false,
-		false,
-		false,
-		false,
-		false,
-		true,
-		true,
-		true,
-		true,
-		true,
-		true,
-		true,
-		true,
-		true,
-		true,
-		true,
-	}
+	setPrioritiesAt(scenarios, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20)
+	isTrustedOrganizations := getPriorities(scenarios)
+	candidates := getAddresses(scenarios)
+	weights := getWeights(scenarios)
+
 	newValidatorCount := uint64(21)
 	maxPrioritizedValidatorNumber := big.NewInt(11)
 
-	arrangeValidatorCandidates(addressesTest, newValidatorCount, isTrustedOrganizations, maxPrioritizedValidatorNumber)
+	sortValidators(candidates, weights)
+	arrangeValidatorCandidates(&candidates, newValidatorCount, isTrustedOrganizations, maxPrioritizedValidatorNumber)
 
 	expectedCandidates := []common.Address{
 		common.BytesToAddress([]byte{110}),
-		common.BytesToAddress([]byte{111}),
-		common.BytesToAddress([]byte{112}),
-		common.BytesToAddress([]byte{113}),
-		common.BytesToAddress([]byte{114}),
-		common.BytesToAddress([]byte{115}),
-		common.BytesToAddress([]byte{116}),
-		common.BytesToAddress([]byte{117}),
-		common.BytesToAddress([]byte{118}),
-		common.BytesToAddress([]byte{119}),
-		common.BytesToAddress([]byte{120}),
-
-		common.BytesToAddress([]byte{100}),
-		common.BytesToAddress([]byte{101}),
-		common.BytesToAddress([]byte{102}),
-		common.BytesToAddress([]byte{103}),
+		common.BytesToAddress([]byte{109}),
+		common.BytesToAddress([]byte{108}),
+		common.BytesToAddress([]byte{107}),
+		common.BytesToAddress([]byte{106}),
+		common.BytesToAddress([]byte{105}),
 		common.BytesToAddress([]byte{104}),
-		common.BytesToAddress([]byte{105}),
-		common.BytesToAddress([]byte{106}),
-		common.BytesToAddress([]byte{107}),
-		common.BytesToAddress([]byte{108}),
-		common.BytesToAddress([]byte{109}),
-	}
-	for i, candidate := range addressesTest {
-		if !bytes.Equal(expectedCandidates[i].Bytes(), candidate.Bytes()) {
-			t.Fatal(fmt.Sprintf("mismatched candidate address at %d, expected:%s got:%s", i, expectedCandidates[i].Hex(), candidate.Hex()))
-		}
-	}
-}
-
-// TestArrangeValidatorCandidates_RandomTrustedOrganizations arranges 21 candidates with 11 trusted nodes (randomly)
-func TestArrangeValidatorCandidates_RandomTrustedOrganizations(t *testing.T) {
-	isTrustedOrganizations := []bool{
-		false,
-		false,
-		true,
-		false,
-		false,
-		true,
-		false,
-		false,
-		true,
-		false,
-		true,
-		true,
-		false,
-		true,
-		true,
-		false,
-		false,
-		true,
-		true,
-		true,
-		true,
-	}
-	newValidatorCount := uint64(21)
-	maxPrioritizedValidatorNumber := big.NewInt(11)
-
-	arrangeValidatorCandidates(addressesTest, newValidatorCount, isTrustedOrganizations, maxPrioritizedValidatorNumber)
-
-	expectedCandidates := []common.Address{
-		common.BytesToAddress([]byte{102}),
-		common.BytesToAddress([]byte{105}),
-		common.BytesToAddress([]byte{108}),
-		common.BytesToAddress([]byte{110}),
-		common.BytesToAddress([]byte{111}),
-		common.BytesToAddress([]byte{113}),
-		common.BytesToAddress([]byte{114}),
-		common.BytesToAddress([]byte{117}),
-		common.BytesToAddress([]byte{118}),
-		common.BytesToAddress([]byte{119}),
-		common.BytesToAddress([]byte{120}),
-
-		common.BytesToAddress([]byte{100}),
-		common.BytesToAddress([]byte{101}),
 		common.BytesToAddress([]byte{103}),
-		common.BytesToAddress([]byte{104}),
-		common.BytesToAddress([]byte{106}),
-		common.BytesToAddress([]byte{107}),
-		common.BytesToAddress([]byte{109}),
-		common.BytesToAddress([]byte{112}),
-		common.BytesToAddress([]byte{115}),
-		common.BytesToAddress([]byte{116}),
-	}
-
-	for i, candidate := range addressesTest {
-		if !bytes.Equal(expectedCandidates[i].Bytes(), candidate.Bytes()) {
-			t.Fatal(fmt.Sprintf("mismatched candidate address at %d, expected:%s got:%s", i, expectedCandidates[i].Hex(), candidate.Hex()))
-		}
-	}
-}
-
-// TestArrangeValidatorCandidates_Max5Prioritized arranges 21 candidates with 5 trusted nodes (ordering)
-func TestArrangeValidatorCandidates_Max5Prioritized(t *testing.T) {
-	isTrustedOrganizations := []bool{
-		false,
-		false,
-		false,
-		false,
-		false,
-		false,
-		false,
-		false,
-		false,
-		false,
-
-		false,
-		false,
-		false,
-		false,
-		false,
-		false,
-		true,
-		true,
-		true,
-		true,
-		true,
-	}
-	newValidatorCount := uint64(21)
-	maxPrioritizedValidatorNumber := big.NewInt(11)
-
-	arrangeValidatorCandidates(addressesTest, newValidatorCount, isTrustedOrganizations, maxPrioritizedValidatorNumber)
-
-	expectedCandidates := []common.Address{
-		common.BytesToAddress([]byte{116}),
-		common.BytesToAddress([]byte{117}),
-		common.BytesToAddress([]byte{118}),
-		common.BytesToAddress([]byte{119}),
-		common.BytesToAddress([]byte{120}),
-
-		common.BytesToAddress([]byte{100}),
-		common.BytesToAddress([]byte{101}),
 		common.BytesToAddress([]byte{102}),
-		common.BytesToAddress([]byte{103}),
-		common.BytesToAddress([]byte{104}),
-		common.BytesToAddress([]byte{105}),
-		common.BytesToAddress([]byte{106}),
-		common.BytesToAddress([]byte{107}),
-		common.BytesToAddress([]byte{108}),
-		common.BytesToAddress([]byte{109}),
-		common.BytesToAddress([]byte{110}),
-		common.BytesToAddress([]byte{111}),
-		common.BytesToAddress([]byte{112}),
-		common.BytesToAddress([]byte{113}),
-		common.BytesToAddress([]byte{114}),
-		common.BytesToAddress([]byte{115}),
-	}
-	for i, candidate := range addressesTest {
-		if !bytes.Equal(expectedCandidates[i].Bytes(), candidate.Bytes()) {
-			t.Fatal(fmt.Sprintf("mismatched candidate address at %d, expected:%s got:%s", i, expectedCandidates[i].Hex(), candidate.Hex()))
-		}
-	}
-}
+		common.BytesToAddress([]byte{101}),
+		common.BytesToAddress([]byte{100}),
 
-// TestArrangeValidatorCandidates_Miss5Nodes arranges 16 candidates with 5 trusted nodes (ordering)
-func TestArrangeValidatorCandidates_Miss5Nodes(t *testing.T) {
-	candidates := addressesTest[5:]
-	isTrustedOrganizations := []bool{
-		false,
-		false,
-		false,
-		false,
-		false,
-
-		false,
-		false,
-		false,
-		false,
-		false,
-		false,
-		true,
-		true,
-		true,
-		true,
-		true,
-	}
-	newValidatorCount := uint64(16)
-	maxPrioritizedValidatorNumber := big.NewInt(11)
-
-	arrangeValidatorCandidates(candidates, newValidatorCount, isTrustedOrganizations, maxPrioritizedValidatorNumber)
-
-	expectedCandidates := []common.Address{
-		common.BytesToAddress([]byte{116}),
-		common.BytesToAddress([]byte{117}),
-		common.BytesToAddress([]byte{118}),
-		common.BytesToAddress([]byte{119}),
 		common.BytesToAddress([]byte{120}),
-
-		common.BytesToAddress([]byte{105}),
-		common.BytesToAddress([]byte{106}),
-		common.BytesToAddress([]byte{107}),
-		common.BytesToAddress([]byte{108}),
-		common.BytesToAddress([]byte{109}),
-		common.BytesToAddress([]byte{110}),
-		common.BytesToAddress([]byte{111}),
-		common.BytesToAddress([]byte{112}),
-		common.BytesToAddress([]byte{113}),
-		common.BytesToAddress([]byte{114}),
+		common.BytesToAddress([]byte{119}),
+		common.BytesToAddress([]byte{118}),
+		common.BytesToAddress([]byte{117}),
+		common.BytesToAddress([]byte{116}),
 		common.BytesToAddress([]byte{115}),
+		common.BytesToAddress([]byte{114}),
+		common.BytesToAddress([]byte{113}),
+		common.BytesToAddress([]byte{112}),
+		common.BytesToAddress([]byte{111}),
 	}
 	for i, candidate := range candidates {
 		if !bytes.Equal(expectedCandidates[i].Bytes(), candidate.Bytes()) {
@@ -887,71 +876,195 @@ func TestArrangeValidatorCandidates_Miss5Nodes(t *testing.T) {
 	}
 }
 
-// TestArrangeValidatorCandidates_Has15TrustedNodes arranges 21 candidates with 15 trusted nodes (ordering)
-// while maxPrioritizedValidatorNumber is 11
-func TestArrangeValidatorCandidates_Has15TrustedNodes(t *testing.T) {
-	candidates := append(addressesTest, []common.Address{
-		common.BytesToAddress([]byte{121}),
-		common.BytesToAddress([]byte{122}),
-		common.BytesToAddress([]byte{123}),
-		common.BytesToAddress([]byte{124}),
-	}...)
-	isTrustedOrganizations := []bool{
-		false,
-		false,
-		false,
-		false,
-		false,
-		false,
-		false,
-		false,
-		false,
-		false,
-		true,
-		true,
-		true,
-		true,
-		true,
-		true,
-		true,
-		true,
-		true,
-		true,
-		true,
+// TestArrangeValidatorCandidates_RandomTrustedOrganizations arranges 21 candidates with 11 trusted nodes (randomly)
+func TestArrangeValidatorCandidates_RandomTrustedOrganizations(t *testing.T) {
+	setPrioritiesAt(scenarios, 2, 5, 8, 10, 11, 13, 14, 17, 18, 19, 20)
+	isTrustedOrganizations := getPriorities(scenarios)
+	candidates := getAddresses(scenarios)
+	weights := getWeights(scenarios)
 
-		true,
-		true,
-		true,
-		true,
-	}
 	newValidatorCount := uint64(21)
 	maxPrioritizedValidatorNumber := big.NewInt(11)
 
-	arrangeValidatorCandidates(candidates, newValidatorCount, isTrustedOrganizations, maxPrioritizedValidatorNumber)
+	sortValidators(candidates, weights)
+	arrangeValidatorCandidates(&candidates, newValidatorCount, isTrustedOrganizations, maxPrioritizedValidatorNumber)
+
+	expectedCandidates := []common.Address{
+		common.BytesToAddress([]byte{118}),
+		common.BytesToAddress([]byte{115}),
+		common.BytesToAddress([]byte{112}),
+		common.BytesToAddress([]byte{110}),
+		common.BytesToAddress([]byte{109}),
+		common.BytesToAddress([]byte{107}),
+		common.BytesToAddress([]byte{106}),
+		common.BytesToAddress([]byte{103}),
+		common.BytesToAddress([]byte{102}),
+		common.BytesToAddress([]byte{101}),
+		common.BytesToAddress([]byte{100}),
+
+		common.BytesToAddress([]byte{120}),
+		common.BytesToAddress([]byte{119}),
+		common.BytesToAddress([]byte{117}),
+		common.BytesToAddress([]byte{116}),
+		common.BytesToAddress([]byte{114}),
+		common.BytesToAddress([]byte{113}),
+		common.BytesToAddress([]byte{111}),
+		common.BytesToAddress([]byte{108}),
+		common.BytesToAddress([]byte{105}),
+		common.BytesToAddress([]byte{104}),
+	}
+
+	for i, candidate := range candidates {
+		if !bytes.Equal(expectedCandidates[i].Bytes(), candidate.Bytes()) {
+			t.Fatal(fmt.Sprintf("mismatched candidate address at %d, expected:%s got:%s", i, expectedCandidates[i].Hex(), candidate.Hex()))
+		}
+	}
+}
+
+// TestArrangeValidatorCandidates_Max5Prioritized arranges 21 candidates with 5 trusted nodes (ordering)
+func TestArrangeValidatorCandidates_Max5Prioritized(t *testing.T) {
+	setPrioritiesAt(scenarios, 16, 17, 18, 19, 20)
+	isTrustedOrganizations := getPriorities(scenarios)
+	candidates := getAddresses(scenarios)
+	weights := getWeights(scenarios)
+
+	newValidatorCount := uint64(21)
+	maxPrioritizedValidatorNumber := big.NewInt(11)
+
+	sortValidators(candidates, weights)
+	arrangeValidatorCandidates(&candidates, newValidatorCount, isTrustedOrganizations, maxPrioritizedValidatorNumber)
+
+	expectedCandidates := []common.Address{
+		common.BytesToAddress([]byte{104}),
+		common.BytesToAddress([]byte{103}),
+		common.BytesToAddress([]byte{102}),
+		common.BytesToAddress([]byte{101}),
+		common.BytesToAddress([]byte{100}),
+
+		common.BytesToAddress([]byte{120}),
+		common.BytesToAddress([]byte{119}),
+		common.BytesToAddress([]byte{118}),
+		common.BytesToAddress([]byte{117}),
+		common.BytesToAddress([]byte{116}),
+		common.BytesToAddress([]byte{115}),
+		common.BytesToAddress([]byte{114}),
+		common.BytesToAddress([]byte{113}),
+		common.BytesToAddress([]byte{112}),
+		common.BytesToAddress([]byte{111}),
+		common.BytesToAddress([]byte{110}),
+		common.BytesToAddress([]byte{109}),
+		common.BytesToAddress([]byte{108}),
+		common.BytesToAddress([]byte{107}),
+		common.BytesToAddress([]byte{106}),
+		common.BytesToAddress([]byte{105}),
+	}
+	for i, candidate := range candidates {
+		if !bytes.Equal(expectedCandidates[i].Bytes(), candidate.Bytes()) {
+			t.Fatal(fmt.Sprintf("mismatched candidate address at %d, expected:%s got:%s", i, expectedCandidates[i].Hex(), candidate.Hex()))
+		}
+	}
+}
+
+// TestArrangeValidatorCandidates_Miss5Nodes arranges 16 candidates with 5 trusted nodes (ordering)
+func TestArrangeValidatorCandidates_Miss5Nodes(t *testing.T) {
+	setPrioritiesAt(scenarios, 11, 12, 13, 14, 15)
+	isTrustedOrganizations := getPriorities(scenarios)[5:]
+	candidates := getAddresses(scenarios)[5:]
+	weights := getWeights(scenarios)[5:]
+	newValidatorCount := uint64(16)
+	maxPrioritizedValidatorNumber := big.NewInt(11)
+
+	sortValidators(candidates, weights)
+	arrangeValidatorCandidates(&candidates, newValidatorCount, isTrustedOrganizations, maxPrioritizedValidatorNumber)
+
+	expectedCandidates := []common.Address{
+		common.BytesToAddress([]byte{114}),
+		common.BytesToAddress([]byte{113}),
+		common.BytesToAddress([]byte{112}),
+		common.BytesToAddress([]byte{111}),
+		common.BytesToAddress([]byte{110}),
+
+		common.BytesToAddress([]byte{120}),
+		common.BytesToAddress([]byte{119}),
+		common.BytesToAddress([]byte{118}),
+		common.BytesToAddress([]byte{117}),
+		common.BytesToAddress([]byte{116}),
+		common.BytesToAddress([]byte{115}),
+		common.BytesToAddress([]byte{109}),
+		common.BytesToAddress([]byte{108}),
+		common.BytesToAddress([]byte{107}),
+		common.BytesToAddress([]byte{106}),
+		common.BytesToAddress([]byte{105}),
+	}
+	for i, candidate := range candidates {
+		if !bytes.Equal(expectedCandidates[i].Bytes(), candidate.Bytes()) {
+			t.Fatal(fmt.Sprintf("mismatched candidate address at %d, expected:%s got:%s", i, expectedCandidates[i].Hex(), candidate.Hex()))
+		}
+	}
+}
+
+// TestArrangeValidatorCandidates_Has15TrustedNodes arranges 25 candidates with 15 trusted nodes (ordering)
+// while maxPrioritizedValidatorNumber is 11
+func TestArrangeValidatorCandidates_Has15TrustedNodes(t *testing.T) {
+	scenarios = append(scenarios, []Scenario{
+		{
+			Address:       common.BytesToAddress([]byte{121}),
+			Weight:        big.NewInt(8_000_000),
+			IsPriority:    false,
+			IsMaintaining: false,
+		},
+		{
+			Address:       common.BytesToAddress([]byte{122}),
+			Weight:        big.NewInt(8_000_000),
+			IsPriority:    false,
+			IsMaintaining: false,
+		},
+		{
+			Address:       common.BytesToAddress([]byte{123}),
+			Weight:        big.NewInt(8_000_000),
+			IsPriority:    false,
+			IsMaintaining: false,
+		},
+		{
+			Address:       common.BytesToAddress([]byte{124}),
+			Weight:        big.NewInt(8_000_000),
+			IsPriority:    false,
+			IsMaintaining: false,
+		},
+	}...)
+	candidates := getAddresses(scenarios)
+	weights := getWeights(scenarios)
+	setPrioritiesAt(scenarios, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24)
+	isTrustedOrganizations := getPriorities(scenarios)
+	newValidatorCount := uint64(21)
+	maxPrioritizedValidatorNumber := big.NewInt(11)
+
+	sortValidators(candidates, weights)
+	arrangeValidatorCandidates(&candidates, newValidatorCount, isTrustedOrganizations, maxPrioritizedValidatorNumber)
 
 	expectedCandidates := []common.Address{
 		common.BytesToAddress([]byte{110}),
-		common.BytesToAddress([]byte{111}),
-		common.BytesToAddress([]byte{112}),
-		common.BytesToAddress([]byte{113}),
-		common.BytesToAddress([]byte{114}),
-		common.BytesToAddress([]byte{115}),
-		common.BytesToAddress([]byte{116}),
-		common.BytesToAddress([]byte{117}),
-		common.BytesToAddress([]byte{118}),
-		common.BytesToAddress([]byte{119}),
-		common.BytesToAddress([]byte{120}),
-
-		common.BytesToAddress([]byte{100}),
-		common.BytesToAddress([]byte{101}),
-		common.BytesToAddress([]byte{102}),
-		common.BytesToAddress([]byte{103}),
-		common.BytesToAddress([]byte{104}),
-		common.BytesToAddress([]byte{105}),
-		common.BytesToAddress([]byte{106}),
-		common.BytesToAddress([]byte{107}),
-		common.BytesToAddress([]byte{108}),
 		common.BytesToAddress([]byte{109}),
+		common.BytesToAddress([]byte{108}),
+		common.BytesToAddress([]byte{124}),
+		common.BytesToAddress([]byte{123}),
+		common.BytesToAddress([]byte{122}),
+		common.BytesToAddress([]byte{121}),
+		common.BytesToAddress([]byte{107}),
+		common.BytesToAddress([]byte{106}),
+		common.BytesToAddress([]byte{105}),
+		common.BytesToAddress([]byte{104}),
+
+		common.BytesToAddress([]byte{120}),
+		common.BytesToAddress([]byte{119}),
+		common.BytesToAddress([]byte{118}),
+		common.BytesToAddress([]byte{117}),
+		common.BytesToAddress([]byte{116}),
+		common.BytesToAddress([]byte{115}),
+		common.BytesToAddress([]byte{114}),
+		common.BytesToAddress([]byte{113}),
+		common.BytesToAddress([]byte{112}),
+		common.BytesToAddress([]byte{111}),
 	}
 	for i, candidate := range candidates[:newValidatorCount] {
 		if !bytes.Equal(expectedCandidates[i].Bytes(), candidate.Bytes()) {
@@ -962,33 +1075,12 @@ func TestArrangeValidatorCandidates_Has15TrustedNodes(t *testing.T) {
 
 // TestPickCandidatesIsRunning returns unmaintained candidates
 func TestPickCandidatesIsRunning(t *testing.T) {
-	isMaintainings := []bool{
-		false,
-		false,
-		false,
-		false,
-		false,
-		false,
-		false,
-		false,
-		false,
-		false,
-
-		false,
-		false,
-		false,
-		false,
-		false,
-		false,
-		true,
-		true,
-		true,
-		true,
-		true,
-	}
+	setMaintainingAt(scenarios, 16, 17, 18, 19, 20)
+	isMaintainings := getMaintaining(scenarios)
+	candidates := getAddresses(scenarios)
 	newValidatorCount := uint64(21)
 
-	result := pickCandidatesIsRunning(addressesTest, isMaintainings, newValidatorCount)
+	result := pickCandidatesIsRunning(candidates, isMaintainings, newValidatorCount)
 
 	expectedCandidates := []common.Address{
 		common.BytesToAddress([]byte{100}),
@@ -1341,4 +1433,19 @@ func newEVM(caller common.Address, statedb StateDB) (*EVM, error) {
 		SlashIndicator:    caller,
 	}
 	return evm, nil
+}
+
+func addressesToByte(addresses []common.Address) [][]byte {
+	var result [][]byte
+	for _, addr := range addresses {
+		var value []byte
+		for _, b := range addr.Bytes() {
+			if b != 0 {
+				value = append(value, b)
+			}
+		}
+		result = append(result, value)
+	}
+
+	return result
 }

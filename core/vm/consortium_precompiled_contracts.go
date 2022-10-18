@@ -144,33 +144,41 @@ func (c *consortiumPickValidatorSet) Run(input []byte) ([]byte, error) {
 	}
 
 	sortValidators(candidates, weights)
-	arrangeValidatorCandidates(candidates, newValidatorCount, isTrustedOrganizations, maxPrioritizedValidatorNumber)
+	arrangeValidatorCandidates(&candidates, newValidatorCount, isTrustedOrganizations, maxPrioritizedValidatorNumber)
 	candidatesIsRunning := pickCandidatesIsRunning(candidates, isMaintainings, newValidatorCount)
+	remainderSlots := len(candidates) - len(candidatesIsRunning)
+	if remainderSlots > 0 {
+		candidatesIsRunning = candidatesIsRunning[:len(candidatesIsRunning)-remainderSlots]
+	}
 
 	log.Debug("Precompiled pick validator set", "candidatesIsRunning", candidatesIsRunning)
 
 	return method.Outputs.Pack(candidatesIsRunning)
 }
 
-func arrangeValidatorCandidates(candidates []common.Address, newValidatorCount uint64, isTrustedOrganizations []bool, maxPrioritizedValidatorNumber *big.Int) {
+func arrangeValidatorCandidates(candidates *[]common.Address, newValidatorCount uint64, isTrustedOrganizations []bool, maxPrioritizedValidatorNumber *big.Int) {
 	waitingCandidates := make([]common.Address, newValidatorCount, newValidatorCount)
 	var waitingCounter uint64
 	var prioritySlotCounter uint64
 
-	for i := 0; i < len(candidates); i++ {
+	for i := 0; i < len(*candidates); i++ {
 		if isTrustedOrganizations[i] && prioritySlotCounter < maxPrioritizedValidatorNumber.Uint64() {
-			candidates[prioritySlotCounter] = candidates[i]
+			(*candidates)[prioritySlotCounter] = (*candidates)[i]
 			prioritySlotCounter++
 			continue
 		}
-		waitingCandidates[waitingCounter] = candidates[i]
+		waitingCandidates[waitingCounter] = (*candidates)[i]
 		waitingCounter++
 	}
 
 	waitingCounter = 0
 	for i := prioritySlotCounter; i < newValidatorCount; i++ {
-		candidates[i] = waitingCandidates[waitingCounter]
+		(*candidates)[i] = waitingCandidates[waitingCounter]
 		waitingCounter++
+	}
+
+	if uint64(len(*candidates)) > newValidatorCount {
+		*candidates = (*candidates)[:newValidatorCount]
 	}
 }
 
