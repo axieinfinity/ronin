@@ -138,20 +138,12 @@ func (c *consortiumPickValidatorSet) Run(input []byte) ([]byte, error) {
 		newValidatorCount = candidateLen
 	}
 
-	// Mapping isTrustedOrganization with candidate before sorting
-	// to prevent indexes are changed
-	candidateMap := map[common.Address]*big.Int{}
-	for i, address := range candidates {
-		candidateMap[address] = isTrustedOrganizations[i]
-	}
+	candidateMap := createCandidateMap(candidates, isTrustedOrganizations)
 
 	// Sort candidates in place
 	sortValidators(candidates, weights)
 
-	// Updating the data of isTrustedOrganizations again
-	for i, address := range candidates {
-		isTrustedOrganizations[i] = candidateMap[address]
-	}
+	updateIsTrustedOrganizations(candidates, isTrustedOrganizations, candidateMap)
 
 	// If the length of trusted nodes reach the maxPrioritizedValidatorNumber, then the other trusted nodes
 	// will be treated as normal nodes
@@ -169,9 +161,25 @@ func (c *consortiumPickValidatorSet) Run(input []byte) ([]byte, error) {
 	return method.Outputs.Pack(candidates)
 }
 
+// createCandidateMap maps isTrustedOrganization with candidate before sorting to prevent indexes are changed
+func createCandidateMap(candidates []common.Address, isTrustedOrganizations []*big.Int) map[common.Address]*big.Int {
+	candidateMap := map[common.Address]*big.Int{}
+	for i, address := range candidates {
+		candidateMap[address] = isTrustedOrganizations[i]
+	}
+
+	return candidateMap
+}
+
+// updateIsTrustedOrganizations updates the data of isTrustedOrganizations
+func updateIsTrustedOrganizations(candidates []common.Address, isTrustedOrganizations []*big.Int, candidateMap map[common.Address]*big.Int) {
+	for i, address := range candidates {
+		isTrustedOrganizations[i] = candidateMap[address]
+	}
+}
+
 func arrangeValidatorCandidates(candidates []common.Address, newValidatorCount uint64, isTrustedOrganizations []*big.Int, maxPrioritizedValidatorNumber *big.Int) {
-	waitingCandidates := make([]common.Address, newValidatorCount, newValidatorCount)
-	var waitingCounter uint64
+	var waitingCandidates []common.Address
 	var prioritySlotCounter uint64
 
 	for i := 0; i < len(candidates); i++ {
@@ -180,11 +188,10 @@ func arrangeValidatorCandidates(candidates []common.Address, newValidatorCount u
 			prioritySlotCounter++
 			continue
 		}
-		waitingCandidates[waitingCounter] = candidates[i]
-		waitingCounter++
+		waitingCandidates = append(waitingCandidates, candidates[i])
 	}
 
-	waitingCounter = 0
+	var waitingCounter uint64
 	for i := prioritySlotCounter; i < newValidatorCount; i++ {
 		candidates[i] = waitingCandidates[waitingCounter]
 		waitingCounter++
