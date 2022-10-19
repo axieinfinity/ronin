@@ -134,41 +134,52 @@ func (c *consortiumPickValidatorSet) Run(input []byte) ([]byte, error) {
 
 	newValidatorCount := maxValidatorNumber.Uint64()
 	candidateLen := uint64(len(candidates))
-	if newValidatorCount < candidateLen {
+	if newValidatorCount > candidateLen {
 		newValidatorCount = candidateLen
 	}
 
+	// Mapping isTrustedOrganization with candidate before sorting
+	// to prevent the index is changed
+	candidateMap := map[common.Address]bool{}
+	for i, address := range candidates {
+		candidateMap[address] = isTrustedOrganizations[i]
+	}
+
 	sortValidators(candidates, weights)
-	arrangeValidatorCandidates(&candidates, newValidatorCount, isTrustedOrganizations, maxPrioritizedValidatorNumber)
+
+	// Updating the data of isTrustedOrganizations again
+	for i, address := range candidates {
+		isTrustedOrganizations[i] = candidateMap[address]
+	}
+
+	// If the length of trusted nodes reach the maxPrioritizedValidatorNumber, then the other trusted nodes
+	// will be treated as normal nodes
+	arrangeValidatorCandidates(candidates, newValidatorCount, isTrustedOrganizations, maxPrioritizedValidatorNumber)
 
 	log.Debug("Precompiled pick validator set", "candidates", candidates)
 
 	return method.Outputs.Pack(candidates)
 }
 
-func arrangeValidatorCandidates(candidates *[]common.Address, newValidatorCount uint64, isTrustedOrganizations []bool, maxPrioritizedValidatorNumber *big.Int) {
+func arrangeValidatorCandidates(candidates []common.Address, newValidatorCount uint64, isTrustedOrganizations []bool, maxPrioritizedValidatorNumber *big.Int) {
 	waitingCandidates := make([]common.Address, newValidatorCount, newValidatorCount)
 	var waitingCounter uint64
 	var prioritySlotCounter uint64
 
-	for i := 0; i < len(*candidates); i++ {
+	for i := 0; i < len(candidates); i++ {
 		if isTrustedOrganizations[i] && prioritySlotCounter < maxPrioritizedValidatorNumber.Uint64() {
-			(*candidates)[prioritySlotCounter] = (*candidates)[i]
+			candidates[prioritySlotCounter] = candidates[i]
 			prioritySlotCounter++
 			continue
 		}
-		waitingCandidates[waitingCounter] = (*candidates)[i]
+		waitingCandidates[waitingCounter] = candidates[i]
 		waitingCounter++
 	}
 
 	waitingCounter = 0
 	for i := prioritySlotCounter; i < newValidatorCount; i++ {
-		(*candidates)[i] = waitingCandidates[waitingCounter]
+		candidates[i] = waitingCandidates[waitingCounter]
 		waitingCounter++
-	}
-
-	if uint64(len(*candidates)) > newValidatorCount {
-		*candidates = (*candidates)[:newValidatorCount]
 	}
 }
 
