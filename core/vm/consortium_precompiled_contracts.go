@@ -139,12 +139,13 @@ func (c *consortiumPickValidatorSet) Run(input []byte) ([]byte, error) {
 	}
 
 	// Mapping isTrustedOrganization with candidate before sorting
-	// to prevent the index is changed
+	// to prevent indexes are changed
 	candidateMap := map[common.Address]bool{}
 	for i, address := range candidates {
 		candidateMap[address] = isTrustedOrganizations[i]
 	}
 
+	// Sort candidates in place
 	sortValidators(candidates, weights)
 
 	// Updating the data of isTrustedOrganizations again
@@ -155,6 +156,13 @@ func (c *consortiumPickValidatorSet) Run(input []byte) ([]byte, error) {
 	// If the length of trusted nodes reach the maxPrioritizedValidatorNumber, then the other trusted nodes
 	// will be treated as normal nodes
 	arrangeValidatorCandidates(candidates, newValidatorCount, isTrustedOrganizations, maxPrioritizedValidatorNumber)
+
+	// Since the arrangeValidatorCandidates updates candidates in place.
+	// If the length of candidates is greater than newValidatorCount then
+	// cut the items down to newValidatorCount
+	if candidateLen > newValidatorCount {
+		candidates = candidates[:newValidatorCount]
+	}
 
 	log.Debug("Precompiled pick validator set", "candidates", candidates)
 
