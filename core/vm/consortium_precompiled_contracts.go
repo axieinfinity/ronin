@@ -118,12 +118,7 @@ func (c *consortiumPickValidatorSet) Run(input []byte) ([]byte, error) {
 		return nil, errors.New("invalid isTrustedOrganizations argument type")
 	}
 
-	isMaintainings, ok := args[3].([]bool)
-	if !ok {
-		return nil, errors.New("invalid isMaintainings argument type")
-	}
-
-	if len(candidates) != len(weights) || len(weights) != len(isTrustedOrganizations) || len(isTrustedOrganizations) != len(isMaintainings) {
+	if len(candidates) != len(weights) || len(weights) != len(isTrustedOrganizations) {
 		return nil, errors.New("array length is mismatch")
 	}
 
@@ -145,15 +140,10 @@ func (c *consortiumPickValidatorSet) Run(input []byte) ([]byte, error) {
 
 	sortValidators(candidates, weights)
 	arrangeValidatorCandidates(&candidates, newValidatorCount, isTrustedOrganizations, maxPrioritizedValidatorNumber)
-	candidatesIsRunning := pickCandidatesIsRunning(candidates, isMaintainings, newValidatorCount)
-	remainderSlots := len(candidates) - len(candidatesIsRunning)
-	if remainderSlots > 0 {
-		candidatesIsRunning = candidatesIsRunning[:len(candidatesIsRunning)-remainderSlots]
-	}
 
-	log.Debug("Precompiled pick validator set", "candidatesIsRunning", candidatesIsRunning)
+	log.Debug("Precompiled pick validator set", "candidates", candidates)
 
-	return method.Outputs.Pack(candidatesIsRunning)
+	return method.Outputs.Pack(candidates)
 }
 
 func arrangeValidatorCandidates(candidates *[]common.Address, newValidatorCount uint64, isTrustedOrganizations []bool, maxPrioritizedValidatorNumber *big.Int) {
@@ -180,19 +170,6 @@ func arrangeValidatorCandidates(candidates *[]common.Address, newValidatorCount 
 	if uint64(len(*candidates)) > newValidatorCount {
 		*candidates = (*candidates)[:newValidatorCount]
 	}
-}
-
-func pickCandidatesIsRunning(candidates []common.Address, isMaintainings []bool, newValidatorCount uint64) []common.Address {
-	var candidatesIsRunning []common.Address
-	for i := uint64(0); i < newValidatorCount; i++ {
-		if isMaintainings[i] {
-			continue
-		}
-
-		candidatesIsRunning = append(candidatesIsRunning, candidates[i])
-	}
-
-	return candidatesIsRunning
 }
 
 type consortiumValidatorSorting struct {

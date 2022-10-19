@@ -1073,78 +1073,6 @@ func TestArrangeValidatorCandidates_Has15TrustedNodes(t *testing.T) {
 	}
 }
 
-// TestPickCandidatesIsRunning returns unmaintained candidates
-func TestPickCandidatesIsRunning(t *testing.T) {
-	setMaintainingAt(scenarios, 16, 17, 18, 19, 20)
-	isMaintainings := getMaintaining(scenarios)
-	candidates := getAddresses(scenarios)
-	newValidatorCount := uint64(21)
-
-	result := pickCandidatesIsRunning(candidates, isMaintainings, newValidatorCount)
-
-	expectedCandidates := []common.Address{
-		common.BytesToAddress([]byte{100}),
-		common.BytesToAddress([]byte{101}),
-		common.BytesToAddress([]byte{102}),
-		common.BytesToAddress([]byte{103}),
-		common.BytesToAddress([]byte{104}),
-		common.BytesToAddress([]byte{105}),
-		common.BytesToAddress([]byte{106}),
-		common.BytesToAddress([]byte{107}),
-		common.BytesToAddress([]byte{108}),
-		common.BytesToAddress([]byte{109}),
-		common.BytesToAddress([]byte{110}),
-		common.BytesToAddress([]byte{111}),
-		common.BytesToAddress([]byte{112}),
-		common.BytesToAddress([]byte{113}),
-		common.BytesToAddress([]byte{114}),
-		common.BytesToAddress([]byte{115}),
-	}
-	if len(expectedCandidates) != len(result) {
-		t.Fatal(fmt.Sprintf("mismatched candidate length, expected:%d got:%d", len(expectedCandidates), len(result)))
-	}
-
-	for i, candidate := range result {
-		if !bytes.Equal(expectedCandidates[i].Bytes(), candidate.Bytes()) {
-			t.Fatal(fmt.Sprintf("mismatched candidate address at %d, expected:%s got:%s", i, expectedCandidates[i].Hex(), candidate.Hex()))
-		}
-	}
-}
-
-// TestPickCandidatesIsRunning_AllNodesMaintaining returns empty array since all candidates are maintaining
-func TestPickCandidatesIsRunning_AllNodesMaintaining(t *testing.T) {
-	isMaintainings := []bool{
-		true,
-		true,
-		true,
-		true,
-		true,
-		true,
-		true,
-		true,
-		true,
-		true,
-		true,
-		true,
-		true,
-		true,
-		true,
-		true,
-		true,
-		true,
-		true,
-		true,
-		true,
-	}
-	newValidatorCount := uint64(21)
-
-	result := pickCandidatesIsRunning(addressesTest, isMaintainings, newValidatorCount)
-
-	if len(result) != 0 {
-		t.Fatal(fmt.Sprintf("mismatched candidate length, expected:%d got:%d", 0, len(result)))
-	}
-}
-
 // TestConsortiumPickValidatorSet_Run init 2 headers, pack them and call `Run` function directly
 func TestConsortiumPickValidatorSet_Run(t *testing.T) {
 	statedb, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
@@ -1262,7 +1190,7 @@ func TestConsortiumPickValidatorSet_Run(t *testing.T) {
 
 // TestConsortiumPickValidatorSet_Run2 simulates a call from a user who trigger system contract
 // to call `sort` precompiled contract
-func TestConsortiumPickValidatorSet_Run3(t *testing.T) {
+func TestConsortiumPickValidatorSet_Run2(t *testing.T) {
 	statedb, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
 	smcAbi, err := abi.JSON(strings.NewReader(syncNewValidatorSetAbi))
 	if err != nil {
