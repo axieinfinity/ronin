@@ -225,6 +225,7 @@ type NewTransaction struct {
 	R                 *hexutil.Big    `json:"r"`
 	S                 *hexutil.Big    `json:"s"`
 	PublishedTime     int64           `json:"publishedTime"`
+	Data              json.RawMessage `json:"data"`
 }
 
 // NewBlock represents a block that will be published to message broker when new block has been mined
@@ -737,6 +738,18 @@ func (s *Subscriber) HandleNewTransactions(topic, logsTopic string, hash common.
 	if topic != "" {
 		for i, tx := range txs {
 			transaction := newTransaction(tx, hash, number, timestamp, i, receipts)
+			data := map[string]interface{}{
+				"blockEventTopic":                s.chainEventTopic,
+				"txEventTopic":                   s.transactionsTopic,
+				"logsEventTopic":                 s.logsTopic,
+				"reOrgBlockEventTopic":           s.chainSideTopic,
+				"reorgTxEventTopic":              s.reorgTransactionsTopic,
+				"blockConfirmedEventTopic":       s.confirmedBlockTopic,
+				"transactionConfirmedEventTopic": s.confirmedTransactionTopic,
+				"logsConfirmedEventTopic":        s.confirmedLogsTopic,
+				"internalTransactionEventTopic":  s.internalTxTopic,
+			}
+			transaction.Data, _ = json.Marshal(data)
 			txData, err := json.Marshal(transaction)
 			if err != nil {
 				log.Error("[HandleNewTransactions]Marshal Transaction Data", "error", err, "blockHeight", number, "index", i)
