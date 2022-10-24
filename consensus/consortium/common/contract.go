@@ -90,7 +90,7 @@ func (c *ContractIntegrator) GetValidators(blockNumber *big.Int) ([]common.Addre
 	callOpts := bind.CallOpts{
 		BlockNumber: blockNumber,
 	}
-	addresses, err := c.roninValidatorSetSC.GetValidators(&callOpts)
+	addresses, err := c.roninValidatorSetSC.GetBlockProducers(&callOpts)
 	if err != nil {
 		return nil, err
 	}

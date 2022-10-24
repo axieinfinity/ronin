@@ -11,6 +11,20 @@
 GOBIN = ./build/bin
 GO ?= latest
 GORUN = go run
+RONIN_CONTRACTS_PATH = ../ronin-dpos-contracts
+RONIN_CONTRACTS_OUTPUT_PATH = ./tmp/contracts
+GEN_CONTRACTS_OUTPUT_PATH = ./consensus/consortium/generated_contracts
+
+generate-contract:
+	@echo "Generating"
+	solc --abi --bin $(RONIN_CONTRACTS_PATH)/contracts/ronin/staking/Staking.sol -o $(RONIN_CONTRACTS_OUTPUT_PATH)/staking --include-path $(RONIN_CONTRACTS_PATH)/node_modules/ --base-path $(RONIN_CONTRACTS_PATH) --overwrite --optimize
+	abigen --abi $(RONIN_CONTRACTS_OUTPUT_PATH)/staking/Staking.abi --bin $(RONIN_CONTRACTS_OUTPUT_PATH)/staking/Staking.bin --pkg staking --out $(GEN_CONTRACTS_OUTPUT_PATH)/staking/staking.go
+
+	solc --abi --bin $(RONIN_CONTRACTS_PATH)/contracts/ronin/validator/RoninValidatorSet.sol -o $(RONIN_CONTRACTS_OUTPUT_PATH)/validator --include-path $(RONIN_CONTRACTS_PATH)/node_modules/ --base-path $(RONIN_CONTRACTS_PATH) --overwrite --optimize
+	abigen --abi $(RONIN_CONTRACTS_OUTPUT_PATH)/validator/RoninValidatorSet.abi --bin $(RONIN_CONTRACTS_OUTPUT_PATH)/validator/RoninValidatorSet.bin --pkg roninValidatorSet --out $(GEN_CONTRACTS_OUTPUT_PATH)/ronin_validator_set/ronin_validator_set.go
+
+	solc --abi --bin $(RONIN_CONTRACTS_PATH)/contracts/ronin/SlashIndicator.sol -o $(RONIN_CONTRACTS_OUTPUT_PATH)/slashing --include-path $(RONIN_CONTRACTS_PATH)/node_modules/ --base-path $(RONIN_CONTRACTS_PATH) --overwrite --optimize
+	abigen --abi $(RONIN_CONTRACTS_OUTPUT_PATH)/slashing/SlashIndicator.abi --bin $(RONIN_CONTRACTS_OUTPUT_PATH)/slashing/SlashIndicator.bin --pkg slashIndicator --out $(GEN_CONTRACTS_OUTPUT_PATH)/slash_indicator/slash_indicator.go
 
 ronin:
 	$(GORUN) build/ci.go install ./cmd/ronin
