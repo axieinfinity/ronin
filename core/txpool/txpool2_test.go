@@ -13,7 +13,7 @@
 //
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
-package core
+package txpool
 
 import (
 	"crypto/ecdsa"
@@ -36,7 +36,7 @@ func pricedValuedTransaction(nonce uint64, value int64, gaslimit uint64, gaspric
 func count(t *testing.T, pool *TxPool) (pending int, queued int) {
 	t.Helper()
 	pending, queued = pool.stats()
-	if err := validateTxPoolInternals(pool); err != nil {
+	if err := validatePoolInternals(pool); err != nil {
 		t.Fatalf("pool internal state corrupted: %v", err)
 	}
 	return pending, queued
@@ -188,7 +188,7 @@ func TestTransactionZAttack(t *testing.T) {
 				}
 			}
 		}
-		if err := validateTxPoolInternals(pool); err != nil {
+		if err := validatePoolInternals(pool); err != nil {
 			t.Fatalf("pool internal state corrupted: %v", err)
 		}
 		return ivpendingNum

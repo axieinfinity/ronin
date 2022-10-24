@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
-package core
+package txpool
 
 import (
 	"container/heap"
@@ -30,6 +30,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/prque"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
+	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/event"
@@ -130,6 +131,7 @@ var (
 	invalidTxMeter     = metrics.NewRegisteredMeter("txpool/invalid", nil)
 	underpricedTxMeter = metrics.NewRegisteredMeter("txpool/underpriced", nil)
 	overflowedTxMeter  = metrics.NewRegisteredMeter("txpool/overflowed", nil)
+
 	// throttleTxMeter counts how many transactions are rejected due to too-many-changes between
 	// txpool reorgs.
 	throttleTxMeter = metrics.NewRegisteredMeter("txpool/throttle", nil)
@@ -164,11 +166,11 @@ type blockChain interface {
 	GetBlock(hash common.Hash, number uint64) *types.Block
 	StateAt(root common.Hash) (*state.StateDB, error)
 
-	SubscribeChainHeadEvent(ch chan<- ChainHeadEvent) event.Subscription
+	SubscribeChainHeadEvent(ch chan<- core.ChainHeadEvent) event.Subscription
 }
 
-// TxPoolConfig are the configuration parameters of the transaction pool.
-type TxPoolConfig struct {
+// Config are the configuration parameters of the transaction pool.
+type Config struct {
 	Locals    []common.Address // Addresses that should be treated by default as local
 	NoLocals  bool             // Whether local transaction handling should be disabled
 	Journal   string           // Journal of local transactions to survive node restarts
@@ -185,9 +187,9 @@ type TxPoolConfig struct {
 	Lifetime time.Duration // Maximum amount of time non-executable transaction are queued
 }
 
-// DefaultTxPoolConfig contains the default configurations for the transaction
+// DefaultConfig contains the default configurations for the transaction
 // pool.
-var DefaultTxPoolConfig = TxPoolConfig{
+var DefaultConfig = Config{
 	Journal:   "transactions.rlp",
 	Rejournal: time.Hour,
 
@@ -204,39 +206,39 @@ var DefaultTxPoolConfig = TxPoolConfig{
 
 // sanitize checks the provided user configurations and changes anything that's
 // unreasonable or unworkable.
-func (config *TxPoolConfig) sanitize() TxPoolConfig {
+func (config *Config) sanitize() Config {
 	conf := *config
 	if conf.Rejournal < time.Second {
 		log.Warn("Sanitizing invalid txpool journal time", "provided", conf.Rejournal, "updated", time.Second)
 		conf.Rejournal = time.Second
 	}
 	if conf.PriceLimit < 1 {
-		log.Warn("Sanitizing invalid txpool price limit", "provided", conf.PriceLimit, "updated", DefaultTxPoolConfig.PriceLimit)
-		conf.PriceLimit = DefaultTxPoolConfig.PriceLimit
+		log.Warn("Sanitizing invalid txpool price limit", "provided", conf.PriceLimit, "updated", DefaultConfig.PriceLimit)
+		conf.PriceLimit = DefaultConfig.PriceLimit
 	}
 	if conf.PriceBump < 1 {
-		log.Warn("Sanitizing invalid txpool price bump", "provided", conf.PriceBump, "updated", DefaultTxPoolConfig.PriceBump)
-		conf.PriceBump = DefaultTxPoolConfig.PriceBump
+		log.Warn("Sanitizing invalid txpool price bump", "provided", conf.PriceBump, "updated", DefaultConfig.PriceBump)
+		conf.PriceBump = DefaultConfig.PriceBump
 	}
 	if conf.AccountSlots < 1 {
-		log.Warn("Sanitizing invalid txpool account slots", "provided", conf.AccountSlots, "updated", DefaultTxPoolConfig.AccountSlots)
-		conf.AccountSlots = DefaultTxPoolConfig.AccountSlots
+		log.Warn("Sanitizing invalid txpool account slots", "provided", conf.AccountSlots, "updated", DefaultConfig.AccountSlots)
+		conf.AccountSlots = DefaultConfig.AccountSlots
 	}
 	if conf.GlobalSlots < 1 {
-		log.Warn("Sanitizing invalid txpool global slots", "provided", conf.GlobalSlots, "updated", DefaultTxPoolConfig.GlobalSlots)
-		conf.GlobalSlots = DefaultTxPoolConfig.GlobalSlots
+		log.Warn("Sanitizing invalid txpool global slots", "provided", conf.GlobalSlots, "updated", DefaultConfig.GlobalSlots)
+		conf.GlobalSlots = DefaultConfig.GlobalSlots
 	}
 	if conf.AccountQueue < 1 {
-		log.Warn("Sanitizing invalid txpool account queue", "provided", conf.AccountQueue, "updated", DefaultTxPoolConfig.AccountQueue)
-		conf.AccountQueue = DefaultTxPoolConfig.AccountQueue
+		log.Warn("Sanitizing invalid txpool account queue", "provided", conf.AccountQueue, "updated", DefaultConfig.AccountQueue)
+		conf.AccountQueue = DefaultConfig.AccountQueue
 	}
 	if conf.GlobalQueue < 1 {
-		log.Warn("Sanitizing invalid txpool global queue", "provided", conf.GlobalQueue, "updated", DefaultTxPoolConfig.GlobalQueue)
-		conf.GlobalQueue = DefaultTxPoolConfig.GlobalQueue
+		log.Warn("Sanitizing invalid txpool global queue", "provided", conf.GlobalQueue, "updated", DefaultConfig.GlobalQueue)
+		conf.GlobalQueue = DefaultConfig.GlobalQueue
 	}
 	if conf.Lifetime < 1 {
-		log.Warn("Sanitizing invalid txpool lifetime", "provided", conf.Lifetime, "updated", DefaultTxPoolConfig.Lifetime)
-		conf.Lifetime = DefaultTxPoolConfig.Lifetime
+		log.Warn("Sanitizing invalid txpool lifetime", "provided", conf.Lifetime, "updated", DefaultConfig.Lifetime)
+		conf.Lifetime = DefaultConfig.Lifetime
 	}
 	return conf
 }
@@ -249,7 +251,7 @@ func (config *TxPoolConfig) sanitize() TxPoolConfig {
 // current state) and future transactions. Transactions move between those
 // two states over time as they are received and processed.
 type TxPool struct {
-	config      TxPoolConfig
+	config      Config
 	chainconfig *params.ChainConfig
 	chain       blockChain
 	gasPrice    *big.Int
@@ -268,19 +270,19 @@ type TxPool struct {
 
 	currentTime   uint64         // Current block time in blockchain head
 	currentState  *state.StateDB // Current state in the blockchain head
-	pendingNonces *txNoncer      // Pending state tracking virtual nonces
+	pendingNonces *noncer        // Pending state tracking virtual nonces
 	currentMaxGas uint64         // Current gas limit for transaction caps
 
 	locals  *accountSet // Set of local transaction to exempt from eviction rules
-	journal *txJournal  // Journal of local transaction to back up to disk
+	journal *journal    // Journal of local transaction to back up to disk
 
-	pending map[common.Address]*txList   // All currently processable transactions
-	queue   map[common.Address]*txList   // Queued but non-processable transactions
+	pending map[common.Address]*list     // All currently processable transactions
+	queue   map[common.Address]*list     // Queued but non-processable transactions
 	beats   map[common.Address]time.Time // Last heartbeat from each known account
-	all     *txLookup                    // All transactions to allow lookups
-	priced  *txPricedList                // All transactions sorted by price
+	all     *lookup                      // All transactions to allow lookups
+	priced  *pricedList                  // All transactions sorted by price
 
-	chainHeadCh     chan ChainHeadEvent
+	chainHeadCh     chan core.ChainHeadEvent
 	chainHeadSub    event.Subscription
 	reqResetCh      chan *txpoolResetRequest
 	reqPromoteCh    chan *accountSet
@@ -301,7 +303,7 @@ type txpoolResetRequest struct {
 
 // NewTxPool creates a new transaction pool to gather, sort and filter inbound
 // transactions from the network.
-func NewTxPool(config TxPoolConfig, chainconfig *params.ChainConfig, chain blockChain) *TxPool {
+func NewTxPool(config Config, chainconfig *params.ChainConfig, chain blockChain) *TxPool {
 	// Sanitize the input to ensure no vulnerable gas prices are set
 	config = (&config).sanitize()
 
@@ -311,11 +313,11 @@ func NewTxPool(config TxPoolConfig, chainconfig *params.ChainConfig, chain block
 		chainconfig:           chainconfig,
 		chain:                 chain,
 		signer:                types.LatestSigner(chainconfig),
-		pending:               make(map[common.Address]*txList),
-		queue:                 make(map[common.Address]*txList),
+		pending:               make(map[common.Address]*list),
+		queue:                 make(map[common.Address]*list),
 		beats:                 make(map[common.Address]time.Time),
-		all:                   newTxLookup(),
-		chainHeadCh:           make(chan ChainHeadEvent, chainHeadChanSize),
+		all:                   newLookup(),
+		chainHeadCh:           make(chan core.ChainHeadEvent, chainHeadChanSize),
 		reqResetCh:            make(chan *txpoolResetRequest),
 		reqPromoteCh:          make(chan *accountSet),
 		queueTxEventCh:        make(chan *types.Transaction),
@@ -330,7 +332,7 @@ func NewTxPool(config TxPoolConfig, chainconfig *params.ChainConfig, chain block
 		log.Info("Setting new local account", "address", addr)
 		pool.locals.add(addr)
 	}
-	pool.priced = newTxPricedList(pool.all)
+	pool.priced = newPricedList(pool.all)
 	pool.reset(nil, chain.CurrentBlock().Header())
 
 	// Start the reorg loop early so it can handle requests generated during journal loading.
@@ -453,7 +455,7 @@ func (pool *TxPool) Stop() {
 
 // SubscribeNewTxsEvent registers a subscription of NewTxsEvent and
 // starts sending event to the given channel.
-func (pool *TxPool) SubscribeNewTxsEvent(ch chan<- NewTxsEvent) event.Subscription {
+func (pool *TxPool) SubscribeNewTxsEvent(ch chan<- core.NewTxsEvent) event.Subscription {
 	return pool.scope.Track(pool.txFeed.Subscribe(ch))
 }
 
@@ -623,15 +625,15 @@ func (pool *TxPool) getAccountPendingCost(account common.Address) *big.Int {
 func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	// Reject access list transactions until Berlin activates.
 	if !pool.berlin && tx.Type() == types.AccessListTxType {
-		return ErrTxTypeNotSupported
+		return core.ErrTxTypeNotSupported
 	}
 	// Reject dynamic fee transactions until EIP-1559 activates.
 	if !pool.eip1559 && tx.Type() == types.DynamicFeeTxType {
-		return ErrTxTypeNotSupported
+		return core.ErrTxTypeNotSupported
 	}
 	// Reject sponsored transactions until Miko hardfork.
 	if !pool.miko && tx.Type() == types.SponsoredTxType {
-		return ErrTxTypeNotSupported
+		return core.ErrTxTypeNotSupported
 	}
 	// Reject transactions over defined size to prevent DOS attacks
 	if uint64(tx.Size()) > txMaxSize {
@@ -639,7 +641,7 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	}
 	// Check whether the init code size has been exceeded.
 	if pool.shanghai && tx.To() == nil && len(tx.Data()) > params.MaxInitCodeSize {
-		return fmt.Errorf("%w: code size %v limit %v", ErrMaxInitCodeSizeExceeded, len(tx.Data()), params.MaxInitCodeSize)
+		return fmt.Errorf("%w: code size %v limit %v", core.ErrMaxInitCodeSizeExceeded, len(tx.Data()), params.MaxInitCodeSize)
 	}
 	// Transactions can't be negative. This may never happen using RLP decoded
 	// transactions but may occur if you create a transaction using the RPC.
@@ -660,14 +662,14 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	}
 	// Sanity check for extremely large numbers
 	if tx.GasFeeCap().BitLen() > 256 {
-		return ErrFeeCapVeryHigh
+		return core.ErrFeeCapVeryHigh
 	}
 	if tx.GasTipCap().BitLen() > 256 {
-		return ErrTipVeryHigh
+		return core.ErrTipVeryHigh
 	}
 	// Ensure gasFeeCap is greater than or equal to gasTipCap.
 	if tx.GasFeeCapIntCmp(tx.GasTipCap()) < 0 {
-		return ErrTipAboveFeeCap
+		return core.ErrTipAboveFeeCap
 	}
 	// Make sure the transaction is signed properly.
 	from, err := types.Sender(pool.signer, tx)
@@ -681,7 +683,7 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	}
 	// Ensure the transaction adheres to nonce ordering
 	if pool.currentState.GetNonce(from) > tx.Nonce() {
-		return ErrNonceTooLow
+		return core.ErrNonceTooLow
 	}
 	payer := from
 	if tx.Type() == types.SponsoredTxType {
@@ -689,13 +691,13 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 		// We create 2 separate fields to reserve for the future, in case we
 		// decide to support dynamic fee transaction.
 		if tx.GasFeeCap().Cmp(tx.GasTipCap()) != 0 {
-			return ErrDifferentFeeCapTipCap
+			return core.ErrDifferentFeeCapTipCap
 		}
 
 		// Ensure sponsored transaction is not expired
 		expiredTime := tx.ExpiredTime()
 		if expiredTime != 0 && expiredTime <= pool.currentTime {
-			return ErrExpiredSponsoredTx
+			return core.ErrExpiredSponsoredTx
 		}
 
 		addr, err := types.Payer(pool.signer, tx)
@@ -717,12 +719,12 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 
 		// Ensure that transactions will not result in overdraft in payer account
 		if pool.currentState.GetBalance(payer).Cmp(payerCost) < 0 {
-			return ErrInsufficientPayerFunds
+			return core.ErrInsufficientPayerFunds
 		}
 
 		// Ensure that transactions will not result in overdraft in sender account
 		if pool.currentState.GetBalance(from).Cmp(senderCost) < 0 {
-			return ErrInsufficientSenderFunds
+			return core.ErrInsufficientSenderFunds
 		}
 
 	} else {
@@ -730,7 +732,7 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 		// cost == V + GP * GL
 		balance := pool.currentState.GetBalance(from)
 		if balance.Cmp(tx.Cost()) < 0 {
-			return ErrInsufficientFunds
+			return core.ErrInsufficientFunds
 		}
 
 		// Verify that replacing transactions will not result in overdraft
@@ -749,12 +751,12 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	}
 
 	// Ensure the transaction has more gas than the basic tx fee.
-	intrGas, err := IntrinsicGas(tx.Data(), tx.AccessList(), tx.To() == nil, true, pool.istanbul, pool.shanghai)
+	intrGas, err := core.IntrinsicGas(tx.Data(), tx.AccessList(), tx.To() == nil, true, pool.istanbul, pool.shanghai)
 	if err != nil {
 		return err
 	}
 	if tx.Gas() < intrGas {
-		return ErrIntrinsicGas
+		return core.ErrIntrinsicGas
 	}
 
 	// Contract creation transaction
@@ -942,7 +944,7 @@ func (pool *TxPool) enqueueTx(hash common.Hash, tx *types.Transaction, local boo
 	// Try to insert the transaction into the future queue
 	from, _ := types.Sender(pool.signer, tx) // already validated
 	if pool.queue[from] == nil {
-		pool.queue[from] = newTxList(false, pool.signer, nil)
+		pool.queue[from] = newList(false, pool.signer, nil)
 	} else if !pool.signer.Equal(pool.queue[from].Signer()) {
 		pool.queue[from].UpdateSigner(pool.signer)
 	}
@@ -996,7 +998,7 @@ func (pool *TxPool) journalTx(from common.Address, tx *types.Transaction) {
 func (pool *TxPool) promoteTx(addr common.Address, hash common.Hash, tx *types.Transaction) bool {
 	// Try to insert the transaction into the pending queue
 	if pool.pending[addr] == nil {
-		pool.pending[addr] = newTxList(true, pool.signer, pool.totalPendingPayerCost)
+		pool.pending[addr] = newList(true, pool.signer, pool.totalPendingPayerCost)
 	} else if !pool.signer.Equal(pool.pending[addr].Signer()) {
 		pool.pending[addr].UpdateSigner(pool.signer)
 	}
@@ -1267,7 +1269,7 @@ func (pool *TxPool) scheduleReorgLoop() {
 		launchNextRun bool
 		reset         *txpoolResetRequest
 		dirtyAccounts *accountSet
-		queuedEvents  = make(map[common.Address]*txSortedMap)
+		queuedEvents  = make(map[common.Address]*sortedMap)
 	)
 	for {
 		// Launch next background reorg if needed
@@ -1280,7 +1282,7 @@ func (pool *TxPool) scheduleReorgLoop() {
 			launchNextRun = false
 
 			reset, dirtyAccounts = nil, nil
-			queuedEvents = make(map[common.Address]*txSortedMap)
+			queuedEvents = make(map[common.Address]*sortedMap)
 		}
 
 		select {
@@ -1309,7 +1311,7 @@ func (pool *TxPool) scheduleReorgLoop() {
 			// request one later if they want the events sent.
 			addr, _ := types.Sender(pool.signer, tx)
 			if _, ok := queuedEvents[addr]; !ok {
-				queuedEvents[addr] = newTxSortedMap()
+				queuedEvents[addr] = newSortedMap()
 			}
 			queuedEvents[addr].Put(tx)
 
@@ -1328,7 +1330,7 @@ func (pool *TxPool) scheduleReorgLoop() {
 }
 
 // runReorg runs reset and promoteExecutables on behalf of scheduleReorgLoop.
-func (pool *TxPool) runReorg(done chan struct{}, reset *txpoolResetRequest, dirtyAccounts *accountSet, events map[common.Address]*txSortedMap) {
+func (pool *TxPool) runReorg(done chan struct{}, reset *txpoolResetRequest, dirtyAccounts *accountSet, events map[common.Address]*sortedMap) {
 	defer func(t0 time.Time) {
 		reorgDurationTimer.Update(time.Since(t0))
 	}(time.Now())
@@ -1397,7 +1399,7 @@ func (pool *TxPool) runReorg(done chan struct{}, reset *txpoolResetRequest, dirt
 	for _, tx := range promoted {
 		addr, _ := types.Sender(pool.signer, tx)
 		if _, ok := events[addr]; !ok {
-			events[addr] = newTxSortedMap()
+			events[addr] = newSortedMap()
 		}
 		events[addr].Put(tx)
 	}
@@ -1406,7 +1408,7 @@ func (pool *TxPool) runReorg(done chan struct{}, reset *txpoolResetRequest, dirt
 		for _, set := range events {
 			txs = append(txs, set.Flatten()...)
 		}
-		pool.txFeed.Send(NewTxsEvent{txs})
+		pool.txFeed.Send(core.NewTxsEvent{Txs: txs})
 	}
 }
 
@@ -1433,7 +1435,7 @@ func (pool *TxPool) reset(oldHead, newHead *types.Header) {
 			if rem == nil {
 				// This can happen if a setHead is performed, where we simply discard the old
 				// head from the chain.
-				// If that is the case, we don't have the lost transactions any more, and
+				// If that is the case, we don't have the lost transactions anymore, and
 				// there's nothing to add
 				if newNum >= oldNum {
 					// If we reorged to a same or higher number, then it's not a case of setHead
@@ -1487,12 +1489,12 @@ func (pool *TxPool) reset(oldHead, newHead *types.Header) {
 	}
 	pool.currentTime = newHead.Time
 	pool.currentState = statedb
-	pool.pendingNonces = newTxNoncer(statedb)
+	pool.pendingNonces = newNoncer(statedb)
 	pool.currentMaxGas = newHead.GasLimit
 
 	// Inject any transactions discarded due to reorgs
 	log.Debug("Reinjecting stale transactions", "count", len(reinject))
-	senderCacher.recover(pool.signer, reinject)
+	core.SenderCacher.Recover(pool.signer, reinject)
 	pool.addTxsLocked(reinject, false)
 
 	// Update all fork indicator by next pending block number.
@@ -1766,8 +1768,6 @@ func (pool *TxPool) demoteUnexecutables() {
 				pool.enqueueTx(hash, tx, false, false)
 			}
 			pendingGauge.Dec(int64(len(gapped)))
-			// This might happen in a reorg, so log it to the metering
-			blockReorgInvalidatedTx.Mark(int64(len(gapped)))
 		}
 		// Delete the entire pending entry if it became empty.
 		if list.Empty() {
@@ -1862,7 +1862,7 @@ func (as *accountSet) merge(other *accountSet) {
 	as.cache = nil
 }
 
-// txLookup is used internally by TxPool to track transactions while allowing
+// lookup is used internally by TxPool to track transactions while allowing
 // lookup without mutex contention.
 //
 // Note, although this type is properly protected against concurrent access, it
@@ -1874,16 +1874,16 @@ func (as *accountSet) merge(other *accountSet) {
 //
 // This lookup set combines the notion of "local transactions", which is useful
 // to build upper-level structure.
-type txLookup struct {
+type lookup struct {
 	slots   int
 	lock    sync.RWMutex
 	locals  map[common.Hash]*types.Transaction
 	remotes map[common.Hash]*types.Transaction
 }
 
-// newTxLookup returns a new txLookup structure.
-func newTxLookup() *txLookup {
-	return &txLookup{
+// newLookup returns a new lookup structure.
+func newLookup() *lookup {
+	return &lookup{
 		locals:  make(map[common.Hash]*types.Transaction),
 		remotes: make(map[common.Hash]*types.Transaction),
 	}
@@ -1892,7 +1892,7 @@ func newTxLookup() *txLookup {
 // Range calls f on each key and value present in the map. The callback passed
 // should return the indicator whether the iteration needs to be continued.
 // Callers need to specify which set (or both) to be iterated.
-func (t *txLookup) Range(f func(hash common.Hash, tx *types.Transaction, local bool) bool, local bool, remote bool) {
+func (t *lookup) Range(f func(hash common.Hash, tx *types.Transaction, local bool) bool, local bool, remote bool) {
 	t.lock.RLock()
 	defer t.lock.RUnlock()
 
@@ -1913,7 +1913,7 @@ func (t *txLookup) Range(f func(hash common.Hash, tx *types.Transaction, local b
 }
 
 // Get returns a transaction if it exists in the lookup, or nil if not found.
-func (t *txLookup) Get(hash common.Hash) *types.Transaction {
+func (t *lookup) Get(hash common.Hash) *types.Transaction {
 	t.lock.RLock()
 	defer t.lock.RUnlock()
 
@@ -1924,7 +1924,7 @@ func (t *txLookup) Get(hash common.Hash) *types.Transaction {
 }
 
 // GetLocal returns a transaction if it exists in the lookup, or nil if not found.
-func (t *txLookup) GetLocal(hash common.Hash) *types.Transaction {
+func (t *lookup) GetLocal(hash common.Hash) *types.Transaction {
 	t.lock.RLock()
 	defer t.lock.RUnlock()
 
@@ -1932,7 +1932,7 @@ func (t *txLookup) GetLocal(hash common.Hash) *types.Transaction {
 }
 
 // GetRemote returns a transaction if it exists in the lookup, or nil if not found.
-func (t *txLookup) GetRemote(hash common.Hash) *types.Transaction {
+func (t *lookup) GetRemote(hash common.Hash) *types.Transaction {
 	t.lock.RLock()
 	defer t.lock.RUnlock()
 
@@ -1940,7 +1940,7 @@ func (t *txLookup) GetRemote(hash common.Hash) *types.Transaction {
 }
 
 // Count returns the current number of transactions in the lookup.
-func (t *txLookup) Count() int {
+func (t *lookup) Count() int {
 	t.lock.RLock()
 	defer t.lock.RUnlock()
 
@@ -1948,7 +1948,7 @@ func (t *txLookup) Count() int {
 }
 
 // LocalCount returns the current number of local transactions in the lookup.
-func (t *txLookup) LocalCount() int {
+func (t *lookup) LocalCount() int {
 	t.lock.RLock()
 	defer t.lock.RUnlock()
 
@@ -1956,7 +1956,7 @@ func (t *txLookup) LocalCount() int {
 }
 
 // RemoteCount returns the current number of remote transactions in the lookup.
-func (t *txLookup) RemoteCount() int {
+func (t *lookup) RemoteCount() int {
 	t.lock.RLock()
 	defer t.lock.RUnlock()
 
@@ -1964,7 +1964,7 @@ func (t *txLookup) RemoteCount() int {
 }
 
 // Slots returns the current number of slots used in the lookup.
-func (t *txLookup) Slots() int {
+func (t *lookup) Slots() int {
 	t.lock.RLock()
 	defer t.lock.RUnlock()
 
@@ -1972,7 +1972,7 @@ func (t *txLookup) Slots() int {
 }
 
 // Add adds a transaction to the lookup.
-func (t *txLookup) Add(tx *types.Transaction, local bool) {
+func (t *lookup) Add(tx *types.Transaction, local bool) {
 	t.lock.Lock()
 	defer t.lock.Unlock()
 
@@ -1987,7 +1987,7 @@ func (t *txLookup) Add(tx *types.Transaction, local bool) {
 }
 
 // Remove removes a transaction from the lookup.
-func (t *txLookup) Remove(hash common.Hash) {
+func (t *lookup) Remove(hash common.Hash) {
 	t.lock.Lock()
 	defer t.lock.Unlock()
 
@@ -2008,7 +2008,7 @@ func (t *txLookup) Remove(hash common.Hash) {
 
 // RemoteToLocals migrates the transactions belongs to the given locals to locals
 // set. The assumption is held the locals set is thread-safe to be used.
-func (t *txLookup) RemoteToLocals(locals *accountSet) int {
+func (t *lookup) RemoteToLocals(locals *accountSet) int {
 	t.lock.Lock()
 	defer t.lock.Unlock()
 
@@ -2024,7 +2024,7 @@ func (t *txLookup) RemoteToLocals(locals *accountSet) int {
 }
 
 // RemotesBelowTip finds all remote transactions below the given tip threshold.
-func (t *txLookup) RemotesBelowTip(threshold *big.Int) types.Transactions {
+func (t *lookup) RemotesBelowTip(threshold *big.Int) types.Transactions {
 	found := make(types.Transactions, 0, 128)
 	t.Range(func(hash common.Hash, tx *types.Transaction, local bool) bool {
 		if tx.GasTipCapIntCmp(threshold) < 0 {

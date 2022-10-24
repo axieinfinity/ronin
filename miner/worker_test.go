@@ -31,6 +31,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/ethash"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
+	"github.com/ethereum/go-ethereum/core/txpool"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -50,7 +51,7 @@ const (
 
 var (
 	// Test chain configurations
-	testTxPoolConfig  core.TxPoolConfig
+	testTxPoolConfig  txpool.Config
 	ethashChainConfig *params.ChainConfig
 	cliqueChainConfig *params.ChainConfig
 
@@ -73,7 +74,7 @@ var (
 )
 
 func init() {
-	testTxPoolConfig = core.DefaultTxPoolConfig
+	testTxPoolConfig = txpool.DefaultConfig
 	testTxPoolConfig.Journal = ""
 	ethashChainConfig = new(params.ChainConfig)
 	*ethashChainConfig = *params.TestChainConfig
@@ -110,7 +111,7 @@ func init() {
 // testWorkerBackend implements worker.Backend interfaces and wraps all information needed during the testing.
 type testWorkerBackend struct {
 	db         ethdb.Database
-	txPool     *core.TxPool
+	txPool     *txpool.TxPool
 	chain      *core.BlockChain
 	testTxFeed event.Feed
 	genesis    *core.Genesis
@@ -137,7 +138,7 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 	genesis := gspec.MustCommit(db)
 
 	chain, _ := core.NewBlockChain(db, &core.CacheConfig{TrieDirtyDisabled: true}, gspec.Config, engine, vm.Config{}, nil, nil)
-	txpool := core.NewTxPool(testTxPoolConfig, chainConfig, chain)
+	txpool := txpool.NewTxPool(testTxPoolConfig, chainConfig, chain)
 
 	// Generate a small n-block chain and an uncle block for it
 	if n > 0 {
@@ -166,7 +167,7 @@ func newTestWorkerBackend(t *testing.T, chainConfig *params.ChainConfig, engine 
 }
 
 func (b *testWorkerBackend) BlockChain() *core.BlockChain { return b.chain }
-func (b *testWorkerBackend) TxPool() *core.TxPool         { return b.txPool }
+func (b *testWorkerBackend) TxPool() *txpool.TxPool       { return b.txPool }
 
 func (b *testWorkerBackend) newRandomUncle() *types.Block {
 	var parent *types.Block
