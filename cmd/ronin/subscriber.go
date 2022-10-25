@@ -1053,6 +1053,13 @@ func (s *DefaultEventPublisher) publish(job Job) error {
 }
 
 func (s *DefaultEventPublisher) newMessage(topic string, data []byte) interface{} {
+	obj := make(map[string]interface{})
+	_ = json.Unmarshal(data, &obj)
+	obj["meta"] = map[string]interface{}{
+		"topic": topic,
+	}
+
+	data, _ = json.Marshal(obj)
 	return kafka.Message{Topic: topic, Value: data}
 }
 
