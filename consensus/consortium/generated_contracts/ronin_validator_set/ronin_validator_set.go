@@ -30,17 +30,19 @@ var (
 
 // ICandidateManagerValidatorCandidate is an auto generated low-level Go binding around an user-defined struct.
 type ICandidateManagerValidatorCandidate struct {
-	Admin          common.Address
-	ConsensusAddr  common.Address
-	TreasuryAddr   common.Address
-	CommissionRate *big.Int
-	ExtraData      []byte
+	Admin              common.Address
+	ConsensusAddr      common.Address
+	TreasuryAddr       common.Address
+	BridgeOperatorAddr common.Address
+	CommissionRate     *big.Int
+	RevokedBlock       *big.Int
+	ExtraData          []byte
 }
 
 // RoninValidatorSetMetaData contains all meta data concerning the RoninValidatorSet contract.
 var RoninValidatorSetMetaData = &bind.MetaData{
-	ABI: "[{\"inputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"address[]\",\"name\":\"\",\"type\":\"address[]\"},{\"indexed\":false,\"internalType\":\"bool[]\",\"name\":\"\",\"type\":\"bool[]\"}],\"name\":\"AddressesPriorityStatusUpdated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"address\",\"name\":\"coinbaseAddr\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"submittedAmount\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"bonusAmount\",\"type\":\"uint256\"}],\"name\":\"BlockRewardSubmitted\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint8\",\"name\":\"version\",\"type\":\"uint8\"}],\"name\":\"Initialized\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"name\":\"MaintenanceContractUpdated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"name\":\"MaxPrioritizedValidatorNumberUpdated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"threshold\",\"type\":\"uint256\"}],\"name\":\"MaxValidatorCandidateUpdated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"name\":\"MaxValidatorNumberUpdated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"address\",\"name\":\"validatorAddr\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"MiningRewardDistributed\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"name\":\"NumberOfBlocksInEpochUpdated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"name\":\"NumberOfEpochsInPeriodUpdated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"address\",\"name\":\"coinbaseAddr\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"rewardAmount\",\"type\":\"uint256\"}],\"name\":\"RewardDeprecated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"name\":\"SlashIndicatorContractUpdated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"name\":\"StakingContractUpdated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"StakingRewardDistributed\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"name\":\"StakingVestingContractUpdated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"consensusAddr\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"treasuryAddr\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"candidateIdx\",\"type\":\"uint256\"}],\"name\":\"ValidatorCandidateAdded\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"consensusAddr\",\"type\":\"address\"}],\"name\":\"ValidatorCandidateRemoved\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"address\",\"name\":\"validatorAddr\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"jailedUntil\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"deductedStakingAmount\",\"type\":\"uint256\"}],\"name\":\"ValidatorPunished\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"address[]\",\"name\":\"\",\"type\":\"address[]\"}],\"name\":\"ValidatorSetUpdated\",\"type\":\"event\"},{\"stateMutability\":\"payable\",\"type\":\"fallback\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_admin\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"_consensusAddr\",\"type\":\"address\"},{\"internalType\":\"addresspayable\",\"name\":\"_treasuryAddr\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_commissionRate\",\"type\":\"uint256\"}],\"name\":\"addValidatorCandidate\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_block\",\"type\":\"uint256\"}],\"name\":\"epochEndingAt\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_block\",\"type\":\"uint256\"}],\"name\":\"epochOf\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getCandidateInfos\",\"outputs\":[{\"components\":[{\"internalType\":\"address\",\"name\":\"admin\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"consensusAddr\",\"type\":\"address\"},{\"internalType\":\"addresspayable\",\"name\":\"treasuryAddr\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"commissionRate\",\"type\":\"uint256\"},{\"internalType\":\"bytes\",\"name\":\"extraData\",\"type\":\"bytes\"}],\"internalType\":\"structICandidateManager.ValidatorCandidate[]\",\"name\":\"_list\",\"type\":\"tuple[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getLastUpdatedBlock\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_addr\",\"type\":\"address\"}],\"name\":\"getPriorityStatus\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getValidatorCandidates\",\"outputs\":[{\"internalType\":\"address[]\",\"name\":\"\",\"type\":\"address[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getValidators\",\"outputs\":[{\"internalType\":\"address[]\",\"name\":\"_validatorList\",\"type\":\"address[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"__slashIndicatorContract\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"__stakingContract\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"__stakingVestingContract\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"__maintenanceContract\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"__maxValidatorNumber\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"__maxValidatorCandidate\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"__maxPrioritizedValidatorNumber\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"__numberOfBlocksInEpoch\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"__numberOfEpochsInPeriod\",\"type\":\"uint256\"}],\"name\":\"initialize\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_candidate\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"_admin\",\"type\":\"address\"}],\"name\":\"isCandidateAdmin\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_addr\",\"type\":\"address\"}],\"name\":\"isValidator\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_addr\",\"type\":\"address\"}],\"name\":\"isValidatorCandidate\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address[]\",\"name\":\"_addrList\",\"type\":\"address[]\"}],\"name\":\"jailed\",\"outputs\":[{\"internalType\":\"bool[]\",\"name\":\"_result\",\"type\":\"bool[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"maintenanceContract\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"maxPrioritizedValidatorNumber\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"_maximumPrioritizedValidatorNumber\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"maxValidatorCandidate\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"maxValidatorNumber\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"_maximumValidatorNumber\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"numberOfBlocksInEpoch\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"_numberOfBlocks\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"numberOfEpochsInPeriod\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"_numberOfEpochs\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_block\",\"type\":\"uint256\"}],\"name\":\"periodEndingAt\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_block\",\"type\":\"uint256\"}],\"name\":\"periodOf\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address[]\",\"name\":\"_addrList\",\"type\":\"address[]\"},{\"internalType\":\"uint256\",\"name\":\"_period\",\"type\":\"uint256\"}],\"name\":\"rewardDeprecated\",\"outputs\":[{\"internalType\":\"bool[]\",\"name\":\"_result\",\"type\":\"bool[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_addr\",\"type\":\"address\"}],\"name\":\"setMaintenanceContract\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_number\",\"type\":\"uint256\"}],\"name\":\"setMaxValidatorCandidate\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"__maxValidatorNumber\",\"type\":\"uint256\"}],\"name\":\"setMaxValidatorNumber\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"__numberOfBlocksInEpoch\",\"type\":\"uint256\"}],\"name\":\"setNumberOfBlocksInEpoch\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"__numberOfEpochsInPeriod\",\"type\":\"uint256\"}],\"name\":\"setNumberOfEpochsInPeriod\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address[]\",\"name\":\"_addrs\",\"type\":\"address[]\"},{\"internalType\":\"bool[]\",\"name\":\"_statuses\",\"type\":\"bool[]\"}],\"name\":\"setPrioritizedAddresses\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_addr\",\"type\":\"address\"}],\"name\":\"setSlashIndicatorContract\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_addr\",\"type\":\"address\"}],\"name\":\"setStakingContract\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_addr\",\"type\":\"address\"}],\"name\":\"setStakingVestingContract\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_validatorAddr\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_newJailedUntil\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"_slashAmount\",\"type\":\"uint256\"}],\"name\":\"slash\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"slashIndicatorContract\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"stakingContract\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"stakingVestingContract\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"submitBlockReward\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"syncCandidates\",\"outputs\":[{\"internalType\":\"uint256[]\",\"name\":\"_balances\",\"type\":\"uint256[]\"}],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"validatorCount\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"wrapUpEpoch\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"stateMutability\":\"payable\",\"type\":\"receive\"}]",
-	Bin: "0x60806040523480156200001157600080fd5b50620000226200002860201b60201c565b620001d6565b600860019054906101000a900460ff16156200007b576040517f08c379a0000000000000000000000000000000000000000000000000000000008152600401620000729062000179565b60405180910390fd5b60ff8016600860009054906101000a900460ff1660ff161015620000f05760ff600860006101000a81548160ff021916908360ff1602179055507f7f26b83ff96e1f2b6a682f133852f6798a09c465da95921460cefb384740249860ff604051620000e79190620001b9565b60405180910390a15b565b600082825260208201905092915050565b7f496e697469616c697a61626c653a20636f6e747261637420697320696e69746960008201527f616c697a696e6700000000000000000000000000000000000000000000000000602082015250565b600062000161602783620000f2565b91506200016e8262000103565b604082019050919050565b60006020820190508181036000830152620001948162000152565b9050919050565b600060ff82169050919050565b620001b3816200019b565b82525050565b6000602082019050620001d06000830184620001a8565b92915050565b6162ca80620001e66000396000f3fe6080604052600436106102345760003560e01c806387c891bd1161012e578063d2cb215e116100ab578063e18572bf1161006f578063e18572bf1461083b578063ee99205c14610864578063eeb629a81461088f578063f8549af9146108ba578063facd743b146108f757610243565b8063d2cb215e1461076a578063d33a5ca214610795578063d6fa322c146107be578063d72733fc146107e7578063de7702fb1461081057610243565b8063ad295783116100f2578063ad29578314610697578063b7ab4db5146106c0578063ba77b06c146106eb578063beb3e38214610716578063d09f1ab41461073f57610243565b806387c891bd1461058c5780639dd373b9146105b7578063a0c3f2d2146105e0578063a3d545f51461061d578063ac00125f1461065a57610243565b806352091f17116101bc57806370f81f6c1161018057806370f81f6c146104b657806372e46810146104df5780637593ff71146104e9578063823a7b9c14610526578063865231931461054f57610243565b806352091f17146104005780635248184a1461040a5780635a08482d14610435578063605239a1146104605780636aa1c2ef1461048b57610243565b80633529214b116102035780633529214b1461031b5780634454af9d1461034657806346fe9311146103835780634f2a693f146103ac5780635186dc7e146103d557610243565b806304d971ab1461024d5780630f43a6771461028a57806325a6b529146102b55780632bcf3d15146102f257610243565b3661024357610241610934565b005b61024b610934565b005b34801561025957600080fd5b50610274600480360381019061026f9190614227565b6109ab565b6040516102819190614282565b60405180910390f35b34801561029657600080fd5b5061029f610a46565b6040516102ac91906142b6565b60405180910390f35b3480156102c157600080fd5b506102dc60048036038101906102d791906142fd565b610a4c565b6040516102e99190614282565b60405180910390f35b3480156102fe57600080fd5b506103196004803603810190610314919061432a565b610a83565b005b34801561032757600080fd5b50610330610b04565b60405161033d9190614366565b60405180910390f35b34801561035257600080fd5b5061036d600480360381019061036891906144da565b610b2e565b60405161037a91906145e1565b60405180910390f35b34801561038f57600080fd5b506103aa60048036038101906103a5919061432a565b610b9d565b005b3480156103b857600080fd5b506103d360048036038101906103ce91906142fd565b610c1e565b005b3480156103e157600080fd5b506103ea610c9f565b6040516103f791906142b6565b60405180910390f35b610408610ca9565b005b34801561041657600080fd5b5061041f611047565b60405161042c91906147f9565b60405180910390f35b34801561044157600080fd5b5061044a61130b565b6040516104579190614366565b60405180910390f35b34801561046c57600080fd5b50610475611335565b60405161048291906142b6565b60405180910390f35b34801561049757600080fd5b506104a061133f565b6040516104ad91906142b6565b60405180910390f35b3480156104c257600080fd5b506104dd60048036038101906104d8919061481b565b611349565b005b6104e76116ec565b005b3480156104f557600080fd5b50610510600480360381019061050b91906142fd565b611bc8565b60405161051d9190614282565b60405180910390f35b34801561053257600080fd5b5061054d600480360381019061054891906142fd565b611bef565b005b34801561055b57600080fd5b506105766004803603810190610571919061432a565b611c70565b6040516105839190614282565b60405180910390f35b34801561059857600080fd5b506105a1611cc6565b6040516105ae91906142b6565b60405180910390f35b3480156105c357600080fd5b506105de60048036038101906105d9919061432a565b611cd0565b005b3480156105ec57600080fd5b506106076004803603810190610602919061432a565b611d51565b6040516106149190614282565b60405180910390f35b34801561062957600080fd5b50610644600480360381019061063f91906142fd565b611d9d565b60405161065191906142b6565b60405180910390f35b34801561066657600080fd5b50610681600480360381019061067c919061486e565b611dc0565b60405161068e91906145e1565b60405180910390f35b3480156106a357600080fd5b506106be60048036038101906106b9919061432a565b611e31565b005b3480156106cc57600080fd5b506106d5611eb2565b6040516106e29190614979565b60405180910390f35b3480156106f757600080fd5b50610700611fa5565b60405161070d9190614979565b60405180910390f35b34801561072257600080fd5b5061073d6004803603810190610738919061499b565b612033565b005b34801561074b57600080fd5b506107546121ca565b60405161076191906142b6565b60405180910390f35b34801561077657600080fd5b5061077f6121d4565b60405161078c9190614366565b60405180910390f35b3480156107a157600080fd5b506107bc60048036038101906107b79190614b54565b6121fe565b005b3480156107ca57600080fd5b506107e560048036038101906107e091906142fd565b61246f565b005b3480156107f357600080fd5b5061080e600480360381019061080991906142fd565b6124f0565b005b34801561081c57600080fd5b50610825612571565b6040516108329190614c7b565b60405180910390f35b34801561084757600080fd5b50610862600480360381019061085d9190614cc9565b612770565b005b34801561087057600080fd5b50610879612bb7565b6040516108869190614366565b60405180910390f35b34801561089b57600080fd5b506108a4612be0565b6040516108b191906142b6565b60405180910390f35b3480156108c657600080fd5b506108e160048036038101906108dc91906142fd565b612bea565b6040516108ee91906142b6565b60405180910390f35b34801561090357600080fd5b5061091e6004803603810190610919919061432a565b612c1a565b60405161092b9190614282565b60405180910390f35b61093c610b04565b73ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff16146109a9576040517f08c379a00000000000000000000000000000000000000000000000000000000081526004016109a090614dd9565b60405180910390fd5b565b60008173ffffffffffffffffffffffffffffffffffffffff16600760008573ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200190815260200160002060000160009054906101000a900473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1614905092915050565b600d5481565b600080600b54600a54610a5f9190614e28565b9050600181610a6e9190614e82565b8184610a7a9190614ee5565b14915050919050565b610a8b612c70565b73ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff1614610af8576040517f08c379a0000000000000000000000000000000000000000000000000000000008152600401610aef90614f88565b60405180910390fd5b610b0181612cc7565b50565b6000600160009054906101000a900473ffffffffffffffffffffffffffffffffffffffff16905090565b606060005b8251811015610b9757610b5f838281518110610b5257610b51614fa8565b5b6020026020010151612d42565b828281518110610b7257610b71614fa8565b5b6020026020010190151590811515815250508080610b8f90614fd7565b915050610b33565b50919050565b610ba5612c70565b73ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff1614610c12576040517f08c379a0000000000000000000000000000000000000000000000000000000008152600401610c0990614f88565b60405180910390fd5b610c1b81612d8e565b50565b610c26612c70565b73ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff1614610c93576040517f08c379a0000000000000000000000000000000000000000000000000000000008152600401610c8a90614f88565b60405180910390fd5b610c9c81612e09565b50565b6000600b54905090565b4173ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff1614610d17576040517f08c379a0000000000000000000000000000000000000000000000000000000008152600401610d0e90615091565b60405180910390fd5b600034905060008103610d2a5750611045565b6000339050610d3881612c1a565b1580610d495750610d4881612d42565b5b80610d625750610d6181610d5c43612bea565b612e4a565b5b15610da7577f2439a6ac441f1d6b3dbb7827ef6e056822e2261f900cad468012eee4f1f7f31c8183604051610d989291906150b1565b60405180910390a15050611045565b6000600160009054906101000a900473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff166379ad52846040518163ffffffff1660e01b81526004016020604051808303816000875af1158015610e18573d6000803e3d6000fd5b505050506040513d601f19601f82011682018060405250810190610e3c91906150ef565b905060008184610e4c919061511c565b905060008060009054906101000a900473ffffffffffffffffffffffffffffffffffffffff1690506000600760008673ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200190815260200160002060030154905060006127108483610ecc9190614e28565b610ed69190615150565b905060008185610ee69190614e82565b905081601460008973ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020019081526020016000206000828254610f37919061511c565b9250508190555080601560008973ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020019081526020016000206000828254610f8d919061511c565b925050819055508373ffffffffffffffffffffffffffffffffffffffff1663b863d71088836040518363ffffffff1660e01b8152600401610fcf9291906150b1565b600060405180830381600087803b158015610fe957600080fd5b505af1158015610ffd573d6000803e3d6000fd5b505050507f0ede5c3be8625943fa64003cd4b91230089411249f3059bac6500873543ca9b187898860405161103493929190615181565b60405180910390a150505050505050505b565b606060058054905067ffffffffffffffff81111561106857611067614397565b5b6040519080825280602002602001820160405280156110a157816020015b61108e6140cd565b8152602001906001900390816110865790505b50905060005b81518110156113075760076000600583815481106110c8576110c7614fa8565b5b9060005260206000200160009054906101000a900473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020019081526020016000206040518060a00160405290816000820160009054906101000a900473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020016001820160009054906101000a900473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020016002820160009054906101000a900473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200160038201548152602001600482018054611254906151e7565b80601f0160208091040260200160405190810160405280929190818152602001828054611280906151e7565b80156112cd5780601f106112a2576101008083540402835291602001916112cd565b820191906000526020600020905b8154815290600101906020018083116112b057829003601f168201915b5050505050815250508282815181106112e9576112e8614fa8565b5b602002602001018190525080806112ff90614fd7565b9150506110a7565b5090565b6000600260009054906101000a900473ffffffffffffffffffffffffffffffffffffffff16905090565b6000600454905090565b6000600a54905090565b3373ffffffffffffffffffffffffffffffffffffffff1661136861130b565b73ffffffffffffffffffffffffffffffffffffffff16146113be576040517f08c379a00000000000000000000000000000000000000000000000000000000081526004016113b5906152b0565b60405180910390fd5b6001601260008573ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001908152602001600020600061140a43612bea565b815260200190815260200160002060006101000a81548160ff021916908315150217905550601460008473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200190815260200160002060009055601560008473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020019081526020016000206000905560008054906101000a900473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1663a5885f1d846040518263ffffffff1660e01b815260040161150e9190614366565b600060405180830381600087803b15801561152857600080fd5b505af115801561153c573d6000803e3d6000fd5b5050505060008211156115d65761159282601360008673ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200190815260200160002054612eb2565b601360008573ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001908152602001600020819055505b600081111561166d5760008054906101000a900473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1663c905bb3584836040518363ffffffff1660e01b815260040161163a9291906150b1565b600060405180830381600087803b15801561165457600080fd5b505af1158015611668573d6000803e3d6000fd5b505050505b7f69284547cc931ff0e04d5a21cdfb0748f22a3788269711028ce1d4833900e47483601360008673ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200190815260200160002054836040516116df93929190615181565b60405180910390a1505050565b4173ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff161461175a576040517f08c379a000000000000000000000000000000000000000000000000000000000815260040161175190615091565b60405180910390fd5b61176343611bc8565b6117a2576040517f08c379a000000000000000000000000000000000000000000000000000000000815260040161179990615342565b60405180910390fd5b6117ab43611d9d565b6117b6600c54611d9d565b106117f6576040517f08c379a00000000000000000000000000000000000000000000000000000000081526004016117ed906153d4565b60405180910390fd5b43600c8190555060008060009054906101000a900473ffffffffffffffffffffffffffffffffffffffff169050600080600061183143612bea565b9050600061183e43610a4c565b9050600061184a611eb2565b905060005b8151811015611aba5781818151811061186b5761186a614fa8565b5b6020026020010151955061187e86612d42565b8061188f575061188e8685612e4a565b5b611aa7578215611a16576000601460008873ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001908152602001600020549050601460008873ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001908152602001600020600090556000811115611a14576000600760008973ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200190815260200160002060020160009054906101000a900473ffffffffffffffffffffffffffffffffffffffff16905061199a8183612ecc565b6119d9576040517f08c379a00000000000000000000000000000000000000000000000000000000081526004016119d090615466565b60405180910390fd5b7f9bae506d1374d366cdfa60105473d52dfdbaaae60e55de77bf6ee07f2add0cfb8883604051611a0a9291906150b1565b60405180910390a1505b505b601560008773ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020019081526020016000205485611a61919061511c565b9450601560008773ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001908152602001600020600090555b8080611ab290614fd7565b91505061184f565b508115611bb8578573ffffffffffffffffffffffffffffffffffffffff1663d45e6273826040518263ffffffff1660e01b8152600401611afa9190614979565b600060405180830381600087803b158015611b1457600080fd5b505af1158015611b28573d6000803e3d6000fd5b505050506000841115611bb757611b40866000612ecc565b611b7f576040517f08c379a0000000000000000000000000000000000000000000000000000000008152600401611b76906154f8565b60405180910390fd5b7feb09b8cc1cefa77cd4ec30003e6364cf60afcedd20be8c09f26e717788baf13984604051611bae91906142b6565b60405180910390a15b5b611bc0612f83565b505050505050565b60006001600a54611bd99190614e82565b600a5483611be79190614ee5565b149050919050565b611bf7612c70565b73ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff1614611c64576040517f08c379a0000000000000000000000000000000000000000000000000000000008152600401611c5b90614f88565b60405180910390fd5b611c6d81613394565b50565b6000601060008373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200190815260200160002060009054906101000a900460ff169050919050565b6000600c54905090565b611cd8612c70565b73ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff1614611d45576040517f08c379a0000000000000000000000000000000000000000000000000000000008152600401611d3c90614f88565b60405180910390fd5b611d4e816133d5565b50565b600080600660008473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020019081526020016000205414159050919050565b60006001600a5483611daf9190615150565b611db9919061511c565b9050919050565b606060005b8351811015611e2a57611df2848281518110611de457611de3614fa8565b5b602002602001015184612e4a565b828281518110611e0557611e04614fa8565b5b6020026020010190151590811515815250508080611e2290614fd7565b915050611dc5565b5092915050565b611e39612c70565b73ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff1614611ea6576040517f08c379a0000000000000000000000000000000000000000000000000000000008152600401611e9d90614f88565b60405180910390fd5b611eaf8161344f565b50565b6060600d5467ffffffffffffffff811115611ed057611ecf614397565b5b604051908082528060200260200182016040528015611efe5781602001602082028036833780820191505090505b50905060005b8151811015611fa157600e600082815260200190815260200160002060009054906101000a900473ffffffffffffffffffffffffffffffffffffffff16828281518110611f5457611f53614fa8565b5b602002602001019073ffffffffffffffffffffffffffffffffffffffff16908173ffffffffffffffffffffffffffffffffffffffff16815250508080611f9990614fd7565b915050611f04565b5090565b6060600580548060200260200160405190810160405280929190818152602001828054801561202957602002820191906000526020600020905b8160009054906101000a900473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020019060010190808311611fdf575b5050505050905090565b6000600860019054906101000a900460ff1615905080801561206757506001600860009054906101000a900460ff1660ff16105b806120965750612076306134ca565b15801561209557506001600860009054906101000a900460ff1660ff16145b5b6120d5576040517f08c379a00000000000000000000000000000000000000000000000000000000081526004016120cc9061558a565b60405180910390fd5b6001600860006101000a81548160ff021916908360ff1602179055508015612113576001600860016101000a81548160ff0219169083151502179055505b61211c8a612cc7565b612125896133d5565b61212e8861344f565b61213787612d8e565b61214086613394565b61214985612e09565b612152846134ed565b61215b83613573565b612164826135b4565b80156121be576000600860016101000a81548160ff0219169083151502179055507f7f26b83ff96e1f2b6a682f133852f6798a09c465da95921460cefb384740249860016040516121b591906155fc565b60405180910390a15b50505050505050505050565b6000600954905090565b6000600360009054906101000a900473ffffffffffffffffffffffffffffffffffffffff16905090565b612206612c70565b73ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff1614612273576040517f08c379a000000000000000000000000000000000000000000000000000000000815260040161226a90614f88565b60405180910390fd5b60008251036122b7576040517f08c379a00000000000000000000000000000000000000000000000000000000081526004016122ae90615663565b60405180910390fd5b80518251146122fb576040517f08c379a00000000000000000000000000000000000000000000000000000000081526004016122f2906156f5565b60405180910390fd5b60005b82518110156124315781818151811061231a57612319614fa8565b5b602002602001015115156010600085848151811061233b5761233a614fa8565b5b602002602001015173ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200190815260200160002060009054906101000a900460ff1615151461241e578181815181106123a5576123a4614fa8565b5b6020026020010151601060008584815181106123c4576123c3614fa8565b5b602002602001015173ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200190815260200160002060006101000a81548160ff0219169083151502179055505b808061242990614fd7565b9150506122fe565b507fa52c766fffd3af2ed65a8599973f96a0713c68566068cc057ad25cabd88ed4668282604051612463929190615715565b60405180910390a15050565b612477612c70565b73ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff16146124e4576040517f08c379a00000000000000000000000000000000000000000000000000000000081526004016124db90614f88565b60405180910390fd5b6124ed816135b4565b50565b6124f8612c70565b73ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff1614612565576040517f08c379a000000000000000000000000000000000000000000000000000000000815260040161255c90614f88565b60405180910390fd5b61256e81613573565b50565b606060008060009054906101000a900473ffffffffffffffffffffffffffffffffffffffff16905060008173ffffffffffffffffffffffffffffffffffffffff1663ce99b5866040518163ffffffff1660e01b8152600401602060405180830381865afa1580156125e6573d6000803e3d6000fd5b505050506040513d601f19601f8201168201806040525081019061260a91906150ef565b90508173ffffffffffffffffffffffffffffffffffffffff16634a5d76cd60056040518263ffffffff1660e01b81526004016126469190615838565b600060405180830381865afa158015612663573d6000803e3d6000fd5b505050506040513d6000823e3d601f19601f8201168201806040525081019061268c919061591d565b92506000600580549050905060005b8181101561276657828582815181106126b7576126b6614fa8565b5b602002602001015110156127535784826126d090615966565b925082815181106126e4576126e3614fa8565b5b60200260200101518582815181106126ff576126fe614fa8565b5b6020026020010181815250506127526005828154811061272257612721614fa8565b5b9060005260206000200160009054906101000a900473ffffffffffffffffffffffffffffffffffffffff166135f5565b5b808061275e90614fd7565b91505061269b565b5080845250505090565b3373ffffffffffffffffffffffffffffffffffffffff1661278f612bb7565b73ffffffffffffffffffffffffffffffffffffffff16146127e5576040517f08c379a00000000000000000000000000000000000000000000000000000000081526004016127dc90615a01565b60405180910390fd5b600060058054905090506127f7611335565b8110612838576040517f08c379a000000000000000000000000000000000000000000000000000000000815260040161282f90615a93565b60405180910390fd5b61284184611d51565b15612881576040517f08c379a000000000000000000000000000000000000000000000000000000000815260040161287890615b25565b60405180910390fd5b8019600660008673ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001908152602001600020819055506005849080600181540180825580915050600190039060005260206000200160009091909190916101000a81548173ffffffffffffffffffffffffffffffffffffffff021916908373ffffffffffffffffffffffffffffffffffffffff1602179055506040518060a001604052808673ffffffffffffffffffffffffffffffffffffffff1681526020018573ffffffffffffffffffffffffffffffffffffffff1681526020018473ffffffffffffffffffffffffffffffffffffffff168152602001838152602001600067ffffffffffffffff8111156129a9576129a8614397565b5b6040519080825280601f01601f1916602001820160405280156129db5781602001600182028036833780820191505090505b50815250600760008673ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200190815260200160002060008201518160000160006101000a81548173ffffffffffffffffffffffffffffffffffffffff021916908373ffffffffffffffffffffffffffffffffffffffff16021790555060208201518160010160006101000a81548173ffffffffffffffffffffffffffffffffffffffff021916908373ffffffffffffffffffffffffffffffffffffffff16021790555060408201518160020160006101000a81548173ffffffffffffffffffffffffffffffffffffffff021916908373ffffffffffffffffffffffffffffffffffffffff160217905550606082015181600301556080820151816004019081612b129190615ce7565b50905050600660008573ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001908152602001600020548373ffffffffffffffffffffffffffffffffffffffff168573ffffffffffffffffffffffffffffffffffffffff167f5ea0ccc37694ce2ce1e44e06663c8caff77c1ec661d991e2ece3a6195f879acf60405160405180910390a45050505050565b60008060009054906101000a900473ffffffffffffffffffffffffffffffffffffffff16905090565b6000601154905090565b60006001600b54600a54612bfe9190614e28565b83612c099190615150565b612c13919061511c565b9050919050565b6000600f60008373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200190815260200160002060009054906101000a900460ff169050919050565b6000612c9e7fb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d610360001b61389c565b60000160009054906101000a900473ffffffffffffffffffffffffffffffffffffffff16905090565b80600260006101000a81548173ffffffffffffffffffffffffffffffffffffffff021916908373ffffffffffffffffffffffffffffffffffffffff1602179055507faa5b07dd43aa44c69b70a6a2b9c3fcfed12b6e5f6323596ba7ac91035ab80a4f81604051612d379190614366565b60405180910390a150565b6000601360008373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001908152602001600020544311159050919050565b80600360006101000a81548173ffffffffffffffffffffffffffffffffffffffff021916908373ffffffffffffffffffffffffffffffffffffffff1602179055507f31a33f126a5bae3c5bdf6cfc2cd6dcfffe2fe9634bdb09e21c44762993889e3b81604051612dfe9190614366565b60405180910390a150565b806004819055507f82d5dc32d1b741512ad09c32404d7e7921e8934c6222343d95f55f7a2b9b2ab481604051612e3f91906142b6565b60405180910390a150565b6000601260008473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001908152602001600020600083815260200190815260200160002060009054906101000a900460ff16905092915050565b600081831015612ec25781612ec4565b825b905092915050565b600081471015612f11576040517f08c379a0000000000000000000000000000000000000000000000000000000008152600401612f0890615e2b565b60405180910390fd5b8273ffffffffffffffffffffffffffffffffffffffff1682604051612f3590615e7c565b60006040518083038185875af1925050503d8060008114612f72576040519150601f19603f3d011682016040523d82523d6000602084013e612f77565b606091505b50508091505092915050565b6000612f8d6138a6565b90506000612f9e6009548351613a53565b9050612faa8282613a6c565b80825260008190505b600d5481101561308857600e600082815260200190815260200160002060006101000a81549073ffffffffffffffffffffffffffffffffffffffff0219169055600f6000600e600084815260200190815260200160002060009054906101000a900473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200190815260200160002060006101000a81549060ff0219169055808061308090614fd7565b915050612fb3565b50600080600360009054906101000a900473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1663f0a46709856001436130d8919061511c565b6040518363ffffffff1660e01b81526004016130f5929190615e91565b600060405180830381865afa158015613112573d6000803e3d6000fd5b505050506040513d6000823e3d601f19601f8201168201806040525081019061313b9190615f6d565b905060005b8381101561334f5781818151811061315b5761315a614fa8565b5b602002602001015161333c57600085828151811061317c5761317b614fa8565b5b60200260200101519050600e600085815260200190815260200160002060009054906101000a900473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168173ffffffffffffffffffffffffffffffffffffffff16036132005783806131f790614fd7565b9450505061333c565b600f6000600e600087815260200190815260200160002060009054906101000a900473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200190815260200160002060006101000a81549060ff02191690556001600f60008373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200190815260200160002060006101000a81548160ff02191690831515021790555080600e600086815260200190815260200160002060006101000a81548173ffffffffffffffffffffffffffffffffffffffff021916908373ffffffffffffffffffffffffffffffffffffffff160217905550838061333790614fd7565b945050505b808061334790614fd7565b915050613140565b5081600d819055507f6120448f3d4245c1ff708d970c34e1b6484ee22a794ede0bfca2317a97aa8ced846040516133869190614979565b60405180910390a150505050565b806009819055507fb5464c05fd0e0f000c535850116cda2742ee1f7b34384cb920ad7b8e802138b5816040516133ca91906142b6565b60405180910390a150565b806000806101000a81548173ffffffffffffffffffffffffffffffffffffffff021916908373ffffffffffffffffffffffffffffffffffffffff1602179055507f6397f5b135542bb3f477cb346cfab5abdec1251d08dc8f8d4efb4ffe122ea0bf816040516134449190614366565b60405180910390a150565b80600160006101000a81548173ffffffffffffffffffffffffffffffffffffffff021916908373ffffffffffffffffffffffffffffffffffffffff1602179055507fc328090a37d855191ab58469296f98f87a851ca57d5cdfd1e9ac3c83e9e7096d816040516134bf9190614366565b60405180910390a150565b6000808273ffffffffffffffffffffffffffffffffffffffff163b119050919050565b600954811115613532576040517f08c379a00000000000000000000000000000000000000000000000000000000081526004016135299061604e565b60405180910390fd5b806011819055507fa9588dc77416849bd922605ce4fc806712281ad8a8f32d4238d6c8cca548e15e8160405161356891906142b6565b60405180910390a150565b80600a819055507fbfd285a38b782d8a00e424fb824320ff3d1a698534358d02da611468d59b7808816040516135a991906142b6565b60405180910390a150565b80600b819055507f1d01baa2db15fced4f4e5fcfd4245e65ad9b083c110d26542f4a5f78d5425e77816040516135ea91906142b6565b60405180910390a150565b6000600660008373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001908152602001600020549050600081036136475750613899565b600760008373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001908152602001600020600080820160006101000a81549073ffffffffffffffffffffffffffffffffffffffff02191690556001820160006101000a81549073ffffffffffffffffffffffffffffffffffffffff02191690556002820160006101000a81549073ffffffffffffffffffffffffffffffffffffffff02191690556003820160009055600482016000613714919061413e565b5050600660008373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020019081526020016000206000905560006005600160058054905061376f9190614e82565b815481106137805761377f614fa8565b5b9060005260206000200160009054906101000a900473ffffffffffffffffffffffffffffffffffffffff16905081600660008373ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1681526020019081526020016000208190555080600583198154811061380757613806614fa8565b5b9060005260206000200160006101000a81548173ffffffffffffffffffffffffffffffffffffffff021916908373ffffffffffffffffffffffffffffffffffffffff16021790555060058054806138615761386061606e565b5b6001900381819060005260206000200160006101000a81549073ffffffffffffffffffffffffffffffffffffffff0219169055905550505b50565b6000819050919050565b606060006138b2612571565b9050600580548060200260200160405190810160405280929190818152602001828054801561393657602002820191906000526020600020905b8160009054906101000a900473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200190600101908083116138ec575b5050505050915060008251905060005b8351811015613a3b5761397284828151811061396557613964614fa8565b5b6020026020010151612d42565b15613a2857818061398290615966565b92505083828151811061399857613997614fa8565b5b60200260200101518482815181106139b3576139b2614fa8565b5b602002602001019073ffffffffffffffffffffffffffffffffffffffff16908173ffffffffffffffffffffffffffffffffffffffff1681525050828281518110613a00576139ff614fa8565b5b6020026020010151838281518110613a1b57613a1a614fa8565b5b6020026020010181815250505b8080613a3390614fd7565b915050613946565b50808352808252613a4c8383613ce3565b9250505090565b6000818310613a625781613a64565b825b905092915050565b6000825167ffffffffffffffff811115613a8957613a88614397565b5b604051908082528060200260200182016040528015613ab75781602001602082028036833780820191505090505b50905060008060005b8551811015613c415760106000878381518110613ae057613adf614fa8565b5b602002602001015173ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16815260200190815260200160002060009054906101000a900460ff1615613bb957601154821015613bb857858181518110613b5257613b51614fa8565b5b6020026020010151868380613b6690614fd7565b945081518110613b7957613b78614fa8565b5b602002602001019073ffffffffffffffffffffffffffffffffffffffff16908173ffffffffffffffffffffffffffffffffffffffff1681525050613c2e565b5b858181518110613bcc57613bcb614fa8565b5b6020026020010151848480613be090614fd7565b955081518110613bf357613bf2614fa8565b5b602002602001019073ffffffffffffffffffffffffffffffffffffffff16908173ffffffffffffffffffffffffffffffffffffffff16815250505b8080613c3990614fd7565b915050613ac0565b506000915060008190505b84811015613cdb57838380613c6090614fd7565b945081518110613c7357613c72614fa8565b5b6020026020010151868281518110613c8e57613c8d614fa8565b5b602002602001019073ffffffffffffffffffffffffffffffffffffffff16908173ffffffffffffffffffffffffffffffffffffffff16815250508080613cd390614fd7565b915050613c4c565b505050505050565b60608251825114613d29576040517f08c379a0000000000000000000000000000000000000000000000000000000008152600401613d20906160e9565b60405180910390fd5b6000835103613d3a57829050613edb565b6000835167ffffffffffffffff811115613d5757613d56614397565b5b604051908082528060200260200182016040528015613d9057816020015b613d7d61417e565b815260200190600190039081613d755790505b50905060005b8151811015613e2f576040518060400160405280868381518110613dbd57613dbc614fa8565b5b602002602001015173ffffffffffffffffffffffffffffffffffffffff168152602001858381518110613df357613df2614fa8565b5b6020026020010151815250828281518110613e1157613e10614fa8565b5b60200260200101819052508080613e2790614fd7565b915050613d96565b50613e4981600060018451613e449190614e82565b613ee1565b5060005b8151811015613ed557818181518110613e6957613e68614fa8565b5b602002602001015160000151858281518110613e8857613e87614fa8565b5b602002602001019073ffffffffffffffffffffffffffffffffffffffff16908173ffffffffffffffffffffffffffffffffffffffff16815250508080613ecd90614fd7565b915050613e4d565b50839150505b92915050565b606060008390506000839050808203613efe578592505050614099565b60008660028787613f0f9190616113565b613f199190616156565b87613f2491906161c0565b81518110613f3557613f34614fa8565b5b602002602001015190505b818313614066575b8060200151878481518110613f6057613f5f614fa8565b5b6020026020010151602001511115613f85578280613f7d90616204565b935050613f48565b5b868281518110613f9957613f98614fa8565b5b60200260200101516020015181602001511115613fc3578180613fbb9061624c565b925050613f86565b81831361406157614008878481518110613fe057613fdf614fa8565b5b6020026020010151888481518110613ffb57613ffa614fa8565b5b60200260200101516140a0565b88858151811061401b5761401a614fa8565b5b6020026020010189858151811061403557614034614fa8565b5b602002602001018290528290525050828061404f90616204565b935050818061405d9061624c565b9250505b613f40565b8186121561407c57614079878784613ee1565b96505b848312156140925761408f878487613ee1565b96505b8693505050505b9392505050565b6140a861417e565b6140b061417e565b600084905083818095508196505050848492509250509250929050565b6040518060a00160405280600073ffffffffffffffffffffffffffffffffffffffff168152602001600073ffffffffffffffffffffffffffffffffffffffff168152602001600073ffffffffffffffffffffffffffffffffffffffff16815260200160008152602001606081525090565b50805461414a906151e7565b6000825580601f1061415c575061417b565b601f01602090049060005260206000209081019061417a9190614198565b5b50565b604051806040016040528060008152602001600081525090565b5b808211156141b1576000816000905550600101614199565b5090565b6000604051905090565b600080fd5b600080fd5b600073ffffffffffffffffffffffffffffffffffffffff82169050919050565b60006141f4826141c9565b9050919050565b614204816141e9565b811461420f57600080fd5b50565b600081359050614221816141fb565b92915050565b6000806040838503121561423e5761423d6141bf565b5b600061424c85828601614212565b925050602061425d85828601614212565b9150509250929050565b60008115159050919050565b61427c81614267565b82525050565b60006020820190506142976000830184614273565b92915050565b6000819050919050565b6142b08161429d565b82525050565b60006020820190506142cb60008301846142a7565b92915050565b6142da8161429d565b81146142e557600080fd5b50565b6000813590506142f7816142d1565b92915050565b600060208284031215614313576143126141bf565b5b6000614321848285016142e8565b91505092915050565b6000602082840312156143405761433f6141bf565b5b600061434e84828501614212565b91505092915050565b614360816141e9565b82525050565b600060208201905061437b6000830184614357565b92915050565b600080fd5b6000601f19601f8301169050919050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052604160045260246000fd5b6143cf82614386565b810181811067ffffffffffffffff821117156143ee576143ed614397565b5b80604052505050565b60006144016141b5565b905061440d82826143c6565b919050565b600067ffffffffffffffff82111561442d5761442c614397565b5b602082029050602081019050919050565b600080fd5b600061445661445184614412565b6143f7565b905080838252602082019050602084028301858111156144795761447861443e565b5b835b818110156144a2578061448e8882614212565b84526020840193505060208101905061447b565b5050509392505050565b600082601f8301126144c1576144c0614381565b5b81356144d1848260208601614443565b91505092915050565b6000602082840312156144f0576144ef6141bf565b5b600082013567ffffffffffffffff81111561450e5761450d6141c4565b5b61451a848285016144ac565b91505092915050565b600081519050919050565b600082825260208201905092915050565b6000819050602082019050919050565b61455881614267565b82525050565b600061456a838361454f565b60208301905092915050565b6000602082019050919050565b600061458e82614523565b614598818561452e565b93506145a38361453f565b8060005b838110156145d45781516145bb888261455e565b97506145c683614576565b9250506001810190506145a7565b5085935050505092915050565b600060208201905081810360008301526145fb8184614583565b905092915050565b600081519050919050565b600082825260208201905092915050565b6000819050602082019050919050565b614638816141e9565b82525050565b6000614649826141c9565b9050919050565b6146598161463e565b82525050565b6146688161429d565b82525050565b600081519050919050565b600082825260208201905092915050565b60005b838110156146a857808201518184015260208101905061468d565b60008484015250505050565b60006146bf8261466e565b6146c98185614679565b93506146d981856020860161468a565b6146e281614386565b840191505092915050565b600060a083016000830151614705600086018261462f565b506020830151614718602086018261462f565b50604083015161472b6040860182614650565b50606083015161473e606086018261465f565b506080830151848203608086015261475682826146b4565b9150508091505092915050565b600061476f83836146ed565b905092915050565b6000602082019050919050565b600061478f82614603565b614799818561460e565b9350836020820285016147ab8561461f565b8060005b858110156147e757848403895281516147c88582614763565b94506147d383614777565b925060208a019950506001810190506147af565b50829750879550505050505092915050565b600060208201905081810360008301526148138184614784565b905092915050565b600080600060608486031215614834576148336141bf565b5b600061484286828701614212565b9350506020614853868287016142e8565b9250506040614864868287016142e8565b9150509250925092565b60008060408385031215614885576148846141bf565b5b600083013567ffffffffffffffff8111156148a3576148a26141c4565b5b6148af858286016144ac565b92505060206148c0858286016142e8565b9150509250929050565b600081519050919050565b600082825260208201905092915050565b6000819050602082019050919050565b6000614902838361462f565b60208301905092915050565b6000602082019050919050565b6000614926826148ca565b61493081856148d5565b935061493b836148e6565b8060005b8381101561496c57815161495388826148f6565b975061495e8361490e565b92505060018101905061493f565b5085935050505092915050565b60006020820190508181036000830152614993818461491b565b905092915050565b60008060008060008060008060006101208a8c0312156149be576149bd6141bf565b5b60006149cc8c828d01614212565b99505060206149dd8c828d01614212565b98505060406149ee8c828d01614212565b97505060606149ff8c828d01614212565b9650506080614a108c828d016142e8565b95505060a0614a218c828d016142e8565b94505060c0614a328c828d016142e8565b93505060e0614a438c828d016142e8565b925050610100614a558c828d016142e8565b9150509295985092959850929598565b600067ffffffffffffffff821115614a8057614a7f614397565b5b602082029050602081019050919050565b614a9a81614267565b8114614aa557600080fd5b50565b600081359050614ab781614a91565b92915050565b6000614ad0614acb84614a65565b6143f7565b90508083825260208201905060208402830185811115614af357614af261443e565b5b835b81811015614b1c5780614b088882614aa8565b845260208401935050602081019050614af5565b5050509392505050565b600082601f830112614b3b57614b3a614381565b5b8135614b4b848260208601614abd565b91505092915050565b60008060408385031215614b6b57614b6a6141bf565b5b600083013567ffffffffffffffff811115614b8957614b886141c4565b5b614b95858286016144ac565b925050602083013567ffffffffffffffff811115614bb657614bb56141c4565b5b614bc285828601614b26565b9150509250929050565b600081519050919050565b600082825260208201905092915050565b6000819050602082019050919050565b6000614c04838361465f565b60208301905092915050565b6000602082019050919050565b6000614c2882614bcc565b614c328185614bd7565b9350614c3d83614be8565b8060005b83811015614c6e578151614c558882614bf8565b9750614c6083614c10565b925050600181019050614c41565b5085935050505092915050565b60006020820190508181036000830152614c958184614c1d565b905092915050565b614ca68161463e565b8114614cb157600080fd5b50565b600081359050614cc381614c9d565b92915050565b60008060008060808587031215614ce357614ce26141bf565b5b6000614cf187828801614212565b9450506020614d0287828801614212565b9350506040614d1387828801614cb4565b9250506060614d24878288016142e8565b91505092959194509250565b600082825260208201905092915050565b7f526f6e696e56616c696461746f725365743a206f6e6c7920726563656976657360008201527f20524f4e2066726f6d207374616b696e672076657374696e6720636f6e74726160208201527f6374000000000000000000000000000000000000000000000000000000000000604082015250565b6000614dc3604283614d30565b9150614dce82614d41565b606082019050919050565b60006020820190508181036000830152614df281614db6565b9050919050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b6000614e338261429d565b9150614e3e8361429d565b9250817fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0483118215151615614e7757614e76614df9565b5b828202905092915050565b6000614e8d8261429d565b9150614e988361429d565b9250828203905081811115614eb057614eaf614df9565b5b92915050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601260045260246000fd5b6000614ef08261429d565b9150614efb8361429d565b925082614f0b57614f0a614eb6565b5b828206905092915050565b7f48617350726f787941646d696e3a20756e617574686f72697a65642073656e6460008201527f6572000000000000000000000000000000000000000000000000000000000000602082015250565b6000614f72602283614d30565b9150614f7d82614f16565b604082019050919050565b60006020820190508181036000830152614fa181614f65565b9050919050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052603260045260246000fd5b6000614fe28261429d565b91507fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff820361501457615013614df9565b5b600182019050919050565b7f526f6e696e56616c696461746f725365743a206d6574686f642063616c6c657260008201527f206d75737420626520636f696e62617365000000000000000000000000000000602082015250565b600061507b603183614d30565b91506150868261501f565b604082019050919050565b600060208201905081810360008301526150aa8161506e565b9050919050565b60006040820190506150c66000830185614357565b6150d360208301846142a7565b9392505050565b6000815190506150e9816142d1565b92915050565b600060208284031215615105576151046141bf565b5b6000615113848285016150da565b91505092915050565b60006151278261429d565b91506151328361429d565b925082820190508082111561514a57615149614df9565b5b92915050565b600061515b8261429d565b91506151668361429d565b92508261517657615175614eb6565b5b828204905092915050565b60006060820190506151966000830186614357565b6151a360208301856142a7565b6151b060408301846142a7565b949350505050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052602260045260246000fd5b600060028204905060018216806151ff57607f821691505b602082108103615212576152116151b8565b5b50919050565b7f486173536c617368496e64696361746f72436f6e74726163743a206d6574686f60008201527f642063616c6c6572206d75737420626520736c61736820696e64696361746f7260208201527f20636f6e74726163740000000000000000000000000000000000000000000000604082015250565b600061529a604983614d30565b91506152a582615218565b606082019050919050565b600060208201905081810360008301526152c98161528d565b9050919050565b7f526f6e696e56616c696461746f725365743a206f6e6c7920616c6c6f7765642060008201527f61742074686520656e64206f662065706f636800000000000000000000000000602082015250565b600061532c603383614d30565b9150615337826152d0565b604082019050919050565b6000602082019050818103600083015261535b8161531f565b9050919050565b7f526f6e696e56616c696461746f725365743a20717565727920666f7220616c7260008201527f6561647920777261707065642075702065706f63680000000000000000000000602082015250565b60006153be603583614d30565b91506153c982615362565b604082019050919050565b600060208201905081810360008301526153ed816153b1565b9050919050565b7f526f6e696e56616c696461746f725365743a20636f756c64206e6f742074726160008201527f6e7366657220524f4e2074726561737572792061646472657373000000000000602082015250565b6000615450603a83614d30565b915061545b826153f4565b604082019050919050565b6000602082019050818103600083015261547f81615443565b9050919050565b7f526f6e696e56616c696461746f725365743a20636f756c64206e6f742074726160008201527f6e7366657220524f4e20746f207374616b696e6720636f6e7472616374000000602082015250565b60006154e2603d83614d30565b91506154ed82615486565b604082019050919050565b60006020820190508181036000830152615511816154d5565b9050919050565b7f496e697469616c697a61626c653a20636f6e747261637420697320616c72656160008201527f647920696e697469616c697a6564000000000000000000000000000000000000602082015250565b6000615574602e83614d30565b915061557f82615518565b604082019050919050565b600060208201905081810360008301526155a381615567565b9050919050565b6000819050919050565b600060ff82169050919050565b6000819050919050565b60006155e66155e16155dc846155aa565b6155c1565b6155b4565b9050919050565b6155f6816155cb565b82525050565b600060208201905061561160008301846155ed565b92915050565b7f526f6e696e56616c696461746f725365743a20656d7074792061727261790000600082015250565b600061564d601e83614d30565b915061565882615617565b602082019050919050565b6000602082019050818103600083015261567c81615640565b9050919050565b7f526f6e696e56616c696461746f725365743a206c656e677468206f662074776f60008201527f20696e70757420617272617973206d69736d6174636865730000000000000000602082015250565b60006156df603883614d30565b91506156ea82615683565b604082019050919050565b6000602082019050818103600083015261570e816156d2565b9050919050565b6000604082019050818103600083015261572f818561491b565b905081810360208301526157438184614583565b90509392505050565b600081549050919050565b60008190508160005260206000209050919050565b60008160001c9050919050565b600073ffffffffffffffffffffffffffffffffffffffff82169050919050565b60006157ac6157a78361576c565b615779565b9050919050565b60006157bf8254615799565b9050919050565b6000600182019050919050565b60006157de8261574c565b6157e881856148d5565b93506157f383615757565b8060005b8381101561582b57615808826157b3565b61581288826148f6565b975061581d836157c6565b9250506001810190506157f7565b5085935050505092915050565b6000602082019050818103600083015261585281846157d3565b905092915050565b600067ffffffffffffffff82111561587557615874614397565b5b602082029050602081019050919050565b60006158996158948461585a565b6143f7565b905080838252602082019050602084028301858111156158bc576158bb61443e565b5b835b818110156158e557806158d188826150da565b8452602084019350506020810190506158be565b5050509392505050565b600082601f83011261590457615903614381565b5b8151615914848260208601615886565b91505092915050565b600060208284031215615933576159326141bf565b5b600082015167ffffffffffffffff811115615951576159506141c4565b5b61595d848285016158ef565b91505092915050565b60006159718261429d565b91506000820361598457615983614df9565b5b600182039050919050565b7f4861735374616b696e674d616e616765723a206d6574686f642063616c6c657260008201527f206d757374206265207374616b696e6720636f6e747261637400000000000000602082015250565b60006159eb603983614d30565b91506159f68261598f565b604082019050919050565b60006020820190508181036000830152615a1a816159de565b9050919050565b7f43616e6469646174654d616e616765723a2065786365656473206d6178696d7560008201527f6d206e756d626572206f662063616e6469646174657300000000000000000000602082015250565b6000615a7d603683614d30565b9150615a8882615a21565b604082019050919050565b60006020820190508181036000830152615aac81615a70565b9050919050565b7f43616e6469646174654d616e616765723a20717565727920666f7220616c726560008201527f616479206578697374656e742063616e64696461746500000000000000000000602082015250565b6000615b0f603683614d30565b9150615b1a82615ab3565b604082019050919050565b60006020820190508181036000830152615b3e81615b02565b9050919050565b60008190508160005260206000209050919050565b60006020601f8301049050919050565b600082821b905092915050565b600060088302615ba77fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff82615b6a565b615bb18683615b6a565b95508019841693508086168417925050509392505050565b6000615be4615bdf615bda8461429d565b6155c1565b61429d565b9050919050565b6000819050919050565b615bfe83615bc9565b615c12615c0a82615beb565b848454615b77565b825550505050565b600090565b615c27615c1a565b615c32818484615bf5565b505050565b5b81811015615c5657615c4b600082615c1f565b600181019050615c38565b5050565b601f821115615c9b57615c6c81615b45565b615c7584615b5a565b81016020851015615c84578190505b615c98615c9085615b5a565b830182615c37565b50505b505050565b600082821c905092915050565b6000615cbe60001984600802615ca0565b1980831691505092915050565b6000615cd78383615cad565b9150826002028217905092915050565b615cf08261466e565b67ffffffffffffffff811115615d0957615d08614397565b5b615d1382546151e7565b615d1e828285615c5a565b600060209050601f831160018114615d515760008415615d3f578287015190505b615d498582615ccb565b865550615db1565b601f198416615d5f86615b45565b60005b82811015615d8757848901518255600182019150602085019450602081019050615d62565b86831015615da45784890151615da0601f891682615cad565b8355505b6001600288020188555050505b505050505050565b7f524f4e5472616e736665723a20696e73756666696369656e742062616c616e6360008201527f6500000000000000000000000000000000000000000000000000000000000000602082015250565b6000615e15602183614d30565b9150615e2082615db9565b604082019050919050565b60006020820190508181036000830152615e4481615e08565b9050919050565b600081905092915050565b50565b6000615e66600083615e4b565b9150615e7182615e56565b600082019050919050565b6000615e8782615e59565b9150819050919050565b60006040820190508181036000830152615eab818561491b565b9050615eba60208301846142a7565b9392505050565b600081519050615ed081614a91565b92915050565b6000615ee9615ee484614a65565b6143f7565b90508083825260208201905060208402830185811115615f0c57615f0b61443e565b5b835b81811015615f355780615f218882615ec1565b845260208401935050602081019050615f0e565b5050509392505050565b600082601f830112615f5457615f53614381565b5b8151615f64848260208601615ed6565b91505092915050565b600060208284031215615f8357615f826141bf565b5b600082015167ffffffffffffffff811115615fa157615fa06141c4565b5b615fad84828501615f3f565b91505092915050565b7f526f6e696e56616c696461746f725365743a2063616e6e6f7420736574206e7560008201527f6d626572206f66207072696f726974697a65642067726561746572207468616e60208201527f206e756d626572206f66206d61782076616c696461746f727300000000000000604082015250565b6000616038605983614d30565b915061604382615fb6565b606082019050919050565b600060208201905081810360008301526160678161602b565b9050919050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052603160045260246000fd5b7f536f7274696e673a20696e76616c6964206172726179206c656e677468000000600082015250565b60006160d3601d83614d30565b91506160de8261609d565b602082019050919050565b60006020820190508181036000830152616102816160c6565b9050919050565b6000819050919050565b600061611e82616109565b915061612983616109565b92508282039050818112600084121682821360008512151617156161505761614f614df9565b5b92915050565b600061616182616109565b915061616c83616109565b92508261617c5761617b614eb6565b5b600160000383147f8000000000000000000000000000000000000000000000000000000000000000831416156161b5576161b4614df9565b5b828205905092915050565b60006161cb82616109565b91506161d683616109565b9250828201905082811215600083121683821260008412151617156161fe576161fd614df9565b5b92915050565b600061620f82616109565b91507f7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff820361624157616240614df9565b5b600182019050919050565b600061625782616109565b91507f8000000000000000000000000000000000000000000000000000000000000000820361628957616288614df9565b5b60018203905091905056fea26469706673582212203680cab58b9c20f6796a239eb78e31c55056236c013ebbadaa9a3f08059d033c64736f6c63430008100033",
+	ABI: "[{\"inputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"address[]\",\"name\":\"\",\"type\":\"address[]\"}],\"name\":\"ActivatedBlockProducers\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"address\",\"name\":\"coinbaseAddr\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"submittedAmount\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"bonusAmount\",\"type\":\"uint256\"}],\"name\":\"BlockRewardSubmitted\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"validatorAddr\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"recipientAddr\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"BridgeOperatorRewardDistributed\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"address[]\",\"name\":\"\",\"type\":\"address[]\"}],\"name\":\"BridgeOperatorSetUpdated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"consensusAddr\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"treasuryAddr\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"admin\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"address\",\"name\":\"bridgeOperator\",\"type\":\"address\"}],\"name\":\"CandidateGranted\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"consensusAddr\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"revokedBlock\",\"type\":\"uint256\"}],\"name\":\"CandidateRevokedBlockUpdated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"address[]\",\"name\":\"consensusAddrs\",\"type\":\"address[]\"}],\"name\":\"CandidatesRevoked\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"address[]\",\"name\":\"\",\"type\":\"address[]\"}],\"name\":\"DeactivatedBlockProducers\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint8\",\"name\":\"version\",\"type\":\"uint8\"}],\"name\":\"Initialized\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"name\":\"MaintenanceContractUpdated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"name\":\"MaxPrioritizedValidatorNumberUpdated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"threshold\",\"type\":\"uint256\"}],\"name\":\"MaxValidatorCandidateUpdated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"name\":\"MaxValidatorNumberUpdated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"validatorAddr\",\"type\":\"address\"},{\"indexed\":true,\"internalType\":\"address\",\"name\":\"recipientAddr\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"MiningRewardDistributed\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"name\":\"NumberOfBlocksInEpochUpdated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"name\":\"NumberOfEpochsInPeriodUpdated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"address\",\"name\":\"coinbaseAddr\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"rewardAmount\",\"type\":\"uint256\"}],\"name\":\"RewardDeprecated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"name\":\"RoninTrustedOrganizationContractUpdated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"name\":\"SlashIndicatorContractUpdated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"name\":\"StakingContractUpdated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"amount\",\"type\":\"uint256\"}],\"name\":\"StakingRewardDistributed\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"name\":\"StakingVestingContractUpdated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"address\",\"name\":\"validatorAddr\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"jailedUntil\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"deductedStakingAmount\",\"type\":\"uint256\"}],\"name\":\"ValidatorPunished\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"address[]\",\"name\":\"\",\"type\":\"address[]\"}],\"name\":\"ValidatorSetUpdated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"uint256\",\"name\":\"periodNumber\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"bool\",\"name\":\"periodEnding\",\"type\":\"bool\"}],\"name\":\"WrappedUpEpoch\",\"type\":\"event\"},{\"stateMutability\":\"payable\",\"type\":\"fallback\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_block\",\"type\":\"uint256\"}],\"name\":\"epochEndingAt\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_block\",\"type\":\"uint256\"}],\"name\":\"epochOf\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getBlockProducers\",\"outputs\":[{\"internalType\":\"address[]\",\"name\":\"_result\",\"type\":\"address[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getBridgeOperators\",\"outputs\":[{\"internalType\":\"address[]\",\"name\":\"_bridgeOperatorList\",\"type\":\"address[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getCandidateInfos\",\"outputs\":[{\"components\":[{\"internalType\":\"address\",\"name\":\"admin\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"consensusAddr\",\"type\":\"address\"},{\"internalType\":\"addresspayable\",\"name\":\"treasuryAddr\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"bridgeOperatorAddr\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"commissionRate\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"revokedBlock\",\"type\":\"uint256\"},{\"internalType\":\"bytes\",\"name\":\"extraData\",\"type\":\"bytes\"}],\"internalType\":\"structICandidateManager.ValidatorCandidate[]\",\"name\":\"_list\",\"type\":\"tuple[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getLastUpdatedBlock\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getValidatorCandidates\",\"outputs\":[{\"internalType\":\"address[]\",\"name\":\"\",\"type\":\"address[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getValidators\",\"outputs\":[{\"internalType\":\"address[]\",\"name\":\"_validatorList\",\"type\":\"address[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_admin\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"_consensusAddr\",\"type\":\"address\"},{\"internalType\":\"addresspayable\",\"name\":\"_treasuryAddr\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"_bridgeOperatorAddr\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_commissionRate\",\"type\":\"uint256\"}],\"name\":\"grantValidatorCandidate\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"__slashIndicatorContract\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"__stakingContract\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"__stakingVestingContract\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"__maintenanceContract\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"__roninTrustedOrganizationContract\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"__maxValidatorNumber\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"__maxValidatorCandidate\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"__maxPrioritizedValidatorNumber\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"__numberOfBlocksInEpoch\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"__numberOfEpochsInPeriod\",\"type\":\"uint256\"}],\"name\":\"initialize\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_addr\",\"type\":\"address\"}],\"name\":\"isBlockProducer\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_bridgeOperatorAddr\",\"type\":\"address\"}],\"name\":\"isBridgeOperator\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"_result\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_candidate\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"_admin\",\"type\":\"address\"}],\"name\":\"isCandidateAdmin\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_addr\",\"type\":\"address\"}],\"name\":\"isValidator\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_addr\",\"type\":\"address\"}],\"name\":\"isValidatorCandidate\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address[]\",\"name\":\"_addrList\",\"type\":\"address[]\"}],\"name\":\"jailed\",\"outputs\":[{\"internalType\":\"bool[]\",\"name\":\"_result\",\"type\":\"bool[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"maintenanceContract\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"maxPrioritizedValidatorNumber\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"_maximumPrioritizedValidatorNumber\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"maxValidatorCandidate\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"maxValidatorNumber\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"_maximumValidatorNumber\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"numberOfBlocksInEpoch\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"_numberOfBlocks\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"numberOfEpochsInPeriod\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"_numberOfEpochs\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_block\",\"type\":\"uint256\"}],\"name\":\"periodEndingAt\",\"outputs\":[{\"internalType\":\"bool\",\"name\":\"\",\"type\":\"bool\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_block\",\"type\":\"uint256\"}],\"name\":\"periodOf\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"precompilePickValidatorSetAddress\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"precompileSortValidatorsAddress\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_consensusAddr\",\"type\":\"address\"}],\"name\":\"requestRevokeCandidate\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address[]\",\"name\":\"_addrList\",\"type\":\"address[]\"},{\"internalType\":\"uint256\",\"name\":\"_period\",\"type\":\"uint256\"}],\"name\":\"rewardDeprecated\",\"outputs\":[{\"internalType\":\"bool[]\",\"name\":\"_result\",\"type\":\"bool[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"roninTrustedOrganizationContract\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_addr\",\"type\":\"address\"}],\"name\":\"setMaintenanceContract\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_number\",\"type\":\"uint256\"}],\"name\":\"setMaxValidatorCandidate\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_max\",\"type\":\"uint256\"}],\"name\":\"setMaxValidatorNumber\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_number\",\"type\":\"uint256\"}],\"name\":\"setNumberOfBlocksInEpoch\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_number\",\"type\":\"uint256\"}],\"name\":\"setNumberOfEpochsInPeriod\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_addr\",\"type\":\"address\"}],\"name\":\"setRoninTrustedOrganizationContract\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_addr\",\"type\":\"address\"}],\"name\":\"setSlashIndicatorContract\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_addr\",\"type\":\"address\"}],\"name\":\"setStakingContract\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_addr\",\"type\":\"address\"}],\"name\":\"setStakingVestingContract\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_validatorAddr\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_newJailedUntil\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"_slashAmount\",\"type\":\"uint256\"}],\"name\":\"slash\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"slashIndicatorContract\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"stakingContract\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"stakingVestingContract\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"submitBlockReward\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"totalBlockProducers\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"_total\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"totalBridgeOperators\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"validatorCount\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"wrapUpEpoch\",\"outputs\":[],\"stateMutability\":\"payable\",\"type\":\"function\"},{\"stateMutability\":\"payable\",\"type\":\"receive\"}]",
+	Bin: "0x60806040523480156200001157600080fd5b506200001c62000022565b620000e4565b600954610100900460ff16156200008f5760405162461bcd60e51b815260206004820152602760248201527f496e697469616c697a61626c653a20636f6e747261637420697320696e697469604482015266616c697a696e6760c81b606482015260840160405180910390fd5b60095460ff9081161015620000e2576009805460ff191660ff9081179091556040519081527f7f26b83ff96e1f2b6a682f133852f6798a09c465da95921460cefb38474024989060200160405180910390a15b565b613ef880620000f46000396000f3fe60806040526004361061028c5760003560e01c80637593ff711161015a578063b405aaf2116100c1578063d6fa322c1161007a578063d6fa322c1461075b578063d72733fc1461077b578063ee99205c1461079b578063eeb629a8146107b9578063f8549af9146107ce578063facd743b146107ee5761029b565b8063b405aaf2146106be578063b5e337de146106de578063b7ab4db5146106fe578063ba77b06c14610713578063d09f1ab414610728578063d2cb215e1461073d5761029b565b80639dd373b9116101135780639dd373b9146105f15780639e94b9ec14610611578063a0c3f2d214610626578063a3d545f51461065e578063ac00125f1461067e578063ad2957831461069e5761029b565b80637593ff7114610553578063823a7b9c1461057357806386b60e1a1461059357806387c891bd146105b35780638d559c38146105c85780639b19dbfd146105dc5761029b565b80635186dc7e116101fe578063605239a1116101b7578063605239a1146104c157806365244ece146104d65780636aa1c2ef146104f657806370f81f6c1461050b57806372e468101461052b578063733ec970146105335761029b565b80635186dc7e1461043157806352091f17146104465780635248184a1461044e5780635511cde114610470578063562d53041461048e5780635a08482d146104a35761029b565b80633b3159b6116102505780633b3159b61461036e5780634454af9d1461038257806346e73271146103af57806346fe9311146103cf57806349096d26146103ef5780634f2a693f146104115761029b565b806304d971ab146102a35780630f43a677146102d857806325a6b529146102fc5780632bcf3d151461031c5780633529214b1461033c5761029b565b3661029b5761029961080e565b005b61029961080e565b3480156102af57600080fd5b506102c36102be36600461349d565b6108a0565b60405190151581526020015b60405180910390f35b3480156102e457600080fd5b506102ee600e5481565b6040519081526020016102cf565b34801561030857600080fd5b506102c36103173660046134d6565b6108c7565b34801561032857600080fd5b506102996103373660046134ef565b6108f9565b34801561034857600080fd5b506001546001600160a01b03165b6040516001600160a01b0390911681526020016102cf565b34801561037a57600080fd5b506068610356565b34801561038e57600080fd5b506103a261039d3660046135eb565b61093d565b6040516102cf9190613628565b3480156103bb57600080fd5b506102996103ca36600461366e565b6109c0565b3480156103db57600080fd5b506102996103ea3660046134ef565b610b2d565b3480156103fb57600080fd5b50610404610b6e565b6040516102cf919061374f565b34801561041d57600080fd5b5061029961042c3660046134d6565b610c58565b34801561043d57600080fd5b50600c546102ee565b610299610c99565b34801561045a57600080fd5b50610463610f63565b6040516102cf91906137a8565b34801561047c57600080fd5b506004546001600160a01b0316610356565b34801561049a57600080fd5b50600e546102ee565b3480156104af57600080fd5b506002546001600160a01b0316610356565b3480156104cd57600080fd5b506005546102ee565b3480156104e257600080fd5b506102c36104f13660046134ef565b61117c565b34801561050257600080fd5b50600b546102ee565b34801561051757600080fd5b50610299610526366004613863565b6111b6565b61029961142a565b34801561053f57600080fd5b5061029961054e366004613898565b6115d7565b34801561055f57600080fd5b506102c361056e3660046134d6565b611878565b34801561057f57600080fd5b5061029961058e3660046134d6565b61189d565b34801561059f57600080fd5b506102996105ae3660046134ef565b6118de565b3480156105bf57600080fd5b50600d546102ee565b3480156105d457600080fd5b506066610356565b3480156105e857600080fd5b50610404611ab5565b3480156105fd57600080fd5b5061029961060c3660046134ef565b611b76565b34801561061d57600080fd5b506102ee611bb7565b34801561063257600080fd5b506102c36106413660046134ef565b6001600160a01b0316600090815260076020526040902054151590565b34801561066a57600080fd5b506102ee6106793660046134d6565b611c0b565b34801561068a57600080fd5b506103a26106993660046138fc565b611c38565b3480156106aa57600080fd5b506102996106b93660046134ef565b611ca4565b3480156106ca57600080fd5b506102c36106d93660046134ef565b611ce5565b3480156106ea57600080fd5b506102996106f93660046134ef565b611d43565b34801561070a57600080fd5b50610404611d84565b34801561071f57600080fd5b50610404611e32565b34801561073457600080fd5b50600a546102ee565b34801561074957600080fd5b506003546001600160a01b0316610356565b34801561076757600080fd5b506102996107763660046134d6565b611e94565b34801561078757600080fd5b506102996107963660046134d6565b611ed5565b3480156107a757600080fd5b506000546001600160a01b0316610356565b3480156107c557600080fd5b506011546102ee565b3480156107da57600080fd5b506102ee6107e93660046134d6565b611f16565b3480156107fa57600080fd5b506102c36108093660046134ef565b611f38565b6001546001600160a01b0316331461089e5760405162461bcd60e51b815260206004820152604260248201527f526f6e696e56616c696461746f725365743a206f6e6c7920726563656976657360448201527f20524f4e2066726f6d207374616b696e672076657374696e6720636f6e74726160648201526118dd60f21b608482015260a4015b60405180910390fd5b565b6001600160a01b038281166000908152600860205260409020548116908216145b92915050565b600080600c54600b546108da9190613957565b90506108e760018261396e565b6108f18285613997565b149392505050565b610901611f75565b6001600160a01b0316336001600160a01b0316146109315760405162461bcd60e51b8152600401610895906139ab565b61093a81611fa3565b50565b606060005b82518110156109ba57610986838281518110610960576109606139ed565b60200260200101516001600160a01b031660009081526013602052604090205443111590565b828281518110610998576109986139ed565b91151560209283029190910190910152806109b281613a03565b915050610942565b50919050565b600954610100900460ff16158080156109e05750600954600160ff909116105b806109fa5750303b1580156109fa575060095460ff166001145b610a5d5760405162461bcd60e51b815260206004820152602e60248201527f496e697469616c697a61626c653a20636f6e747261637420697320616c72656160448201526d191e481a5b9a5d1a585b1a5e995960921b6064820152608401610895565b6009805460ff191660011790558015610a80576009805461ff0019166101001790555b610a898b611fa3565b610a928a611ff8565b610a9b89612046565b610aa488612094565b610aad876120e2565b610ab686612130565b610abf85612165565b610ac88461219a565b610ad18361226d565b610ada826122a2565b8015610b20576009805461ff0019169055604051600181527f7f26b83ff96e1f2b6a682f133852f6798a09c465da95921460cefb38474024989060200160405180910390a15b5050505050505050505050565b610b35611f75565b6001600160a01b0316336001600160a01b031614610b655760405162461bcd60e51b8152600401610895906139ab565b61093a81612094565b6060600e5467ffffffffffffffff811115610b8b57610b8b61350c565b604051908082528060200260200182016040528015610bb4578160200160208202803683370190505b5090506000805b8251811015610c52576000818152600f6020526040902054610be5906001600160a01b031661117c565b15610c40576000818152600f60205260409020546001600160a01b03168383610c0d81613a03565b945081518110610c1f57610c1f6139ed565b60200260200101906001600160a01b031690816001600160a01b0316815250505b80610c4a81613a03565b915050610bbb565b50815290565b610c60611f75565b6001600160a01b0316336001600160a01b031614610c905760405162461bcd60e51b8152600401610895906139ab565b61093a81612165565b334114610cb85760405162461bcd60e51b815260040161089590613a1c565b346000819003610cc55750565b33610ccf81611f38565b1580610cf357506001600160a01b0381166000908152601360205260409020544311155b80610d0b5750610d0b81610d0643611f16565b6122d7565b15610d5657604080516001600160a01b0383168152602081018490527f2439a6ac441f1d6b3dbb7827ef6e056822e2261f900cad468012eee4f1f7f31c910160405180910390a15050565b6001546040805163ca3654e760e01b8152815160009384936001600160a01b039091169263ca3654e79260048083019392829003018187875af1158015610da1573d6000803e3d6000fd5b505050506040513d601f19601f82011682018060405250810190610dc59190613a6d565b90925090506000610dd68386613a91565b600080546001600160a01b03878116835260086020526040832060040154939450169190612710610e078584613957565b610e119190613aa4565b90506000610e1f828661396e565b6001600160a01b038916600090815260146020526040812080549293508492909190610e4c908490613a91565b90915550506001600160a01b03881660009081526015602052604081208054839290610e79908490613a91565b90915550506001600160a01b03881660009081526016602052604081208054889290610ea6908490613a91565b9091555050604051630b863d7160e41b81526001600160a01b0389811660048301526024820183905285169063b863d71090604401600060405180830381600087803b158015610ef557600080fd5b505af1158015610f09573d6000803e3d6000fd5b5050604080516001600160a01b038c168152602081018d90529081018a90527f0ede5c3be8625943fa64003cd4b91230089411249f3059bac6500873543ca9b19250606001905060405180910390a1505050505050505050565b60065460609067ffffffffffffffff811115610f8157610f8161350c565b60405190808252806020026020018201604052801561101657816020015b6110036040518060e0016040528060006001600160a01b0316815260200160006001600160a01b0316815260200160006001600160a01b0316815260200160006001600160a01b031681526020016000815260200160008152602001606081525090565b815260200190600190039081610f9f5790505b50905060005b815181101561117857600860006006838154811061103c5761103c6139ed565b60009182526020808320909101546001600160a01b039081168452838201949094526040928301909120825160e081018452815485168152600182015485169281019290925260028101548416928201929092526003820154909216606083015260048101546080830152600581015460a083015260068101805460c0840191906110c690613ab8565b80601f01602080910402602001604051908101604052809291908181526020018280546110f290613ab8565b801561113f5780601f106111145761010080835404028352916020019161113f565b820191906000526020600020905b81548152906001019060200180831161112257829003601f168201915b50505050508152505082828151811061115a5761115a6139ed565b6020026020010181905250808061117090613a03565b91505061101c565b5090565b6001600160a01b0381166000908152601060205260408120546108c19060019060ff1660038111156111b0576111b0613aec565b90612302565b336111c96002546001600160a01b031690565b6001600160a01b0316146112575760405162461bcd60e51b815260206004820152604960248201527f486173536c617368496e64696361746f72436f6e74726163743a206d6574686f60448201527f642063616c6c6572206d75737420626520736c61736820696e64696361746f726064820152680818dbdb9d1c9858dd60ba1b608482015260a401610895565b6001600160a01b038316600090815260126020526040812060019161127b43611f16565b815260208082019290925260409081016000908120805460ff1916941515949094179093556001600160a01b038681168085526014845282852085905560159093528184208490559254905163a5885f1d60e01b815260048101929092529091169063a5885f1d90602401600060405180830381600087803b15801561130057600080fd5b505af1158015611314573d6000803e3d6000fd5b50505050600082111561135f576001600160a01b038316600090815260136020526040902054611345908390612335565b6001600160a01b0384166000908152601360205260409020555b80156113cc5760005460405163db71315760e01b81526001600160a01b038581166004830152602482018490529091169063db71315790604401600060405180830381600087803b1580156113b357600080fd5b505af11580156113c7573d6000803e3d6000fd5b505050505b6001600160a01b0383166000818152601360209081526040918290205482519384529083015281018290527f69284547cc931ff0e04d5a21cdfb0748f22a3788269711028ce1d4833900e474906060015b60405180910390a1505050565b3341146114495760405162461bcd60e51b815260040161089590613a1c565b61145243611878565b6114ba5760405162461bcd60e51b815260206004820152603360248201527f526f6e696e56616c696461746f725365743a206f6e6c7920616c6c6f776564206044820152720c2e840e8d0ca40cadcc840decc40cae0dec6d606b1b6064820152608401610895565b6114c343611c0b565b6114ce600d54611c0b565b106115395760405162461bcd60e51b815260206004820152603560248201527f526f6e696e56616c696461746f725365743a20717565727920666f7220616c726044820152740cac2c8f240eee4c2e0e0cac840eae040cae0dec6d605b1b6064820152608401610895565b43600d556000611547611d84565b9050600061155443611f16565b90506000611561436108c7565b9050801561158d576000611575848461234e565b90506115818482612411565b61158961252f565b9350505b611596836126b5565b817fa9523c20f05c78447190cec6b707dc5a68ac7e7979aa4c6575723022a40e81f4826040516115ca911515815260200190565b60405180910390a2505050565b336115ea6000546001600160a01b031690565b6001600160a01b0316146116105760405162461bcd60e51b815260040161089590613b02565b60065460055481106116835760405162461bcd60e51b815260206004820152603660248201527f43616e6469646174654d616e616765723a2065786365656473206d6178696d756044820152756d206e756d626572206f662063616e6469646174657360501b6064820152608401610895565b6001600160a01b038516600090815260076020526040902054156117085760405162461bcd60e51b815260206004820152603660248201527f43616e6469646174654d616e616765723a20717565727920666f7220616c7265604482015275616479206578697374656e742063616e64696461746560501b6064820152608401610895565b6001600160a01b0385811660008181526007602090815260408083208619905560068054600180820183557ff652222313e28459528d920b65115c16c04f3efc82aaedc97be59f3f377c0d3f90910180546001600160a01b03199081168817909155835160e0810185528e891681528086018881528d8a168287019081528d8b1660608401908152608084018e815260001960a0860190815289518c8152808c018b5260c087019081529c8c526008909a5297909920835181548616908d16178155915194820180548516958c169590951790945592516002840180548416918b169190911790559551600383018054909216981697909717909655905160048601559051600585015591519092918201906118249082613ba5565b50506040516001600160a01b038581168252808916925086811691908816907fd690f592ed983cfbc05717fbcf06c4e10ae328432c309fe49246cf4a4be69fcd9060200160405180910390a4505050505050565b60006001600b54611889919061396e565b600b546118969084613997565b1492915050565b6118a5611f75565b6001600160a01b0316336001600160a01b0316146118d55760405162461bcd60e51b8152600401610895906139ab565b61093a81612130565b336118f16000546001600160a01b031690565b6001600160a01b0316146119175760405162461bcd60e51b815260040161089590613b02565b6001600160a01b0381166000908152600760205260409020546119975760405162461bcd60e51b815260206004820152603260248201527f43616e6469646174654d616e616765723a20717565727920666f72206e6f6e2d6044820152716578697374656e742063616e64696461746560701b6064820152608401610895565b60006119a2600c5490565b600b546119af9190613957565b9050600060016119c0836002613957565b836119cb8143613aa4565b6119d59190613957565b6119df9190613a91565b6119e9919061396e565b6001600160a01b0384166000908152600860205260409020600501549091508110611a655760405162461bcd60e51b815260206004820152602660248201527f43616e6469646174654d616e616765723a20696e76616c696420626c6f636b20604482015265373ab6b132b960d11b6064820152608401610895565b6001600160a01b03831660008181526008602052604090819020600501839055517f545535563ab82f7251f7c89a29ca70e98b0585607160730f3f91df83e4e7c93d906115ca9084815260200190565b6060600e5467ffffffffffffffff811115611ad257611ad261350c565b604051908082528060200260200182016040528015611afb578160200160208202803683370190505b50905060005b8151811015611178576000818152600f60209081526040808320546001600160a01b0390811684526008909252909120600301548351911690839083908110611b4c57611b4c6139ed565b6001600160a01b039092166020928302919091019091015280611b6e81613a03565b915050611b01565b611b7e611f75565b6001600160a01b0316336001600160a01b031614611bae5760405162461bcd60e51b8152600401610895906139ab565b61093a81611ff8565b6000805b600e54811015611178576000818152600f6020526040902054611be6906001600160a01b031661117c565b15611bf95781611bf581613a03565b9250505b80611c0381613a03565b915050611bbb565b60008115611c3057600b54611c209083613aa4565b611c2b906001613a91565b6108c1565b600092915050565b606060005b8351811015611c9d57611c69848281518110611c5b57611c5b6139ed565b6020026020010151846122d7565b828281518110611c7b57611c7b6139ed565b9115156020928302919091019091015280611c9581613a03565b915050611c3d565b5092915050565b611cac611f75565b6001600160a01b0316336001600160a01b031614611cdc5760405162461bcd60e51b8152600401610895906139ab565b61093a81612046565b6000805b600e548110156109ba576000818152600f60209081526040808320546001600160a01b039081168452600890925290912060030154818516911603611d3157600191506109ba565b80611d3b81613a03565b915050611ce9565b611d4b611f75565b6001600160a01b0316336001600160a01b031614611d7b5760405162461bcd60e51b8152600401610895906139ab565b61093a816120e2565b6060600e5467ffffffffffffffff811115611da157611da161350c565b604051908082528060200260200182016040528015611dca578160200160208202803683370190505b50905060005b8151811015611178576000818152600f602052604090205482516001600160a01b0390911690839083908110611e0857611e086139ed565b6001600160a01b039092166020928302919091019091015280611e2a81613a03565b915050611dd0565b60606006805480602002602001604051908101604052809291908181526020018280548015611e8a57602002820191906000526020600020905b81546001600160a01b03168152600190910190602001808311611e6c575b5050505050905090565b611e9c611f75565b6001600160a01b0316336001600160a01b031614611ecc5760405162461bcd60e51b8152600401610895906139ab565b61093a816122a2565b611edd611f75565b6001600160a01b0316336001600160a01b031614611f0d5760405162461bcd60e51b8152600401610895906139ab565b61093a8161226d565b60008115611c3057600c54600b54611f2e9190613957565b611c209083613aa4565b6001600160a01b038116600090815260106020526040812054611f6e9060ff166003811115611f6957611f69613aec565b6129e5565b1592915050565b7fb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103546001600160a01b031690565b600280546001600160a01b0319166001600160a01b0383169081179091556040519081527faa5b07dd43aa44c69b70a6a2b9c3fcfed12b6e5f6323596ba7ac91035ab80a4f906020015b60405180910390a150565b600080546001600160a01b0319166001600160a01b0383169081179091556040519081527f6397f5b135542bb3f477cb346cfab5abdec1251d08dc8f8d4efb4ffe122ea0bf90602001611fed565b600180546001600160a01b0319166001600160a01b0383169081179091556040519081527fc328090a37d855191ab58469296f98f87a851ca57d5cdfd1e9ac3c83e9e7096d90602001611fed565b600380546001600160a01b0319166001600160a01b0383169081179091556040519081527f31a33f126a5bae3c5bdf6cfc2cd6dcfffe2fe9634bdb09e21c44762993889e3b90602001611fed565b600480546001600160a01b0319166001600160a01b0383169081179091556040519081527ffd6f5f93d69a07c593a09be0b208bff13ab4ffd6017df3b33433d63bdc59b4d790602001611fed565b600a8190556040518181527fb5464c05fd0e0f000c535850116cda2742ee1f7b34384cb920ad7b8e802138b590602001611fed565b60058190556040518181527f82d5dc32d1b741512ad09c32404d7e7921e8934c6222343d95f55f7a2b9b2ab490602001611fed565b600a548111156122385760405162461bcd60e51b815260206004820152605960248201527f526f6e696e56616c696461746f725365743a2063616e6e6f7420736574206e7560448201527f6d626572206f66207072696f726974697a65642067726561746572207468616e60648201527f206e756d626572206f66206d61782076616c696461746f727300000000000000608482015260a401610895565b60118190556040518181527fa9588dc77416849bd922605ce4fc806712281ad8a8f32d4238d6c8cca548e15e90602001611fed565b600b8190556040518181527fbfd285a38b782d8a00e424fb824320ff3d1a698534358d02da611468d59b780890602001611fed565b600c8190556040518181527f1d01baa2db15fced4f4e5fcfd4245e65ad9b083c110d26542f4a5f78d5425e7790602001611fed565b6001600160a01b03919091166000908152601260209081526040808320938352929052205460ff1690565b600081600381111561231657612316613aec565b83600381111561232857612328613aec565b1660ff1615159392505050565b6000818310156123455781612347565b825b9392505050565b6000805b8351811015611c9d57600084828151811061236f5761236f6139ed565b6020026020010151905061239b816001600160a01b031660009081526013602052604090205443111590565b806123ab57506123ab81856122d7565b156123b657506123ff565b6001600160a01b0381166000908152601560205260409020546123d99084613a91565b6001600160a01b03821660009081526015602052604081205592506123fd81612a03565b505b8061240981613a03565b915050612352565b60005460405163d45e627360e01b81526001600160a01b0390911690819063d45e62739061244390869060040161374f565b600060405180830381600087803b15801561245d57600080fd5b505af1158015612471573d6000803e3d6000fd5b50505050600082111561252a576124888183612c2d565b6124fa5760405162461bcd60e51b815260206004820152603d60248201527f526f6e696e56616c696461746f725365743a20636f756c64206e6f742074726160448201527f6e7366657220524f4e20746f207374616b696e6720636f6e74726163740000006064820152608401610895565b6040518281527feb09b8cc1cefa77cd4ec30003e6364cf60afcedd20be8c09f26e717788baf1399060200161141d565b505050565b60608060008060009054906101000a90046001600160a01b03166001600160a01b031663ce99b5866040518163ffffffff1660e01b8152600401602060405180830381865afa158015612586573d6000803e3d6000fd5b505050506040513d601f19601f820116820180604052508101906125aa9190613c65565b90506125b581612ce1565b6004805460405163965b9ff160e01b81529294506000926001600160a01b039091169163965b9ff1916125eb9160069101613cbc565b600060405180830381865afa158015612608573d6000803e3d6000fd5b505050506040513d6000823e601f3d908101601f191682016040526126309190810190613ccf565b9050600061269f600680548060200260200160405190810160405280929190818152602001828054801561268d57602002820191906000526020600020905b81546001600160a01b0316815260019091019060200180831161266f575b50505050508584600a54601154612f75565b90955090506126ae8582613093565b5050505090565b6003546000906001600160a01b031663f0a4670960066126d6436001613a91565b6040518363ffffffff1660e01b81526004016126f3929190613d60565b600060405180830381865afa158015612710573d6000803e3d6000fd5b505050506040513d6000823e601f3d908101601f191682016040526127389190810190613d82565b90506000808380825b865181101561295a57600087828151811061275e5761275e6139ed565b6020026020010151905060006127738261117c565b90506000612799836001600160a01b031660009081526013602052604090205443111590565b806127ba57508884815181106127b1576127b16139ed565b60200260200101515b159050811580156127c85750805b15612884576001600160a01b0383166000908152601060205260409020546128079060019060ff16600381111561280157612801613aec565b90613247565b6001600160a01b0384166000908152601060205260409020805460ff1916600183600381111561283957612839613aec565b021790555082868961284a81613a03565b9a508151811061285c5761285c6139ed565b60200260200101906001600160a01b031690816001600160a01b031681525050505050612948565b81801561288f575080155b15612944576001600160a01b0383166000908152601060205260409020546128ce9060019060ff1660038111156128c8576128c8613aec565b90613282565b6001600160a01b0384166000908152601060205260409020805460ff1916600183600381111561290057612900613aec565b021790555082858861291181613a03565b995081518110612923576129236139ed565b60200260200101906001600160a01b031690816001600160a01b0316815250505b5050505b8061295281613a03565b915050612741565b50831561299c578382527f9307bf1890a431face4426a5b2f44e495eb517c00a619442fa31cdb759784cc482604051612993919061374f565b60405180910390a15b82156129dd578281527f4a3f040d4146a5995b5d4bbbb30faaf9b89e3afaeaa5cb15f6e66894ea108e78816040516129d4919061374f565b60405180910390a15b505050505050565b60008160038111156129f9576129f9613aec565b60ff161592915050565b6001600160a01b038116600090815260146020526040812080549190558015612b0f576001600160a01b0380831660009081526008602052604090206002015416612a4e8183612c2d565b612ac05760405162461bcd60e51b815260206004820152603a60248201527f526f6e696e56616c696461746f725365743a20636f756c64206e6f742074726160448201527f6e7366657220524f4e20747265617375727920616464726573730000000000006064820152608401610895565b806001600160a01b0316836001600160a01b03167f1ce7a1c4702402cd393500acb1de5bd927727a54e144a587d328f1b679abe4ec84604051612b0591815260200190565b60405180910390a3505b6001600160a01b03821660009081526016602052604081208054919055801561252a576001600160a01b0380841660009081526008602052604090206002015416612b5a8183612c2d565b612bda5760405162461bcd60e51b8152602060048201526044602482018190527f526f6e696e56616c696461746f725365743a20636f756c64206e6f7420747261908201527f6e7366657220524f4e20746f20627269646765206f70657261746f72206164646064820152637265737360e01b608482015260a401610895565b806001600160a01b0316846001600160a01b03167f759335cc78fd3c1d411cb025fe4939ad361a9aa27a034b05b5417606b64dee0d84604051612c1f91815260200190565b60405180910390a350505050565b600081471015612c895760405162461bcd60e51b815260206004820152602160248201527f524f4e5472616e736665723a20696e73756666696369656e742062616c616e636044820152606560f81b6064820152608401610895565b6040516001600160a01b038416908390600081818185875af1925050503d8060008114612cd2576040519150601f19603f3d011682016040523d82523d6000602084013e612cd7565b606091505b5090949350505050565b600054604051634a5d76cd60e01b81526060916001600160a01b0316908190634a5d76cd90612d1590600690600401613cbc565b600060405180830381865afa158015612d32573d6000803e3d6000fd5b505050506040513d6000823e601f3d908101601f19168201604052612d5a9190810190613ccf565b60065490925060008167ffffffffffffffff811115612d7b57612d7b61350c565b604051908082528060200260200182016040528015612da4578160200160208202803683370190505b50905060008060005b84811015612eca5760068181548110612dc857612dc86139ed565b9060005260206000200160009054906101000a90046001600160a01b0316915087878281518110612dfb57612dfb6139ed565b60200260200101511080612e2a57506001600160a01b0382166000908152600860205260409020600501544310155b15612eb85786612e3986613e17565b95508581518110612e4c57612e4c6139ed565b6020026020010151878281518110612e6657612e666139ed565b6020908102919091010152818484612e7d81613a03565b955081518110612e8f57612e8f6139ed565b60200260200101906001600160a01b031690816001600160a01b031681525050612eb8826132be565b80612ec281613a03565b915050612dad565b508115612f6a578183527f4eaf233b9dc25a5552c1927feee1412eea69add17c2485c831c2e60e234f3c9183604051612f03919061374f565b60405180910390a16040516374d62f0360e11b81526001600160a01b0386169063e9ac5e0690612f3790869060040161374f565b600060405180830381600087803b158015612f5157600080fd5b505af1158015612f65573d6000803e3d6000fd5b505050505b505050825250919050565b60606000806068905060008888888888604051602401612f99959493929190613e5e565b60408051601f19818403018152919052602080820180516001600160e01b0316633bca0a8960e11b17905281518b519293506001929091600091612fdc91613957565b612fe7906040613a91565b90506020840181888483895afa612ffd57600093505b503d61300857600092505b602087019650869550826130845760405162461bcd60e51b815260206004820152603960248201527f507265636f6d70696c6555736167655069636b56616c696461746f725365743a60448201527f2063616c6c20746f20707265636f6d70696c65206661696c73000000000000006064820152608401610895565b50505050509550959350505050565b805b600e548110156130f1576000818152600f6020818152604080842080546001600160a01b0316855260108352908420805460ff19169055928490525280546001600160a01b0319169055806130e981613a03565b915050613095565b506000805b828110156131d3576000848281518110613112576131126139ed565b6020908102919091018101516000858152600f9092526040909120549091506001600160a01b0390811690821603613157578261314e81613a03565b935050506131c1565b6000838152600f6020818152604080842080546001600160a01b03908116865260108452828620805460ff19908116909155908716808752928620805490911660031790559387905291905281546001600160a01b031916179055826131bc81613a03565b935050505b806131cb81613a03565b9150506130f6565b50600e8190556040517f6120448f3d4245c1ff708d970c34e1b6484ee22a794ede0bfca2317a97aa8ced9061320990859061374f565b60405180910390a17fd02544d3ed2ab8b7873f58de9f4c74e2f7acbf743359ec1b2149f951f3abe1bc61323a611ab5565b60405161141d919061374f565b600081600381111561325b5761325b613aec565b83600381111561326d5761326d613aec565b1760ff16600381111561234757612347613aec565b600081600381111561329657613296613aec565b198360038111156132a9576132a9613aec565b1660ff16600381111561234757612347613aec565b6001600160a01b038116600090815260076020526040812054908190036132e3575050565b6001600160a01b038216600090815260086020526040812080546001600160a01b0319908116825560018201805482169055600282018054821690556003820180549091169055600481018290556005810182905590613346600683018261343e565b50506001600160a01b0382166000908152600760205260408120819055600680546133739060019061396e565b81548110613383576133836139ed565b6000918252602090912001546001600160a01b03908116915083168114613406576001600160a01b03811660009081526007602052604090208290556006805482919084199081106133d7576133d76139ed565b9060005260206000200160006101000a8154816001600160a01b0302191690836001600160a01b031602179055505b600680548061341757613417613eac565b600082815260209020810160001990810180546001600160a01b0319169055019055505050565b50805461344a90613ab8565b6000825580601f1061345a575050565b601f01602090049060005260206000209081019061093a91905b808211156111785760008155600101613474565b6001600160a01b038116811461093a57600080fd5b600080604083850312156134b057600080fd5b82356134bb81613488565b915060208301356134cb81613488565b809150509250929050565b6000602082840312156134e857600080fd5b5035919050565b60006020828403121561350157600080fd5b813561234781613488565b634e487b7160e01b600052604160045260246000fd5b604051601f8201601f1916810167ffffffffffffffff8111828210171561354b5761354b61350c565b604052919050565b600067ffffffffffffffff82111561356d5761356d61350c565b5060051b60200190565b600082601f83011261358857600080fd5b8135602061359d61359883613553565b613522565b82815260059290921b840181019181810190868411156135bc57600080fd5b8286015b848110156135e05780356135d381613488565b83529183019183016135c0565b509695505050505050565b6000602082840312156135fd57600080fd5b813567ffffffffffffffff81111561361457600080fd5b61362084828501613577565b949350505050565b6020808252825182820181905260009190848201906040850190845b81811015613662578351151583529284019291840191600101613644565b50909695505050505050565b6000806000806000806000806000806101408b8d03121561368e57600080fd5b8a3561369981613488565b995060208b01356136a981613488565b985060408b01356136b981613488565b975060608b01356136c981613488565b965060808b01356136d981613488565b999c989b50969995989760a0870135975060c08701359660e08101359650610100810135955061012001359350915050565b600081518084526020808501945080840160005b838110156137445781516001600160a01b03168752958201959082019060010161371f565b509495945050505050565b602081526000612347602083018461370b565b6000815180845260005b818110156137885760208185018101518683018201520161376c565b506000602082860101526020601f19601f83011685010191505092915050565b60006020808301818452808551808352604092508286019150828160051b87010184880160005b8381101561385557888303603f19018552815180516001600160a01b0390811685528882015181168986015287820151811688860152606080830151909116908501526080808201519085015260a0808201519085015260c09081015160e09185018290529061384181860183613762565b9689019694505050908601906001016137cf565b509098975050505050505050565b60008060006060848603121561387857600080fd5b833561388381613488565b95602085013595506040909401359392505050565b600080600080600060a086880312156138b057600080fd5b85356138bb81613488565b945060208601356138cb81613488565b935060408601356138db81613488565b925060608601356138eb81613488565b949793965091946080013592915050565b6000806040838503121561390f57600080fd5b823567ffffffffffffffff81111561392657600080fd5b61393285828601613577565b95602094909401359450505050565b634e487b7160e01b600052601160045260246000fd5b80820281158282048414176108c1576108c1613941565b818103818111156108c1576108c1613941565b634e487b7160e01b600052601260045260246000fd5b6000826139a6576139a6613981565b500690565b60208082526022908201527f48617350726f787941646d696e3a20756e617574686f72697a65642073656e6460408201526132b960f11b606082015260800190565b634e487b7160e01b600052603260045260246000fd5b600060018201613a1557613a15613941565b5060010190565b60208082526031908201527f526f6e696e56616c696461746f725365743a206d6574686f642063616c6c6572604082015270206d75737420626520636f696e6261736560781b606082015260800190565b60008060408385031215613a8057600080fd5b505080516020909101519092909150565b808201808211156108c1576108c1613941565b600082613ab357613ab3613981565b500490565b600181811c90821680613acc57607f821691505b6020821081036109ba57634e487b7160e01b600052602260045260246000fd5b634e487b7160e01b600052602160045260246000fd5b60208082526039908201527f4861735374616b696e674d616e616765723a206d6574686f642063616c6c657260408201527f206d757374206265207374616b696e6720636f6e747261637400000000000000606082015260800190565b601f82111561252a57600081815260208120601f850160051c81016020861015613b865750805b601f850160051c820191505b818110156129dd57828155600101613b92565b815167ffffffffffffffff811115613bbf57613bbf61350c565b613bd381613bcd8454613ab8565b84613b5f565b602080601f831160018114613c085760008415613bf05750858301515b600019600386901b1c1916600185901b1785556129dd565b600085815260208120601f198616915b82811015613c3757888601518255948401946001909101908401613c18565b5085821015613c555787850151600019600388901b60f8161c191681555b5050505050600190811b01905550565b600060208284031215613c7757600080fd5b5051919050565b6000815480845260208085019450836000528060002060005b838110156137445781546001600160a01b031687529582019560019182019101613c97565b6020815260006123476020830184613c7e565b60006020808385031215613ce257600080fd5b825167ffffffffffffffff811115613cf957600080fd5b8301601f81018513613d0a57600080fd5b8051613d1861359882613553565b81815260059190911b82018301908381019087831115613d3757600080fd5b928401925b82841015613d5557835182529284019290840190613d3c565b979650505050505050565b604081526000613d736040830185613c7e565b90508260208301529392505050565b60006020808385031215613d9557600080fd5b825167ffffffffffffffff811115613dac57600080fd5b8301601f81018513613dbd57600080fd5b8051613dcb61359882613553565b81815260059190911b82018301908381019087831115613dea57600080fd5b928401925b82841015613d555783518015158114613e085760008081fd5b82529284019290840190613def565b600081613e2657613e26613941565b506000190190565b600081518084526020808501945080840160005b8381101561374457815187529582019590820190600101613e42565b60a081526000613e7160a083018861370b565b8281036020840152613e838188613e2e565b90508281036040840152613e978187613e2e565b60608401959095525050608001529392505050565b634e487b7160e01b600052603160045260246000fdfea26469706673582212208ce4d87f08a824512d94a7a9e066547feb2b4e61259b4c50c8c594da12a2cae464736f6c63430008110033",
 }
 
 // RoninValidatorSetABI is the input ABI used to generate the binding from.
@@ -272,9 +274,71 @@ func (_RoninValidatorSet *RoninValidatorSetCallerSession) EpochOf(_block *big.In
 	return _RoninValidatorSet.Contract.EpochOf(&_RoninValidatorSet.CallOpts, _block)
 }
 
+// GetBlockProducers is a free data retrieval call binding the contract method 0x49096d26.
+//
+// Solidity: function getBlockProducers() view returns(address[] _result)
+func (_RoninValidatorSet *RoninValidatorSetCaller) GetBlockProducers(opts *bind.CallOpts) ([]common.Address, error) {
+	var out []interface{}
+	err := _RoninValidatorSet.contract.Call(opts, &out, "getBlockProducers")
+
+	if err != nil {
+		return *new([]common.Address), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new([]common.Address)).(*[]common.Address)
+
+	return out0, err
+
+}
+
+// GetBlockProducers is a free data retrieval call binding the contract method 0x49096d26.
+//
+// Solidity: function getBlockProducers() view returns(address[] _result)
+func (_RoninValidatorSet *RoninValidatorSetSession) GetBlockProducers() ([]common.Address, error) {
+	return _RoninValidatorSet.Contract.GetBlockProducers(&_RoninValidatorSet.CallOpts)
+}
+
+// GetBlockProducers is a free data retrieval call binding the contract method 0x49096d26.
+//
+// Solidity: function getBlockProducers() view returns(address[] _result)
+func (_RoninValidatorSet *RoninValidatorSetCallerSession) GetBlockProducers() ([]common.Address, error) {
+	return _RoninValidatorSet.Contract.GetBlockProducers(&_RoninValidatorSet.CallOpts)
+}
+
+// GetBridgeOperators is a free data retrieval call binding the contract method 0x9b19dbfd.
+//
+// Solidity: function getBridgeOperators() view returns(address[] _bridgeOperatorList)
+func (_RoninValidatorSet *RoninValidatorSetCaller) GetBridgeOperators(opts *bind.CallOpts) ([]common.Address, error) {
+	var out []interface{}
+	err := _RoninValidatorSet.contract.Call(opts, &out, "getBridgeOperators")
+
+	if err != nil {
+		return *new([]common.Address), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new([]common.Address)).(*[]common.Address)
+
+	return out0, err
+
+}
+
+// GetBridgeOperators is a free data retrieval call binding the contract method 0x9b19dbfd.
+//
+// Solidity: function getBridgeOperators() view returns(address[] _bridgeOperatorList)
+func (_RoninValidatorSet *RoninValidatorSetSession) GetBridgeOperators() ([]common.Address, error) {
+	return _RoninValidatorSet.Contract.GetBridgeOperators(&_RoninValidatorSet.CallOpts)
+}
+
+// GetBridgeOperators is a free data retrieval call binding the contract method 0x9b19dbfd.
+//
+// Solidity: function getBridgeOperators() view returns(address[] _bridgeOperatorList)
+func (_RoninValidatorSet *RoninValidatorSetCallerSession) GetBridgeOperators() ([]common.Address, error) {
+	return _RoninValidatorSet.Contract.GetBridgeOperators(&_RoninValidatorSet.CallOpts)
+}
+
 // GetCandidateInfos is a free data retrieval call binding the contract method 0x5248184a.
 //
-// Solidity: function getCandidateInfos() view returns((address,address,address,uint256,bytes)[] _list)
+// Solidity: function getCandidateInfos() view returns((address,address,address,address,uint256,uint256,bytes)[] _list)
 func (_RoninValidatorSet *RoninValidatorSetCaller) GetCandidateInfos(opts *bind.CallOpts) ([]ICandidateManagerValidatorCandidate, error) {
 	var out []interface{}
 	err := _RoninValidatorSet.contract.Call(opts, &out, "getCandidateInfos")
@@ -291,14 +355,14 @@ func (_RoninValidatorSet *RoninValidatorSetCaller) GetCandidateInfos(opts *bind.
 
 // GetCandidateInfos is a free data retrieval call binding the contract method 0x5248184a.
 //
-// Solidity: function getCandidateInfos() view returns((address,address,address,uint256,bytes)[] _list)
+// Solidity: function getCandidateInfos() view returns((address,address,address,address,uint256,uint256,bytes)[] _list)
 func (_RoninValidatorSet *RoninValidatorSetSession) GetCandidateInfos() ([]ICandidateManagerValidatorCandidate, error) {
 	return _RoninValidatorSet.Contract.GetCandidateInfos(&_RoninValidatorSet.CallOpts)
 }
 
 // GetCandidateInfos is a free data retrieval call binding the contract method 0x5248184a.
 //
-// Solidity: function getCandidateInfos() view returns((address,address,address,uint256,bytes)[] _list)
+// Solidity: function getCandidateInfos() view returns((address,address,address,address,uint256,uint256,bytes)[] _list)
 func (_RoninValidatorSet *RoninValidatorSetCallerSession) GetCandidateInfos() ([]ICandidateManagerValidatorCandidate, error) {
 	return _RoninValidatorSet.Contract.GetCandidateInfos(&_RoninValidatorSet.CallOpts)
 }
@@ -332,37 +396,6 @@ func (_RoninValidatorSet *RoninValidatorSetSession) GetLastUpdatedBlock() (*big.
 // Solidity: function getLastUpdatedBlock() view returns(uint256)
 func (_RoninValidatorSet *RoninValidatorSetCallerSession) GetLastUpdatedBlock() (*big.Int, error) {
 	return _RoninValidatorSet.Contract.GetLastUpdatedBlock(&_RoninValidatorSet.CallOpts)
-}
-
-// GetPriorityStatus is a free data retrieval call binding the contract method 0x86523193.
-//
-// Solidity: function getPriorityStatus(address _addr) view returns(bool)
-func (_RoninValidatorSet *RoninValidatorSetCaller) GetPriorityStatus(opts *bind.CallOpts, _addr common.Address) (bool, error) {
-	var out []interface{}
-	err := _RoninValidatorSet.contract.Call(opts, &out, "getPriorityStatus", _addr)
-
-	if err != nil {
-		return *new(bool), err
-	}
-
-	out0 := *abi.ConvertType(out[0], new(bool)).(*bool)
-
-	return out0, err
-
-}
-
-// GetPriorityStatus is a free data retrieval call binding the contract method 0x86523193.
-//
-// Solidity: function getPriorityStatus(address _addr) view returns(bool)
-func (_RoninValidatorSet *RoninValidatorSetSession) GetPriorityStatus(_addr common.Address) (bool, error) {
-	return _RoninValidatorSet.Contract.GetPriorityStatus(&_RoninValidatorSet.CallOpts, _addr)
-}
-
-// GetPriorityStatus is a free data retrieval call binding the contract method 0x86523193.
-//
-// Solidity: function getPriorityStatus(address _addr) view returns(bool)
-func (_RoninValidatorSet *RoninValidatorSetCallerSession) GetPriorityStatus(_addr common.Address) (bool, error) {
-	return _RoninValidatorSet.Contract.GetPriorityStatus(&_RoninValidatorSet.CallOpts, _addr)
 }
 
 // GetValidatorCandidates is a free data retrieval call binding the contract method 0xba77b06c.
@@ -425,6 +458,68 @@ func (_RoninValidatorSet *RoninValidatorSetSession) GetValidators() ([]common.Ad
 // Solidity: function getValidators() view returns(address[] _validatorList)
 func (_RoninValidatorSet *RoninValidatorSetCallerSession) GetValidators() ([]common.Address, error) {
 	return _RoninValidatorSet.Contract.GetValidators(&_RoninValidatorSet.CallOpts)
+}
+
+// IsBlockProducer is a free data retrieval call binding the contract method 0x65244ece.
+//
+// Solidity: function isBlockProducer(address _addr) view returns(bool)
+func (_RoninValidatorSet *RoninValidatorSetCaller) IsBlockProducer(opts *bind.CallOpts, _addr common.Address) (bool, error) {
+	var out []interface{}
+	err := _RoninValidatorSet.contract.Call(opts, &out, "isBlockProducer", _addr)
+
+	if err != nil {
+		return *new(bool), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(bool)).(*bool)
+
+	return out0, err
+
+}
+
+// IsBlockProducer is a free data retrieval call binding the contract method 0x65244ece.
+//
+// Solidity: function isBlockProducer(address _addr) view returns(bool)
+func (_RoninValidatorSet *RoninValidatorSetSession) IsBlockProducer(_addr common.Address) (bool, error) {
+	return _RoninValidatorSet.Contract.IsBlockProducer(&_RoninValidatorSet.CallOpts, _addr)
+}
+
+// IsBlockProducer is a free data retrieval call binding the contract method 0x65244ece.
+//
+// Solidity: function isBlockProducer(address _addr) view returns(bool)
+func (_RoninValidatorSet *RoninValidatorSetCallerSession) IsBlockProducer(_addr common.Address) (bool, error) {
+	return _RoninValidatorSet.Contract.IsBlockProducer(&_RoninValidatorSet.CallOpts, _addr)
+}
+
+// IsBridgeOperator is a free data retrieval call binding the contract method 0xb405aaf2.
+//
+// Solidity: function isBridgeOperator(address _bridgeOperatorAddr) view returns(bool _result)
+func (_RoninValidatorSet *RoninValidatorSetCaller) IsBridgeOperator(opts *bind.CallOpts, _bridgeOperatorAddr common.Address) (bool, error) {
+	var out []interface{}
+	err := _RoninValidatorSet.contract.Call(opts, &out, "isBridgeOperator", _bridgeOperatorAddr)
+
+	if err != nil {
+		return *new(bool), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(bool)).(*bool)
+
+	return out0, err
+
+}
+
+// IsBridgeOperator is a free data retrieval call binding the contract method 0xb405aaf2.
+//
+// Solidity: function isBridgeOperator(address _bridgeOperatorAddr) view returns(bool _result)
+func (_RoninValidatorSet *RoninValidatorSetSession) IsBridgeOperator(_bridgeOperatorAddr common.Address) (bool, error) {
+	return _RoninValidatorSet.Contract.IsBridgeOperator(&_RoninValidatorSet.CallOpts, _bridgeOperatorAddr)
+}
+
+// IsBridgeOperator is a free data retrieval call binding the contract method 0xb405aaf2.
+//
+// Solidity: function isBridgeOperator(address _bridgeOperatorAddr) view returns(bool _result)
+func (_RoninValidatorSet *RoninValidatorSetCallerSession) IsBridgeOperator(_bridgeOperatorAddr common.Address) (bool, error) {
+	return _RoninValidatorSet.Contract.IsBridgeOperator(&_RoninValidatorSet.CallOpts, _bridgeOperatorAddr)
 }
 
 // IsCandidateAdmin is a free data retrieval call binding the contract method 0x04d971ab.
@@ -799,6 +894,68 @@ func (_RoninValidatorSet *RoninValidatorSetCallerSession) PeriodOf(_block *big.I
 	return _RoninValidatorSet.Contract.PeriodOf(&_RoninValidatorSet.CallOpts, _block)
 }
 
+// PrecompilePickValidatorSetAddress is a free data retrieval call binding the contract method 0x3b3159b6.
+//
+// Solidity: function precompilePickValidatorSetAddress() view returns(address)
+func (_RoninValidatorSet *RoninValidatorSetCaller) PrecompilePickValidatorSetAddress(opts *bind.CallOpts) (common.Address, error) {
+	var out []interface{}
+	err := _RoninValidatorSet.contract.Call(opts, &out, "precompilePickValidatorSetAddress")
+
+	if err != nil {
+		return *new(common.Address), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(common.Address)).(*common.Address)
+
+	return out0, err
+
+}
+
+// PrecompilePickValidatorSetAddress is a free data retrieval call binding the contract method 0x3b3159b6.
+//
+// Solidity: function precompilePickValidatorSetAddress() view returns(address)
+func (_RoninValidatorSet *RoninValidatorSetSession) PrecompilePickValidatorSetAddress() (common.Address, error) {
+	return _RoninValidatorSet.Contract.PrecompilePickValidatorSetAddress(&_RoninValidatorSet.CallOpts)
+}
+
+// PrecompilePickValidatorSetAddress is a free data retrieval call binding the contract method 0x3b3159b6.
+//
+// Solidity: function precompilePickValidatorSetAddress() view returns(address)
+func (_RoninValidatorSet *RoninValidatorSetCallerSession) PrecompilePickValidatorSetAddress() (common.Address, error) {
+	return _RoninValidatorSet.Contract.PrecompilePickValidatorSetAddress(&_RoninValidatorSet.CallOpts)
+}
+
+// PrecompileSortValidatorsAddress is a free data retrieval call binding the contract method 0x8d559c38.
+//
+// Solidity: function precompileSortValidatorsAddress() view returns(address)
+func (_RoninValidatorSet *RoninValidatorSetCaller) PrecompileSortValidatorsAddress(opts *bind.CallOpts) (common.Address, error) {
+	var out []interface{}
+	err := _RoninValidatorSet.contract.Call(opts, &out, "precompileSortValidatorsAddress")
+
+	if err != nil {
+		return *new(common.Address), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(common.Address)).(*common.Address)
+
+	return out0, err
+
+}
+
+// PrecompileSortValidatorsAddress is a free data retrieval call binding the contract method 0x8d559c38.
+//
+// Solidity: function precompileSortValidatorsAddress() view returns(address)
+func (_RoninValidatorSet *RoninValidatorSetSession) PrecompileSortValidatorsAddress() (common.Address, error) {
+	return _RoninValidatorSet.Contract.PrecompileSortValidatorsAddress(&_RoninValidatorSet.CallOpts)
+}
+
+// PrecompileSortValidatorsAddress is a free data retrieval call binding the contract method 0x8d559c38.
+//
+// Solidity: function precompileSortValidatorsAddress() view returns(address)
+func (_RoninValidatorSet *RoninValidatorSetCallerSession) PrecompileSortValidatorsAddress() (common.Address, error) {
+	return _RoninValidatorSet.Contract.PrecompileSortValidatorsAddress(&_RoninValidatorSet.CallOpts)
+}
+
 // RewardDeprecated is a free data retrieval call binding the contract method 0xac00125f.
 //
 // Solidity: function rewardDeprecated(address[] _addrList, uint256 _period) view returns(bool[] _result)
@@ -828,6 +985,37 @@ func (_RoninValidatorSet *RoninValidatorSetSession) RewardDeprecated(_addrList [
 // Solidity: function rewardDeprecated(address[] _addrList, uint256 _period) view returns(bool[] _result)
 func (_RoninValidatorSet *RoninValidatorSetCallerSession) RewardDeprecated(_addrList []common.Address, _period *big.Int) ([]bool, error) {
 	return _RoninValidatorSet.Contract.RewardDeprecated(&_RoninValidatorSet.CallOpts, _addrList, _period)
+}
+
+// RoninTrustedOrganizationContract is a free data retrieval call binding the contract method 0x5511cde1.
+//
+// Solidity: function roninTrustedOrganizationContract() view returns(address)
+func (_RoninValidatorSet *RoninValidatorSetCaller) RoninTrustedOrganizationContract(opts *bind.CallOpts) (common.Address, error) {
+	var out []interface{}
+	err := _RoninValidatorSet.contract.Call(opts, &out, "roninTrustedOrganizationContract")
+
+	if err != nil {
+		return *new(common.Address), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(common.Address)).(*common.Address)
+
+	return out0, err
+
+}
+
+// RoninTrustedOrganizationContract is a free data retrieval call binding the contract method 0x5511cde1.
+//
+// Solidity: function roninTrustedOrganizationContract() view returns(address)
+func (_RoninValidatorSet *RoninValidatorSetSession) RoninTrustedOrganizationContract() (common.Address, error) {
+	return _RoninValidatorSet.Contract.RoninTrustedOrganizationContract(&_RoninValidatorSet.CallOpts)
+}
+
+// RoninTrustedOrganizationContract is a free data retrieval call binding the contract method 0x5511cde1.
+//
+// Solidity: function roninTrustedOrganizationContract() view returns(address)
+func (_RoninValidatorSet *RoninValidatorSetCallerSession) RoninTrustedOrganizationContract() (common.Address, error) {
+	return _RoninValidatorSet.Contract.RoninTrustedOrganizationContract(&_RoninValidatorSet.CallOpts)
 }
 
 // SlashIndicatorContract is a free data retrieval call binding the contract method 0x5a08482d.
@@ -923,6 +1111,68 @@ func (_RoninValidatorSet *RoninValidatorSetCallerSession) StakingVestingContract
 	return _RoninValidatorSet.Contract.StakingVestingContract(&_RoninValidatorSet.CallOpts)
 }
 
+// TotalBlockProducers is a free data retrieval call binding the contract method 0x9e94b9ec.
+//
+// Solidity: function totalBlockProducers() view returns(uint256 _total)
+func (_RoninValidatorSet *RoninValidatorSetCaller) TotalBlockProducers(opts *bind.CallOpts) (*big.Int, error) {
+	var out []interface{}
+	err := _RoninValidatorSet.contract.Call(opts, &out, "totalBlockProducers")
+
+	if err != nil {
+		return *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return out0, err
+
+}
+
+// TotalBlockProducers is a free data retrieval call binding the contract method 0x9e94b9ec.
+//
+// Solidity: function totalBlockProducers() view returns(uint256 _total)
+func (_RoninValidatorSet *RoninValidatorSetSession) TotalBlockProducers() (*big.Int, error) {
+	return _RoninValidatorSet.Contract.TotalBlockProducers(&_RoninValidatorSet.CallOpts)
+}
+
+// TotalBlockProducers is a free data retrieval call binding the contract method 0x9e94b9ec.
+//
+// Solidity: function totalBlockProducers() view returns(uint256 _total)
+func (_RoninValidatorSet *RoninValidatorSetCallerSession) TotalBlockProducers() (*big.Int, error) {
+	return _RoninValidatorSet.Contract.TotalBlockProducers(&_RoninValidatorSet.CallOpts)
+}
+
+// TotalBridgeOperators is a free data retrieval call binding the contract method 0x562d5304.
+//
+// Solidity: function totalBridgeOperators() view returns(uint256)
+func (_RoninValidatorSet *RoninValidatorSetCaller) TotalBridgeOperators(opts *bind.CallOpts) (*big.Int, error) {
+	var out []interface{}
+	err := _RoninValidatorSet.contract.Call(opts, &out, "totalBridgeOperators")
+
+	if err != nil {
+		return *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return out0, err
+
+}
+
+// TotalBridgeOperators is a free data retrieval call binding the contract method 0x562d5304.
+//
+// Solidity: function totalBridgeOperators() view returns(uint256)
+func (_RoninValidatorSet *RoninValidatorSetSession) TotalBridgeOperators() (*big.Int, error) {
+	return _RoninValidatorSet.Contract.TotalBridgeOperators(&_RoninValidatorSet.CallOpts)
+}
+
+// TotalBridgeOperators is a free data retrieval call binding the contract method 0x562d5304.
+//
+// Solidity: function totalBridgeOperators() view returns(uint256)
+func (_RoninValidatorSet *RoninValidatorSetCallerSession) TotalBridgeOperators() (*big.Int, error) {
+	return _RoninValidatorSet.Contract.TotalBridgeOperators(&_RoninValidatorSet.CallOpts)
+}
+
 // ValidatorCount is a free data retrieval call binding the contract method 0x0f43a677.
 //
 // Solidity: function validatorCount() view returns(uint256)
@@ -954,46 +1204,67 @@ func (_RoninValidatorSet *RoninValidatorSetCallerSession) ValidatorCount() (*big
 	return _RoninValidatorSet.Contract.ValidatorCount(&_RoninValidatorSet.CallOpts)
 }
 
-// AddValidatorCandidate is a paid mutator transaction binding the contract method 0xe18572bf.
+// GrantValidatorCandidate is a paid mutator transaction binding the contract method 0x733ec970.
 //
-// Solidity: function addValidatorCandidate(address _admin, address _consensusAddr, address _treasuryAddr, uint256 _commissionRate) returns()
-func (_RoninValidatorSet *RoninValidatorSetTransactor) AddValidatorCandidate(opts *bind.TransactOpts, _admin common.Address, _consensusAddr common.Address, _treasuryAddr common.Address, _commissionRate *big.Int) (*types.Transaction, error) {
-	return _RoninValidatorSet.contract.Transact(opts, "addValidatorCandidate", _admin, _consensusAddr, _treasuryAddr, _commissionRate)
+// Solidity: function grantValidatorCandidate(address _admin, address _consensusAddr, address _treasuryAddr, address _bridgeOperatorAddr, uint256 _commissionRate) returns()
+func (_RoninValidatorSet *RoninValidatorSetTransactor) GrantValidatorCandidate(opts *bind.TransactOpts, _admin common.Address, _consensusAddr common.Address, _treasuryAddr common.Address, _bridgeOperatorAddr common.Address, _commissionRate *big.Int) (*types.Transaction, error) {
+	return _RoninValidatorSet.contract.Transact(opts, "grantValidatorCandidate", _admin, _consensusAddr, _treasuryAddr, _bridgeOperatorAddr, _commissionRate)
 }
 
-// AddValidatorCandidate is a paid mutator transaction binding the contract method 0xe18572bf.
+// GrantValidatorCandidate is a paid mutator transaction binding the contract method 0x733ec970.
 //
-// Solidity: function addValidatorCandidate(address _admin, address _consensusAddr, address _treasuryAddr, uint256 _commissionRate) returns()
-func (_RoninValidatorSet *RoninValidatorSetSession) AddValidatorCandidate(_admin common.Address, _consensusAddr common.Address, _treasuryAddr common.Address, _commissionRate *big.Int) (*types.Transaction, error) {
-	return _RoninValidatorSet.Contract.AddValidatorCandidate(&_RoninValidatorSet.TransactOpts, _admin, _consensusAddr, _treasuryAddr, _commissionRate)
+// Solidity: function grantValidatorCandidate(address _admin, address _consensusAddr, address _treasuryAddr, address _bridgeOperatorAddr, uint256 _commissionRate) returns()
+func (_RoninValidatorSet *RoninValidatorSetSession) GrantValidatorCandidate(_admin common.Address, _consensusAddr common.Address, _treasuryAddr common.Address, _bridgeOperatorAddr common.Address, _commissionRate *big.Int) (*types.Transaction, error) {
+	return _RoninValidatorSet.Contract.GrantValidatorCandidate(&_RoninValidatorSet.TransactOpts, _admin, _consensusAddr, _treasuryAddr, _bridgeOperatorAddr, _commissionRate)
 }
 
-// AddValidatorCandidate is a paid mutator transaction binding the contract method 0xe18572bf.
+// GrantValidatorCandidate is a paid mutator transaction binding the contract method 0x733ec970.
 //
-// Solidity: function addValidatorCandidate(address _admin, address _consensusAddr, address _treasuryAddr, uint256 _commissionRate) returns()
-func (_RoninValidatorSet *RoninValidatorSetTransactorSession) AddValidatorCandidate(_admin common.Address, _consensusAddr common.Address, _treasuryAddr common.Address, _commissionRate *big.Int) (*types.Transaction, error) {
-	return _RoninValidatorSet.Contract.AddValidatorCandidate(&_RoninValidatorSet.TransactOpts, _admin, _consensusAddr, _treasuryAddr, _commissionRate)
+// Solidity: function grantValidatorCandidate(address _admin, address _consensusAddr, address _treasuryAddr, address _bridgeOperatorAddr, uint256 _commissionRate) returns()
+func (_RoninValidatorSet *RoninValidatorSetTransactorSession) GrantValidatorCandidate(_admin common.Address, _consensusAddr common.Address, _treasuryAddr common.Address, _bridgeOperatorAddr common.Address, _commissionRate *big.Int) (*types.Transaction, error) {
+	return _RoninValidatorSet.Contract.GrantValidatorCandidate(&_RoninValidatorSet.TransactOpts, _admin, _consensusAddr, _treasuryAddr, _bridgeOperatorAddr, _commissionRate)
 }
 
-// Initialize is a paid mutator transaction binding the contract method 0xbeb3e382.
+// Initialize is a paid mutator transaction binding the contract method 0x46e73271.
 //
-// Solidity: function initialize(address __slashIndicatorContract, address __stakingContract, address __stakingVestingContract, address __maintenanceContract, uint256 __maxValidatorNumber, uint256 __maxValidatorCandidate, uint256 __maxPrioritizedValidatorNumber, uint256 __numberOfBlocksInEpoch, uint256 __numberOfEpochsInPeriod) returns()
-func (_RoninValidatorSet *RoninValidatorSetTransactor) Initialize(opts *bind.TransactOpts, __slashIndicatorContract common.Address, __stakingContract common.Address, __stakingVestingContract common.Address, __maintenanceContract common.Address, __maxValidatorNumber *big.Int, __maxValidatorCandidate *big.Int, __maxPrioritizedValidatorNumber *big.Int, __numberOfBlocksInEpoch *big.Int, __numberOfEpochsInPeriod *big.Int) (*types.Transaction, error) {
-	return _RoninValidatorSet.contract.Transact(opts, "initialize", __slashIndicatorContract, __stakingContract, __stakingVestingContract, __maintenanceContract, __maxValidatorNumber, __maxValidatorCandidate, __maxPrioritizedValidatorNumber, __numberOfBlocksInEpoch, __numberOfEpochsInPeriod)
+// Solidity: function initialize(address __slashIndicatorContract, address __stakingContract, address __stakingVestingContract, address __maintenanceContract, address __roninTrustedOrganizationContract, uint256 __maxValidatorNumber, uint256 __maxValidatorCandidate, uint256 __maxPrioritizedValidatorNumber, uint256 __numberOfBlocksInEpoch, uint256 __numberOfEpochsInPeriod) returns()
+func (_RoninValidatorSet *RoninValidatorSetTransactor) Initialize(opts *bind.TransactOpts, __slashIndicatorContract common.Address, __stakingContract common.Address, __stakingVestingContract common.Address, __maintenanceContract common.Address, __roninTrustedOrganizationContract common.Address, __maxValidatorNumber *big.Int, __maxValidatorCandidate *big.Int, __maxPrioritizedValidatorNumber *big.Int, __numberOfBlocksInEpoch *big.Int, __numberOfEpochsInPeriod *big.Int) (*types.Transaction, error) {
+	return _RoninValidatorSet.contract.Transact(opts, "initialize", __slashIndicatorContract, __stakingContract, __stakingVestingContract, __maintenanceContract, __roninTrustedOrganizationContract, __maxValidatorNumber, __maxValidatorCandidate, __maxPrioritizedValidatorNumber, __numberOfBlocksInEpoch, __numberOfEpochsInPeriod)
 }
 
-// Initialize is a paid mutator transaction binding the contract method 0xbeb3e382.
+// Initialize is a paid mutator transaction binding the contract method 0x46e73271.
 //
-// Solidity: function initialize(address __slashIndicatorContract, address __stakingContract, address __stakingVestingContract, address __maintenanceContract, uint256 __maxValidatorNumber, uint256 __maxValidatorCandidate, uint256 __maxPrioritizedValidatorNumber, uint256 __numberOfBlocksInEpoch, uint256 __numberOfEpochsInPeriod) returns()
-func (_RoninValidatorSet *RoninValidatorSetSession) Initialize(__slashIndicatorContract common.Address, __stakingContract common.Address, __stakingVestingContract common.Address, __maintenanceContract common.Address, __maxValidatorNumber *big.Int, __maxValidatorCandidate *big.Int, __maxPrioritizedValidatorNumber *big.Int, __numberOfBlocksInEpoch *big.Int, __numberOfEpochsInPeriod *big.Int) (*types.Transaction, error) {
-	return _RoninValidatorSet.Contract.Initialize(&_RoninValidatorSet.TransactOpts, __slashIndicatorContract, __stakingContract, __stakingVestingContract, __maintenanceContract, __maxValidatorNumber, __maxValidatorCandidate, __maxPrioritizedValidatorNumber, __numberOfBlocksInEpoch, __numberOfEpochsInPeriod)
+// Solidity: function initialize(address __slashIndicatorContract, address __stakingContract, address __stakingVestingContract, address __maintenanceContract, address __roninTrustedOrganizationContract, uint256 __maxValidatorNumber, uint256 __maxValidatorCandidate, uint256 __maxPrioritizedValidatorNumber, uint256 __numberOfBlocksInEpoch, uint256 __numberOfEpochsInPeriod) returns()
+func (_RoninValidatorSet *RoninValidatorSetSession) Initialize(__slashIndicatorContract common.Address, __stakingContract common.Address, __stakingVestingContract common.Address, __maintenanceContract common.Address, __roninTrustedOrganizationContract common.Address, __maxValidatorNumber *big.Int, __maxValidatorCandidate *big.Int, __maxPrioritizedValidatorNumber *big.Int, __numberOfBlocksInEpoch *big.Int, __numberOfEpochsInPeriod *big.Int) (*types.Transaction, error) {
+	return _RoninValidatorSet.Contract.Initialize(&_RoninValidatorSet.TransactOpts, __slashIndicatorContract, __stakingContract, __stakingVestingContract, __maintenanceContract, __roninTrustedOrganizationContract, __maxValidatorNumber, __maxValidatorCandidate, __maxPrioritizedValidatorNumber, __numberOfBlocksInEpoch, __numberOfEpochsInPeriod)
 }
 
-// Initialize is a paid mutator transaction binding the contract method 0xbeb3e382.
+// Initialize is a paid mutator transaction binding the contract method 0x46e73271.
 //
-// Solidity: function initialize(address __slashIndicatorContract, address __stakingContract, address __stakingVestingContract, address __maintenanceContract, uint256 __maxValidatorNumber, uint256 __maxValidatorCandidate, uint256 __maxPrioritizedValidatorNumber, uint256 __numberOfBlocksInEpoch, uint256 __numberOfEpochsInPeriod) returns()
-func (_RoninValidatorSet *RoninValidatorSetTransactorSession) Initialize(__slashIndicatorContract common.Address, __stakingContract common.Address, __stakingVestingContract common.Address, __maintenanceContract common.Address, __maxValidatorNumber *big.Int, __maxValidatorCandidate *big.Int, __maxPrioritizedValidatorNumber *big.Int, __numberOfBlocksInEpoch *big.Int, __numberOfEpochsInPeriod *big.Int) (*types.Transaction, error) {
-	return _RoninValidatorSet.Contract.Initialize(&_RoninValidatorSet.TransactOpts, __slashIndicatorContract, __stakingContract, __stakingVestingContract, __maintenanceContract, __maxValidatorNumber, __maxValidatorCandidate, __maxPrioritizedValidatorNumber, __numberOfBlocksInEpoch, __numberOfEpochsInPeriod)
+// Solidity: function initialize(address __slashIndicatorContract, address __stakingContract, address __stakingVestingContract, address __maintenanceContract, address __roninTrustedOrganizationContract, uint256 __maxValidatorNumber, uint256 __maxValidatorCandidate, uint256 __maxPrioritizedValidatorNumber, uint256 __numberOfBlocksInEpoch, uint256 __numberOfEpochsInPeriod) returns()
+func (_RoninValidatorSet *RoninValidatorSetTransactorSession) Initialize(__slashIndicatorContract common.Address, __stakingContract common.Address, __stakingVestingContract common.Address, __maintenanceContract common.Address, __roninTrustedOrganizationContract common.Address, __maxValidatorNumber *big.Int, __maxValidatorCandidate *big.Int, __maxPrioritizedValidatorNumber *big.Int, __numberOfBlocksInEpoch *big.Int, __numberOfEpochsInPeriod *big.Int) (*types.Transaction, error) {
+	return _RoninValidatorSet.Contract.Initialize(&_RoninValidatorSet.TransactOpts, __slashIndicatorContract, __stakingContract, __stakingVestingContract, __maintenanceContract, __roninTrustedOrganizationContract, __maxValidatorNumber, __maxValidatorCandidate, __maxPrioritizedValidatorNumber, __numberOfBlocksInEpoch, __numberOfEpochsInPeriod)
+}
+
+// RequestRevokeCandidate is a paid mutator transaction binding the contract method 0x86b60e1a.
+//
+// Solidity: function requestRevokeCandidate(address _consensusAddr) returns()
+func (_RoninValidatorSet *RoninValidatorSetTransactor) RequestRevokeCandidate(opts *bind.TransactOpts, _consensusAddr common.Address) (*types.Transaction, error) {
+	return _RoninValidatorSet.contract.Transact(opts, "requestRevokeCandidate", _consensusAddr)
+}
+
+// RequestRevokeCandidate is a paid mutator transaction binding the contract method 0x86b60e1a.
+//
+// Solidity: function requestRevokeCandidate(address _consensusAddr) returns()
+func (_RoninValidatorSet *RoninValidatorSetSession) RequestRevokeCandidate(_consensusAddr common.Address) (*types.Transaction, error) {
+	return _RoninValidatorSet.Contract.RequestRevokeCandidate(&_RoninValidatorSet.TransactOpts, _consensusAddr)
+}
+
+// RequestRevokeCandidate is a paid mutator transaction binding the contract method 0x86b60e1a.
+//
+// Solidity: function requestRevokeCandidate(address _consensusAddr) returns()
+func (_RoninValidatorSet *RoninValidatorSetTransactorSession) RequestRevokeCandidate(_consensusAddr common.Address) (*types.Transaction, error) {
+	return _RoninValidatorSet.Contract.RequestRevokeCandidate(&_RoninValidatorSet.TransactOpts, _consensusAddr)
 }
 
 // SetMaintenanceContract is a paid mutator transaction binding the contract method 0x46fe9311.
@@ -1040,86 +1311,86 @@ func (_RoninValidatorSet *RoninValidatorSetTransactorSession) SetMaxValidatorCan
 
 // SetMaxValidatorNumber is a paid mutator transaction binding the contract method 0x823a7b9c.
 //
-// Solidity: function setMaxValidatorNumber(uint256 __maxValidatorNumber) returns()
-func (_RoninValidatorSet *RoninValidatorSetTransactor) SetMaxValidatorNumber(opts *bind.TransactOpts, __maxValidatorNumber *big.Int) (*types.Transaction, error) {
-	return _RoninValidatorSet.contract.Transact(opts, "setMaxValidatorNumber", __maxValidatorNumber)
+// Solidity: function setMaxValidatorNumber(uint256 _max) returns()
+func (_RoninValidatorSet *RoninValidatorSetTransactor) SetMaxValidatorNumber(opts *bind.TransactOpts, _max *big.Int) (*types.Transaction, error) {
+	return _RoninValidatorSet.contract.Transact(opts, "setMaxValidatorNumber", _max)
 }
 
 // SetMaxValidatorNumber is a paid mutator transaction binding the contract method 0x823a7b9c.
 //
-// Solidity: function setMaxValidatorNumber(uint256 __maxValidatorNumber) returns()
-func (_RoninValidatorSet *RoninValidatorSetSession) SetMaxValidatorNumber(__maxValidatorNumber *big.Int) (*types.Transaction, error) {
-	return _RoninValidatorSet.Contract.SetMaxValidatorNumber(&_RoninValidatorSet.TransactOpts, __maxValidatorNumber)
+// Solidity: function setMaxValidatorNumber(uint256 _max) returns()
+func (_RoninValidatorSet *RoninValidatorSetSession) SetMaxValidatorNumber(_max *big.Int) (*types.Transaction, error) {
+	return _RoninValidatorSet.Contract.SetMaxValidatorNumber(&_RoninValidatorSet.TransactOpts, _max)
 }
 
 // SetMaxValidatorNumber is a paid mutator transaction binding the contract method 0x823a7b9c.
 //
-// Solidity: function setMaxValidatorNumber(uint256 __maxValidatorNumber) returns()
-func (_RoninValidatorSet *RoninValidatorSetTransactorSession) SetMaxValidatorNumber(__maxValidatorNumber *big.Int) (*types.Transaction, error) {
-	return _RoninValidatorSet.Contract.SetMaxValidatorNumber(&_RoninValidatorSet.TransactOpts, __maxValidatorNumber)
+// Solidity: function setMaxValidatorNumber(uint256 _max) returns()
+func (_RoninValidatorSet *RoninValidatorSetTransactorSession) SetMaxValidatorNumber(_max *big.Int) (*types.Transaction, error) {
+	return _RoninValidatorSet.Contract.SetMaxValidatorNumber(&_RoninValidatorSet.TransactOpts, _max)
 }
 
 // SetNumberOfBlocksInEpoch is a paid mutator transaction binding the contract method 0xd72733fc.
 //
-// Solidity: function setNumberOfBlocksInEpoch(uint256 __numberOfBlocksInEpoch) returns()
-func (_RoninValidatorSet *RoninValidatorSetTransactor) SetNumberOfBlocksInEpoch(opts *bind.TransactOpts, __numberOfBlocksInEpoch *big.Int) (*types.Transaction, error) {
-	return _RoninValidatorSet.contract.Transact(opts, "setNumberOfBlocksInEpoch", __numberOfBlocksInEpoch)
+// Solidity: function setNumberOfBlocksInEpoch(uint256 _number) returns()
+func (_RoninValidatorSet *RoninValidatorSetTransactor) SetNumberOfBlocksInEpoch(opts *bind.TransactOpts, _number *big.Int) (*types.Transaction, error) {
+	return _RoninValidatorSet.contract.Transact(opts, "setNumberOfBlocksInEpoch", _number)
 }
 
 // SetNumberOfBlocksInEpoch is a paid mutator transaction binding the contract method 0xd72733fc.
 //
-// Solidity: function setNumberOfBlocksInEpoch(uint256 __numberOfBlocksInEpoch) returns()
-func (_RoninValidatorSet *RoninValidatorSetSession) SetNumberOfBlocksInEpoch(__numberOfBlocksInEpoch *big.Int) (*types.Transaction, error) {
-	return _RoninValidatorSet.Contract.SetNumberOfBlocksInEpoch(&_RoninValidatorSet.TransactOpts, __numberOfBlocksInEpoch)
+// Solidity: function setNumberOfBlocksInEpoch(uint256 _number) returns()
+func (_RoninValidatorSet *RoninValidatorSetSession) SetNumberOfBlocksInEpoch(_number *big.Int) (*types.Transaction, error) {
+	return _RoninValidatorSet.Contract.SetNumberOfBlocksInEpoch(&_RoninValidatorSet.TransactOpts, _number)
 }
 
 // SetNumberOfBlocksInEpoch is a paid mutator transaction binding the contract method 0xd72733fc.
 //
-// Solidity: function setNumberOfBlocksInEpoch(uint256 __numberOfBlocksInEpoch) returns()
-func (_RoninValidatorSet *RoninValidatorSetTransactorSession) SetNumberOfBlocksInEpoch(__numberOfBlocksInEpoch *big.Int) (*types.Transaction, error) {
-	return _RoninValidatorSet.Contract.SetNumberOfBlocksInEpoch(&_RoninValidatorSet.TransactOpts, __numberOfBlocksInEpoch)
+// Solidity: function setNumberOfBlocksInEpoch(uint256 _number) returns()
+func (_RoninValidatorSet *RoninValidatorSetTransactorSession) SetNumberOfBlocksInEpoch(_number *big.Int) (*types.Transaction, error) {
+	return _RoninValidatorSet.Contract.SetNumberOfBlocksInEpoch(&_RoninValidatorSet.TransactOpts, _number)
 }
 
 // SetNumberOfEpochsInPeriod is a paid mutator transaction binding the contract method 0xd6fa322c.
 //
-// Solidity: function setNumberOfEpochsInPeriod(uint256 __numberOfEpochsInPeriod) returns()
-func (_RoninValidatorSet *RoninValidatorSetTransactor) SetNumberOfEpochsInPeriod(opts *bind.TransactOpts, __numberOfEpochsInPeriod *big.Int) (*types.Transaction, error) {
-	return _RoninValidatorSet.contract.Transact(opts, "setNumberOfEpochsInPeriod", __numberOfEpochsInPeriod)
+// Solidity: function setNumberOfEpochsInPeriod(uint256 _number) returns()
+func (_RoninValidatorSet *RoninValidatorSetTransactor) SetNumberOfEpochsInPeriod(opts *bind.TransactOpts, _number *big.Int) (*types.Transaction, error) {
+	return _RoninValidatorSet.contract.Transact(opts, "setNumberOfEpochsInPeriod", _number)
 }
 
 // SetNumberOfEpochsInPeriod is a paid mutator transaction binding the contract method 0xd6fa322c.
 //
-// Solidity: function setNumberOfEpochsInPeriod(uint256 __numberOfEpochsInPeriod) returns()
-func (_RoninValidatorSet *RoninValidatorSetSession) SetNumberOfEpochsInPeriod(__numberOfEpochsInPeriod *big.Int) (*types.Transaction, error) {
-	return _RoninValidatorSet.Contract.SetNumberOfEpochsInPeriod(&_RoninValidatorSet.TransactOpts, __numberOfEpochsInPeriod)
+// Solidity: function setNumberOfEpochsInPeriod(uint256 _number) returns()
+func (_RoninValidatorSet *RoninValidatorSetSession) SetNumberOfEpochsInPeriod(_number *big.Int) (*types.Transaction, error) {
+	return _RoninValidatorSet.Contract.SetNumberOfEpochsInPeriod(&_RoninValidatorSet.TransactOpts, _number)
 }
 
 // SetNumberOfEpochsInPeriod is a paid mutator transaction binding the contract method 0xd6fa322c.
 //
-// Solidity: function setNumberOfEpochsInPeriod(uint256 __numberOfEpochsInPeriod) returns()
-func (_RoninValidatorSet *RoninValidatorSetTransactorSession) SetNumberOfEpochsInPeriod(__numberOfEpochsInPeriod *big.Int) (*types.Transaction, error) {
-	return _RoninValidatorSet.Contract.SetNumberOfEpochsInPeriod(&_RoninValidatorSet.TransactOpts, __numberOfEpochsInPeriod)
+// Solidity: function setNumberOfEpochsInPeriod(uint256 _number) returns()
+func (_RoninValidatorSet *RoninValidatorSetTransactorSession) SetNumberOfEpochsInPeriod(_number *big.Int) (*types.Transaction, error) {
+	return _RoninValidatorSet.Contract.SetNumberOfEpochsInPeriod(&_RoninValidatorSet.TransactOpts, _number)
 }
 
-// SetPrioritizedAddresses is a paid mutator transaction binding the contract method 0xd33a5ca2.
+// SetRoninTrustedOrganizationContract is a paid mutator transaction binding the contract method 0xb5e337de.
 //
-// Solidity: function setPrioritizedAddresses(address[] _addrs, bool[] _statuses) returns()
-func (_RoninValidatorSet *RoninValidatorSetTransactor) SetPrioritizedAddresses(opts *bind.TransactOpts, _addrs []common.Address, _statuses []bool) (*types.Transaction, error) {
-	return _RoninValidatorSet.contract.Transact(opts, "setPrioritizedAddresses", _addrs, _statuses)
+// Solidity: function setRoninTrustedOrganizationContract(address _addr) returns()
+func (_RoninValidatorSet *RoninValidatorSetTransactor) SetRoninTrustedOrganizationContract(opts *bind.TransactOpts, _addr common.Address) (*types.Transaction, error) {
+	return _RoninValidatorSet.contract.Transact(opts, "setRoninTrustedOrganizationContract", _addr)
 }
 
-// SetPrioritizedAddresses is a paid mutator transaction binding the contract method 0xd33a5ca2.
+// SetRoninTrustedOrganizationContract is a paid mutator transaction binding the contract method 0xb5e337de.
 //
-// Solidity: function setPrioritizedAddresses(address[] _addrs, bool[] _statuses) returns()
-func (_RoninValidatorSet *RoninValidatorSetSession) SetPrioritizedAddresses(_addrs []common.Address, _statuses []bool) (*types.Transaction, error) {
-	return _RoninValidatorSet.Contract.SetPrioritizedAddresses(&_RoninValidatorSet.TransactOpts, _addrs, _statuses)
+// Solidity: function setRoninTrustedOrganizationContract(address _addr) returns()
+func (_RoninValidatorSet *RoninValidatorSetSession) SetRoninTrustedOrganizationContract(_addr common.Address) (*types.Transaction, error) {
+	return _RoninValidatorSet.Contract.SetRoninTrustedOrganizationContract(&_RoninValidatorSet.TransactOpts, _addr)
 }
 
-// SetPrioritizedAddresses is a paid mutator transaction binding the contract method 0xd33a5ca2.
+// SetRoninTrustedOrganizationContract is a paid mutator transaction binding the contract method 0xb5e337de.
 //
-// Solidity: function setPrioritizedAddresses(address[] _addrs, bool[] _statuses) returns()
-func (_RoninValidatorSet *RoninValidatorSetTransactorSession) SetPrioritizedAddresses(_addrs []common.Address, _statuses []bool) (*types.Transaction, error) {
-	return _RoninValidatorSet.Contract.SetPrioritizedAddresses(&_RoninValidatorSet.TransactOpts, _addrs, _statuses)
+// Solidity: function setRoninTrustedOrganizationContract(address _addr) returns()
+func (_RoninValidatorSet *RoninValidatorSetTransactorSession) SetRoninTrustedOrganizationContract(_addr common.Address) (*types.Transaction, error) {
+	return _RoninValidatorSet.Contract.SetRoninTrustedOrganizationContract(&_RoninValidatorSet.TransactOpts, _addr)
 }
 
 // SetSlashIndicatorContract is a paid mutator transaction binding the contract method 0x2bcf3d15.
@@ -1227,27 +1498,6 @@ func (_RoninValidatorSet *RoninValidatorSetTransactorSession) SubmitBlockReward(
 	return _RoninValidatorSet.Contract.SubmitBlockReward(&_RoninValidatorSet.TransactOpts)
 }
 
-// SyncCandidates is a paid mutator transaction binding the contract method 0xde7702fb.
-//
-// Solidity: function syncCandidates() returns(uint256[] _balances)
-func (_RoninValidatorSet *RoninValidatorSetTransactor) SyncCandidates(opts *bind.TransactOpts) (*types.Transaction, error) {
-	return _RoninValidatorSet.contract.Transact(opts, "syncCandidates")
-}
-
-// SyncCandidates is a paid mutator transaction binding the contract method 0xde7702fb.
-//
-// Solidity: function syncCandidates() returns(uint256[] _balances)
-func (_RoninValidatorSet *RoninValidatorSetSession) SyncCandidates() (*types.Transaction, error) {
-	return _RoninValidatorSet.Contract.SyncCandidates(&_RoninValidatorSet.TransactOpts)
-}
-
-// SyncCandidates is a paid mutator transaction binding the contract method 0xde7702fb.
-//
-// Solidity: function syncCandidates() returns(uint256[] _balances)
-func (_RoninValidatorSet *RoninValidatorSetTransactorSession) SyncCandidates() (*types.Transaction, error) {
-	return _RoninValidatorSet.Contract.SyncCandidates(&_RoninValidatorSet.TransactOpts)
-}
-
 // WrapUpEpoch is a paid mutator transaction binding the contract method 0x72e46810.
 //
 // Solidity: function wrapUpEpoch() payable returns()
@@ -1311,9 +1561,9 @@ func (_RoninValidatorSet *RoninValidatorSetTransactorSession) Receive() (*types.
 	return _RoninValidatorSet.Contract.Receive(&_RoninValidatorSet.TransactOpts)
 }
 
-// RoninValidatorSetAddressesPriorityStatusUpdatedIterator is returned from FilterAddressesPriorityStatusUpdated and is used to iterate over the raw logs and unpacked data for AddressesPriorityStatusUpdated events raised by the RoninValidatorSet contract.
-type RoninValidatorSetAddressesPriorityStatusUpdatedIterator struct {
-	Event *RoninValidatorSetAddressesPriorityStatusUpdated // Event containing the contract specifics and raw log
+// RoninValidatorSetActivatedBlockProducersIterator is returned from FilterActivatedBlockProducers and is used to iterate over the raw logs and unpacked data for ActivatedBlockProducers events raised by the RoninValidatorSet contract.
+type RoninValidatorSetActivatedBlockProducersIterator struct {
+	Event *RoninValidatorSetActivatedBlockProducers // Event containing the contract specifics and raw log
 
 	contract *bind.BoundContract // Generic contract to use for unpacking event data
 	event    string              // Event name to use for unpacking event data
@@ -1327,7 +1577,7 @@ type RoninValidatorSetAddressesPriorityStatusUpdatedIterator struct {
 // Next advances the iterator to the subsequent event, returning whether there
 // are any more events found. In case of a retrieval or parsing error, false is
 // returned and Error() can be queried for the exact failure.
-func (it *RoninValidatorSetAddressesPriorityStatusUpdatedIterator) Next() bool {
+func (it *RoninValidatorSetActivatedBlockProducersIterator) Next() bool {
 	// If the iterator failed, stop iterating
 	if it.fail != nil {
 		return false
@@ -1336,7 +1586,7 @@ func (it *RoninValidatorSetAddressesPriorityStatusUpdatedIterator) Next() bool {
 	if it.done {
 		select {
 		case log := <-it.logs:
-			it.Event = new(RoninValidatorSetAddressesPriorityStatusUpdated)
+			it.Event = new(RoninValidatorSetActivatedBlockProducers)
 			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 				it.fail = err
 				return false
@@ -1351,7 +1601,7 @@ func (it *RoninValidatorSetAddressesPriorityStatusUpdatedIterator) Next() bool {
 	// Iterator still in progress, wait for either a data or an error event
 	select {
 	case log := <-it.logs:
-		it.Event = new(RoninValidatorSetAddressesPriorityStatusUpdated)
+		it.Event = new(RoninValidatorSetActivatedBlockProducers)
 		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 			it.fail = err
 			return false
@@ -1367,42 +1617,41 @@ func (it *RoninValidatorSetAddressesPriorityStatusUpdatedIterator) Next() bool {
 }
 
 // Error returns any retrieval or parsing error occurred during filtering.
-func (it *RoninValidatorSetAddressesPriorityStatusUpdatedIterator) Error() error {
+func (it *RoninValidatorSetActivatedBlockProducersIterator) Error() error {
 	return it.fail
 }
 
 // Close terminates the iteration process, releasing any pending underlying
 // resources.
-func (it *RoninValidatorSetAddressesPriorityStatusUpdatedIterator) Close() error {
+func (it *RoninValidatorSetActivatedBlockProducersIterator) Close() error {
 	it.sub.Unsubscribe()
 	return nil
 }
 
-// RoninValidatorSetAddressesPriorityStatusUpdated represents a AddressesPriorityStatusUpdated event raised by the RoninValidatorSet contract.
-type RoninValidatorSetAddressesPriorityStatusUpdated struct {
+// RoninValidatorSetActivatedBlockProducers represents a ActivatedBlockProducers event raised by the RoninValidatorSet contract.
+type RoninValidatorSetActivatedBlockProducers struct {
 	Arg0 []common.Address
-	Arg1 []bool
 	Raw  types.Log // Blockchain specific contextual infos
 }
 
-// FilterAddressesPriorityStatusUpdated is a free log retrieval operation binding the contract event 0xa52c766fffd3af2ed65a8599973f96a0713c68566068cc057ad25cabd88ed466.
+// FilterActivatedBlockProducers is a free log retrieval operation binding the contract event 0x9307bf1890a431face4426a5b2f44e495eb517c00a619442fa31cdb759784cc4.
 //
-// Solidity: event AddressesPriorityStatusUpdated(address[] arg0, bool[] arg1)
-func (_RoninValidatorSet *RoninValidatorSetFilterer) FilterAddressesPriorityStatusUpdated(opts *bind.FilterOpts) (*RoninValidatorSetAddressesPriorityStatusUpdatedIterator, error) {
+// Solidity: event ActivatedBlockProducers(address[] arg0)
+func (_RoninValidatorSet *RoninValidatorSetFilterer) FilterActivatedBlockProducers(opts *bind.FilterOpts) (*RoninValidatorSetActivatedBlockProducersIterator, error) {
 
-	logs, sub, err := _RoninValidatorSet.contract.FilterLogs(opts, "AddressesPriorityStatusUpdated")
+	logs, sub, err := _RoninValidatorSet.contract.FilterLogs(opts, "ActivatedBlockProducers")
 	if err != nil {
 		return nil, err
 	}
-	return &RoninValidatorSetAddressesPriorityStatusUpdatedIterator{contract: _RoninValidatorSet.contract, event: "AddressesPriorityStatusUpdated", logs: logs, sub: sub}, nil
+	return &RoninValidatorSetActivatedBlockProducersIterator{contract: _RoninValidatorSet.contract, event: "ActivatedBlockProducers", logs: logs, sub: sub}, nil
 }
 
-// WatchAddressesPriorityStatusUpdated is a free log subscription operation binding the contract event 0xa52c766fffd3af2ed65a8599973f96a0713c68566068cc057ad25cabd88ed466.
+// WatchActivatedBlockProducers is a free log subscription operation binding the contract event 0x9307bf1890a431face4426a5b2f44e495eb517c00a619442fa31cdb759784cc4.
 //
-// Solidity: event AddressesPriorityStatusUpdated(address[] arg0, bool[] arg1)
-func (_RoninValidatorSet *RoninValidatorSetFilterer) WatchAddressesPriorityStatusUpdated(opts *bind.WatchOpts, sink chan<- *RoninValidatorSetAddressesPriorityStatusUpdated) (event.Subscription, error) {
+// Solidity: event ActivatedBlockProducers(address[] arg0)
+func (_RoninValidatorSet *RoninValidatorSetFilterer) WatchActivatedBlockProducers(opts *bind.WatchOpts, sink chan<- *RoninValidatorSetActivatedBlockProducers) (event.Subscription, error) {
 
-	logs, sub, err := _RoninValidatorSet.contract.WatchLogs(opts, "AddressesPriorityStatusUpdated")
+	logs, sub, err := _RoninValidatorSet.contract.WatchLogs(opts, "ActivatedBlockProducers")
 	if err != nil {
 		return nil, err
 	}
@@ -1412,8 +1661,8 @@ func (_RoninValidatorSet *RoninValidatorSetFilterer) WatchAddressesPriorityStatu
 			select {
 			case log := <-logs:
 				// New log arrived, parse the event and forward to the user
-				event := new(RoninValidatorSetAddressesPriorityStatusUpdated)
-				if err := _RoninValidatorSet.contract.UnpackLog(event, "AddressesPriorityStatusUpdated", log); err != nil {
+				event := new(RoninValidatorSetActivatedBlockProducers)
+				if err := _RoninValidatorSet.contract.UnpackLog(event, "ActivatedBlockProducers", log); err != nil {
 					return err
 				}
 				event.Raw = log
@@ -1434,12 +1683,12 @@ func (_RoninValidatorSet *RoninValidatorSetFilterer) WatchAddressesPriorityStatu
 	}), nil
 }
 
-// ParseAddressesPriorityStatusUpdated is a log parse operation binding the contract event 0xa52c766fffd3af2ed65a8599973f96a0713c68566068cc057ad25cabd88ed466.
+// ParseActivatedBlockProducers is a log parse operation binding the contract event 0x9307bf1890a431face4426a5b2f44e495eb517c00a619442fa31cdb759784cc4.
 //
-// Solidity: event AddressesPriorityStatusUpdated(address[] arg0, bool[] arg1)
-func (_RoninValidatorSet *RoninValidatorSetFilterer) ParseAddressesPriorityStatusUpdated(log types.Log) (*RoninValidatorSetAddressesPriorityStatusUpdated, error) {
-	event := new(RoninValidatorSetAddressesPriorityStatusUpdated)
-	if err := _RoninValidatorSet.contract.UnpackLog(event, "AddressesPriorityStatusUpdated", log); err != nil {
+// Solidity: event ActivatedBlockProducers(address[] arg0)
+func (_RoninValidatorSet *RoninValidatorSetFilterer) ParseActivatedBlockProducers(log types.Log) (*RoninValidatorSetActivatedBlockProducers, error) {
+	event := new(RoninValidatorSetActivatedBlockProducers)
+	if err := _RoninValidatorSet.contract.UnpackLog(event, "ActivatedBlockProducers", log); err != nil {
 		return nil, err
 	}
 	event.Raw = log
@@ -1576,6 +1825,870 @@ func (_RoninValidatorSet *RoninValidatorSetFilterer) WatchBlockRewardSubmitted(o
 func (_RoninValidatorSet *RoninValidatorSetFilterer) ParseBlockRewardSubmitted(log types.Log) (*RoninValidatorSetBlockRewardSubmitted, error) {
 	event := new(RoninValidatorSetBlockRewardSubmitted)
 	if err := _RoninValidatorSet.contract.UnpackLog(event, "BlockRewardSubmitted", log); err != nil {
+		return nil, err
+	}
+	event.Raw = log
+	return event, nil
+}
+
+// RoninValidatorSetBridgeOperatorRewardDistributedIterator is returned from FilterBridgeOperatorRewardDistributed and is used to iterate over the raw logs and unpacked data for BridgeOperatorRewardDistributed events raised by the RoninValidatorSet contract.
+type RoninValidatorSetBridgeOperatorRewardDistributedIterator struct {
+	Event *RoninValidatorSetBridgeOperatorRewardDistributed // Event containing the contract specifics and raw log
+
+	contract *bind.BoundContract // Generic contract to use for unpacking event data
+	event    string              // Event name to use for unpacking event data
+
+	logs chan types.Log        // Log channel receiving the found contract events
+	sub  ethereum.Subscription // Subscription for errors, completion and termination
+	done bool                  // Whether the subscription completed delivering logs
+	fail error                 // Occurred error to stop iteration
+}
+
+// Next advances the iterator to the subsequent event, returning whether there
+// are any more events found. In case of a retrieval or parsing error, false is
+// returned and Error() can be queried for the exact failure.
+func (it *RoninValidatorSetBridgeOperatorRewardDistributedIterator) Next() bool {
+	// If the iterator failed, stop iterating
+	if it.fail != nil {
+		return false
+	}
+	// If the iterator completed, deliver directly whatever's available
+	if it.done {
+		select {
+		case log := <-it.logs:
+			it.Event = new(RoninValidatorSetBridgeOperatorRewardDistributed)
+			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+				it.fail = err
+				return false
+			}
+			it.Event.Raw = log
+			return true
+
+		default:
+			return false
+		}
+	}
+	// Iterator still in progress, wait for either a data or an error event
+	select {
+	case log := <-it.logs:
+		it.Event = new(RoninValidatorSetBridgeOperatorRewardDistributed)
+		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+			it.fail = err
+			return false
+		}
+		it.Event.Raw = log
+		return true
+
+	case err := <-it.sub.Err():
+		it.done = true
+		it.fail = err
+		return it.Next()
+	}
+}
+
+// Error returns any retrieval or parsing error occurred during filtering.
+func (it *RoninValidatorSetBridgeOperatorRewardDistributedIterator) Error() error {
+	return it.fail
+}
+
+// Close terminates the iteration process, releasing any pending underlying
+// resources.
+func (it *RoninValidatorSetBridgeOperatorRewardDistributedIterator) Close() error {
+	it.sub.Unsubscribe()
+	return nil
+}
+
+// RoninValidatorSetBridgeOperatorRewardDistributed represents a BridgeOperatorRewardDistributed event raised by the RoninValidatorSet contract.
+type RoninValidatorSetBridgeOperatorRewardDistributed struct {
+	ValidatorAddr common.Address
+	RecipientAddr common.Address
+	Amount        *big.Int
+	Raw           types.Log // Blockchain specific contextual infos
+}
+
+// FilterBridgeOperatorRewardDistributed is a free log retrieval operation binding the contract event 0x759335cc78fd3c1d411cb025fe4939ad361a9aa27a034b05b5417606b64dee0d.
+//
+// Solidity: event BridgeOperatorRewardDistributed(address indexed validatorAddr, address indexed recipientAddr, uint256 amount)
+func (_RoninValidatorSet *RoninValidatorSetFilterer) FilterBridgeOperatorRewardDistributed(opts *bind.FilterOpts, validatorAddr []common.Address, recipientAddr []common.Address) (*RoninValidatorSetBridgeOperatorRewardDistributedIterator, error) {
+
+	var validatorAddrRule []interface{}
+	for _, validatorAddrItem := range validatorAddr {
+		validatorAddrRule = append(validatorAddrRule, validatorAddrItem)
+	}
+	var recipientAddrRule []interface{}
+	for _, recipientAddrItem := range recipientAddr {
+		recipientAddrRule = append(recipientAddrRule, recipientAddrItem)
+	}
+
+	logs, sub, err := _RoninValidatorSet.contract.FilterLogs(opts, "BridgeOperatorRewardDistributed", validatorAddrRule, recipientAddrRule)
+	if err != nil {
+		return nil, err
+	}
+	return &RoninValidatorSetBridgeOperatorRewardDistributedIterator{contract: _RoninValidatorSet.contract, event: "BridgeOperatorRewardDistributed", logs: logs, sub: sub}, nil
+}
+
+// WatchBridgeOperatorRewardDistributed is a free log subscription operation binding the contract event 0x759335cc78fd3c1d411cb025fe4939ad361a9aa27a034b05b5417606b64dee0d.
+//
+// Solidity: event BridgeOperatorRewardDistributed(address indexed validatorAddr, address indexed recipientAddr, uint256 amount)
+func (_RoninValidatorSet *RoninValidatorSetFilterer) WatchBridgeOperatorRewardDistributed(opts *bind.WatchOpts, sink chan<- *RoninValidatorSetBridgeOperatorRewardDistributed, validatorAddr []common.Address, recipientAddr []common.Address) (event.Subscription, error) {
+
+	var validatorAddrRule []interface{}
+	for _, validatorAddrItem := range validatorAddr {
+		validatorAddrRule = append(validatorAddrRule, validatorAddrItem)
+	}
+	var recipientAddrRule []interface{}
+	for _, recipientAddrItem := range recipientAddr {
+		recipientAddrRule = append(recipientAddrRule, recipientAddrItem)
+	}
+
+	logs, sub, err := _RoninValidatorSet.contract.WatchLogs(opts, "BridgeOperatorRewardDistributed", validatorAddrRule, recipientAddrRule)
+	if err != nil {
+		return nil, err
+	}
+	return event.NewSubscription(func(quit <-chan struct{}) error {
+		defer sub.Unsubscribe()
+		for {
+			select {
+			case log := <-logs:
+				// New log arrived, parse the event and forward to the user
+				event := new(RoninValidatorSetBridgeOperatorRewardDistributed)
+				if err := _RoninValidatorSet.contract.UnpackLog(event, "BridgeOperatorRewardDistributed", log); err != nil {
+					return err
+				}
+				event.Raw = log
+
+				select {
+				case sink <- event:
+				case err := <-sub.Err():
+					return err
+				case <-quit:
+					return nil
+				}
+			case err := <-sub.Err():
+				return err
+			case <-quit:
+				return nil
+			}
+		}
+	}), nil
+}
+
+// ParseBridgeOperatorRewardDistributed is a log parse operation binding the contract event 0x759335cc78fd3c1d411cb025fe4939ad361a9aa27a034b05b5417606b64dee0d.
+//
+// Solidity: event BridgeOperatorRewardDistributed(address indexed validatorAddr, address indexed recipientAddr, uint256 amount)
+func (_RoninValidatorSet *RoninValidatorSetFilterer) ParseBridgeOperatorRewardDistributed(log types.Log) (*RoninValidatorSetBridgeOperatorRewardDistributed, error) {
+	event := new(RoninValidatorSetBridgeOperatorRewardDistributed)
+	if err := _RoninValidatorSet.contract.UnpackLog(event, "BridgeOperatorRewardDistributed", log); err != nil {
+		return nil, err
+	}
+	event.Raw = log
+	return event, nil
+}
+
+// RoninValidatorSetBridgeOperatorSetUpdatedIterator is returned from FilterBridgeOperatorSetUpdated and is used to iterate over the raw logs and unpacked data for BridgeOperatorSetUpdated events raised by the RoninValidatorSet contract.
+type RoninValidatorSetBridgeOperatorSetUpdatedIterator struct {
+	Event *RoninValidatorSetBridgeOperatorSetUpdated // Event containing the contract specifics and raw log
+
+	contract *bind.BoundContract // Generic contract to use for unpacking event data
+	event    string              // Event name to use for unpacking event data
+
+	logs chan types.Log        // Log channel receiving the found contract events
+	sub  ethereum.Subscription // Subscription for errors, completion and termination
+	done bool                  // Whether the subscription completed delivering logs
+	fail error                 // Occurred error to stop iteration
+}
+
+// Next advances the iterator to the subsequent event, returning whether there
+// are any more events found. In case of a retrieval or parsing error, false is
+// returned and Error() can be queried for the exact failure.
+func (it *RoninValidatorSetBridgeOperatorSetUpdatedIterator) Next() bool {
+	// If the iterator failed, stop iterating
+	if it.fail != nil {
+		return false
+	}
+	// If the iterator completed, deliver directly whatever's available
+	if it.done {
+		select {
+		case log := <-it.logs:
+			it.Event = new(RoninValidatorSetBridgeOperatorSetUpdated)
+			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+				it.fail = err
+				return false
+			}
+			it.Event.Raw = log
+			return true
+
+		default:
+			return false
+		}
+	}
+	// Iterator still in progress, wait for either a data or an error event
+	select {
+	case log := <-it.logs:
+		it.Event = new(RoninValidatorSetBridgeOperatorSetUpdated)
+		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+			it.fail = err
+			return false
+		}
+		it.Event.Raw = log
+		return true
+
+	case err := <-it.sub.Err():
+		it.done = true
+		it.fail = err
+		return it.Next()
+	}
+}
+
+// Error returns any retrieval or parsing error occurred during filtering.
+func (it *RoninValidatorSetBridgeOperatorSetUpdatedIterator) Error() error {
+	return it.fail
+}
+
+// Close terminates the iteration process, releasing any pending underlying
+// resources.
+func (it *RoninValidatorSetBridgeOperatorSetUpdatedIterator) Close() error {
+	it.sub.Unsubscribe()
+	return nil
+}
+
+// RoninValidatorSetBridgeOperatorSetUpdated represents a BridgeOperatorSetUpdated event raised by the RoninValidatorSet contract.
+type RoninValidatorSetBridgeOperatorSetUpdated struct {
+	Arg0 []common.Address
+	Raw  types.Log // Blockchain specific contextual infos
+}
+
+// FilterBridgeOperatorSetUpdated is a free log retrieval operation binding the contract event 0xd02544d3ed2ab8b7873f58de9f4c74e2f7acbf743359ec1b2149f951f3abe1bc.
+//
+// Solidity: event BridgeOperatorSetUpdated(address[] arg0)
+func (_RoninValidatorSet *RoninValidatorSetFilterer) FilterBridgeOperatorSetUpdated(opts *bind.FilterOpts) (*RoninValidatorSetBridgeOperatorSetUpdatedIterator, error) {
+
+	logs, sub, err := _RoninValidatorSet.contract.FilterLogs(opts, "BridgeOperatorSetUpdated")
+	if err != nil {
+		return nil, err
+	}
+	return &RoninValidatorSetBridgeOperatorSetUpdatedIterator{contract: _RoninValidatorSet.contract, event: "BridgeOperatorSetUpdated", logs: logs, sub: sub}, nil
+}
+
+// WatchBridgeOperatorSetUpdated is a free log subscription operation binding the contract event 0xd02544d3ed2ab8b7873f58de9f4c74e2f7acbf743359ec1b2149f951f3abe1bc.
+//
+// Solidity: event BridgeOperatorSetUpdated(address[] arg0)
+func (_RoninValidatorSet *RoninValidatorSetFilterer) WatchBridgeOperatorSetUpdated(opts *bind.WatchOpts, sink chan<- *RoninValidatorSetBridgeOperatorSetUpdated) (event.Subscription, error) {
+
+	logs, sub, err := _RoninValidatorSet.contract.WatchLogs(opts, "BridgeOperatorSetUpdated")
+	if err != nil {
+		return nil, err
+	}
+	return event.NewSubscription(func(quit <-chan struct{}) error {
+		defer sub.Unsubscribe()
+		for {
+			select {
+			case log := <-logs:
+				// New log arrived, parse the event and forward to the user
+				event := new(RoninValidatorSetBridgeOperatorSetUpdated)
+				if err := _RoninValidatorSet.contract.UnpackLog(event, "BridgeOperatorSetUpdated", log); err != nil {
+					return err
+				}
+				event.Raw = log
+
+				select {
+				case sink <- event:
+				case err := <-sub.Err():
+					return err
+				case <-quit:
+					return nil
+				}
+			case err := <-sub.Err():
+				return err
+			case <-quit:
+				return nil
+			}
+		}
+	}), nil
+}
+
+// ParseBridgeOperatorSetUpdated is a log parse operation binding the contract event 0xd02544d3ed2ab8b7873f58de9f4c74e2f7acbf743359ec1b2149f951f3abe1bc.
+//
+// Solidity: event BridgeOperatorSetUpdated(address[] arg0)
+func (_RoninValidatorSet *RoninValidatorSetFilterer) ParseBridgeOperatorSetUpdated(log types.Log) (*RoninValidatorSetBridgeOperatorSetUpdated, error) {
+	event := new(RoninValidatorSetBridgeOperatorSetUpdated)
+	if err := _RoninValidatorSet.contract.UnpackLog(event, "BridgeOperatorSetUpdated", log); err != nil {
+		return nil, err
+	}
+	event.Raw = log
+	return event, nil
+}
+
+// RoninValidatorSetCandidateGrantedIterator is returned from FilterCandidateGranted and is used to iterate over the raw logs and unpacked data for CandidateGranted events raised by the RoninValidatorSet contract.
+type RoninValidatorSetCandidateGrantedIterator struct {
+	Event *RoninValidatorSetCandidateGranted // Event containing the contract specifics and raw log
+
+	contract *bind.BoundContract // Generic contract to use for unpacking event data
+	event    string              // Event name to use for unpacking event data
+
+	logs chan types.Log        // Log channel receiving the found contract events
+	sub  ethereum.Subscription // Subscription for errors, completion and termination
+	done bool                  // Whether the subscription completed delivering logs
+	fail error                 // Occurred error to stop iteration
+}
+
+// Next advances the iterator to the subsequent event, returning whether there
+// are any more events found. In case of a retrieval or parsing error, false is
+// returned and Error() can be queried for the exact failure.
+func (it *RoninValidatorSetCandidateGrantedIterator) Next() bool {
+	// If the iterator failed, stop iterating
+	if it.fail != nil {
+		return false
+	}
+	// If the iterator completed, deliver directly whatever's available
+	if it.done {
+		select {
+		case log := <-it.logs:
+			it.Event = new(RoninValidatorSetCandidateGranted)
+			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+				it.fail = err
+				return false
+			}
+			it.Event.Raw = log
+			return true
+
+		default:
+			return false
+		}
+	}
+	// Iterator still in progress, wait for either a data or an error event
+	select {
+	case log := <-it.logs:
+		it.Event = new(RoninValidatorSetCandidateGranted)
+		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+			it.fail = err
+			return false
+		}
+		it.Event.Raw = log
+		return true
+
+	case err := <-it.sub.Err():
+		it.done = true
+		it.fail = err
+		return it.Next()
+	}
+}
+
+// Error returns any retrieval or parsing error occurred during filtering.
+func (it *RoninValidatorSetCandidateGrantedIterator) Error() error {
+	return it.fail
+}
+
+// Close terminates the iteration process, releasing any pending underlying
+// resources.
+func (it *RoninValidatorSetCandidateGrantedIterator) Close() error {
+	it.sub.Unsubscribe()
+	return nil
+}
+
+// RoninValidatorSetCandidateGranted represents a CandidateGranted event raised by the RoninValidatorSet contract.
+type RoninValidatorSetCandidateGranted struct {
+	ConsensusAddr  common.Address
+	TreasuryAddr   common.Address
+	Admin          common.Address
+	BridgeOperator common.Address
+	Raw            types.Log // Blockchain specific contextual infos
+}
+
+// FilterCandidateGranted is a free log retrieval operation binding the contract event 0xd690f592ed983cfbc05717fbcf06c4e10ae328432c309fe49246cf4a4be69fcd.
+//
+// Solidity: event CandidateGranted(address indexed consensusAddr, address indexed treasuryAddr, address indexed admin, address bridgeOperator)
+func (_RoninValidatorSet *RoninValidatorSetFilterer) FilterCandidateGranted(opts *bind.FilterOpts, consensusAddr []common.Address, treasuryAddr []common.Address, admin []common.Address) (*RoninValidatorSetCandidateGrantedIterator, error) {
+
+	var consensusAddrRule []interface{}
+	for _, consensusAddrItem := range consensusAddr {
+		consensusAddrRule = append(consensusAddrRule, consensusAddrItem)
+	}
+	var treasuryAddrRule []interface{}
+	for _, treasuryAddrItem := range treasuryAddr {
+		treasuryAddrRule = append(treasuryAddrRule, treasuryAddrItem)
+	}
+	var adminRule []interface{}
+	for _, adminItem := range admin {
+		adminRule = append(adminRule, adminItem)
+	}
+
+	logs, sub, err := _RoninValidatorSet.contract.FilterLogs(opts, "CandidateGranted", consensusAddrRule, treasuryAddrRule, adminRule)
+	if err != nil {
+		return nil, err
+	}
+	return &RoninValidatorSetCandidateGrantedIterator{contract: _RoninValidatorSet.contract, event: "CandidateGranted", logs: logs, sub: sub}, nil
+}
+
+// WatchCandidateGranted is a free log subscription operation binding the contract event 0xd690f592ed983cfbc05717fbcf06c4e10ae328432c309fe49246cf4a4be69fcd.
+//
+// Solidity: event CandidateGranted(address indexed consensusAddr, address indexed treasuryAddr, address indexed admin, address bridgeOperator)
+func (_RoninValidatorSet *RoninValidatorSetFilterer) WatchCandidateGranted(opts *bind.WatchOpts, sink chan<- *RoninValidatorSetCandidateGranted, consensusAddr []common.Address, treasuryAddr []common.Address, admin []common.Address) (event.Subscription, error) {
+
+	var consensusAddrRule []interface{}
+	for _, consensusAddrItem := range consensusAddr {
+		consensusAddrRule = append(consensusAddrRule, consensusAddrItem)
+	}
+	var treasuryAddrRule []interface{}
+	for _, treasuryAddrItem := range treasuryAddr {
+		treasuryAddrRule = append(treasuryAddrRule, treasuryAddrItem)
+	}
+	var adminRule []interface{}
+	for _, adminItem := range admin {
+		adminRule = append(adminRule, adminItem)
+	}
+
+	logs, sub, err := _RoninValidatorSet.contract.WatchLogs(opts, "CandidateGranted", consensusAddrRule, treasuryAddrRule, adminRule)
+	if err != nil {
+		return nil, err
+	}
+	return event.NewSubscription(func(quit <-chan struct{}) error {
+		defer sub.Unsubscribe()
+		for {
+			select {
+			case log := <-logs:
+				// New log arrived, parse the event and forward to the user
+				event := new(RoninValidatorSetCandidateGranted)
+				if err := _RoninValidatorSet.contract.UnpackLog(event, "CandidateGranted", log); err != nil {
+					return err
+				}
+				event.Raw = log
+
+				select {
+				case sink <- event:
+				case err := <-sub.Err():
+					return err
+				case <-quit:
+					return nil
+				}
+			case err := <-sub.Err():
+				return err
+			case <-quit:
+				return nil
+			}
+		}
+	}), nil
+}
+
+// ParseCandidateGranted is a log parse operation binding the contract event 0xd690f592ed983cfbc05717fbcf06c4e10ae328432c309fe49246cf4a4be69fcd.
+//
+// Solidity: event CandidateGranted(address indexed consensusAddr, address indexed treasuryAddr, address indexed admin, address bridgeOperator)
+func (_RoninValidatorSet *RoninValidatorSetFilterer) ParseCandidateGranted(log types.Log) (*RoninValidatorSetCandidateGranted, error) {
+	event := new(RoninValidatorSetCandidateGranted)
+	if err := _RoninValidatorSet.contract.UnpackLog(event, "CandidateGranted", log); err != nil {
+		return nil, err
+	}
+	event.Raw = log
+	return event, nil
+}
+
+// RoninValidatorSetCandidateRevokedBlockUpdatedIterator is returned from FilterCandidateRevokedBlockUpdated and is used to iterate over the raw logs and unpacked data for CandidateRevokedBlockUpdated events raised by the RoninValidatorSet contract.
+type RoninValidatorSetCandidateRevokedBlockUpdatedIterator struct {
+	Event *RoninValidatorSetCandidateRevokedBlockUpdated // Event containing the contract specifics and raw log
+
+	contract *bind.BoundContract // Generic contract to use for unpacking event data
+	event    string              // Event name to use for unpacking event data
+
+	logs chan types.Log        // Log channel receiving the found contract events
+	sub  ethereum.Subscription // Subscription for errors, completion and termination
+	done bool                  // Whether the subscription completed delivering logs
+	fail error                 // Occurred error to stop iteration
+}
+
+// Next advances the iterator to the subsequent event, returning whether there
+// are any more events found. In case of a retrieval or parsing error, false is
+// returned and Error() can be queried for the exact failure.
+func (it *RoninValidatorSetCandidateRevokedBlockUpdatedIterator) Next() bool {
+	// If the iterator failed, stop iterating
+	if it.fail != nil {
+		return false
+	}
+	// If the iterator completed, deliver directly whatever's available
+	if it.done {
+		select {
+		case log := <-it.logs:
+			it.Event = new(RoninValidatorSetCandidateRevokedBlockUpdated)
+			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+				it.fail = err
+				return false
+			}
+			it.Event.Raw = log
+			return true
+
+		default:
+			return false
+		}
+	}
+	// Iterator still in progress, wait for either a data or an error event
+	select {
+	case log := <-it.logs:
+		it.Event = new(RoninValidatorSetCandidateRevokedBlockUpdated)
+		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+			it.fail = err
+			return false
+		}
+		it.Event.Raw = log
+		return true
+
+	case err := <-it.sub.Err():
+		it.done = true
+		it.fail = err
+		return it.Next()
+	}
+}
+
+// Error returns any retrieval or parsing error occurred during filtering.
+func (it *RoninValidatorSetCandidateRevokedBlockUpdatedIterator) Error() error {
+	return it.fail
+}
+
+// Close terminates the iteration process, releasing any pending underlying
+// resources.
+func (it *RoninValidatorSetCandidateRevokedBlockUpdatedIterator) Close() error {
+	it.sub.Unsubscribe()
+	return nil
+}
+
+// RoninValidatorSetCandidateRevokedBlockUpdated represents a CandidateRevokedBlockUpdated event raised by the RoninValidatorSet contract.
+type RoninValidatorSetCandidateRevokedBlockUpdated struct {
+	ConsensusAddr common.Address
+	RevokedBlock  *big.Int
+	Raw           types.Log // Blockchain specific contextual infos
+}
+
+// FilterCandidateRevokedBlockUpdated is a free log retrieval operation binding the contract event 0x545535563ab82f7251f7c89a29ca70e98b0585607160730f3f91df83e4e7c93d.
+//
+// Solidity: event CandidateRevokedBlockUpdated(address indexed consensusAddr, uint256 revokedBlock)
+func (_RoninValidatorSet *RoninValidatorSetFilterer) FilterCandidateRevokedBlockUpdated(opts *bind.FilterOpts, consensusAddr []common.Address) (*RoninValidatorSetCandidateRevokedBlockUpdatedIterator, error) {
+
+	var consensusAddrRule []interface{}
+	for _, consensusAddrItem := range consensusAddr {
+		consensusAddrRule = append(consensusAddrRule, consensusAddrItem)
+	}
+
+	logs, sub, err := _RoninValidatorSet.contract.FilterLogs(opts, "CandidateRevokedBlockUpdated", consensusAddrRule)
+	if err != nil {
+		return nil, err
+	}
+	return &RoninValidatorSetCandidateRevokedBlockUpdatedIterator{contract: _RoninValidatorSet.contract, event: "CandidateRevokedBlockUpdated", logs: logs, sub: sub}, nil
+}
+
+// WatchCandidateRevokedBlockUpdated is a free log subscription operation binding the contract event 0x545535563ab82f7251f7c89a29ca70e98b0585607160730f3f91df83e4e7c93d.
+//
+// Solidity: event CandidateRevokedBlockUpdated(address indexed consensusAddr, uint256 revokedBlock)
+func (_RoninValidatorSet *RoninValidatorSetFilterer) WatchCandidateRevokedBlockUpdated(opts *bind.WatchOpts, sink chan<- *RoninValidatorSetCandidateRevokedBlockUpdated, consensusAddr []common.Address) (event.Subscription, error) {
+
+	var consensusAddrRule []interface{}
+	for _, consensusAddrItem := range consensusAddr {
+		consensusAddrRule = append(consensusAddrRule, consensusAddrItem)
+	}
+
+	logs, sub, err := _RoninValidatorSet.contract.WatchLogs(opts, "CandidateRevokedBlockUpdated", consensusAddrRule)
+	if err != nil {
+		return nil, err
+	}
+	return event.NewSubscription(func(quit <-chan struct{}) error {
+		defer sub.Unsubscribe()
+		for {
+			select {
+			case log := <-logs:
+				// New log arrived, parse the event and forward to the user
+				event := new(RoninValidatorSetCandidateRevokedBlockUpdated)
+				if err := _RoninValidatorSet.contract.UnpackLog(event, "CandidateRevokedBlockUpdated", log); err != nil {
+					return err
+				}
+				event.Raw = log
+
+				select {
+				case sink <- event:
+				case err := <-sub.Err():
+					return err
+				case <-quit:
+					return nil
+				}
+			case err := <-sub.Err():
+				return err
+			case <-quit:
+				return nil
+			}
+		}
+	}), nil
+}
+
+// ParseCandidateRevokedBlockUpdated is a log parse operation binding the contract event 0x545535563ab82f7251f7c89a29ca70e98b0585607160730f3f91df83e4e7c93d.
+//
+// Solidity: event CandidateRevokedBlockUpdated(address indexed consensusAddr, uint256 revokedBlock)
+func (_RoninValidatorSet *RoninValidatorSetFilterer) ParseCandidateRevokedBlockUpdated(log types.Log) (*RoninValidatorSetCandidateRevokedBlockUpdated, error) {
+	event := new(RoninValidatorSetCandidateRevokedBlockUpdated)
+	if err := _RoninValidatorSet.contract.UnpackLog(event, "CandidateRevokedBlockUpdated", log); err != nil {
+		return nil, err
+	}
+	event.Raw = log
+	return event, nil
+}
+
+// RoninValidatorSetCandidatesRevokedIterator is returned from FilterCandidatesRevoked and is used to iterate over the raw logs and unpacked data for CandidatesRevoked events raised by the RoninValidatorSet contract.
+type RoninValidatorSetCandidatesRevokedIterator struct {
+	Event *RoninValidatorSetCandidatesRevoked // Event containing the contract specifics and raw log
+
+	contract *bind.BoundContract // Generic contract to use for unpacking event data
+	event    string              // Event name to use for unpacking event data
+
+	logs chan types.Log        // Log channel receiving the found contract events
+	sub  ethereum.Subscription // Subscription for errors, completion and termination
+	done bool                  // Whether the subscription completed delivering logs
+	fail error                 // Occurred error to stop iteration
+}
+
+// Next advances the iterator to the subsequent event, returning whether there
+// are any more events found. In case of a retrieval or parsing error, false is
+// returned and Error() can be queried for the exact failure.
+func (it *RoninValidatorSetCandidatesRevokedIterator) Next() bool {
+	// If the iterator failed, stop iterating
+	if it.fail != nil {
+		return false
+	}
+	// If the iterator completed, deliver directly whatever's available
+	if it.done {
+		select {
+		case log := <-it.logs:
+			it.Event = new(RoninValidatorSetCandidatesRevoked)
+			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+				it.fail = err
+				return false
+			}
+			it.Event.Raw = log
+			return true
+
+		default:
+			return false
+		}
+	}
+	// Iterator still in progress, wait for either a data or an error event
+	select {
+	case log := <-it.logs:
+		it.Event = new(RoninValidatorSetCandidatesRevoked)
+		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+			it.fail = err
+			return false
+		}
+		it.Event.Raw = log
+		return true
+
+	case err := <-it.sub.Err():
+		it.done = true
+		it.fail = err
+		return it.Next()
+	}
+}
+
+// Error returns any retrieval or parsing error occurred during filtering.
+func (it *RoninValidatorSetCandidatesRevokedIterator) Error() error {
+	return it.fail
+}
+
+// Close terminates the iteration process, releasing any pending underlying
+// resources.
+func (it *RoninValidatorSetCandidatesRevokedIterator) Close() error {
+	it.sub.Unsubscribe()
+	return nil
+}
+
+// RoninValidatorSetCandidatesRevoked represents a CandidatesRevoked event raised by the RoninValidatorSet contract.
+type RoninValidatorSetCandidatesRevoked struct {
+	ConsensusAddrs []common.Address
+	Raw            types.Log // Blockchain specific contextual infos
+}
+
+// FilterCandidatesRevoked is a free log retrieval operation binding the contract event 0x4eaf233b9dc25a5552c1927feee1412eea69add17c2485c831c2e60e234f3c91.
+//
+// Solidity: event CandidatesRevoked(address[] consensusAddrs)
+func (_RoninValidatorSet *RoninValidatorSetFilterer) FilterCandidatesRevoked(opts *bind.FilterOpts) (*RoninValidatorSetCandidatesRevokedIterator, error) {
+
+	logs, sub, err := _RoninValidatorSet.contract.FilterLogs(opts, "CandidatesRevoked")
+	if err != nil {
+		return nil, err
+	}
+	return &RoninValidatorSetCandidatesRevokedIterator{contract: _RoninValidatorSet.contract, event: "CandidatesRevoked", logs: logs, sub: sub}, nil
+}
+
+// WatchCandidatesRevoked is a free log subscription operation binding the contract event 0x4eaf233b9dc25a5552c1927feee1412eea69add17c2485c831c2e60e234f3c91.
+//
+// Solidity: event CandidatesRevoked(address[] consensusAddrs)
+func (_RoninValidatorSet *RoninValidatorSetFilterer) WatchCandidatesRevoked(opts *bind.WatchOpts, sink chan<- *RoninValidatorSetCandidatesRevoked) (event.Subscription, error) {
+
+	logs, sub, err := _RoninValidatorSet.contract.WatchLogs(opts, "CandidatesRevoked")
+	if err != nil {
+		return nil, err
+	}
+	return event.NewSubscription(func(quit <-chan struct{}) error {
+		defer sub.Unsubscribe()
+		for {
+			select {
+			case log := <-logs:
+				// New log arrived, parse the event and forward to the user
+				event := new(RoninValidatorSetCandidatesRevoked)
+				if err := _RoninValidatorSet.contract.UnpackLog(event, "CandidatesRevoked", log); err != nil {
+					return err
+				}
+				event.Raw = log
+
+				select {
+				case sink <- event:
+				case err := <-sub.Err():
+					return err
+				case <-quit:
+					return nil
+				}
+			case err := <-sub.Err():
+				return err
+			case <-quit:
+				return nil
+			}
+		}
+	}), nil
+}
+
+// ParseCandidatesRevoked is a log parse operation binding the contract event 0x4eaf233b9dc25a5552c1927feee1412eea69add17c2485c831c2e60e234f3c91.
+//
+// Solidity: event CandidatesRevoked(address[] consensusAddrs)
+func (_RoninValidatorSet *RoninValidatorSetFilterer) ParseCandidatesRevoked(log types.Log) (*RoninValidatorSetCandidatesRevoked, error) {
+	event := new(RoninValidatorSetCandidatesRevoked)
+	if err := _RoninValidatorSet.contract.UnpackLog(event, "CandidatesRevoked", log); err != nil {
+		return nil, err
+	}
+	event.Raw = log
+	return event, nil
+}
+
+// RoninValidatorSetDeactivatedBlockProducersIterator is returned from FilterDeactivatedBlockProducers and is used to iterate over the raw logs and unpacked data for DeactivatedBlockProducers events raised by the RoninValidatorSet contract.
+type RoninValidatorSetDeactivatedBlockProducersIterator struct {
+	Event *RoninValidatorSetDeactivatedBlockProducers // Event containing the contract specifics and raw log
+
+	contract *bind.BoundContract // Generic contract to use for unpacking event data
+	event    string              // Event name to use for unpacking event data
+
+	logs chan types.Log        // Log channel receiving the found contract events
+	sub  ethereum.Subscription // Subscription for errors, completion and termination
+	done bool                  // Whether the subscription completed delivering logs
+	fail error                 // Occurred error to stop iteration
+}
+
+// Next advances the iterator to the subsequent event, returning whether there
+// are any more events found. In case of a retrieval or parsing error, false is
+// returned and Error() can be queried for the exact failure.
+func (it *RoninValidatorSetDeactivatedBlockProducersIterator) Next() bool {
+	// If the iterator failed, stop iterating
+	if it.fail != nil {
+		return false
+	}
+	// If the iterator completed, deliver directly whatever's available
+	if it.done {
+		select {
+		case log := <-it.logs:
+			it.Event = new(RoninValidatorSetDeactivatedBlockProducers)
+			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+				it.fail = err
+				return false
+			}
+			it.Event.Raw = log
+			return true
+
+		default:
+			return false
+		}
+	}
+	// Iterator still in progress, wait for either a data or an error event
+	select {
+	case log := <-it.logs:
+		it.Event = new(RoninValidatorSetDeactivatedBlockProducers)
+		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+			it.fail = err
+			return false
+		}
+		it.Event.Raw = log
+		return true
+
+	case err := <-it.sub.Err():
+		it.done = true
+		it.fail = err
+		return it.Next()
+	}
+}
+
+// Error returns any retrieval or parsing error occurred during filtering.
+func (it *RoninValidatorSetDeactivatedBlockProducersIterator) Error() error {
+	return it.fail
+}
+
+// Close terminates the iteration process, releasing any pending underlying
+// resources.
+func (it *RoninValidatorSetDeactivatedBlockProducersIterator) Close() error {
+	it.sub.Unsubscribe()
+	return nil
+}
+
+// RoninValidatorSetDeactivatedBlockProducers represents a DeactivatedBlockProducers event raised by the RoninValidatorSet contract.
+type RoninValidatorSetDeactivatedBlockProducers struct {
+	Arg0 []common.Address
+	Raw  types.Log // Blockchain specific contextual infos
+}
+
+// FilterDeactivatedBlockProducers is a free log retrieval operation binding the contract event 0x4a3f040d4146a5995b5d4bbbb30faaf9b89e3afaeaa5cb15f6e66894ea108e78.
+//
+// Solidity: event DeactivatedBlockProducers(address[] arg0)
+func (_RoninValidatorSet *RoninValidatorSetFilterer) FilterDeactivatedBlockProducers(opts *bind.FilterOpts) (*RoninValidatorSetDeactivatedBlockProducersIterator, error) {
+
+	logs, sub, err := _RoninValidatorSet.contract.FilterLogs(opts, "DeactivatedBlockProducers")
+	if err != nil {
+		return nil, err
+	}
+	return &RoninValidatorSetDeactivatedBlockProducersIterator{contract: _RoninValidatorSet.contract, event: "DeactivatedBlockProducers", logs: logs, sub: sub}, nil
+}
+
+// WatchDeactivatedBlockProducers is a free log subscription operation binding the contract event 0x4a3f040d4146a5995b5d4bbbb30faaf9b89e3afaeaa5cb15f6e66894ea108e78.
+//
+// Solidity: event DeactivatedBlockProducers(address[] arg0)
+func (_RoninValidatorSet *RoninValidatorSetFilterer) WatchDeactivatedBlockProducers(opts *bind.WatchOpts, sink chan<- *RoninValidatorSetDeactivatedBlockProducers) (event.Subscription, error) {
+
+	logs, sub, err := _RoninValidatorSet.contract.WatchLogs(opts, "DeactivatedBlockProducers")
+	if err != nil {
+		return nil, err
+	}
+	return event.NewSubscription(func(quit <-chan struct{}) error {
+		defer sub.Unsubscribe()
+		for {
+			select {
+			case log := <-logs:
+				// New log arrived, parse the event and forward to the user
+				event := new(RoninValidatorSetDeactivatedBlockProducers)
+				if err := _RoninValidatorSet.contract.UnpackLog(event, "DeactivatedBlockProducers", log); err != nil {
+					return err
+				}
+				event.Raw = log
+
+				select {
+				case sink <- event:
+				case err := <-sub.Err():
+					return err
+				case <-quit:
+					return nil
+				}
+			case err := <-sub.Err():
+				return err
+			case <-quit:
+				return nil
+			}
+		}
+	}), nil
+}
+
+// ParseDeactivatedBlockProducers is a log parse operation binding the contract event 0x4a3f040d4146a5995b5d4bbbb30faaf9b89e3afaeaa5cb15f6e66894ea108e78.
+//
+// Solidity: event DeactivatedBlockProducers(address[] arg0)
+func (_RoninValidatorSet *RoninValidatorSetFilterer) ParseDeactivatedBlockProducers(log types.Log) (*RoninValidatorSetDeactivatedBlockProducers, error) {
+	event := new(RoninValidatorSetDeactivatedBlockProducers)
+	if err := _RoninValidatorSet.contract.UnpackLog(event, "DeactivatedBlockProducers", log); err != nil {
 		return nil, err
 	}
 	event.Raw = log
@@ -2322,28 +3435,47 @@ func (it *RoninValidatorSetMiningRewardDistributedIterator) Close() error {
 // RoninValidatorSetMiningRewardDistributed represents a MiningRewardDistributed event raised by the RoninValidatorSet contract.
 type RoninValidatorSetMiningRewardDistributed struct {
 	ValidatorAddr common.Address
+	RecipientAddr common.Address
 	Amount        *big.Int
 	Raw           types.Log // Blockchain specific contextual infos
 }
 
-// FilterMiningRewardDistributed is a free log retrieval operation binding the contract event 0x9bae506d1374d366cdfa60105473d52dfdbaaae60e55de77bf6ee07f2add0cfb.
+// FilterMiningRewardDistributed is a free log retrieval operation binding the contract event 0x1ce7a1c4702402cd393500acb1de5bd927727a54e144a587d328f1b679abe4ec.
 //
-// Solidity: event MiningRewardDistributed(address validatorAddr, uint256 amount)
-func (_RoninValidatorSet *RoninValidatorSetFilterer) FilterMiningRewardDistributed(opts *bind.FilterOpts) (*RoninValidatorSetMiningRewardDistributedIterator, error) {
+// Solidity: event MiningRewardDistributed(address indexed validatorAddr, address indexed recipientAddr, uint256 amount)
+func (_RoninValidatorSet *RoninValidatorSetFilterer) FilterMiningRewardDistributed(opts *bind.FilterOpts, validatorAddr []common.Address, recipientAddr []common.Address) (*RoninValidatorSetMiningRewardDistributedIterator, error) {
 
-	logs, sub, err := _RoninValidatorSet.contract.FilterLogs(opts, "MiningRewardDistributed")
+	var validatorAddrRule []interface{}
+	for _, validatorAddrItem := range validatorAddr {
+		validatorAddrRule = append(validatorAddrRule, validatorAddrItem)
+	}
+	var recipientAddrRule []interface{}
+	for _, recipientAddrItem := range recipientAddr {
+		recipientAddrRule = append(recipientAddrRule, recipientAddrItem)
+	}
+
+	logs, sub, err := _RoninValidatorSet.contract.FilterLogs(opts, "MiningRewardDistributed", validatorAddrRule, recipientAddrRule)
 	if err != nil {
 		return nil, err
 	}
 	return &RoninValidatorSetMiningRewardDistributedIterator{contract: _RoninValidatorSet.contract, event: "MiningRewardDistributed", logs: logs, sub: sub}, nil
 }
 
-// WatchMiningRewardDistributed is a free log subscription operation binding the contract event 0x9bae506d1374d366cdfa60105473d52dfdbaaae60e55de77bf6ee07f2add0cfb.
+// WatchMiningRewardDistributed is a free log subscription operation binding the contract event 0x1ce7a1c4702402cd393500acb1de5bd927727a54e144a587d328f1b679abe4ec.
 //
-// Solidity: event MiningRewardDistributed(address validatorAddr, uint256 amount)
-func (_RoninValidatorSet *RoninValidatorSetFilterer) WatchMiningRewardDistributed(opts *bind.WatchOpts, sink chan<- *RoninValidatorSetMiningRewardDistributed) (event.Subscription, error) {
+// Solidity: event MiningRewardDistributed(address indexed validatorAddr, address indexed recipientAddr, uint256 amount)
+func (_RoninValidatorSet *RoninValidatorSetFilterer) WatchMiningRewardDistributed(opts *bind.WatchOpts, sink chan<- *RoninValidatorSetMiningRewardDistributed, validatorAddr []common.Address, recipientAddr []common.Address) (event.Subscription, error) {
 
-	logs, sub, err := _RoninValidatorSet.contract.WatchLogs(opts, "MiningRewardDistributed")
+	var validatorAddrRule []interface{}
+	for _, validatorAddrItem := range validatorAddr {
+		validatorAddrRule = append(validatorAddrRule, validatorAddrItem)
+	}
+	var recipientAddrRule []interface{}
+	for _, recipientAddrItem := range recipientAddr {
+		recipientAddrRule = append(recipientAddrRule, recipientAddrItem)
+	}
+
+	logs, sub, err := _RoninValidatorSet.contract.WatchLogs(opts, "MiningRewardDistributed", validatorAddrRule, recipientAddrRule)
 	if err != nil {
 		return nil, err
 	}
@@ -2375,9 +3507,9 @@ func (_RoninValidatorSet *RoninValidatorSetFilterer) WatchMiningRewardDistribute
 	}), nil
 }
 
-// ParseMiningRewardDistributed is a log parse operation binding the contract event 0x9bae506d1374d366cdfa60105473d52dfdbaaae60e55de77bf6ee07f2add0cfb.
+// ParseMiningRewardDistributed is a log parse operation binding the contract event 0x1ce7a1c4702402cd393500acb1de5bd927727a54e144a587d328f1b679abe4ec.
 //
-// Solidity: event MiningRewardDistributed(address validatorAddr, uint256 amount)
+// Solidity: event MiningRewardDistributed(address indexed validatorAddr, address indexed recipientAddr, uint256 amount)
 func (_RoninValidatorSet *RoninValidatorSetFilterer) ParseMiningRewardDistributed(log types.Log) (*RoninValidatorSetMiningRewardDistributed, error) {
 	event := new(RoninValidatorSetMiningRewardDistributed)
 	if err := _RoninValidatorSet.contract.UnpackLog(event, "MiningRewardDistributed", log); err != nil {
@@ -2784,6 +3916,140 @@ func (_RoninValidatorSet *RoninValidatorSetFilterer) WatchRewardDeprecated(opts 
 func (_RoninValidatorSet *RoninValidatorSetFilterer) ParseRewardDeprecated(log types.Log) (*RoninValidatorSetRewardDeprecated, error) {
 	event := new(RoninValidatorSetRewardDeprecated)
 	if err := _RoninValidatorSet.contract.UnpackLog(event, "RewardDeprecated", log); err != nil {
+		return nil, err
+	}
+	event.Raw = log
+	return event, nil
+}
+
+// RoninValidatorSetRoninTrustedOrganizationContractUpdatedIterator is returned from FilterRoninTrustedOrganizationContractUpdated and is used to iterate over the raw logs and unpacked data for RoninTrustedOrganizationContractUpdated events raised by the RoninValidatorSet contract.
+type RoninValidatorSetRoninTrustedOrganizationContractUpdatedIterator struct {
+	Event *RoninValidatorSetRoninTrustedOrganizationContractUpdated // Event containing the contract specifics and raw log
+
+	contract *bind.BoundContract // Generic contract to use for unpacking event data
+	event    string              // Event name to use for unpacking event data
+
+	logs chan types.Log        // Log channel receiving the found contract events
+	sub  ethereum.Subscription // Subscription for errors, completion and termination
+	done bool                  // Whether the subscription completed delivering logs
+	fail error                 // Occurred error to stop iteration
+}
+
+// Next advances the iterator to the subsequent event, returning whether there
+// are any more events found. In case of a retrieval or parsing error, false is
+// returned and Error() can be queried for the exact failure.
+func (it *RoninValidatorSetRoninTrustedOrganizationContractUpdatedIterator) Next() bool {
+	// If the iterator failed, stop iterating
+	if it.fail != nil {
+		return false
+	}
+	// If the iterator completed, deliver directly whatever's available
+	if it.done {
+		select {
+		case log := <-it.logs:
+			it.Event = new(RoninValidatorSetRoninTrustedOrganizationContractUpdated)
+			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+				it.fail = err
+				return false
+			}
+			it.Event.Raw = log
+			return true
+
+		default:
+			return false
+		}
+	}
+	// Iterator still in progress, wait for either a data or an error event
+	select {
+	case log := <-it.logs:
+		it.Event = new(RoninValidatorSetRoninTrustedOrganizationContractUpdated)
+		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+			it.fail = err
+			return false
+		}
+		it.Event.Raw = log
+		return true
+
+	case err := <-it.sub.Err():
+		it.done = true
+		it.fail = err
+		return it.Next()
+	}
+}
+
+// Error returns any retrieval or parsing error occurred during filtering.
+func (it *RoninValidatorSetRoninTrustedOrganizationContractUpdatedIterator) Error() error {
+	return it.fail
+}
+
+// Close terminates the iteration process, releasing any pending underlying
+// resources.
+func (it *RoninValidatorSetRoninTrustedOrganizationContractUpdatedIterator) Close() error {
+	it.sub.Unsubscribe()
+	return nil
+}
+
+// RoninValidatorSetRoninTrustedOrganizationContractUpdated represents a RoninTrustedOrganizationContractUpdated event raised by the RoninValidatorSet contract.
+type RoninValidatorSetRoninTrustedOrganizationContractUpdated struct {
+	Arg0 common.Address
+	Raw  types.Log // Blockchain specific contextual infos
+}
+
+// FilterRoninTrustedOrganizationContractUpdated is a free log retrieval operation binding the contract event 0xfd6f5f93d69a07c593a09be0b208bff13ab4ffd6017df3b33433d63bdc59b4d7.
+//
+// Solidity: event RoninTrustedOrganizationContractUpdated(address arg0)
+func (_RoninValidatorSet *RoninValidatorSetFilterer) FilterRoninTrustedOrganizationContractUpdated(opts *bind.FilterOpts) (*RoninValidatorSetRoninTrustedOrganizationContractUpdatedIterator, error) {
+
+	logs, sub, err := _RoninValidatorSet.contract.FilterLogs(opts, "RoninTrustedOrganizationContractUpdated")
+	if err != nil {
+		return nil, err
+	}
+	return &RoninValidatorSetRoninTrustedOrganizationContractUpdatedIterator{contract: _RoninValidatorSet.contract, event: "RoninTrustedOrganizationContractUpdated", logs: logs, sub: sub}, nil
+}
+
+// WatchRoninTrustedOrganizationContractUpdated is a free log subscription operation binding the contract event 0xfd6f5f93d69a07c593a09be0b208bff13ab4ffd6017df3b33433d63bdc59b4d7.
+//
+// Solidity: event RoninTrustedOrganizationContractUpdated(address arg0)
+func (_RoninValidatorSet *RoninValidatorSetFilterer) WatchRoninTrustedOrganizationContractUpdated(opts *bind.WatchOpts, sink chan<- *RoninValidatorSetRoninTrustedOrganizationContractUpdated) (event.Subscription, error) {
+
+	logs, sub, err := _RoninValidatorSet.contract.WatchLogs(opts, "RoninTrustedOrganizationContractUpdated")
+	if err != nil {
+		return nil, err
+	}
+	return event.NewSubscription(func(quit <-chan struct{}) error {
+		defer sub.Unsubscribe()
+		for {
+			select {
+			case log := <-logs:
+				// New log arrived, parse the event and forward to the user
+				event := new(RoninValidatorSetRoninTrustedOrganizationContractUpdated)
+				if err := _RoninValidatorSet.contract.UnpackLog(event, "RoninTrustedOrganizationContractUpdated", log); err != nil {
+					return err
+				}
+				event.Raw = log
+
+				select {
+				case sink <- event:
+				case err := <-sub.Err():
+					return err
+				case <-quit:
+					return nil
+				}
+			case err := <-sub.Err():
+				return err
+			case <-quit:
+				return nil
+			}
+		}
+	}), nil
+}
+
+// ParseRoninTrustedOrganizationContractUpdated is a log parse operation binding the contract event 0xfd6f5f93d69a07c593a09be0b208bff13ab4ffd6017df3b33433d63bdc59b4d7.
+//
+// Solidity: event RoninTrustedOrganizationContractUpdated(address arg0)
+func (_RoninValidatorSet *RoninValidatorSetFilterer) ParseRoninTrustedOrganizationContractUpdated(log types.Log) (*RoninValidatorSetRoninTrustedOrganizationContractUpdated, error) {
+	event := new(RoninValidatorSetRoninTrustedOrganizationContractUpdated)
+	if err := _RoninValidatorSet.contract.UnpackLog(event, "RoninTrustedOrganizationContractUpdated", log); err != nil {
 		return nil, err
 	}
 	event.Raw = log
@@ -3326,312 +4592,6 @@ func (_RoninValidatorSet *RoninValidatorSetFilterer) ParseStakingVestingContract
 	return event, nil
 }
 
-// RoninValidatorSetValidatorCandidateAddedIterator is returned from FilterValidatorCandidateAdded and is used to iterate over the raw logs and unpacked data for ValidatorCandidateAdded events raised by the RoninValidatorSet contract.
-type RoninValidatorSetValidatorCandidateAddedIterator struct {
-	Event *RoninValidatorSetValidatorCandidateAdded // Event containing the contract specifics and raw log
-
-	contract *bind.BoundContract // Generic contract to use for unpacking event data
-	event    string              // Event name to use for unpacking event data
-
-	logs chan types.Log        // Log channel receiving the found contract events
-	sub  ethereum.Subscription // Subscription for errors, completion and termination
-	done bool                  // Whether the subscription completed delivering logs
-	fail error                 // Occurred error to stop iteration
-}
-
-// Next advances the iterator to the subsequent event, returning whether there
-// are any more events found. In case of a retrieval or parsing error, false is
-// returned and Error() can be queried for the exact failure.
-func (it *RoninValidatorSetValidatorCandidateAddedIterator) Next() bool {
-	// If the iterator failed, stop iterating
-	if it.fail != nil {
-		return false
-	}
-	// If the iterator completed, deliver directly whatever's available
-	if it.done {
-		select {
-		case log := <-it.logs:
-			it.Event = new(RoninValidatorSetValidatorCandidateAdded)
-			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
-				it.fail = err
-				return false
-			}
-			it.Event.Raw = log
-			return true
-
-		default:
-			return false
-		}
-	}
-	// Iterator still in progress, wait for either a data or an error event
-	select {
-	case log := <-it.logs:
-		it.Event = new(RoninValidatorSetValidatorCandidateAdded)
-		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
-			it.fail = err
-			return false
-		}
-		it.Event.Raw = log
-		return true
-
-	case err := <-it.sub.Err():
-		it.done = true
-		it.fail = err
-		return it.Next()
-	}
-}
-
-// Error returns any retrieval or parsing error occurred during filtering.
-func (it *RoninValidatorSetValidatorCandidateAddedIterator) Error() error {
-	return it.fail
-}
-
-// Close terminates the iteration process, releasing any pending underlying
-// resources.
-func (it *RoninValidatorSetValidatorCandidateAddedIterator) Close() error {
-	it.sub.Unsubscribe()
-	return nil
-}
-
-// RoninValidatorSetValidatorCandidateAdded represents a ValidatorCandidateAdded event raised by the RoninValidatorSet contract.
-type RoninValidatorSetValidatorCandidateAdded struct {
-	ConsensusAddr common.Address
-	TreasuryAddr  common.Address
-	CandidateIdx  *big.Int
-	Raw           types.Log // Blockchain specific contextual infos
-}
-
-// FilterValidatorCandidateAdded is a free log retrieval operation binding the contract event 0x5ea0ccc37694ce2ce1e44e06663c8caff77c1ec661d991e2ece3a6195f879acf.
-//
-// Solidity: event ValidatorCandidateAdded(address indexed consensusAddr, address indexed treasuryAddr, uint256 indexed candidateIdx)
-func (_RoninValidatorSet *RoninValidatorSetFilterer) FilterValidatorCandidateAdded(opts *bind.FilterOpts, consensusAddr []common.Address, treasuryAddr []common.Address, candidateIdx []*big.Int) (*RoninValidatorSetValidatorCandidateAddedIterator, error) {
-
-	var consensusAddrRule []interface{}
-	for _, consensusAddrItem := range consensusAddr {
-		consensusAddrRule = append(consensusAddrRule, consensusAddrItem)
-	}
-	var treasuryAddrRule []interface{}
-	for _, treasuryAddrItem := range treasuryAddr {
-		treasuryAddrRule = append(treasuryAddrRule, treasuryAddrItem)
-	}
-	var candidateIdxRule []interface{}
-	for _, candidateIdxItem := range candidateIdx {
-		candidateIdxRule = append(candidateIdxRule, candidateIdxItem)
-	}
-
-	logs, sub, err := _RoninValidatorSet.contract.FilterLogs(opts, "ValidatorCandidateAdded", consensusAddrRule, treasuryAddrRule, candidateIdxRule)
-	if err != nil {
-		return nil, err
-	}
-	return &RoninValidatorSetValidatorCandidateAddedIterator{contract: _RoninValidatorSet.contract, event: "ValidatorCandidateAdded", logs: logs, sub: sub}, nil
-}
-
-// WatchValidatorCandidateAdded is a free log subscription operation binding the contract event 0x5ea0ccc37694ce2ce1e44e06663c8caff77c1ec661d991e2ece3a6195f879acf.
-//
-// Solidity: event ValidatorCandidateAdded(address indexed consensusAddr, address indexed treasuryAddr, uint256 indexed candidateIdx)
-func (_RoninValidatorSet *RoninValidatorSetFilterer) WatchValidatorCandidateAdded(opts *bind.WatchOpts, sink chan<- *RoninValidatorSetValidatorCandidateAdded, consensusAddr []common.Address, treasuryAddr []common.Address, candidateIdx []*big.Int) (event.Subscription, error) {
-
-	var consensusAddrRule []interface{}
-	for _, consensusAddrItem := range consensusAddr {
-		consensusAddrRule = append(consensusAddrRule, consensusAddrItem)
-	}
-	var treasuryAddrRule []interface{}
-	for _, treasuryAddrItem := range treasuryAddr {
-		treasuryAddrRule = append(treasuryAddrRule, treasuryAddrItem)
-	}
-	var candidateIdxRule []interface{}
-	for _, candidateIdxItem := range candidateIdx {
-		candidateIdxRule = append(candidateIdxRule, candidateIdxItem)
-	}
-
-	logs, sub, err := _RoninValidatorSet.contract.WatchLogs(opts, "ValidatorCandidateAdded", consensusAddrRule, treasuryAddrRule, candidateIdxRule)
-	if err != nil {
-		return nil, err
-	}
-	return event.NewSubscription(func(quit <-chan struct{}) error {
-		defer sub.Unsubscribe()
-		for {
-			select {
-			case log := <-logs:
-				// New log arrived, parse the event and forward to the user
-				event := new(RoninValidatorSetValidatorCandidateAdded)
-				if err := _RoninValidatorSet.contract.UnpackLog(event, "ValidatorCandidateAdded", log); err != nil {
-					return err
-				}
-				event.Raw = log
-
-				select {
-				case sink <- event:
-				case err := <-sub.Err():
-					return err
-				case <-quit:
-					return nil
-				}
-			case err := <-sub.Err():
-				return err
-			case <-quit:
-				return nil
-			}
-		}
-	}), nil
-}
-
-// ParseValidatorCandidateAdded is a log parse operation binding the contract event 0x5ea0ccc37694ce2ce1e44e06663c8caff77c1ec661d991e2ece3a6195f879acf.
-//
-// Solidity: event ValidatorCandidateAdded(address indexed consensusAddr, address indexed treasuryAddr, uint256 indexed candidateIdx)
-func (_RoninValidatorSet *RoninValidatorSetFilterer) ParseValidatorCandidateAdded(log types.Log) (*RoninValidatorSetValidatorCandidateAdded, error) {
-	event := new(RoninValidatorSetValidatorCandidateAdded)
-	if err := _RoninValidatorSet.contract.UnpackLog(event, "ValidatorCandidateAdded", log); err != nil {
-		return nil, err
-	}
-	event.Raw = log
-	return event, nil
-}
-
-// RoninValidatorSetValidatorCandidateRemovedIterator is returned from FilterValidatorCandidateRemoved and is used to iterate over the raw logs and unpacked data for ValidatorCandidateRemoved events raised by the RoninValidatorSet contract.
-type RoninValidatorSetValidatorCandidateRemovedIterator struct {
-	Event *RoninValidatorSetValidatorCandidateRemoved // Event containing the contract specifics and raw log
-
-	contract *bind.BoundContract // Generic contract to use for unpacking event data
-	event    string              // Event name to use for unpacking event data
-
-	logs chan types.Log        // Log channel receiving the found contract events
-	sub  ethereum.Subscription // Subscription for errors, completion and termination
-	done bool                  // Whether the subscription completed delivering logs
-	fail error                 // Occurred error to stop iteration
-}
-
-// Next advances the iterator to the subsequent event, returning whether there
-// are any more events found. In case of a retrieval or parsing error, false is
-// returned and Error() can be queried for the exact failure.
-func (it *RoninValidatorSetValidatorCandidateRemovedIterator) Next() bool {
-	// If the iterator failed, stop iterating
-	if it.fail != nil {
-		return false
-	}
-	// If the iterator completed, deliver directly whatever's available
-	if it.done {
-		select {
-		case log := <-it.logs:
-			it.Event = new(RoninValidatorSetValidatorCandidateRemoved)
-			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
-				it.fail = err
-				return false
-			}
-			it.Event.Raw = log
-			return true
-
-		default:
-			return false
-		}
-	}
-	// Iterator still in progress, wait for either a data or an error event
-	select {
-	case log := <-it.logs:
-		it.Event = new(RoninValidatorSetValidatorCandidateRemoved)
-		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
-			it.fail = err
-			return false
-		}
-		it.Event.Raw = log
-		return true
-
-	case err := <-it.sub.Err():
-		it.done = true
-		it.fail = err
-		return it.Next()
-	}
-}
-
-// Error returns any retrieval or parsing error occurred during filtering.
-func (it *RoninValidatorSetValidatorCandidateRemovedIterator) Error() error {
-	return it.fail
-}
-
-// Close terminates the iteration process, releasing any pending underlying
-// resources.
-func (it *RoninValidatorSetValidatorCandidateRemovedIterator) Close() error {
-	it.sub.Unsubscribe()
-	return nil
-}
-
-// RoninValidatorSetValidatorCandidateRemoved represents a ValidatorCandidateRemoved event raised by the RoninValidatorSet contract.
-type RoninValidatorSetValidatorCandidateRemoved struct {
-	ConsensusAddr common.Address
-	Raw           types.Log // Blockchain specific contextual infos
-}
-
-// FilterValidatorCandidateRemoved is a free log retrieval operation binding the contract event 0xec1ae6fd172c65ee5804ae3dafed7d57ec0f1e1183f910a8b7bd4abe31110f15.
-//
-// Solidity: event ValidatorCandidateRemoved(address indexed consensusAddr)
-func (_RoninValidatorSet *RoninValidatorSetFilterer) FilterValidatorCandidateRemoved(opts *bind.FilterOpts, consensusAddr []common.Address) (*RoninValidatorSetValidatorCandidateRemovedIterator, error) {
-
-	var consensusAddrRule []interface{}
-	for _, consensusAddrItem := range consensusAddr {
-		consensusAddrRule = append(consensusAddrRule, consensusAddrItem)
-	}
-
-	logs, sub, err := _RoninValidatorSet.contract.FilterLogs(opts, "ValidatorCandidateRemoved", consensusAddrRule)
-	if err != nil {
-		return nil, err
-	}
-	return &RoninValidatorSetValidatorCandidateRemovedIterator{contract: _RoninValidatorSet.contract, event: "ValidatorCandidateRemoved", logs: logs, sub: sub}, nil
-}
-
-// WatchValidatorCandidateRemoved is a free log subscription operation binding the contract event 0xec1ae6fd172c65ee5804ae3dafed7d57ec0f1e1183f910a8b7bd4abe31110f15.
-//
-// Solidity: event ValidatorCandidateRemoved(address indexed consensusAddr)
-func (_RoninValidatorSet *RoninValidatorSetFilterer) WatchValidatorCandidateRemoved(opts *bind.WatchOpts, sink chan<- *RoninValidatorSetValidatorCandidateRemoved, consensusAddr []common.Address) (event.Subscription, error) {
-
-	var consensusAddrRule []interface{}
-	for _, consensusAddrItem := range consensusAddr {
-		consensusAddrRule = append(consensusAddrRule, consensusAddrItem)
-	}
-
-	logs, sub, err := _RoninValidatorSet.contract.WatchLogs(opts, "ValidatorCandidateRemoved", consensusAddrRule)
-	if err != nil {
-		return nil, err
-	}
-	return event.NewSubscription(func(quit <-chan struct{}) error {
-		defer sub.Unsubscribe()
-		for {
-			select {
-			case log := <-logs:
-				// New log arrived, parse the event and forward to the user
-				event := new(RoninValidatorSetValidatorCandidateRemoved)
-				if err := _RoninValidatorSet.contract.UnpackLog(event, "ValidatorCandidateRemoved", log); err != nil {
-					return err
-				}
-				event.Raw = log
-
-				select {
-				case sink <- event:
-				case err := <-sub.Err():
-					return err
-				case <-quit:
-					return nil
-				}
-			case err := <-sub.Err():
-				return err
-			case <-quit:
-				return nil
-			}
-		}
-	}), nil
-}
-
-// ParseValidatorCandidateRemoved is a log parse operation binding the contract event 0xec1ae6fd172c65ee5804ae3dafed7d57ec0f1e1183f910a8b7bd4abe31110f15.
-//
-// Solidity: event ValidatorCandidateRemoved(address indexed consensusAddr)
-func (_RoninValidatorSet *RoninValidatorSetFilterer) ParseValidatorCandidateRemoved(log types.Log) (*RoninValidatorSetValidatorCandidateRemoved, error) {
-	event := new(RoninValidatorSetValidatorCandidateRemoved)
-	if err := _RoninValidatorSet.contract.UnpackLog(event, "ValidatorCandidateRemoved", log); err != nil {
-		return nil, err
-	}
-	event.Raw = log
-	return event, nil
-}
-
 // RoninValidatorSetValidatorPunishedIterator is returned from FilterValidatorPunished and is used to iterate over the raw logs and unpacked data for ValidatorPunished events raised by the RoninValidatorSet contract.
 type RoninValidatorSetValidatorPunishedIterator struct {
 	Event *RoninValidatorSetValidatorPunished // Event containing the contract specifics and raw log
@@ -3896,6 +4856,151 @@ func (_RoninValidatorSet *RoninValidatorSetFilterer) WatchValidatorSetUpdated(op
 func (_RoninValidatorSet *RoninValidatorSetFilterer) ParseValidatorSetUpdated(log types.Log) (*RoninValidatorSetValidatorSetUpdated, error) {
 	event := new(RoninValidatorSetValidatorSetUpdated)
 	if err := _RoninValidatorSet.contract.UnpackLog(event, "ValidatorSetUpdated", log); err != nil {
+		return nil, err
+	}
+	event.Raw = log
+	return event, nil
+}
+
+// RoninValidatorSetWrappedUpEpochIterator is returned from FilterWrappedUpEpoch and is used to iterate over the raw logs and unpacked data for WrappedUpEpoch events raised by the RoninValidatorSet contract.
+type RoninValidatorSetWrappedUpEpochIterator struct {
+	Event *RoninValidatorSetWrappedUpEpoch // Event containing the contract specifics and raw log
+
+	contract *bind.BoundContract // Generic contract to use for unpacking event data
+	event    string              // Event name to use for unpacking event data
+
+	logs chan types.Log        // Log channel receiving the found contract events
+	sub  ethereum.Subscription // Subscription for errors, completion and termination
+	done bool                  // Whether the subscription completed delivering logs
+	fail error                 // Occurred error to stop iteration
+}
+
+// Next advances the iterator to the subsequent event, returning whether there
+// are any more events found. In case of a retrieval or parsing error, false is
+// returned and Error() can be queried for the exact failure.
+func (it *RoninValidatorSetWrappedUpEpochIterator) Next() bool {
+	// If the iterator failed, stop iterating
+	if it.fail != nil {
+		return false
+	}
+	// If the iterator completed, deliver directly whatever's available
+	if it.done {
+		select {
+		case log := <-it.logs:
+			it.Event = new(RoninValidatorSetWrappedUpEpoch)
+			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+				it.fail = err
+				return false
+			}
+			it.Event.Raw = log
+			return true
+
+		default:
+			return false
+		}
+	}
+	// Iterator still in progress, wait for either a data or an error event
+	select {
+	case log := <-it.logs:
+		it.Event = new(RoninValidatorSetWrappedUpEpoch)
+		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+			it.fail = err
+			return false
+		}
+		it.Event.Raw = log
+		return true
+
+	case err := <-it.sub.Err():
+		it.done = true
+		it.fail = err
+		return it.Next()
+	}
+}
+
+// Error returns any retrieval or parsing error occurred during filtering.
+func (it *RoninValidatorSetWrappedUpEpochIterator) Error() error {
+	return it.fail
+}
+
+// Close terminates the iteration process, releasing any pending underlying
+// resources.
+func (it *RoninValidatorSetWrappedUpEpochIterator) Close() error {
+	it.sub.Unsubscribe()
+	return nil
+}
+
+// RoninValidatorSetWrappedUpEpoch represents a WrappedUpEpoch event raised by the RoninValidatorSet contract.
+type RoninValidatorSetWrappedUpEpoch struct {
+	PeriodNumber *big.Int
+	PeriodEnding bool
+	Raw          types.Log // Blockchain specific contextual infos
+}
+
+// FilterWrappedUpEpoch is a free log retrieval operation binding the contract event 0xa9523c20f05c78447190cec6b707dc5a68ac7e7979aa4c6575723022a40e81f4.
+//
+// Solidity: event WrappedUpEpoch(uint256 indexed periodNumber, bool periodEnding)
+func (_RoninValidatorSet *RoninValidatorSetFilterer) FilterWrappedUpEpoch(opts *bind.FilterOpts, periodNumber []*big.Int) (*RoninValidatorSetWrappedUpEpochIterator, error) {
+
+	var periodNumberRule []interface{}
+	for _, periodNumberItem := range periodNumber {
+		periodNumberRule = append(periodNumberRule, periodNumberItem)
+	}
+
+	logs, sub, err := _RoninValidatorSet.contract.FilterLogs(opts, "WrappedUpEpoch", periodNumberRule)
+	if err != nil {
+		return nil, err
+	}
+	return &RoninValidatorSetWrappedUpEpochIterator{contract: _RoninValidatorSet.contract, event: "WrappedUpEpoch", logs: logs, sub: sub}, nil
+}
+
+// WatchWrappedUpEpoch is a free log subscription operation binding the contract event 0xa9523c20f05c78447190cec6b707dc5a68ac7e7979aa4c6575723022a40e81f4.
+//
+// Solidity: event WrappedUpEpoch(uint256 indexed periodNumber, bool periodEnding)
+func (_RoninValidatorSet *RoninValidatorSetFilterer) WatchWrappedUpEpoch(opts *bind.WatchOpts, sink chan<- *RoninValidatorSetWrappedUpEpoch, periodNumber []*big.Int) (event.Subscription, error) {
+
+	var periodNumberRule []interface{}
+	for _, periodNumberItem := range periodNumber {
+		periodNumberRule = append(periodNumberRule, periodNumberItem)
+	}
+
+	logs, sub, err := _RoninValidatorSet.contract.WatchLogs(opts, "WrappedUpEpoch", periodNumberRule)
+	if err != nil {
+		return nil, err
+	}
+	return event.NewSubscription(func(quit <-chan struct{}) error {
+		defer sub.Unsubscribe()
+		for {
+			select {
+			case log := <-logs:
+				// New log arrived, parse the event and forward to the user
+				event := new(RoninValidatorSetWrappedUpEpoch)
+				if err := _RoninValidatorSet.contract.UnpackLog(event, "WrappedUpEpoch", log); err != nil {
+					return err
+				}
+				event.Raw = log
+
+				select {
+				case sink <- event:
+				case err := <-sub.Err():
+					return err
+				case <-quit:
+					return nil
+				}
+			case err := <-sub.Err():
+				return err
+			case <-quit:
+				return nil
+			}
+		}
+	}), nil
+}
+
+// ParseWrappedUpEpoch is a log parse operation binding the contract event 0xa9523c20f05c78447190cec6b707dc5a68ac7e7979aa4c6575723022a40e81f4.
+//
+// Solidity: event WrappedUpEpoch(uint256 indexed periodNumber, bool periodEnding)
+func (_RoninValidatorSet *RoninValidatorSetFilterer) ParseWrappedUpEpoch(log types.Log) (*RoninValidatorSetWrappedUpEpoch, error) {
+	event := new(RoninValidatorSetWrappedUpEpoch)
+	if err := _RoninValidatorSet.contract.UnpackLog(event, "WrappedUpEpoch", log); err != nil {
 		return nil, err
 	}
 	event.Raw = log
