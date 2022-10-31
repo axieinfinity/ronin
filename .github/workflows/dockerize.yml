@@ -4,9 +4,11 @@ on:
   push:
     branches:
       - master
+      - consortium-v2
   pull_request:
     branches:
       - master
+      - consortium-v2
 
 jobs:
   docker:
