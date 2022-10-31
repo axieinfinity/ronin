@@ -175,7 +175,7 @@ var eth66 = map[uint64]msgHandler{
 	NewBlockHashesMsg:             handleNewBlockhashes,
 	NewBlockMsg:                   handleNewBlock,
 	TransactionsMsg:               handleTransactions,
-	NewPooledTransactionHashesMsg: handleNewPooledTransactionHashes,
+	NewPooledTransactionHashesMsg: handleNewPooledTransactionHashes66,
 	GetBlockHeadersMsg:            handleGetBlockHeaders66,
 	BlockHeadersMsg:               handleBlockHeaders66,
 	GetBlockBodiesMsg:             handleGetBlockBodies66,
