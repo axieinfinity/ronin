@@ -17,3 +17,4 @@ jobs:
       checkout_submodules: true
       image_repository: gcr.io/test-servers-256610/ronin
     secrets: inherit
+    
