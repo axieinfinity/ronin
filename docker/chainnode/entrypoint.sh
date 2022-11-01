@@ -32,21 +32,17 @@ if [[ ! -z $NETWORK_ID ]]; then
   case $NETWORK_ID in
     2020 )
       genesisPath="mainnet.json"
-      params="$params $RONIN_PARAMS"
       ;;
     2021 )
       genesisPath="testnet.json"
-      params="$params --gcmode archive --http.api eth,net,web3,debug,consortium $RONIN_PARAMS"
-      ;;
-    2022 )
-      genesisPath="devnet.json"
-      params="$params --gcmode archive --http.api eth,net,web3,debug,consortium $RONIN_PARAMS"
       ;;
     * )
-      echo "network id not supported"
+      # All other networkids use the devnet.json by default
+      genesisPath="devnet.json"
       ;;
   esac
-  params="$params --networkid $NETWORK_ID $RONIN_PARAMS"
+  params="$params $RONIN_PARAMS"
+  params="$params --networkid $NETWORK_ID"
 fi
 
 # custom genesis path
