@@ -220,6 +220,8 @@ type ApplyTransactOpts struct {
 // and uses the input parameters for its environment. It returns nil if applied success
 // and an error if the transaction failed, indicating the block was invalid.
 func ApplyTransaction(msg types.Message, opts *ApplyTransactOpts) (err error) {
+	var failed bool
+
 	signer := opts.Signer
 	signTxFn := opts.SignTxFn
 	miner := opts.Header.Coinbase
@@ -265,7 +267,9 @@ func ApplyTransaction(msg types.Message, opts *ApplyTransactOpts) (err error) {
 	opts.State.Prepare(expectedTx.Hash(), len(*txs))
 	gasUsed, err := applyMessage(msg, opts.ApplyMessageOpts)
 	if err != nil {
-		return err
+		failed = true
+	} else {
+		failed = false
 	}
 	log.Debug("Applied transaction", "gasUsed", gasUsed)
 
@@ -279,7 +283,7 @@ func ApplyTransaction(msg types.Message, opts *ApplyTransactOpts) (err error) {
 	*usedGas += gasUsed
 
 	// TODO(linh): This function is deprecated. Shall we replace it with Receipt struct?
-	receipt := types.NewReceipt(root, false, *usedGas)
+	receipt := types.NewReceipt(root, failed, *usedGas)
 	receipt.TxHash = expectedTx.Hash()
 	receipt.GasUsed = gasUsed
 
