@@ -132,9 +132,6 @@ func (c *ContractIntegrator) WrapUpEpoch(opts *ApplyTransactOpts) error {
 func (c *ContractIntegrator) SubmitBlockReward(opts *ApplyTransactOpts) error {
 	coinbase := opts.Header.Coinbase
 	balance := opts.State.GetBalance(consensus.SystemAddress)
-	if balance.Cmp(common.Big0) <= 0 {
-		return nil
-	}
 	opts.State.SetBalance(consensus.SystemAddress, big.NewInt(0))
 	opts.State.AddBalance(coinbase, balance)
 
