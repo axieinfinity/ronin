@@ -1,6 +1,8 @@
 # Build Geth in a stock Go builder container
 FROM golang:1.17.0-alpine3.13 as builder
 
+RUN --mount=type=secret,id=github_token git config --global url."https://x-access-token:$(cat /run/secrets/github_token)@github.com".insteadOf "https://github.com"
+
 RUN apk add --no-cache make gcc musl-dev linux-headers git
 
 COPY . /opt
