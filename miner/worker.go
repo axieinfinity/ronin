@@ -93,6 +93,28 @@ type environment struct {
 	receipts []*types.Receipt
 }
 
+func (env *environment) copy() *environment {
+	cpy := &environment{
+		signer:    env.signer,
+		state:     env.state.Copy(),
+		ancestors: env.ancestors.Clone(),
+		family:    env.family.Clone(),
+		uncles:    env.uncles.Clone(),
+		tcount:    env.tcount,
+		header:    types.CopyHeader(env.header),
+		receipts:  copyReceipts(env.receipts),
+	}
+	if env.gasPool != nil {
+		gasPool := *env.gasPool
+		cpy.gasPool = &gasPool
+	}
+	// The content of txs are immutable, unnecessary
+	// to do the expensive deep copy for them.
+	cpy.txs = make([]*types.Transaction, len(env.txs))
+	copy(cpy.txs, env.txs)
+	return cpy
+}
+
 // task contains all information for consensus engine sealing and result submitting.
 type task struct {
 	receipts  []*types.Receipt
@@ -1033,9 +1055,9 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 func (w *worker) commit(uncles []*types.Header, interval func(), update bool, start time.Time) error {
 	if w.isRunning() {
 		// Deep copy receipts here to avoid interaction between different tasks.
-		receiptsCpy := copyReceipts(w.current.receipts)
-		s := w.current.state.Copy()
-		block, receipts, err := w.engine.FinalizeAndAssemble(w.chain, types.CopyHeader(w.current.header), s, w.current.txs, uncles, receiptsCpy)
+		env := w.current.copy()
+		// As consortium does not use uncles, we don't care about copying uncles here
+		block, receipts, err := w.engine.FinalizeAndAssemble(w.chain, env.header, env.state, env.txs, uncles, env.receipts)
 		if err != nil {
 			return err
 		}
@@ -1044,7 +1066,7 @@ func (w *worker) commit(uncles []*types.Header, interval func(), update bool, st
 			interval()
 		}
 		select {
-		case w.taskCh <- &task{receipts: receipts, state: s, block: block, createdAt: time.Now()}:
+		case w.taskCh <- &task{receipts: receipts, state: env.state, block: block, createdAt: time.Now()}:
 			w.unconfirmed.Shift(block.NumberU64() - 1)
 			log.Info("Commit new mining work", "number", block.Number(), "sealhash", w.engine.SealHash(block.Header()),
 				"uncles", len(uncles), "txs", w.current.tcount,
