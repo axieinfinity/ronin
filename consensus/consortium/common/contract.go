@@ -317,7 +317,7 @@ func applyMessage(
 		msg.Value(),
 	)
 	if err != nil {
-		log.Error("Apply message failed", "message", string(ret), "error", err)
+		log.Error("Apply message failed", "message", string(ret), "error", err, "to", msg.To(), "amount", msg.Value())
 	}
 	return msg.Gas() - returnGas, err
 }
