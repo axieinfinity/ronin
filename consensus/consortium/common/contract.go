@@ -168,7 +168,7 @@ func (c *ContractIntegrator) SubmitBlockReward(opts *ApplyTransactOpts) error {
 // and calls the slash method corresponding
 func (c *ContractIntegrator) Slash(opts *ApplyTransactOpts, spoiledValidator common.Address) error {
 	nonce := opts.State.GetNonce(c.coinbase)
-	tx, err := c.slashIndicatorSC.Slash(getTransactionOpts(c.coinbase, nonce, c.chainId, c.signTxFn), spoiledValidator)
+	tx, err := c.slashIndicatorSC.SlashUnavailability(getTransactionOpts(c.coinbase, nonce, c.chainId, c.signTxFn), spoiledValidator)
 	if err != nil {
 		return err
 	}
@@ -317,7 +317,7 @@ func applyMessage(
 		msg.Value(),
 	)
 	if err != nil {
-		log.Error("Apply message failed", "message", string(ret), "error", err)
+		log.Error("Apply message failed", "message", string(ret), "error", err, "to", msg.To(), "value", msg.Value())
 	}
 	return msg.Gas() - returnGas, err
 }
