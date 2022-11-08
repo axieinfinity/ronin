@@ -90,7 +90,7 @@ func (c *ContractIntegrator) GetValidators(blockNumber *big.Int) ([]common.Addre
 	callOpts := bind.CallOpts{
 		BlockNumber: blockNumber,
 	}
-	addresses, err := c.roninValidatorSetSC.GetValidators(&callOpts)
+	addresses, err := c.roninValidatorSetSC.GetBlockProducers(&callOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -132,9 +132,6 @@ func (c *ContractIntegrator) WrapUpEpoch(opts *ApplyTransactOpts) error {
 func (c *ContractIntegrator) SubmitBlockReward(opts *ApplyTransactOpts) error {
 	coinbase := opts.Header.Coinbase
 	balance := opts.State.GetBalance(consensus.SystemAddress)
-	if balance.Cmp(common.Big0) <= 0 {
-		return nil
-	}
 	opts.State.SetBalance(consensus.SystemAddress, big.NewInt(0))
 	opts.State.AddBalance(coinbase, balance)
 
@@ -171,7 +168,7 @@ func (c *ContractIntegrator) SubmitBlockReward(opts *ApplyTransactOpts) error {
 // and calls the slash method corresponding
 func (c *ContractIntegrator) Slash(opts *ApplyTransactOpts, spoiledValidator common.Address) error {
 	nonce := opts.State.GetNonce(c.coinbase)
-	tx, err := c.slashIndicatorSC.Slash(getTransactionOpts(c.coinbase, nonce, c.chainId, c.signTxFn), spoiledValidator)
+	tx, err := c.slashIndicatorSC.SlashUnavailability(getTransactionOpts(c.coinbase, nonce, c.chainId, c.signTxFn), spoiledValidator)
 	if err != nil {
 		return err
 	}
@@ -223,6 +220,8 @@ type ApplyTransactOpts struct {
 // and uses the input parameters for its environment. It returns nil if applied success
 // and an error if the transaction failed, indicating the block was invalid.
 func ApplyTransaction(msg types.Message, opts *ApplyTransactOpts) (err error) {
+	var failed bool
+
 	signer := opts.Signer
 	signTxFn := opts.SignTxFn
 	miner := opts.Header.Coinbase
@@ -268,7 +267,9 @@ func ApplyTransaction(msg types.Message, opts *ApplyTransactOpts) (err error) {
 	opts.State.Prepare(expectedTx.Hash(), len(*txs))
 	gasUsed, err := applyMessage(msg, opts.ApplyMessageOpts)
 	if err != nil {
-		return err
+		failed = true
+	} else {
+		failed = false
 	}
 	log.Debug("Applied transaction", "gasUsed", gasUsed)
 
@@ -282,7 +283,7 @@ func ApplyTransaction(msg types.Message, opts *ApplyTransactOpts) (err error) {
 	*usedGas += gasUsed
 
 	// TODO(linh): This function is deprecated. Shall we replace it with Receipt struct?
-	receipt := types.NewReceipt(root, false, *usedGas)
+	receipt := types.NewReceipt(root, failed, *usedGas)
 	receipt.TxHash = expectedTx.Hash()
 	receipt.GasUsed = gasUsed
 
@@ -316,7 +317,7 @@ func applyMessage(
 		msg.Value(),
 	)
 	if err != nil {
-		log.Error("Apply message failed", "message", string(ret), "error", err)
+		log.Error("Apply message failed", "message", string(ret), "error", err, "to", msg.To(), "value", msg.Value())
 	}
 	return msg.Gas() - returnGas, err
 }

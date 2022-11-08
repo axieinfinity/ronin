@@ -309,7 +309,7 @@ func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, 
 			// NOTE(linh): In case the snapshot of hardfork - 1 is requested, we find the latest snapshot
 			// in the last checkpoint of v1. We need to use the correct load snapshot version
 			// to load the snapshot coming from v1.
-			if !c.chainConfig.IsConsortiumV2(common.Big0.SetUint64(number)) {
+			if !c.chainConfig.IsConsortiumV2(new(big.Int).SetUint64(number)) {
 				snap, err = loadSnapshotV1(c.config, c.signatures, c.db, hash, c.ethAPI, c.chainConfig)
 			} else {
 				snap, err = loadSnapshot(c.config, c.signatures, c.db, hash, c.ethAPI, c.chainConfig)
@@ -321,7 +321,7 @@ func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, 
 
 			if err == nil {
 				log.Trace("Loaded snapshot from disk", "number", number, "hash", hash.Hex())
-				if !c.chainConfig.IsConsortiumV2(common.Big0.SetUint64(snap.Number)) {
+				if !c.chainConfig.IsConsortiumV2(new(big.Int).SetUint64(snap.Number)) {
 					// NOTE(linh): In version 1, the snapshot is not used correctly, so we must clean up
 					// incorrect data in the recent list before going to version 2
 					//

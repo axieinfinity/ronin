@@ -1,28 +1,34 @@
-# Support setting various labels on the final image
-ARG COMMIT=""
-ARG VERSION=""
-ARG BUILDNUM=""
-
 # Build Geth in a stock Go builder container
-FROM golang:1.17-alpine as builder
+FROM golang:1.17.0-alpine3.13 as builder
 
-RUN apk add --no-cache gcc musl-dev linux-headers git
+RUN apk add --no-cache make gcc musl-dev linux-headers git
 
-ADD . /go-ethereum
-RUN cd /go-ethereum && go run build/ci.go install ./cmd/geth
+COPY . /opt
+RUN cd /opt && make ronin
 
 # Pull Geth into a second stage deploy alpine container
-FROM alpine:latest
+FROM alpine:3.13
 
 RUN apk add --no-cache ca-certificates
-COPY --from=builder /go-ethereum/build/bin/geth /usr/local/bin/
+WORKDIR "/opt"
 
-EXPOSE 8545 8546 30303 30303/udp
-ENTRYPOINT ["geth"]
+ENV PASSWORD ''
+ENV PRIVATE_KEY ''
+ENV BOOTNODES ''
+ENV VERBOSITY 3
+ENV SYNC_MODE 'snap'
+ENV NETWORK_ID '2021'
+ENV ETHSTATS_ENDPOINT ''
+ENV RPC_NODE ''
+ENV NODEKEY ''
+ENV FORCE_INIT 'true'
+ENV RONIN_PARAMS ''
+ENV INIT_FORCE_OVERRIDE_CHAIN_CONFIG 'false'
 
-# Add some metadata labels to help programatic image consumption
-ARG COMMIT=""
-ARG VERSION=""
-ARG BUILDNUM=""
+COPY --from=builder /opt/build/bin/ronin /usr/local/bin/ronin
+COPY --from=builder /opt/genesis/ ./
+COPY --from=builder /opt/docker/chainnode/entrypoint.sh ./
 
-LABEL commit="$COMMIT" version="$VERSION" buildnum="$BUILDNUM"
+EXPOSE 7000 6060 8545 8546 30303 30303/udp
+
+ENTRYPOINT ["./entrypoint.sh"]

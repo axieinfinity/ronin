@@ -30,34 +30,12 @@ var (
 
 // SlashIndicatorMetaData contains all meta data concerning the SlashIndicator contract.
 var SlashIndicatorMetaData = &bind.MetaData{
-	ABI: "[{\"inputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"felonyJailDuration\",\"type\":\"uint256\"}],\"name\":\"FelonyJailDurationUpdated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint8\",\"name\":\"version\",\"type\":\"uint8\"}],\"name\":\"Initialized\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"name\":\"MaintenanceContractUpdated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"slashDoubleSignAmount\",\"type\":\"uint256\"}],\"name\":\"SlashDoubleSignAmountUpdated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"slashFelonyAmount\",\"type\":\"uint256\"}],\"name\":\"SlashFelonyAmountUpdated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"felonyThreshold\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"misdemeanorThreshold\",\"type\":\"uint256\"}],\"name\":\"SlashThresholdsUpdated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"validator\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"enumISlashIndicator.SlashType\",\"name\":\"slashType\",\"type\":\"uint8\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"period\",\"type\":\"uint256\"}],\"name\":\"UnavailabilitySlashed\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"name\":\"ValidatorContractUpdated\",\"type\":\"event\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_validator\",\"type\":\"address\"}],\"name\":\"currentUnavailabilityIndicator\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"felonyJailDuration\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"felonyThreshold\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_validator\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_period\",\"type\":\"uint256\"}],\"name\":\"getUnavailabilityIndicator\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_validatorAddr\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_period\",\"type\":\"uint256\"}],\"name\":\"getUnavailabilitySlashType\",\"outputs\":[{\"internalType\":\"enumISlashIndicator.SlashType\",\"name\":\"\",\"type\":\"uint8\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getUnavailabilityThresholds\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"__validatorContract\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"__maintenanceContract\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_misdemeanorThreshold\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"_felonyThreshold\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"_slashFelonyAmount\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"_slashDoubleSignAmount\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"_felonyJailBlocks\",\"type\":\"uint256\"}],\"name\":\"initialize\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"lastSlashedBlock\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"maintenanceContract\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"misdemeanorThreshold\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_felonyJailDuration\",\"type\":\"uint256\"}],\"name\":\"setFelonyJailDuration\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_addr\",\"type\":\"address\"}],\"name\":\"setMaintenanceContract\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_slashDoubleSignAmount\",\"type\":\"uint256\"}],\"name\":\"setSlashDoubleSignAmount\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_slashFelonyAmount\",\"type\":\"uint256\"}],\"name\":\"setSlashFelonyAmount\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_felonyThreshold\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"_misdemeanorThreshold\",\"type\":\"uint256\"}],\"name\":\"setSlashThresholds\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_addr\",\"type\":\"address\"}],\"name\":\"setValidatorContract\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_validatorAddr\",\"type\":\"address\"}],\"name\":\"slash\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_validatorAddr\",\"type\":\"address\"},{\"internalType\":\"bytes\",\"name\":\"\",\"type\":\"bytes\"}],\"name\":\"slashDoubleSign\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"slashDoubleSignAmount\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"slashFelonyAmount\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_addr\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_block\",\"type\":\"uint256\"}],\"name\":\"unavailabilityThresholdsOf\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"_misdemeanorThreshold\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"_felonyThreshold\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"validatorContract\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]",
-	Bin: "0x60806040523480156200001157600080fd5b50620000226200002860201b60201c565b620001d6565b600160159054906101000a900460ff16156200007b576040517f08c379a0000000000000000000000000000000000000000000000000000000008152600401620000729062000179565b60405180910390fd5b60ff8016600160149054906101000a900460ff1660ff161015620000f05760ff600160146101000a81548160ff021916908360ff1602179055507f7f26b83ff96e1f2b6a682f133852f6798a09c465da95921460cefb384740249860ff604051620000e79190620001b9565b60405180910390a15b565b600082825260208201905092915050565b7f496e697469616c697a61626c653a20636f6e747261637420697320696e69746960008201527f616c697a696e6700000000000000000000000000000000000000000000000000602082015250565b600062000161602783620000f2565b91506200016e8262000103565b604082019050919050565b60006020820190508181036000830152620001948162000152565b9050919050565b600060ff82169050919050565b620001b3816200019b565b82525050565b6000602082019050620001d06000830184620001a8565b92915050565b61232680620001e66000396000f3fe608060405234801561001057600080fd5b50600436106101425760003560e01c806399439089116100b8578063d2cb215e1161007c578063d2cb215e14610364578063d919358714610382578063dfe484cb146103a1578063e4f9c4be146103bf578063edbf4ac2146103db578063f82bdd01146103f757610142565b806399439089146102c0578063aef250be146102de578063c96be4cb146102fc578063cdf64a7614610318578063d180ecb01461033457610142565b8063567a372d1161010a578063567a372d146101fe5780635786e9ee1461021c57806362ffe6cb146102385780636b79f95f146102685780636d14c4e5146102865780636e91bec5146102a457610142565b8063082e742014610147578063389f4f711461017757806346fe9311146101955780634d961e18146101b1578063518e463a146101e2575b600080fd5b610161600480360381019061015c9190611821565b610413565b60405161016e9190611867565b60405180910390f35b61017f6104bf565b60405161018c9190611867565b60405180910390f35b6101af60048036038101906101aa9190611821565b6104c5565b005b6101cb60048036038101906101c691906118ae565b610546565b6040516101d99291906118ee565b60405180910390f35b6101fc60048036038101906101f7919061197c565b610873565b005b6102066109a1565b6040516102139190611867565b60405180910390f35b610236600480360381019061023191906119dc565b6109a7565b005b610252600480360381019061024d91906118ae565b610a28565b60405161025f9190611867565b60405180910390f35b610270610a83565b60405161027d9190611867565b60405180910390f35b61028e610a89565b60405161029b9190611867565b60405180910390f35b6102be60048036038101906102b991906119dc565b610a8f565b005b6102c8610b10565b6040516102d59190611a18565b60405180910390f35b6102e6610b39565b6040516102f39190611867565b60405180910390f35b61031660048036038101906103119190611821565b610b3f565b005b610332600480360381019061032d9190611821565b611146565b005b61034e600480360381019061034991906118ae565b6111c7565b60405161035b9190611aaa565b60405180910390f35b61036c61122f565b6040516103799190611a18565b60405180910390f35b61038a611259565b6040516103989291906118ee565b60405180910390f35b6103a961126a565b6040516103b69190611867565b60405180910390f35b6103d960048036038101906103d49190611ac5565b611270565b005b6103f560048036038101906103f09190611b05565b6112f3565b005b610411600480360381019061040c91906119dc565b61146a565b005b60006104b88260008054906101000a900473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1663f8549af9436040518263ffffffff1660e01b81526004016104729190611867565b602060405180830381865afa15801561048f573d6000803e3d6000fd5b505050506040513d601f19601f820116820180604052508101906104b39190611bbc565b610a28565b9050919050565b60065481565b6104cd6114eb565b73ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff161461053a576040517f08c379a000000000000000000000000000000000000000000000000000000000815260040161053190611c6c565b60405180910390fd5b61054381611542565b50565b60008060008060009054906101000a900473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16635186dc7e6040518163ffffffff1660e01b8152600401602060405180830381865afa1580156105b7573d6000803e3d6000fd5b505050506040513d601f19601f820116820180604052508101906105db9190611bbc565b60008054906101000a900473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff16636aa1c2ef6040518163ffffffff1660e01b8152600401602060405180830381865afa158015610646573d6000803e3d6000fd5b505050506040513d601f19601f8201168201806040525081019061066a9190611bbc565b6106749190611cbb565b905060008182866106859190611d44565b61068f9190611cbb565b90506000600183836106a19190611d75565b6106ab9190611da9565b90506000600160009054906101000a900473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1663d39fee34896040518263ffffffff1660e01b815260040161070a9190611a18565b606060405180830381865afa158015610727573d6000803e3d6000fd5b505050506040513d601f19601f8201168201806040525081019061074b9190611ed2565b90506000610768848484600001516115bd9092919063ffffffff16565b90506000610785858585602001516115bd9092919063ffffffff16565b905060008690508280156107965750815b156107cd576001846000015185602001516107b19190611da9565b6107bb9190611d75565b816107c69190611da9565b9050610833565b82156108015760018460000151866107e59190611da9565b6107ef9190611d75565b816107fa9190611da9565b9050610832565b81156108315760018685602001516108199190611da9565b6108239190611d75565b8161082e9190611da9565b90505b5b5b61084a81886005546115d89092919063ffffffff16565b985061086381886006546115d89092919063ffffffff16565b9750505050505050509250929050565b4173ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff16146108e1576040517f08c379a00000000000000000000000000000000000000000000000000000000081526004016108d890611f71565b60405180910390fd5b6000801561099b5760008054906101000a900473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff166370f81f6c857fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff6008546040518463ffffffff1660e01b815260040161096893929190611f91565b600060405180830381600087803b15801561098257600080fd5b505af1158015610996573d6000803e3d6000fd5b505050505b50505050565b60055481565b6109af6114eb565b73ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff1614610a1c576040517f08c379a0000000000000000000000000000000000000000000000000000000008152600401610a1390611c6c565b60405180910390fd5b610a25816115fa565b50565b6000600260008473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001908152602001600020600083815260200190815260200160002054905092915050565b60095481565b60085481565b610a976114eb565b73ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff1614610b04576040517f08c379a0000000000000000000000000000000000000000000000000000000008152600401610afb90611c6c565b60405180910390fd5b610b0d8161163b565b50565b60008060009054906101000a900473ffffffffffffffffffffffffffffffffffffffff16905090565b60045481565b4173ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff1614610bad576040517f08c379a0000000000000000000000000000000000000000000000000000000008152600401610ba490611f71565b60405180910390fd5b6004544311610bf1576040517f08c379a0000000000000000000000000000000000000000000000000000000008152600401610be890612060565b60405180910390fd5b8073ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff161480610cc55750600160009054906101000a900473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1663934e9a0382436040518363ffffffff1660e01b8152600401610c83929190612080565b602060405180830381865afa158015610ca0573d6000803e3d6000fd5b505050506040513d601f19601f82011682018060405250810190610cc491906120e1565b5b61113c5760008060009054906101000a900473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff1663f8549af9436040518263ffffffff1660e01b8152600401610d259190611867565b602060405180830381865afa158015610d42573d6000803e3d6000fd5b505050506040513d601f19601f82011682018060405250810190610d669190611bbc565b90506000600260008473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001908152602001600020600083815260200190815260200160002060008154610dc79061210e565b9190508190559050600080610ddc8543610546565b915091506000610dec86866111c7565b9050818410158015610e22575060026003811115610e0d57610e0c611a33565b5b816003811115610e2057610e1f611a33565b5b105b15610f99576002600360008873ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001908152602001600020600087815260200190815260200160002060006101000a81548160ff02191690836003811115610e9b57610e9a611a33565b5b02179055508573ffffffffffffffffffffffffffffffffffffffff167f8c2c2bfe532ccdb4523fa2392954fd58445929e7f260d786d0ab93cd981cde54600287604051610ee9929190612156565b60405180910390a260008054906101000a900473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff166370f81f6c8760095443610f3c9190611d75565b6007546040518463ffffffff1660e01b8152600401610f5d93929190611f91565b600060405180830381600087803b158015610f7757600080fd5b505af1158015610f8b573d6000803e3d6000fd5b50505050505050505061113c565b828410158015610fcd575060016003811115610fb857610fb7611a33565b5b816003811115610fcb57610fca611a33565b5b105b15611136576001600360008873ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001908152602001600020600087815260200190815260200160002060006101000a81548160ff0219169083600381111561104657611045611a33565b5b02179055508573ffffffffffffffffffffffffffffffffffffffff167f8c2c2bfe532ccdb4523fa2392954fd58445929e7f260d786d0ab93cd981cde54600187604051611094929190612156565b60405180910390a260008054906101000a900473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff166370f81f6c876000806040518463ffffffff1660e01b81526004016110fa939291906121c4565b600060405180830381600087803b15801561111457600080fd5b505af1158015611128573d6000803e3d6000fd5b50505050505050505061113c565b50505050505b4360048190555050565b61114e6114eb565b73ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff16146111bb576040517f08c379a00000000000000000000000000000000000000000000000000000000081526004016111b290611c6c565b60405180910390fd5b6111c48161167c565b50565b6000600360008473ffffffffffffffffffffffffffffffffffffffff1673ffffffffffffffffffffffffffffffffffffffff168152602001908152602001600020600083815260200190815260200160002060009054906101000a900460ff16905092915050565b6000600160009054906101000a900473ffffffffffffffffffffffffffffffffffffffff16905090565b600080600554600654915091509091565b60075481565b6112786114eb565b73ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff16146112e5576040517f08c379a00000000000000000000000000000000000000000000000000000000081526004016112dc90611c6c565b60405180910390fd5b6112ef82826116f6565b5050565b6000600160159054906101000a900460ff16159050808015611326575060018060149054906101000a900460ff1660ff16105b80611354575061133530611741565b158015611353575060018060149054906101000a900460ff1660ff16145b5b611393576040517f08c379a000000000000000000000000000000000000000000000000000000000815260040161138a9061226d565b60405180910390fd5b60018060146101000a81548160ff021916908360ff16021790555080156113cf5760018060156101000a81548160ff0219169083151502179055505b6113d88861167c565b6113e187611542565b6113eb85876116f6565b6113f48461163b565b6113fd83611764565b611406826115fa565b8015611460576000600160156101000a81548160ff0219169083151502179055507f7f26b83ff96e1f2b6a682f133852f6798a09c465da95921460cefb3847402498600160405161145791906122d5565b60405180910390a15b5050505050505050565b6114726114eb565b73ffffffffffffffffffffffffffffffffffffffff163373ffffffffffffffffffffffffffffffffffffffff16146114df576040517f08c379a00000000000000000000000000000000000000000000000000000000081526004016114d690611c6c565b60405180910390fd5b6114e881611764565b50565b60006115197fb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d610360001b6117a5565b60000160009054906101000a900473ffffffffffffffffffffffffffffffffffffffff16905090565b80600160006101000a81548173ffffffffffffffffffffffffffffffffffffffff021916908373ffffffffffffffffffffffffffffffffffffffff1602179055507f31a33f126a5bae3c5bdf6cfc2cd6dcfffe2fe9634bdb09e21c44762993889e3b816040516115b29190611a18565b60405180910390a150565b60008383111580156115cf5750818411155b90509392505050565b60008183856115e79190611cbb565b6115f19190611d44565b90509392505050565b806009819055507f3092a623ebcf71b79f9f68801b081a4d0c839dfb4c0e6f9ff118f4fb870375dc816040516116309190611867565b60405180910390a150565b806007819055507f71491762d43dbadd94f85cf7a0322192a7c22f3ca4fb30de8895420607b56712816040516116719190611867565b60405180910390a150565b806000806101000a81548173ffffffffffffffffffffffffffffffffffffffff021916908373ffffffffffffffffffffffffffffffffffffffff1602179055507fef40dc07567635f84f5edbd2f8dbc16b40d9d282dd8e7e6f4ff58236b6836169816040516116eb9190611a18565b60405180910390a150565b81600681905550806005819055507f25a70459f14137ea646efb17b806c2e75632b931d69e642a8a809b6bfd7217a682826040516117359291906118ee565b60405180910390a15050565b6000808273ffffffffffffffffffffffffffffffffffffffff163b119050919050565b806008819055507f42458d43c99c17f034dde22f3a1cf003e4bc27372c1ff14cb9e68a79a1b1e8ed8160405161179a9190611867565b60405180910390a150565b6000819050919050565b6000604051905090565b600080fd5b600080fd5b600073ffffffffffffffffffffffffffffffffffffffff82169050919050565b60006117ee826117c3565b9050919050565b6117fe816117e3565b811461180957600080fd5b50565b60008135905061181b816117f5565b92915050565b600060208284031215611837576118366117b9565b5b60006118458482850161180c565b91505092915050565b6000819050919050565b6118618161184e565b82525050565b600060208201905061187c6000830184611858565b92915050565b61188b8161184e565b811461189657600080fd5b50565b6000813590506118a881611882565b92915050565b600080604083850312156118c5576118c46117b9565b5b60006118d38582860161180c565b92505060206118e485828601611899565b9150509250929050565b60006040820190506119036000830185611858565b6119106020830184611858565b9392505050565b600080fd5b600080fd5b600080fd5b60008083601f84011261193c5761193b611917565b5b8235905067ffffffffffffffff8111156119595761195861191c565b5b60208301915083600182028301111561197557611974611921565b5b9250929050565b600080600060408486031215611995576119946117b9565b5b60006119a38682870161180c565b935050602084013567ffffffffffffffff8111156119c4576119c36117be565b5b6119d086828701611926565b92509250509250925092565b6000602082840312156119f2576119f16117b9565b5b6000611a0084828501611899565b91505092915050565b611a12816117e3565b82525050565b6000602082019050611a2d6000830184611a09565b92915050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052602160045260246000fd5b60048110611a7357611a72611a33565b5b50565b6000819050611a8482611a62565b919050565b6000611a9482611a76565b9050919050565b611aa481611a89565b82525050565b6000602082019050611abf6000830184611a9b565b92915050565b60008060408385031215611adc57611adb6117b9565b5b6000611aea85828601611899565b9250506020611afb85828601611899565b9150509250929050565b600080600080600080600060e0888a031215611b2457611b236117b9565b5b6000611b328a828b0161180c565b9750506020611b438a828b0161180c565b9650506040611b548a828b01611899565b9550506060611b658a828b01611899565b9450506080611b768a828b01611899565b93505060a0611b878a828b01611899565b92505060c0611b988a828b01611899565b91505092959891949750929550565b600081519050611bb681611882565b92915050565b600060208284031215611bd257611bd16117b9565b5b6000611be084828501611ba7565b91505092915050565b600082825260208201905092915050565b7f48617350726f787941646d696e3a20756e617574686f72697a65642073656e6460008201527f6572000000000000000000000000000000000000000000000000000000000000602082015250565b6000611c56602283611be9565b9150611c6182611bfa565b604082019050919050565b60006020820190508181036000830152611c8581611c49565b9050919050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601160045260246000fd5b6000611cc68261184e565b9150611cd18361184e565b9250817fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0483118215151615611d0a57611d09611c8c565b5b828202905092915050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052601260045260246000fd5b6000611d4f8261184e565b9150611d5a8361184e565b925082611d6a57611d69611d15565b5b828204905092915050565b6000611d808261184e565b9150611d8b8361184e565b9250828201905080821115611da357611da2611c8c565b5b92915050565b6000611db48261184e565b9150611dbf8361184e565b9250828203905081811115611dd757611dd6611c8c565b5b92915050565b600080fd5b6000601f19601f8301169050919050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052604160045260246000fd5b611e2b82611de2565b810181811067ffffffffffffffff82111715611e4a57611e49611df3565b5b80604052505050565b6000611e5d6117af565b9050611e698282611e22565b919050565b600060608284031215611e8457611e83611ddd565b5b611e8e6060611e53565b90506000611e9e84828501611ba7565b6000830152506020611eb284828501611ba7565b6020830152506040611ec684828501611ba7565b60408301525092915050565b600060608284031215611ee857611ee76117b9565b5b6000611ef684828501611e6e565b91505092915050565b7f536c617368496e64696361746f723a206d6574686f642063616c6c6572206d7560008201527f737420626520636f696e62617365000000000000000000000000000000000000602082015250565b6000611f5b602e83611be9565b9150611f6682611eff565b604082019050919050565b60006020820190508181036000830152611f8a81611f4e565b9050919050565b6000606082019050611fa66000830186611a09565b611fb36020830185611858565b611fc06040830184611858565b949350505050565b7f536c617368496e64696361746f723a2063616e6e6f7420736c6173682061207660008201527f616c696461746f72207477696365206f7220736c617368206d6f72652074686160208201527f6e206f6e652076616c696461746f7220696e206f6e6520626c6f636b00000000604082015250565b600061204a605c83611be9565b915061205582611fc8565b606082019050919050565b600060208201905081810360008301526120798161203d565b9050919050565b60006040820190506120956000830185611a09565b6120a26020830184611858565b9392505050565b60008115159050919050565b6120be816120a9565b81146120c957600080fd5b50565b6000815190506120db816120b5565b92915050565b6000602082840312156120f7576120f66117b9565b5b6000612105848285016120cc565b91505092915050565b60006121198261184e565b91507fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff820361214b5761214a611c8c565b5b600182019050919050565b600060408201905061216b6000830185611a9b565b6121786020830184611858565b9392505050565b6000819050919050565b6000819050919050565b60006121ae6121a96121a48461217f565b612189565b61184e565b9050919050565b6121be81612193565b82525050565b60006060820190506121d96000830186611a09565b6121e660208301856121b5565b6121f360408301846121b5565b949350505050565b7f496e697469616c697a61626c653a20636f6e747261637420697320616c72656160008201527f647920696e697469616c697a6564000000000000000000000000000000000000602082015250565b6000612257602e83611be9565b9150612262826121fb565b604082019050919050565b600060208201905081810360008301526122868161224a565b9050919050565b6000819050919050565b600060ff82169050919050565b60006122bf6122ba6122b58461228d565b612189565b612297565b9050919050565b6122cf816122a4565b82525050565b60006020820190506122ea60008301846122c6565b9291505056fea2646970667358221220596bf6931e5e1ac6d2a596b7742c7865bf6a8c1a711329b22248ebcace8f47d064736f6c63430008100033",
+	ABI: "[{\"inputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"constructor\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"validator\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"period\",\"type\":\"uint256\"}],\"name\":\"BailedOut\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"missingVotesRatioTier1\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"missingVotesRatioTier2\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"jailDurationForMissingVotesRatioTier2\",\"type\":\"uint256\"}],\"name\":\"BridgeOperatorSlashingConfigsUpdated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"bridgeVotingThreshold\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"bridgeVotingSlashAmount\",\"type\":\"uint256\"}],\"name\":\"BridgeVotingSlashingConfigsUpdated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"gainCreditScore\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"maxCreditScore\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"bailOutCostMultiplier\",\"type\":\"uint256\"}],\"name\":\"CreditScoreConfigsUpdated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"address[]\",\"name\":\"validators\",\"type\":\"address[]\"},{\"indexed\":false,\"internalType\":\"uint256[]\",\"name\":\"creditScores\",\"type\":\"uint256[]\"}],\"name\":\"CreditScoresUpdated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"slashDoubleSignAmount\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"doubleSigningJailUntilBlock\",\"type\":\"uint256\"}],\"name\":\"DoubleSignSlashingConfigsUpdated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint8\",\"name\":\"version\",\"type\":\"uint8\"}],\"name\":\"Initialized\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"name\":\"MaintenanceContractUpdated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"name\":\"RoninGovernanceAdminContractUpdated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"name\":\"RoninTrustedOrganizationContractUpdated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":true,\"internalType\":\"address\",\"name\":\"validator\",\"type\":\"address\"},{\"indexed\":false,\"internalType\":\"enumIBaseSlash.SlashType\",\"name\":\"slashType\",\"type\":\"uint8\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"period\",\"type\":\"uint256\"}],\"name\":\"Slashed\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"unavailabilityTier1Threshold\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"unavailabilityTier2Threshold\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"slashAmountForUnavailabilityTier2Threshold\",\"type\":\"uint256\"},{\"indexed\":false,\"internalType\":\"uint256\",\"name\":\"jailDurationForUnavailabilityTier2Threshold\",\"type\":\"uint256\"}],\"name\":\"UnavailabilitySlashingConfigsUpdated\",\"type\":\"event\"},{\"anonymous\":false,\"inputs\":[{\"indexed\":false,\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"name\":\"ValidatorContractUpdated\",\"type\":\"event\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_consensusAddr\",\"type\":\"address\"}],\"name\":\"bailOut\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"bailOutCostMultiplier\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_validator\",\"type\":\"address\"}],\"name\":\"currentUnavailabilityIndicator\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"gainCreditScore\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getBridgeOperatorSlashingConfigs\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getBridgeVotingSlashingConfigs\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address[]\",\"name\":\"_validators\",\"type\":\"address[]\"}],\"name\":\"getBulkCreditScore\",\"outputs\":[{\"internalType\":\"uint256[]\",\"name\":\"_resultList\",\"type\":\"uint256[]\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_validator\",\"type\":\"address\"}],\"name\":\"getCreditScore\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getCreditScoreConfigs\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"_gainCreditScore\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"_maxCreditScore\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"_bailOutCostMultiplier\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getDoubleSignSlashingConfigs\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_validator\",\"type\":\"address\"},{\"internalType\":\"uint256\",\"name\":\"_period\",\"type\":\"uint256\"}],\"name\":\"getUnavailabilityIndicator\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"getUnavailabilitySlashingConfigs\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"__validatorContract\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"__maintenanceContract\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"__roninTrustedOrganizationContract\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"__roninGovernanceAdminContract\",\"type\":\"address\"},{\"internalType\":\"uint256[3]\",\"name\":\"_bridgeOperatorSlashingConfigs\",\"type\":\"uint256[3]\"},{\"internalType\":\"uint256[2]\",\"name\":\"_bridgeVotingSlashingConfigs\",\"type\":\"uint256[2]\"},{\"internalType\":\"uint256[2]\",\"name\":\"_doubleSignSlashingConfigs\",\"type\":\"uint256[2]\"},{\"internalType\":\"uint256[4]\",\"name\":\"_unavailabilitySlashingConfigs\",\"type\":\"uint256[4]\"},{\"internalType\":\"uint256[3]\",\"name\":\"_creditScoreConfigs\",\"type\":\"uint256[3]\"}],\"name\":\"initialize\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"lastUnavailabilitySlashedBlock\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"maintenanceContract\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"maxCreditScore\",\"outputs\":[{\"internalType\":\"uint256\",\"name\":\"\",\"type\":\"uint256\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"precompileValidateDoubleSignAddress\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"roninGovernanceAdminContract\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"roninTrustedOrganizationContract\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_ratioTier1\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"_ratioTier2\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"_jailDurationTier2\",\"type\":\"uint256\"}],\"name\":\"setBridgeOperatorSlashingConfigs\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_threshold\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"_slashAmount\",\"type\":\"uint256\"}],\"name\":\"setBridgeVotingSlashingConfigs\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_gainCreditScore\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"_maxCreditScore\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"_bailOutCostMultiplier\",\"type\":\"uint256\"}],\"name\":\"setCreditScoreConfigs\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_slashAmount\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"_jailUntilBlock\",\"type\":\"uint256\"}],\"name\":\"setDoubleSignSlashingConfigs\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_addr\",\"type\":\"address\"}],\"name\":\"setMaintenanceContract\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_addr\",\"type\":\"address\"}],\"name\":\"setRoninGovernanceAdminContract\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_addr\",\"type\":\"address\"}],\"name\":\"setRoninTrustedOrganizationContract\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"uint256\",\"name\":\"_tier1Threshold\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"_tier2Threshold\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"_slashAmountForTier2Threshold\",\"type\":\"uint256\"},{\"internalType\":\"uint256\",\"name\":\"_jailDurationForTier2Threshold\",\"type\":\"uint256\"}],\"name\":\"setUnavailabilitySlashingConfigs\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_addr\",\"type\":\"address\"}],\"name\":\"setValidatorContract\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_consensusAddr\",\"type\":\"address\"}],\"name\":\"slashBridgeVoting\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_consensuAddr\",\"type\":\"address\"},{\"internalType\":\"bytes\",\"name\":\"_header1\",\"type\":\"bytes\"},{\"internalType\":\"bytes\",\"name\":\"_header2\",\"type\":\"bytes\"}],\"name\":\"slashDoubleSign\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address\",\"name\":\"_validatorAddr\",\"type\":\"address\"}],\"name\":\"slashUnavailability\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[{\"internalType\":\"address[]\",\"name\":\"_validators\",\"type\":\"address[]\"},{\"internalType\":\"uint256\",\"name\":\"_period\",\"type\":\"uint256\"}],\"name\":\"updateCreditScore\",\"outputs\":[],\"stateMutability\":\"nonpayable\",\"type\":\"function\"},{\"inputs\":[],\"name\":\"validatorContract\",\"outputs\":[{\"internalType\":\"address\",\"name\":\"\",\"type\":\"address\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]",
 }
 
 // SlashIndicatorABI is the input ABI used to generate the binding from.
 // Deprecated: Use SlashIndicatorMetaData.ABI instead.
 var SlashIndicatorABI = SlashIndicatorMetaData.ABI
-
-// SlashIndicatorBin is the compiled bytecode used for deploying new contracts.
-// Deprecated: Use SlashIndicatorMetaData.Bin instead.
-var SlashIndicatorBin = SlashIndicatorMetaData.Bin
-
-// DeploySlashIndicator deploys a new Ethereum contract, binding an instance of SlashIndicator to it.
-func DeploySlashIndicator(auth *bind.TransactOpts, backend bind.ContractBackend) (common.Address, *types.Transaction, *SlashIndicator, error) {
-	parsed, err := SlashIndicatorMetaData.GetAbi()
-	if err != nil {
-		return common.Address{}, nil, nil, err
-	}
-	if parsed == nil {
-		return common.Address{}, nil, nil, errors.New("GetABI returned nil")
-	}
-
-	address, tx, contract, err := bind.DeployContract(auth, *parsed, common.FromHex(SlashIndicatorBin), backend)
-	if err != nil {
-		return common.Address{}, nil, nil, err
-	}
-	return address, tx, &SlashIndicator{SlashIndicatorCaller: SlashIndicatorCaller{contract: contract}, SlashIndicatorTransactor: SlashIndicatorTransactor{contract: contract}, SlashIndicatorFilterer: SlashIndicatorFilterer{contract: contract}}, nil
-}
 
 // SlashIndicator is an auto generated Go binding around an Ethereum contract.
 type SlashIndicator struct {
@@ -201,6 +179,37 @@ func (_SlashIndicator *SlashIndicatorTransactorRaw) Transact(opts *bind.Transact
 	return _SlashIndicator.Contract.contract.Transact(opts, method, params...)
 }
 
+// BailOutCostMultiplier is a free data retrieval call binding the contract method 0x37c597ea.
+//
+// Solidity: function bailOutCostMultiplier() view returns(uint256)
+func (_SlashIndicator *SlashIndicatorCaller) BailOutCostMultiplier(opts *bind.CallOpts) (*big.Int, error) {
+	var out []interface{}
+	err := _SlashIndicator.contract.Call(opts, &out, "bailOutCostMultiplier")
+
+	if err != nil {
+		return *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+
+	return out0, err
+
+}
+
+// BailOutCostMultiplier is a free data retrieval call binding the contract method 0x37c597ea.
+//
+// Solidity: function bailOutCostMultiplier() view returns(uint256)
+func (_SlashIndicator *SlashIndicatorSession) BailOutCostMultiplier() (*big.Int, error) {
+	return _SlashIndicator.Contract.BailOutCostMultiplier(&_SlashIndicator.CallOpts)
+}
+
+// BailOutCostMultiplier is a free data retrieval call binding the contract method 0x37c597ea.
+//
+// Solidity: function bailOutCostMultiplier() view returns(uint256)
+func (_SlashIndicator *SlashIndicatorCallerSession) BailOutCostMultiplier() (*big.Int, error) {
+	return _SlashIndicator.Contract.BailOutCostMultiplier(&_SlashIndicator.CallOpts)
+}
+
 // CurrentUnavailabilityIndicator is a free data retrieval call binding the contract method 0x082e7420.
 //
 // Solidity: function currentUnavailabilityIndicator(address _validator) view returns(uint256)
@@ -232,12 +241,12 @@ func (_SlashIndicator *SlashIndicatorCallerSession) CurrentUnavailabilityIndicat
 	return _SlashIndicator.Contract.CurrentUnavailabilityIndicator(&_SlashIndicator.CallOpts, _validator)
 }
 
-// FelonyJailDuration is a free data retrieval call binding the contract method 0x6b79f95f.
+// GainCreditScore is a free data retrieval call binding the contract method 0x3be2ed8a.
 //
-// Solidity: function felonyJailDuration() view returns(uint256)
-func (_SlashIndicator *SlashIndicatorCaller) FelonyJailDuration(opts *bind.CallOpts) (*big.Int, error) {
+// Solidity: function gainCreditScore() view returns(uint256)
+func (_SlashIndicator *SlashIndicatorCaller) GainCreditScore(opts *bind.CallOpts) (*big.Int, error) {
 	var out []interface{}
-	err := _SlashIndicator.contract.Call(opts, &out, "felonyJailDuration")
+	err := _SlashIndicator.contract.Call(opts, &out, "gainCreditScore")
 
 	if err != nil {
 		return *new(*big.Int), err
@@ -249,26 +258,122 @@ func (_SlashIndicator *SlashIndicatorCaller) FelonyJailDuration(opts *bind.CallO
 
 }
 
-// FelonyJailDuration is a free data retrieval call binding the contract method 0x6b79f95f.
+// GainCreditScore is a free data retrieval call binding the contract method 0x3be2ed8a.
 //
-// Solidity: function felonyJailDuration() view returns(uint256)
-func (_SlashIndicator *SlashIndicatorSession) FelonyJailDuration() (*big.Int, error) {
-	return _SlashIndicator.Contract.FelonyJailDuration(&_SlashIndicator.CallOpts)
+// Solidity: function gainCreditScore() view returns(uint256)
+func (_SlashIndicator *SlashIndicatorSession) GainCreditScore() (*big.Int, error) {
+	return _SlashIndicator.Contract.GainCreditScore(&_SlashIndicator.CallOpts)
 }
 
-// FelonyJailDuration is a free data retrieval call binding the contract method 0x6b79f95f.
+// GainCreditScore is a free data retrieval call binding the contract method 0x3be2ed8a.
 //
-// Solidity: function felonyJailDuration() view returns(uint256)
-func (_SlashIndicator *SlashIndicatorCallerSession) FelonyJailDuration() (*big.Int, error) {
-	return _SlashIndicator.Contract.FelonyJailDuration(&_SlashIndicator.CallOpts)
+// Solidity: function gainCreditScore() view returns(uint256)
+func (_SlashIndicator *SlashIndicatorCallerSession) GainCreditScore() (*big.Int, error) {
+	return _SlashIndicator.Contract.GainCreditScore(&_SlashIndicator.CallOpts)
 }
 
-// FelonyThreshold is a free data retrieval call binding the contract method 0x389f4f71.
+// GetBridgeOperatorSlashingConfigs is a free data retrieval call binding the contract method 0x1079402a.
 //
-// Solidity: function felonyThreshold() view returns(uint256)
-func (_SlashIndicator *SlashIndicatorCaller) FelonyThreshold(opts *bind.CallOpts) (*big.Int, error) {
+// Solidity: function getBridgeOperatorSlashingConfigs() view returns(uint256, uint256, uint256)
+func (_SlashIndicator *SlashIndicatorCaller) GetBridgeOperatorSlashingConfigs(opts *bind.CallOpts) (*big.Int, *big.Int, *big.Int, error) {
 	var out []interface{}
-	err := _SlashIndicator.contract.Call(opts, &out, "felonyThreshold")
+	err := _SlashIndicator.contract.Call(opts, &out, "getBridgeOperatorSlashingConfigs")
+
+	if err != nil {
+		return *new(*big.Int), *new(*big.Int), *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+	out1 := *abi.ConvertType(out[1], new(*big.Int)).(**big.Int)
+	out2 := *abi.ConvertType(out[2], new(*big.Int)).(**big.Int)
+
+	return out0, out1, out2, err
+
+}
+
+// GetBridgeOperatorSlashingConfigs is a free data retrieval call binding the contract method 0x1079402a.
+//
+// Solidity: function getBridgeOperatorSlashingConfigs() view returns(uint256, uint256, uint256)
+func (_SlashIndicator *SlashIndicatorSession) GetBridgeOperatorSlashingConfigs() (*big.Int, *big.Int, *big.Int, error) {
+	return _SlashIndicator.Contract.GetBridgeOperatorSlashingConfigs(&_SlashIndicator.CallOpts)
+}
+
+// GetBridgeOperatorSlashingConfigs is a free data retrieval call binding the contract method 0x1079402a.
+//
+// Solidity: function getBridgeOperatorSlashingConfigs() view returns(uint256, uint256, uint256)
+func (_SlashIndicator *SlashIndicatorCallerSession) GetBridgeOperatorSlashingConfigs() (*big.Int, *big.Int, *big.Int, error) {
+	return _SlashIndicator.Contract.GetBridgeOperatorSlashingConfigs(&_SlashIndicator.CallOpts)
+}
+
+// GetBridgeVotingSlashingConfigs is a free data retrieval call binding the contract method 0xc2e524dc.
+//
+// Solidity: function getBridgeVotingSlashingConfigs() view returns(uint256, uint256)
+func (_SlashIndicator *SlashIndicatorCaller) GetBridgeVotingSlashingConfigs(opts *bind.CallOpts) (*big.Int, *big.Int, error) {
+	var out []interface{}
+	err := _SlashIndicator.contract.Call(opts, &out, "getBridgeVotingSlashingConfigs")
+
+	if err != nil {
+		return *new(*big.Int), *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+	out1 := *abi.ConvertType(out[1], new(*big.Int)).(**big.Int)
+
+	return out0, out1, err
+
+}
+
+// GetBridgeVotingSlashingConfigs is a free data retrieval call binding the contract method 0xc2e524dc.
+//
+// Solidity: function getBridgeVotingSlashingConfigs() view returns(uint256, uint256)
+func (_SlashIndicator *SlashIndicatorSession) GetBridgeVotingSlashingConfigs() (*big.Int, *big.Int, error) {
+	return _SlashIndicator.Contract.GetBridgeVotingSlashingConfigs(&_SlashIndicator.CallOpts)
+}
+
+// GetBridgeVotingSlashingConfigs is a free data retrieval call binding the contract method 0xc2e524dc.
+//
+// Solidity: function getBridgeVotingSlashingConfigs() view returns(uint256, uint256)
+func (_SlashIndicator *SlashIndicatorCallerSession) GetBridgeVotingSlashingConfigs() (*big.Int, *big.Int, error) {
+	return _SlashIndicator.Contract.GetBridgeVotingSlashingConfigs(&_SlashIndicator.CallOpts)
+}
+
+// GetBulkCreditScore is a free data retrieval call binding the contract method 0x9c0b57d8.
+//
+// Solidity: function getBulkCreditScore(address[] _validators) view returns(uint256[] _resultList)
+func (_SlashIndicator *SlashIndicatorCaller) GetBulkCreditScore(opts *bind.CallOpts, _validators []common.Address) ([]*big.Int, error) {
+	var out []interface{}
+	err := _SlashIndicator.contract.Call(opts, &out, "getBulkCreditScore", _validators)
+
+	if err != nil {
+		return *new([]*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new([]*big.Int)).(*[]*big.Int)
+
+	return out0, err
+
+}
+
+// GetBulkCreditScore is a free data retrieval call binding the contract method 0x9c0b57d8.
+//
+// Solidity: function getBulkCreditScore(address[] _validators) view returns(uint256[] _resultList)
+func (_SlashIndicator *SlashIndicatorSession) GetBulkCreditScore(_validators []common.Address) ([]*big.Int, error) {
+	return _SlashIndicator.Contract.GetBulkCreditScore(&_SlashIndicator.CallOpts, _validators)
+}
+
+// GetBulkCreditScore is a free data retrieval call binding the contract method 0x9c0b57d8.
+//
+// Solidity: function getBulkCreditScore(address[] _validators) view returns(uint256[] _resultList)
+func (_SlashIndicator *SlashIndicatorCallerSession) GetBulkCreditScore(_validators []common.Address) ([]*big.Int, error) {
+	return _SlashIndicator.Contract.GetBulkCreditScore(&_SlashIndicator.CallOpts, _validators)
+}
+
+// GetCreditScore is a free data retrieval call binding the contract method 0xd3dd2bdf.
+//
+// Solidity: function getCreditScore(address _validator) view returns(uint256)
+func (_SlashIndicator *SlashIndicatorCaller) GetCreditScore(opts *bind.CallOpts, _validator common.Address) (*big.Int, error) {
+	var out []interface{}
+	err := _SlashIndicator.contract.Call(opts, &out, "getCreditScore", _validator)
 
 	if err != nil {
 		return *new(*big.Int), err
@@ -280,18 +385,100 @@ func (_SlashIndicator *SlashIndicatorCaller) FelonyThreshold(opts *bind.CallOpts
 
 }
 
-// FelonyThreshold is a free data retrieval call binding the contract method 0x389f4f71.
+// GetCreditScore is a free data retrieval call binding the contract method 0xd3dd2bdf.
 //
-// Solidity: function felonyThreshold() view returns(uint256)
-func (_SlashIndicator *SlashIndicatorSession) FelonyThreshold() (*big.Int, error) {
-	return _SlashIndicator.Contract.FelonyThreshold(&_SlashIndicator.CallOpts)
+// Solidity: function getCreditScore(address _validator) view returns(uint256)
+func (_SlashIndicator *SlashIndicatorSession) GetCreditScore(_validator common.Address) (*big.Int, error) {
+	return _SlashIndicator.Contract.GetCreditScore(&_SlashIndicator.CallOpts, _validator)
 }
 
-// FelonyThreshold is a free data retrieval call binding the contract method 0x389f4f71.
+// GetCreditScore is a free data retrieval call binding the contract method 0xd3dd2bdf.
 //
-// Solidity: function felonyThreshold() view returns(uint256)
-func (_SlashIndicator *SlashIndicatorCallerSession) FelonyThreshold() (*big.Int, error) {
-	return _SlashIndicator.Contract.FelonyThreshold(&_SlashIndicator.CallOpts)
+// Solidity: function getCreditScore(address _validator) view returns(uint256)
+func (_SlashIndicator *SlashIndicatorCallerSession) GetCreditScore(_validator common.Address) (*big.Int, error) {
+	return _SlashIndicator.Contract.GetCreditScore(&_SlashIndicator.CallOpts, _validator)
+}
+
+// GetCreditScoreConfigs is a free data retrieval call binding the contract method 0xc6391fa2.
+//
+// Solidity: function getCreditScoreConfigs() view returns(uint256 _gainCreditScore, uint256 _maxCreditScore, uint256 _bailOutCostMultiplier)
+func (_SlashIndicator *SlashIndicatorCaller) GetCreditScoreConfigs(opts *bind.CallOpts) (struct {
+	GainCreditScore       *big.Int
+	MaxCreditScore        *big.Int
+	BailOutCostMultiplier *big.Int
+}, error) {
+	var out []interface{}
+	err := _SlashIndicator.contract.Call(opts, &out, "getCreditScoreConfigs")
+
+	outstruct := new(struct {
+		GainCreditScore       *big.Int
+		MaxCreditScore        *big.Int
+		BailOutCostMultiplier *big.Int
+	})
+	if err != nil {
+		return *outstruct, err
+	}
+
+	outstruct.GainCreditScore = *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+	outstruct.MaxCreditScore = *abi.ConvertType(out[1], new(*big.Int)).(**big.Int)
+	outstruct.BailOutCostMultiplier = *abi.ConvertType(out[2], new(*big.Int)).(**big.Int)
+
+	return *outstruct, err
+
+}
+
+// GetCreditScoreConfigs is a free data retrieval call binding the contract method 0xc6391fa2.
+//
+// Solidity: function getCreditScoreConfigs() view returns(uint256 _gainCreditScore, uint256 _maxCreditScore, uint256 _bailOutCostMultiplier)
+func (_SlashIndicator *SlashIndicatorSession) GetCreditScoreConfigs() (struct {
+	GainCreditScore       *big.Int
+	MaxCreditScore        *big.Int
+	BailOutCostMultiplier *big.Int
+}, error) {
+	return _SlashIndicator.Contract.GetCreditScoreConfigs(&_SlashIndicator.CallOpts)
+}
+
+// GetCreditScoreConfigs is a free data retrieval call binding the contract method 0xc6391fa2.
+//
+// Solidity: function getCreditScoreConfigs() view returns(uint256 _gainCreditScore, uint256 _maxCreditScore, uint256 _bailOutCostMultiplier)
+func (_SlashIndicator *SlashIndicatorCallerSession) GetCreditScoreConfigs() (struct {
+	GainCreditScore       *big.Int
+	MaxCreditScore        *big.Int
+	BailOutCostMultiplier *big.Int
+}, error) {
+	return _SlashIndicator.Contract.GetCreditScoreConfigs(&_SlashIndicator.CallOpts)
+}
+
+// GetDoubleSignSlashingConfigs is a free data retrieval call binding the contract method 0xdf4b6ee0.
+//
+// Solidity: function getDoubleSignSlashingConfigs() view returns(uint256, uint256)
+func (_SlashIndicator *SlashIndicatorCaller) GetDoubleSignSlashingConfigs(opts *bind.CallOpts) (*big.Int, *big.Int, error) {
+	var out []interface{}
+	err := _SlashIndicator.contract.Call(opts, &out, "getDoubleSignSlashingConfigs")
+
+	if err != nil {
+		return *new(*big.Int), *new(*big.Int), err
+	}
+
+	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+	out1 := *abi.ConvertType(out[1], new(*big.Int)).(**big.Int)
+
+	return out0, out1, err
+
+}
+
+// GetDoubleSignSlashingConfigs is a free data retrieval call binding the contract method 0xdf4b6ee0.
+//
+// Solidity: function getDoubleSignSlashingConfigs() view returns(uint256, uint256)
+func (_SlashIndicator *SlashIndicatorSession) GetDoubleSignSlashingConfigs() (*big.Int, *big.Int, error) {
+	return _SlashIndicator.Contract.GetDoubleSignSlashingConfigs(&_SlashIndicator.CallOpts)
+}
+
+// GetDoubleSignSlashingConfigs is a free data retrieval call binding the contract method 0xdf4b6ee0.
+//
+// Solidity: function getDoubleSignSlashingConfigs() view returns(uint256, uint256)
+func (_SlashIndicator *SlashIndicatorCallerSession) GetDoubleSignSlashingConfigs() (*big.Int, *big.Int, error) {
+	return _SlashIndicator.Contract.GetDoubleSignSlashingConfigs(&_SlashIndicator.CallOpts)
 }
 
 // GetUnavailabilityIndicator is a free data retrieval call binding the contract method 0x62ffe6cb.
@@ -325,75 +512,46 @@ func (_SlashIndicator *SlashIndicatorCallerSession) GetUnavailabilityIndicator(_
 	return _SlashIndicator.Contract.GetUnavailabilityIndicator(&_SlashIndicator.CallOpts, _validator, _period)
 }
 
-// GetUnavailabilitySlashType is a free data retrieval call binding the contract method 0xd180ecb0.
+// GetUnavailabilitySlashingConfigs is a free data retrieval call binding the contract method 0x3d48fd7d.
 //
-// Solidity: function getUnavailabilitySlashType(address _validatorAddr, uint256 _period) view returns(uint8)
-func (_SlashIndicator *SlashIndicatorCaller) GetUnavailabilitySlashType(opts *bind.CallOpts, _validatorAddr common.Address, _period *big.Int) (uint8, error) {
+// Solidity: function getUnavailabilitySlashingConfigs() view returns(uint256, uint256, uint256, uint256)
+func (_SlashIndicator *SlashIndicatorCaller) GetUnavailabilitySlashingConfigs(opts *bind.CallOpts) (*big.Int, *big.Int, *big.Int, *big.Int, error) {
 	var out []interface{}
-	err := _SlashIndicator.contract.Call(opts, &out, "getUnavailabilitySlashType", _validatorAddr, _period)
+	err := _SlashIndicator.contract.Call(opts, &out, "getUnavailabilitySlashingConfigs")
 
 	if err != nil {
-		return *new(uint8), err
-	}
-
-	out0 := *abi.ConvertType(out[0], new(uint8)).(*uint8)
-
-	return out0, err
-
-}
-
-// GetUnavailabilitySlashType is a free data retrieval call binding the contract method 0xd180ecb0.
-//
-// Solidity: function getUnavailabilitySlashType(address _validatorAddr, uint256 _period) view returns(uint8)
-func (_SlashIndicator *SlashIndicatorSession) GetUnavailabilitySlashType(_validatorAddr common.Address, _period *big.Int) (uint8, error) {
-	return _SlashIndicator.Contract.GetUnavailabilitySlashType(&_SlashIndicator.CallOpts, _validatorAddr, _period)
-}
-
-// GetUnavailabilitySlashType is a free data retrieval call binding the contract method 0xd180ecb0.
-//
-// Solidity: function getUnavailabilitySlashType(address _validatorAddr, uint256 _period) view returns(uint8)
-func (_SlashIndicator *SlashIndicatorCallerSession) GetUnavailabilitySlashType(_validatorAddr common.Address, _period *big.Int) (uint8, error) {
-	return _SlashIndicator.Contract.GetUnavailabilitySlashType(&_SlashIndicator.CallOpts, _validatorAddr, _period)
-}
-
-// GetUnavailabilityThresholds is a free data retrieval call binding the contract method 0xd9193587.
-//
-// Solidity: function getUnavailabilityThresholds() view returns(uint256, uint256)
-func (_SlashIndicator *SlashIndicatorCaller) GetUnavailabilityThresholds(opts *bind.CallOpts) (*big.Int, *big.Int, error) {
-	var out []interface{}
-	err := _SlashIndicator.contract.Call(opts, &out, "getUnavailabilityThresholds")
-
-	if err != nil {
-		return *new(*big.Int), *new(*big.Int), err
+		return *new(*big.Int), *new(*big.Int), *new(*big.Int), *new(*big.Int), err
 	}
 
 	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
 	out1 := *abi.ConvertType(out[1], new(*big.Int)).(**big.Int)
+	out2 := *abi.ConvertType(out[2], new(*big.Int)).(**big.Int)
+	out3 := *abi.ConvertType(out[3], new(*big.Int)).(**big.Int)
 
-	return out0, out1, err
+	return out0, out1, out2, out3, err
 
 }
 
-// GetUnavailabilityThresholds is a free data retrieval call binding the contract method 0xd9193587.
+// GetUnavailabilitySlashingConfigs is a free data retrieval call binding the contract method 0x3d48fd7d.
 //
-// Solidity: function getUnavailabilityThresholds() view returns(uint256, uint256)
-func (_SlashIndicator *SlashIndicatorSession) GetUnavailabilityThresholds() (*big.Int, *big.Int, error) {
-	return _SlashIndicator.Contract.GetUnavailabilityThresholds(&_SlashIndicator.CallOpts)
+// Solidity: function getUnavailabilitySlashingConfigs() view returns(uint256, uint256, uint256, uint256)
+func (_SlashIndicator *SlashIndicatorSession) GetUnavailabilitySlashingConfigs() (*big.Int, *big.Int, *big.Int, *big.Int, error) {
+	return _SlashIndicator.Contract.GetUnavailabilitySlashingConfigs(&_SlashIndicator.CallOpts)
 }
 
-// GetUnavailabilityThresholds is a free data retrieval call binding the contract method 0xd9193587.
+// GetUnavailabilitySlashingConfigs is a free data retrieval call binding the contract method 0x3d48fd7d.
 //
-// Solidity: function getUnavailabilityThresholds() view returns(uint256, uint256)
-func (_SlashIndicator *SlashIndicatorCallerSession) GetUnavailabilityThresholds() (*big.Int, *big.Int, error) {
-	return _SlashIndicator.Contract.GetUnavailabilityThresholds(&_SlashIndicator.CallOpts)
+// Solidity: function getUnavailabilitySlashingConfigs() view returns(uint256, uint256, uint256, uint256)
+func (_SlashIndicator *SlashIndicatorCallerSession) GetUnavailabilitySlashingConfigs() (*big.Int, *big.Int, *big.Int, *big.Int, error) {
+	return _SlashIndicator.Contract.GetUnavailabilitySlashingConfigs(&_SlashIndicator.CallOpts)
 }
 
-// LastSlashedBlock is a free data retrieval call binding the contract method 0xaef250be.
+// LastUnavailabilitySlashedBlock is a free data retrieval call binding the contract method 0xf562b3c4.
 //
-// Solidity: function lastSlashedBlock() view returns(uint256)
-func (_SlashIndicator *SlashIndicatorCaller) LastSlashedBlock(opts *bind.CallOpts) (*big.Int, error) {
+// Solidity: function lastUnavailabilitySlashedBlock() view returns(uint256)
+func (_SlashIndicator *SlashIndicatorCaller) LastUnavailabilitySlashedBlock(opts *bind.CallOpts) (*big.Int, error) {
 	var out []interface{}
-	err := _SlashIndicator.contract.Call(opts, &out, "lastSlashedBlock")
+	err := _SlashIndicator.contract.Call(opts, &out, "lastUnavailabilitySlashedBlock")
 
 	if err != nil {
 		return *new(*big.Int), err
@@ -405,18 +563,18 @@ func (_SlashIndicator *SlashIndicatorCaller) LastSlashedBlock(opts *bind.CallOpt
 
 }
 
-// LastSlashedBlock is a free data retrieval call binding the contract method 0xaef250be.
+// LastUnavailabilitySlashedBlock is a free data retrieval call binding the contract method 0xf562b3c4.
 //
-// Solidity: function lastSlashedBlock() view returns(uint256)
-func (_SlashIndicator *SlashIndicatorSession) LastSlashedBlock() (*big.Int, error) {
-	return _SlashIndicator.Contract.LastSlashedBlock(&_SlashIndicator.CallOpts)
+// Solidity: function lastUnavailabilitySlashedBlock() view returns(uint256)
+func (_SlashIndicator *SlashIndicatorSession) LastUnavailabilitySlashedBlock() (*big.Int, error) {
+	return _SlashIndicator.Contract.LastUnavailabilitySlashedBlock(&_SlashIndicator.CallOpts)
 }
 
-// LastSlashedBlock is a free data retrieval call binding the contract method 0xaef250be.
+// LastUnavailabilitySlashedBlock is a free data retrieval call binding the contract method 0xf562b3c4.
 //
-// Solidity: function lastSlashedBlock() view returns(uint256)
-func (_SlashIndicator *SlashIndicatorCallerSession) LastSlashedBlock() (*big.Int, error) {
-	return _SlashIndicator.Contract.LastSlashedBlock(&_SlashIndicator.CallOpts)
+// Solidity: function lastUnavailabilitySlashedBlock() view returns(uint256)
+func (_SlashIndicator *SlashIndicatorCallerSession) LastUnavailabilitySlashedBlock() (*big.Int, error) {
+	return _SlashIndicator.Contract.LastUnavailabilitySlashedBlock(&_SlashIndicator.CallOpts)
 }
 
 // MaintenanceContract is a free data retrieval call binding the contract method 0xd2cb215e.
@@ -450,12 +608,12 @@ func (_SlashIndicator *SlashIndicatorCallerSession) MaintenanceContract() (commo
 	return _SlashIndicator.Contract.MaintenanceContract(&_SlashIndicator.CallOpts)
 }
 
-// MisdemeanorThreshold is a free data retrieval call binding the contract method 0x567a372d.
+// MaxCreditScore is a free data retrieval call binding the contract method 0x4ee38230.
 //
-// Solidity: function misdemeanorThreshold() view returns(uint256)
-func (_SlashIndicator *SlashIndicatorCaller) MisdemeanorThreshold(opts *bind.CallOpts) (*big.Int, error) {
+// Solidity: function maxCreditScore() view returns(uint256)
+func (_SlashIndicator *SlashIndicatorCaller) MaxCreditScore(opts *bind.CallOpts) (*big.Int, error) {
 	var out []interface{}
-	err := _SlashIndicator.contract.Call(opts, &out, "misdemeanorThreshold")
+	err := _SlashIndicator.contract.Call(opts, &out, "maxCreditScore")
 
 	if err != nil {
 		return *new(*big.Int), err
@@ -467,125 +625,111 @@ func (_SlashIndicator *SlashIndicatorCaller) MisdemeanorThreshold(opts *bind.Cal
 
 }
 
-// MisdemeanorThreshold is a free data retrieval call binding the contract method 0x567a372d.
+// MaxCreditScore is a free data retrieval call binding the contract method 0x4ee38230.
 //
-// Solidity: function misdemeanorThreshold() view returns(uint256)
-func (_SlashIndicator *SlashIndicatorSession) MisdemeanorThreshold() (*big.Int, error) {
-	return _SlashIndicator.Contract.MisdemeanorThreshold(&_SlashIndicator.CallOpts)
+// Solidity: function maxCreditScore() view returns(uint256)
+func (_SlashIndicator *SlashIndicatorSession) MaxCreditScore() (*big.Int, error) {
+	return _SlashIndicator.Contract.MaxCreditScore(&_SlashIndicator.CallOpts)
 }
 
-// MisdemeanorThreshold is a free data retrieval call binding the contract method 0x567a372d.
+// MaxCreditScore is a free data retrieval call binding the contract method 0x4ee38230.
 //
-// Solidity: function misdemeanorThreshold() view returns(uint256)
-func (_SlashIndicator *SlashIndicatorCallerSession) MisdemeanorThreshold() (*big.Int, error) {
-	return _SlashIndicator.Contract.MisdemeanorThreshold(&_SlashIndicator.CallOpts)
+// Solidity: function maxCreditScore() view returns(uint256)
+func (_SlashIndicator *SlashIndicatorCallerSession) MaxCreditScore() (*big.Int, error) {
+	return _SlashIndicator.Contract.MaxCreditScore(&_SlashIndicator.CallOpts)
 }
 
-// SlashDoubleSignAmount is a free data retrieval call binding the contract method 0x6d14c4e5.
+// PrecompileValidateDoubleSignAddress is a free data retrieval call binding the contract method 0x7c2b55a0.
 //
-// Solidity: function slashDoubleSignAmount() view returns(uint256)
-func (_SlashIndicator *SlashIndicatorCaller) SlashDoubleSignAmount(opts *bind.CallOpts) (*big.Int, error) {
+// Solidity: function precompileValidateDoubleSignAddress() view returns(address)
+func (_SlashIndicator *SlashIndicatorCaller) PrecompileValidateDoubleSignAddress(opts *bind.CallOpts) (common.Address, error) {
 	var out []interface{}
-	err := _SlashIndicator.contract.Call(opts, &out, "slashDoubleSignAmount")
+	err := _SlashIndicator.contract.Call(opts, &out, "precompileValidateDoubleSignAddress")
 
 	if err != nil {
-		return *new(*big.Int), err
+		return *new(common.Address), err
 	}
 
-	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+	out0 := *abi.ConvertType(out[0], new(common.Address)).(*common.Address)
 
 	return out0, err
 
 }
 
-// SlashDoubleSignAmount is a free data retrieval call binding the contract method 0x6d14c4e5.
+// PrecompileValidateDoubleSignAddress is a free data retrieval call binding the contract method 0x7c2b55a0.
 //
-// Solidity: function slashDoubleSignAmount() view returns(uint256)
-func (_SlashIndicator *SlashIndicatorSession) SlashDoubleSignAmount() (*big.Int, error) {
-	return _SlashIndicator.Contract.SlashDoubleSignAmount(&_SlashIndicator.CallOpts)
+// Solidity: function precompileValidateDoubleSignAddress() view returns(address)
+func (_SlashIndicator *SlashIndicatorSession) PrecompileValidateDoubleSignAddress() (common.Address, error) {
+	return _SlashIndicator.Contract.PrecompileValidateDoubleSignAddress(&_SlashIndicator.CallOpts)
 }
 
-// SlashDoubleSignAmount is a free data retrieval call binding the contract method 0x6d14c4e5.
+// PrecompileValidateDoubleSignAddress is a free data retrieval call binding the contract method 0x7c2b55a0.
 //
-// Solidity: function slashDoubleSignAmount() view returns(uint256)
-func (_SlashIndicator *SlashIndicatorCallerSession) SlashDoubleSignAmount() (*big.Int, error) {
-	return _SlashIndicator.Contract.SlashDoubleSignAmount(&_SlashIndicator.CallOpts)
+// Solidity: function precompileValidateDoubleSignAddress() view returns(address)
+func (_SlashIndicator *SlashIndicatorCallerSession) PrecompileValidateDoubleSignAddress() (common.Address, error) {
+	return _SlashIndicator.Contract.PrecompileValidateDoubleSignAddress(&_SlashIndicator.CallOpts)
 }
 
-// SlashFelonyAmount is a free data retrieval call binding the contract method 0xdfe484cb.
+// RoninGovernanceAdminContract is a free data retrieval call binding the contract method 0x23368e47.
 //
-// Solidity: function slashFelonyAmount() view returns(uint256)
-func (_SlashIndicator *SlashIndicatorCaller) SlashFelonyAmount(opts *bind.CallOpts) (*big.Int, error) {
+// Solidity: function roninGovernanceAdminContract() view returns(address)
+func (_SlashIndicator *SlashIndicatorCaller) RoninGovernanceAdminContract(opts *bind.CallOpts) (common.Address, error) {
 	var out []interface{}
-	err := _SlashIndicator.contract.Call(opts, &out, "slashFelonyAmount")
+	err := _SlashIndicator.contract.Call(opts, &out, "roninGovernanceAdminContract")
 
 	if err != nil {
-		return *new(*big.Int), err
+		return *new(common.Address), err
 	}
 
-	out0 := *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
+	out0 := *abi.ConvertType(out[0], new(common.Address)).(*common.Address)
 
 	return out0, err
 
 }
 
-// SlashFelonyAmount is a free data retrieval call binding the contract method 0xdfe484cb.
+// RoninGovernanceAdminContract is a free data retrieval call binding the contract method 0x23368e47.
 //
-// Solidity: function slashFelonyAmount() view returns(uint256)
-func (_SlashIndicator *SlashIndicatorSession) SlashFelonyAmount() (*big.Int, error) {
-	return _SlashIndicator.Contract.SlashFelonyAmount(&_SlashIndicator.CallOpts)
+// Solidity: function roninGovernanceAdminContract() view returns(address)
+func (_SlashIndicator *SlashIndicatorSession) RoninGovernanceAdminContract() (common.Address, error) {
+	return _SlashIndicator.Contract.RoninGovernanceAdminContract(&_SlashIndicator.CallOpts)
 }
 
-// SlashFelonyAmount is a free data retrieval call binding the contract method 0xdfe484cb.
+// RoninGovernanceAdminContract is a free data retrieval call binding the contract method 0x23368e47.
 //
-// Solidity: function slashFelonyAmount() view returns(uint256)
-func (_SlashIndicator *SlashIndicatorCallerSession) SlashFelonyAmount() (*big.Int, error) {
-	return _SlashIndicator.Contract.SlashFelonyAmount(&_SlashIndicator.CallOpts)
+// Solidity: function roninGovernanceAdminContract() view returns(address)
+func (_SlashIndicator *SlashIndicatorCallerSession) RoninGovernanceAdminContract() (common.Address, error) {
+	return _SlashIndicator.Contract.RoninGovernanceAdminContract(&_SlashIndicator.CallOpts)
 }
 
-// UnavailabilityThresholdsOf is a free data retrieval call binding the contract method 0x4d961e18.
+// RoninTrustedOrganizationContract is a free data retrieval call binding the contract method 0x5511cde1.
 //
-// Solidity: function unavailabilityThresholdsOf(address _addr, uint256 _block) view returns(uint256 _misdemeanorThreshold, uint256 _felonyThreshold)
-func (_SlashIndicator *SlashIndicatorCaller) UnavailabilityThresholdsOf(opts *bind.CallOpts, _addr common.Address, _block *big.Int) (struct {
-	MisdemeanorThreshold *big.Int
-	FelonyThreshold      *big.Int
-}, error) {
+// Solidity: function roninTrustedOrganizationContract() view returns(address)
+func (_SlashIndicator *SlashIndicatorCaller) RoninTrustedOrganizationContract(opts *bind.CallOpts) (common.Address, error) {
 	var out []interface{}
-	err := _SlashIndicator.contract.Call(opts, &out, "unavailabilityThresholdsOf", _addr, _block)
+	err := _SlashIndicator.contract.Call(opts, &out, "roninTrustedOrganizationContract")
 
-	outstruct := new(struct {
-		MisdemeanorThreshold *big.Int
-		FelonyThreshold      *big.Int
-	})
 	if err != nil {
-		return *outstruct, err
+		return *new(common.Address), err
 	}
 
-	outstruct.MisdemeanorThreshold = *abi.ConvertType(out[0], new(*big.Int)).(**big.Int)
-	outstruct.FelonyThreshold = *abi.ConvertType(out[1], new(*big.Int)).(**big.Int)
+	out0 := *abi.ConvertType(out[0], new(common.Address)).(*common.Address)
 
-	return *outstruct, err
+	return out0, err
 
 }
 
-// UnavailabilityThresholdsOf is a free data retrieval call binding the contract method 0x4d961e18.
+// RoninTrustedOrganizationContract is a free data retrieval call binding the contract method 0x5511cde1.
 //
-// Solidity: function unavailabilityThresholdsOf(address _addr, uint256 _block) view returns(uint256 _misdemeanorThreshold, uint256 _felonyThreshold)
-func (_SlashIndicator *SlashIndicatorSession) UnavailabilityThresholdsOf(_addr common.Address, _block *big.Int) (struct {
-	MisdemeanorThreshold *big.Int
-	FelonyThreshold      *big.Int
-}, error) {
-	return _SlashIndicator.Contract.UnavailabilityThresholdsOf(&_SlashIndicator.CallOpts, _addr, _block)
+// Solidity: function roninTrustedOrganizationContract() view returns(address)
+func (_SlashIndicator *SlashIndicatorSession) RoninTrustedOrganizationContract() (common.Address, error) {
+	return _SlashIndicator.Contract.RoninTrustedOrganizationContract(&_SlashIndicator.CallOpts)
 }
 
-// UnavailabilityThresholdsOf is a free data retrieval call binding the contract method 0x4d961e18.
+// RoninTrustedOrganizationContract is a free data retrieval call binding the contract method 0x5511cde1.
 //
-// Solidity: function unavailabilityThresholdsOf(address _addr, uint256 _block) view returns(uint256 _misdemeanorThreshold, uint256 _felonyThreshold)
-func (_SlashIndicator *SlashIndicatorCallerSession) UnavailabilityThresholdsOf(_addr common.Address, _block *big.Int) (struct {
-	MisdemeanorThreshold *big.Int
-	FelonyThreshold      *big.Int
-}, error) {
-	return _SlashIndicator.Contract.UnavailabilityThresholdsOf(&_SlashIndicator.CallOpts, _addr, _block)
+// Solidity: function roninTrustedOrganizationContract() view returns(address)
+func (_SlashIndicator *SlashIndicatorCallerSession) RoninTrustedOrganizationContract() (common.Address, error) {
+	return _SlashIndicator.Contract.RoninTrustedOrganizationContract(&_SlashIndicator.CallOpts)
 }
 
 // ValidatorContract is a free data retrieval call binding the contract method 0x99439089.
@@ -619,46 +763,130 @@ func (_SlashIndicator *SlashIndicatorCallerSession) ValidatorContract() (common.
 	return _SlashIndicator.Contract.ValidatorContract(&_SlashIndicator.CallOpts)
 }
 
-// Initialize is a paid mutator transaction binding the contract method 0xedbf4ac2.
+// BailOut is a paid mutator transaction binding the contract method 0xd1f992f7.
 //
-// Solidity: function initialize(address __validatorContract, address __maintenanceContract, uint256 _misdemeanorThreshold, uint256 _felonyThreshold, uint256 _slashFelonyAmount, uint256 _slashDoubleSignAmount, uint256 _felonyJailBlocks) returns()
-func (_SlashIndicator *SlashIndicatorTransactor) Initialize(opts *bind.TransactOpts, __validatorContract common.Address, __maintenanceContract common.Address, _misdemeanorThreshold *big.Int, _felonyThreshold *big.Int, _slashFelonyAmount *big.Int, _slashDoubleSignAmount *big.Int, _felonyJailBlocks *big.Int) (*types.Transaction, error) {
-	return _SlashIndicator.contract.Transact(opts, "initialize", __validatorContract, __maintenanceContract, _misdemeanorThreshold, _felonyThreshold, _slashFelonyAmount, _slashDoubleSignAmount, _felonyJailBlocks)
+// Solidity: function bailOut(address _consensusAddr) returns()
+func (_SlashIndicator *SlashIndicatorTransactor) BailOut(opts *bind.TransactOpts, _consensusAddr common.Address) (*types.Transaction, error) {
+	return _SlashIndicator.contract.Transact(opts, "bailOut", _consensusAddr)
 }
 
-// Initialize is a paid mutator transaction binding the contract method 0xedbf4ac2.
+// BailOut is a paid mutator transaction binding the contract method 0xd1f992f7.
 //
-// Solidity: function initialize(address __validatorContract, address __maintenanceContract, uint256 _misdemeanorThreshold, uint256 _felonyThreshold, uint256 _slashFelonyAmount, uint256 _slashDoubleSignAmount, uint256 _felonyJailBlocks) returns()
-func (_SlashIndicator *SlashIndicatorSession) Initialize(__validatorContract common.Address, __maintenanceContract common.Address, _misdemeanorThreshold *big.Int, _felonyThreshold *big.Int, _slashFelonyAmount *big.Int, _slashDoubleSignAmount *big.Int, _felonyJailBlocks *big.Int) (*types.Transaction, error) {
-	return _SlashIndicator.Contract.Initialize(&_SlashIndicator.TransactOpts, __validatorContract, __maintenanceContract, _misdemeanorThreshold, _felonyThreshold, _slashFelonyAmount, _slashDoubleSignAmount, _felonyJailBlocks)
+// Solidity: function bailOut(address _consensusAddr) returns()
+func (_SlashIndicator *SlashIndicatorSession) BailOut(_consensusAddr common.Address) (*types.Transaction, error) {
+	return _SlashIndicator.Contract.BailOut(&_SlashIndicator.TransactOpts, _consensusAddr)
 }
 
-// Initialize is a paid mutator transaction binding the contract method 0xedbf4ac2.
+// BailOut is a paid mutator transaction binding the contract method 0xd1f992f7.
 //
-// Solidity: function initialize(address __validatorContract, address __maintenanceContract, uint256 _misdemeanorThreshold, uint256 _felonyThreshold, uint256 _slashFelonyAmount, uint256 _slashDoubleSignAmount, uint256 _felonyJailBlocks) returns()
-func (_SlashIndicator *SlashIndicatorTransactorSession) Initialize(__validatorContract common.Address, __maintenanceContract common.Address, _misdemeanorThreshold *big.Int, _felonyThreshold *big.Int, _slashFelonyAmount *big.Int, _slashDoubleSignAmount *big.Int, _felonyJailBlocks *big.Int) (*types.Transaction, error) {
-	return _SlashIndicator.Contract.Initialize(&_SlashIndicator.TransactOpts, __validatorContract, __maintenanceContract, _misdemeanorThreshold, _felonyThreshold, _slashFelonyAmount, _slashDoubleSignAmount, _felonyJailBlocks)
+// Solidity: function bailOut(address _consensusAddr) returns()
+func (_SlashIndicator *SlashIndicatorTransactorSession) BailOut(_consensusAddr common.Address) (*types.Transaction, error) {
+	return _SlashIndicator.Contract.BailOut(&_SlashIndicator.TransactOpts, _consensusAddr)
 }
 
-// SetFelonyJailDuration is a paid mutator transaction binding the contract method 0x5786e9ee.
+// Initialize is a paid mutator transaction binding the contract method 0x118c01a2.
 //
-// Solidity: function setFelonyJailDuration(uint256 _felonyJailDuration) returns()
-func (_SlashIndicator *SlashIndicatorTransactor) SetFelonyJailDuration(opts *bind.TransactOpts, _felonyJailDuration *big.Int) (*types.Transaction, error) {
-	return _SlashIndicator.contract.Transact(opts, "setFelonyJailDuration", _felonyJailDuration)
+// Solidity: function initialize(address __validatorContract, address __maintenanceContract, address __roninTrustedOrganizationContract, address __roninGovernanceAdminContract, uint256[3] _bridgeOperatorSlashingConfigs, uint256[2] _bridgeVotingSlashingConfigs, uint256[2] _doubleSignSlashingConfigs, uint256[4] _unavailabilitySlashingConfigs, uint256[3] _creditScoreConfigs) returns()
+func (_SlashIndicator *SlashIndicatorTransactor) Initialize(opts *bind.TransactOpts, __validatorContract common.Address, __maintenanceContract common.Address, __roninTrustedOrganizationContract common.Address, __roninGovernanceAdminContract common.Address, _bridgeOperatorSlashingConfigs [3]*big.Int, _bridgeVotingSlashingConfigs [2]*big.Int, _doubleSignSlashingConfigs [2]*big.Int, _unavailabilitySlashingConfigs [4]*big.Int, _creditScoreConfigs [3]*big.Int) (*types.Transaction, error) {
+	return _SlashIndicator.contract.Transact(opts, "initialize", __validatorContract, __maintenanceContract, __roninTrustedOrganizationContract, __roninGovernanceAdminContract, _bridgeOperatorSlashingConfigs, _bridgeVotingSlashingConfigs, _doubleSignSlashingConfigs, _unavailabilitySlashingConfigs, _creditScoreConfigs)
 }
 
-// SetFelonyJailDuration is a paid mutator transaction binding the contract method 0x5786e9ee.
+// Initialize is a paid mutator transaction binding the contract method 0x118c01a2.
 //
-// Solidity: function setFelonyJailDuration(uint256 _felonyJailDuration) returns()
-func (_SlashIndicator *SlashIndicatorSession) SetFelonyJailDuration(_felonyJailDuration *big.Int) (*types.Transaction, error) {
-	return _SlashIndicator.Contract.SetFelonyJailDuration(&_SlashIndicator.TransactOpts, _felonyJailDuration)
+// Solidity: function initialize(address __validatorContract, address __maintenanceContract, address __roninTrustedOrganizationContract, address __roninGovernanceAdminContract, uint256[3] _bridgeOperatorSlashingConfigs, uint256[2] _bridgeVotingSlashingConfigs, uint256[2] _doubleSignSlashingConfigs, uint256[4] _unavailabilitySlashingConfigs, uint256[3] _creditScoreConfigs) returns()
+func (_SlashIndicator *SlashIndicatorSession) Initialize(__validatorContract common.Address, __maintenanceContract common.Address, __roninTrustedOrganizationContract common.Address, __roninGovernanceAdminContract common.Address, _bridgeOperatorSlashingConfigs [3]*big.Int, _bridgeVotingSlashingConfigs [2]*big.Int, _doubleSignSlashingConfigs [2]*big.Int, _unavailabilitySlashingConfigs [4]*big.Int, _creditScoreConfigs [3]*big.Int) (*types.Transaction, error) {
+	return _SlashIndicator.Contract.Initialize(&_SlashIndicator.TransactOpts, __validatorContract, __maintenanceContract, __roninTrustedOrganizationContract, __roninGovernanceAdminContract, _bridgeOperatorSlashingConfigs, _bridgeVotingSlashingConfigs, _doubleSignSlashingConfigs, _unavailabilitySlashingConfigs, _creditScoreConfigs)
 }
 
-// SetFelonyJailDuration is a paid mutator transaction binding the contract method 0x5786e9ee.
+// Initialize is a paid mutator transaction binding the contract method 0x118c01a2.
 //
-// Solidity: function setFelonyJailDuration(uint256 _felonyJailDuration) returns()
-func (_SlashIndicator *SlashIndicatorTransactorSession) SetFelonyJailDuration(_felonyJailDuration *big.Int) (*types.Transaction, error) {
-	return _SlashIndicator.Contract.SetFelonyJailDuration(&_SlashIndicator.TransactOpts, _felonyJailDuration)
+// Solidity: function initialize(address __validatorContract, address __maintenanceContract, address __roninTrustedOrganizationContract, address __roninGovernanceAdminContract, uint256[3] _bridgeOperatorSlashingConfigs, uint256[2] _bridgeVotingSlashingConfigs, uint256[2] _doubleSignSlashingConfigs, uint256[4] _unavailabilitySlashingConfigs, uint256[3] _creditScoreConfigs) returns()
+func (_SlashIndicator *SlashIndicatorTransactorSession) Initialize(__validatorContract common.Address, __maintenanceContract common.Address, __roninTrustedOrganizationContract common.Address, __roninGovernanceAdminContract common.Address, _bridgeOperatorSlashingConfigs [3]*big.Int, _bridgeVotingSlashingConfigs [2]*big.Int, _doubleSignSlashingConfigs [2]*big.Int, _unavailabilitySlashingConfigs [4]*big.Int, _creditScoreConfigs [3]*big.Int) (*types.Transaction, error) {
+	return _SlashIndicator.Contract.Initialize(&_SlashIndicator.TransactOpts, __validatorContract, __maintenanceContract, __roninTrustedOrganizationContract, __roninGovernanceAdminContract, _bridgeOperatorSlashingConfigs, _bridgeVotingSlashingConfigs, _doubleSignSlashingConfigs, _unavailabilitySlashingConfigs, _creditScoreConfigs)
+}
+
+// SetBridgeOperatorSlashingConfigs is a paid mutator transaction binding the contract method 0xbe2be2b1.
+//
+// Solidity: function setBridgeOperatorSlashingConfigs(uint256 _ratioTier1, uint256 _ratioTier2, uint256 _jailDurationTier2) returns()
+func (_SlashIndicator *SlashIndicatorTransactor) SetBridgeOperatorSlashingConfigs(opts *bind.TransactOpts, _ratioTier1 *big.Int, _ratioTier2 *big.Int, _jailDurationTier2 *big.Int) (*types.Transaction, error) {
+	return _SlashIndicator.contract.Transact(opts, "setBridgeOperatorSlashingConfigs", _ratioTier1, _ratioTier2, _jailDurationTier2)
+}
+
+// SetBridgeOperatorSlashingConfigs is a paid mutator transaction binding the contract method 0xbe2be2b1.
+//
+// Solidity: function setBridgeOperatorSlashingConfigs(uint256 _ratioTier1, uint256 _ratioTier2, uint256 _jailDurationTier2) returns()
+func (_SlashIndicator *SlashIndicatorSession) SetBridgeOperatorSlashingConfigs(_ratioTier1 *big.Int, _ratioTier2 *big.Int, _jailDurationTier2 *big.Int) (*types.Transaction, error) {
+	return _SlashIndicator.Contract.SetBridgeOperatorSlashingConfigs(&_SlashIndicator.TransactOpts, _ratioTier1, _ratioTier2, _jailDurationTier2)
+}
+
+// SetBridgeOperatorSlashingConfigs is a paid mutator transaction binding the contract method 0xbe2be2b1.
+//
+// Solidity: function setBridgeOperatorSlashingConfigs(uint256 _ratioTier1, uint256 _ratioTier2, uint256 _jailDurationTier2) returns()
+func (_SlashIndicator *SlashIndicatorTransactorSession) SetBridgeOperatorSlashingConfigs(_ratioTier1 *big.Int, _ratioTier2 *big.Int, _jailDurationTier2 *big.Int) (*types.Transaction, error) {
+	return _SlashIndicator.Contract.SetBridgeOperatorSlashingConfigs(&_SlashIndicator.TransactOpts, _ratioTier1, _ratioTier2, _jailDurationTier2)
+}
+
+// SetBridgeVotingSlashingConfigs is a paid mutator transaction binding the contract method 0x853af1b7.
+//
+// Solidity: function setBridgeVotingSlashingConfigs(uint256 _threshold, uint256 _slashAmount) returns()
+func (_SlashIndicator *SlashIndicatorTransactor) SetBridgeVotingSlashingConfigs(opts *bind.TransactOpts, _threshold *big.Int, _slashAmount *big.Int) (*types.Transaction, error) {
+	return _SlashIndicator.contract.Transact(opts, "setBridgeVotingSlashingConfigs", _threshold, _slashAmount)
+}
+
+// SetBridgeVotingSlashingConfigs is a paid mutator transaction binding the contract method 0x853af1b7.
+//
+// Solidity: function setBridgeVotingSlashingConfigs(uint256 _threshold, uint256 _slashAmount) returns()
+func (_SlashIndicator *SlashIndicatorSession) SetBridgeVotingSlashingConfigs(_threshold *big.Int, _slashAmount *big.Int) (*types.Transaction, error) {
+	return _SlashIndicator.Contract.SetBridgeVotingSlashingConfigs(&_SlashIndicator.TransactOpts, _threshold, _slashAmount)
+}
+
+// SetBridgeVotingSlashingConfigs is a paid mutator transaction binding the contract method 0x853af1b7.
+//
+// Solidity: function setBridgeVotingSlashingConfigs(uint256 _threshold, uint256 _slashAmount) returns()
+func (_SlashIndicator *SlashIndicatorTransactorSession) SetBridgeVotingSlashingConfigs(_threshold *big.Int, _slashAmount *big.Int) (*types.Transaction, error) {
+	return _SlashIndicator.Contract.SetBridgeVotingSlashingConfigs(&_SlashIndicator.TransactOpts, _threshold, _slashAmount)
+}
+
+// SetCreditScoreConfigs is a paid mutator transaction binding the contract method 0x639ce29e.
+//
+// Solidity: function setCreditScoreConfigs(uint256 _gainCreditScore, uint256 _maxCreditScore, uint256 _bailOutCostMultiplier) returns()
+func (_SlashIndicator *SlashIndicatorTransactor) SetCreditScoreConfigs(opts *bind.TransactOpts, _gainCreditScore *big.Int, _maxCreditScore *big.Int, _bailOutCostMultiplier *big.Int) (*types.Transaction, error) {
+	return _SlashIndicator.contract.Transact(opts, "setCreditScoreConfigs", _gainCreditScore, _maxCreditScore, _bailOutCostMultiplier)
+}
+
+// SetCreditScoreConfigs is a paid mutator transaction binding the contract method 0x639ce29e.
+//
+// Solidity: function setCreditScoreConfigs(uint256 _gainCreditScore, uint256 _maxCreditScore, uint256 _bailOutCostMultiplier) returns()
+func (_SlashIndicator *SlashIndicatorSession) SetCreditScoreConfigs(_gainCreditScore *big.Int, _maxCreditScore *big.Int, _bailOutCostMultiplier *big.Int) (*types.Transaction, error) {
+	return _SlashIndicator.Contract.SetCreditScoreConfigs(&_SlashIndicator.TransactOpts, _gainCreditScore, _maxCreditScore, _bailOutCostMultiplier)
+}
+
+// SetCreditScoreConfigs is a paid mutator transaction binding the contract method 0x639ce29e.
+//
+// Solidity: function setCreditScoreConfigs(uint256 _gainCreditScore, uint256 _maxCreditScore, uint256 _bailOutCostMultiplier) returns()
+func (_SlashIndicator *SlashIndicatorTransactorSession) SetCreditScoreConfigs(_gainCreditScore *big.Int, _maxCreditScore *big.Int, _bailOutCostMultiplier *big.Int) (*types.Transaction, error) {
+	return _SlashIndicator.Contract.SetCreditScoreConfigs(&_SlashIndicator.TransactOpts, _gainCreditScore, _maxCreditScore, _bailOutCostMultiplier)
+}
+
+// SetDoubleSignSlashingConfigs is a paid mutator transaction binding the contract method 0x61d3b60b.
+//
+// Solidity: function setDoubleSignSlashingConfigs(uint256 _slashAmount, uint256 _jailUntilBlock) returns()
+func (_SlashIndicator *SlashIndicatorTransactor) SetDoubleSignSlashingConfigs(opts *bind.TransactOpts, _slashAmount *big.Int, _jailUntilBlock *big.Int) (*types.Transaction, error) {
+	return _SlashIndicator.contract.Transact(opts, "setDoubleSignSlashingConfigs", _slashAmount, _jailUntilBlock)
+}
+
+// SetDoubleSignSlashingConfigs is a paid mutator transaction binding the contract method 0x61d3b60b.
+//
+// Solidity: function setDoubleSignSlashingConfigs(uint256 _slashAmount, uint256 _jailUntilBlock) returns()
+func (_SlashIndicator *SlashIndicatorSession) SetDoubleSignSlashingConfigs(_slashAmount *big.Int, _jailUntilBlock *big.Int) (*types.Transaction, error) {
+	return _SlashIndicator.Contract.SetDoubleSignSlashingConfigs(&_SlashIndicator.TransactOpts, _slashAmount, _jailUntilBlock)
+}
+
+// SetDoubleSignSlashingConfigs is a paid mutator transaction binding the contract method 0x61d3b60b.
+//
+// Solidity: function setDoubleSignSlashingConfigs(uint256 _slashAmount, uint256 _jailUntilBlock) returns()
+func (_SlashIndicator *SlashIndicatorTransactorSession) SetDoubleSignSlashingConfigs(_slashAmount *big.Int, _jailUntilBlock *big.Int) (*types.Transaction, error) {
+	return _SlashIndicator.Contract.SetDoubleSignSlashingConfigs(&_SlashIndicator.TransactOpts, _slashAmount, _jailUntilBlock)
 }
 
 // SetMaintenanceContract is a paid mutator transaction binding the contract method 0x46fe9311.
@@ -682,67 +910,67 @@ func (_SlashIndicator *SlashIndicatorTransactorSession) SetMaintenanceContract(_
 	return _SlashIndicator.Contract.SetMaintenanceContract(&_SlashIndicator.TransactOpts, _addr)
 }
 
-// SetSlashDoubleSignAmount is a paid mutator transaction binding the contract method 0xf82bdd01.
+// SetRoninGovernanceAdminContract is a paid mutator transaction binding the contract method 0xd73e81b8.
 //
-// Solidity: function setSlashDoubleSignAmount(uint256 _slashDoubleSignAmount) returns()
-func (_SlashIndicator *SlashIndicatorTransactor) SetSlashDoubleSignAmount(opts *bind.TransactOpts, _slashDoubleSignAmount *big.Int) (*types.Transaction, error) {
-	return _SlashIndicator.contract.Transact(opts, "setSlashDoubleSignAmount", _slashDoubleSignAmount)
+// Solidity: function setRoninGovernanceAdminContract(address _addr) returns()
+func (_SlashIndicator *SlashIndicatorTransactor) SetRoninGovernanceAdminContract(opts *bind.TransactOpts, _addr common.Address) (*types.Transaction, error) {
+	return _SlashIndicator.contract.Transact(opts, "setRoninGovernanceAdminContract", _addr)
 }
 
-// SetSlashDoubleSignAmount is a paid mutator transaction binding the contract method 0xf82bdd01.
+// SetRoninGovernanceAdminContract is a paid mutator transaction binding the contract method 0xd73e81b8.
 //
-// Solidity: function setSlashDoubleSignAmount(uint256 _slashDoubleSignAmount) returns()
-func (_SlashIndicator *SlashIndicatorSession) SetSlashDoubleSignAmount(_slashDoubleSignAmount *big.Int) (*types.Transaction, error) {
-	return _SlashIndicator.Contract.SetSlashDoubleSignAmount(&_SlashIndicator.TransactOpts, _slashDoubleSignAmount)
+// Solidity: function setRoninGovernanceAdminContract(address _addr) returns()
+func (_SlashIndicator *SlashIndicatorSession) SetRoninGovernanceAdminContract(_addr common.Address) (*types.Transaction, error) {
+	return _SlashIndicator.Contract.SetRoninGovernanceAdminContract(&_SlashIndicator.TransactOpts, _addr)
 }
 
-// SetSlashDoubleSignAmount is a paid mutator transaction binding the contract method 0xf82bdd01.
+// SetRoninGovernanceAdminContract is a paid mutator transaction binding the contract method 0xd73e81b8.
 //
-// Solidity: function setSlashDoubleSignAmount(uint256 _slashDoubleSignAmount) returns()
-func (_SlashIndicator *SlashIndicatorTransactorSession) SetSlashDoubleSignAmount(_slashDoubleSignAmount *big.Int) (*types.Transaction, error) {
-	return _SlashIndicator.Contract.SetSlashDoubleSignAmount(&_SlashIndicator.TransactOpts, _slashDoubleSignAmount)
+// Solidity: function setRoninGovernanceAdminContract(address _addr) returns()
+func (_SlashIndicator *SlashIndicatorTransactorSession) SetRoninGovernanceAdminContract(_addr common.Address) (*types.Transaction, error) {
+	return _SlashIndicator.Contract.SetRoninGovernanceAdminContract(&_SlashIndicator.TransactOpts, _addr)
 }
 
-// SetSlashFelonyAmount is a paid mutator transaction binding the contract method 0x6e91bec5.
+// SetRoninTrustedOrganizationContract is a paid mutator transaction binding the contract method 0xb5e337de.
 //
-// Solidity: function setSlashFelonyAmount(uint256 _slashFelonyAmount) returns()
-func (_SlashIndicator *SlashIndicatorTransactor) SetSlashFelonyAmount(opts *bind.TransactOpts, _slashFelonyAmount *big.Int) (*types.Transaction, error) {
-	return _SlashIndicator.contract.Transact(opts, "setSlashFelonyAmount", _slashFelonyAmount)
+// Solidity: function setRoninTrustedOrganizationContract(address _addr) returns()
+func (_SlashIndicator *SlashIndicatorTransactor) SetRoninTrustedOrganizationContract(opts *bind.TransactOpts, _addr common.Address) (*types.Transaction, error) {
+	return _SlashIndicator.contract.Transact(opts, "setRoninTrustedOrganizationContract", _addr)
 }
 
-// SetSlashFelonyAmount is a paid mutator transaction binding the contract method 0x6e91bec5.
+// SetRoninTrustedOrganizationContract is a paid mutator transaction binding the contract method 0xb5e337de.
 //
-// Solidity: function setSlashFelonyAmount(uint256 _slashFelonyAmount) returns()
-func (_SlashIndicator *SlashIndicatorSession) SetSlashFelonyAmount(_slashFelonyAmount *big.Int) (*types.Transaction, error) {
-	return _SlashIndicator.Contract.SetSlashFelonyAmount(&_SlashIndicator.TransactOpts, _slashFelonyAmount)
+// Solidity: function setRoninTrustedOrganizationContract(address _addr) returns()
+func (_SlashIndicator *SlashIndicatorSession) SetRoninTrustedOrganizationContract(_addr common.Address) (*types.Transaction, error) {
+	return _SlashIndicator.Contract.SetRoninTrustedOrganizationContract(&_SlashIndicator.TransactOpts, _addr)
 }
 
-// SetSlashFelonyAmount is a paid mutator transaction binding the contract method 0x6e91bec5.
+// SetRoninTrustedOrganizationContract is a paid mutator transaction binding the contract method 0xb5e337de.
 //
-// Solidity: function setSlashFelonyAmount(uint256 _slashFelonyAmount) returns()
-func (_SlashIndicator *SlashIndicatorTransactorSession) SetSlashFelonyAmount(_slashFelonyAmount *big.Int) (*types.Transaction, error) {
-	return _SlashIndicator.Contract.SetSlashFelonyAmount(&_SlashIndicator.TransactOpts, _slashFelonyAmount)
+// Solidity: function setRoninTrustedOrganizationContract(address _addr) returns()
+func (_SlashIndicator *SlashIndicatorTransactorSession) SetRoninTrustedOrganizationContract(_addr common.Address) (*types.Transaction, error) {
+	return _SlashIndicator.Contract.SetRoninTrustedOrganizationContract(&_SlashIndicator.TransactOpts, _addr)
 }
 
-// SetSlashThresholds is a paid mutator transaction binding the contract method 0xe4f9c4be.
+// SetUnavailabilitySlashingConfigs is a paid mutator transaction binding the contract method 0xd1737e27.
 //
-// Solidity: function setSlashThresholds(uint256 _felonyThreshold, uint256 _misdemeanorThreshold) returns()
-func (_SlashIndicator *SlashIndicatorTransactor) SetSlashThresholds(opts *bind.TransactOpts, _felonyThreshold *big.Int, _misdemeanorThreshold *big.Int) (*types.Transaction, error) {
-	return _SlashIndicator.contract.Transact(opts, "setSlashThresholds", _felonyThreshold, _misdemeanorThreshold)
+// Solidity: function setUnavailabilitySlashingConfigs(uint256 _tier1Threshold, uint256 _tier2Threshold, uint256 _slashAmountForTier2Threshold, uint256 _jailDurationForTier2Threshold) returns()
+func (_SlashIndicator *SlashIndicatorTransactor) SetUnavailabilitySlashingConfigs(opts *bind.TransactOpts, _tier1Threshold *big.Int, _tier2Threshold *big.Int, _slashAmountForTier2Threshold *big.Int, _jailDurationForTier2Threshold *big.Int) (*types.Transaction, error) {
+	return _SlashIndicator.contract.Transact(opts, "setUnavailabilitySlashingConfigs", _tier1Threshold, _tier2Threshold, _slashAmountForTier2Threshold, _jailDurationForTier2Threshold)
 }
 
-// SetSlashThresholds is a paid mutator transaction binding the contract method 0xe4f9c4be.
+// SetUnavailabilitySlashingConfigs is a paid mutator transaction binding the contract method 0xd1737e27.
 //
-// Solidity: function setSlashThresholds(uint256 _felonyThreshold, uint256 _misdemeanorThreshold) returns()
-func (_SlashIndicator *SlashIndicatorSession) SetSlashThresholds(_felonyThreshold *big.Int, _misdemeanorThreshold *big.Int) (*types.Transaction, error) {
-	return _SlashIndicator.Contract.SetSlashThresholds(&_SlashIndicator.TransactOpts, _felonyThreshold, _misdemeanorThreshold)
+// Solidity: function setUnavailabilitySlashingConfigs(uint256 _tier1Threshold, uint256 _tier2Threshold, uint256 _slashAmountForTier2Threshold, uint256 _jailDurationForTier2Threshold) returns()
+func (_SlashIndicator *SlashIndicatorSession) SetUnavailabilitySlashingConfigs(_tier1Threshold *big.Int, _tier2Threshold *big.Int, _slashAmountForTier2Threshold *big.Int, _jailDurationForTier2Threshold *big.Int) (*types.Transaction, error) {
+	return _SlashIndicator.Contract.SetUnavailabilitySlashingConfigs(&_SlashIndicator.TransactOpts, _tier1Threshold, _tier2Threshold, _slashAmountForTier2Threshold, _jailDurationForTier2Threshold)
 }
 
-// SetSlashThresholds is a paid mutator transaction binding the contract method 0xe4f9c4be.
+// SetUnavailabilitySlashingConfigs is a paid mutator transaction binding the contract method 0xd1737e27.
 //
-// Solidity: function setSlashThresholds(uint256 _felonyThreshold, uint256 _misdemeanorThreshold) returns()
-func (_SlashIndicator *SlashIndicatorTransactorSession) SetSlashThresholds(_felonyThreshold *big.Int, _misdemeanorThreshold *big.Int) (*types.Transaction, error) {
-	return _SlashIndicator.Contract.SetSlashThresholds(&_SlashIndicator.TransactOpts, _felonyThreshold, _misdemeanorThreshold)
+// Solidity: function setUnavailabilitySlashingConfigs(uint256 _tier1Threshold, uint256 _tier2Threshold, uint256 _slashAmountForTier2Threshold, uint256 _jailDurationForTier2Threshold) returns()
+func (_SlashIndicator *SlashIndicatorTransactorSession) SetUnavailabilitySlashingConfigs(_tier1Threshold *big.Int, _tier2Threshold *big.Int, _slashAmountForTier2Threshold *big.Int, _jailDurationForTier2Threshold *big.Int) (*types.Transaction, error) {
+	return _SlashIndicator.Contract.SetUnavailabilitySlashingConfigs(&_SlashIndicator.TransactOpts, _tier1Threshold, _tier2Threshold, _slashAmountForTier2Threshold, _jailDurationForTier2Threshold)
 }
 
 // SetValidatorContract is a paid mutator transaction binding the contract method 0xcdf64a76.
@@ -766,51 +994,93 @@ func (_SlashIndicator *SlashIndicatorTransactorSession) SetValidatorContract(_ad
 	return _SlashIndicator.Contract.SetValidatorContract(&_SlashIndicator.TransactOpts, _addr)
 }
 
-// Slash is a paid mutator transaction binding the contract method 0xc96be4cb.
+// SlashBridgeVoting is a paid mutator transaction binding the contract method 0x1a697341.
 //
-// Solidity: function slash(address _validatorAddr) returns()
-func (_SlashIndicator *SlashIndicatorTransactor) Slash(opts *bind.TransactOpts, _validatorAddr common.Address) (*types.Transaction, error) {
-	return _SlashIndicator.contract.Transact(opts, "slash", _validatorAddr)
+// Solidity: function slashBridgeVoting(address _consensusAddr) returns()
+func (_SlashIndicator *SlashIndicatorTransactor) SlashBridgeVoting(opts *bind.TransactOpts, _consensusAddr common.Address) (*types.Transaction, error) {
+	return _SlashIndicator.contract.Transact(opts, "slashBridgeVoting", _consensusAddr)
 }
 
-// Slash is a paid mutator transaction binding the contract method 0xc96be4cb.
+// SlashBridgeVoting is a paid mutator transaction binding the contract method 0x1a697341.
 //
-// Solidity: function slash(address _validatorAddr) returns()
-func (_SlashIndicator *SlashIndicatorSession) Slash(_validatorAddr common.Address) (*types.Transaction, error) {
-	return _SlashIndicator.Contract.Slash(&_SlashIndicator.TransactOpts, _validatorAddr)
+// Solidity: function slashBridgeVoting(address _consensusAddr) returns()
+func (_SlashIndicator *SlashIndicatorSession) SlashBridgeVoting(_consensusAddr common.Address) (*types.Transaction, error) {
+	return _SlashIndicator.Contract.SlashBridgeVoting(&_SlashIndicator.TransactOpts, _consensusAddr)
 }
 
-// Slash is a paid mutator transaction binding the contract method 0xc96be4cb.
+// SlashBridgeVoting is a paid mutator transaction binding the contract method 0x1a697341.
 //
-// Solidity: function slash(address _validatorAddr) returns()
-func (_SlashIndicator *SlashIndicatorTransactorSession) Slash(_validatorAddr common.Address) (*types.Transaction, error) {
-	return _SlashIndicator.Contract.Slash(&_SlashIndicator.TransactOpts, _validatorAddr)
+// Solidity: function slashBridgeVoting(address _consensusAddr) returns()
+func (_SlashIndicator *SlashIndicatorTransactorSession) SlashBridgeVoting(_consensusAddr common.Address) (*types.Transaction, error) {
+	return _SlashIndicator.Contract.SlashBridgeVoting(&_SlashIndicator.TransactOpts, _consensusAddr)
 }
 
-// SlashDoubleSign is a paid mutator transaction binding the contract method 0x518e463a.
+// SlashDoubleSign is a paid mutator transaction binding the contract method 0x1e90b2a0.
 //
-// Solidity: function slashDoubleSign(address _validatorAddr, bytes ) returns()
-func (_SlashIndicator *SlashIndicatorTransactor) SlashDoubleSign(opts *bind.TransactOpts, _validatorAddr common.Address, arg1 []byte) (*types.Transaction, error) {
-	return _SlashIndicator.contract.Transact(opts, "slashDoubleSign", _validatorAddr, arg1)
+// Solidity: function slashDoubleSign(address _consensuAddr, bytes _header1, bytes _header2) returns()
+func (_SlashIndicator *SlashIndicatorTransactor) SlashDoubleSign(opts *bind.TransactOpts, _consensuAddr common.Address, _header1 []byte, _header2 []byte) (*types.Transaction, error) {
+	return _SlashIndicator.contract.Transact(opts, "slashDoubleSign", _consensuAddr, _header1, _header2)
 }
 
-// SlashDoubleSign is a paid mutator transaction binding the contract method 0x518e463a.
+// SlashDoubleSign is a paid mutator transaction binding the contract method 0x1e90b2a0.
 //
-// Solidity: function slashDoubleSign(address _validatorAddr, bytes ) returns()
-func (_SlashIndicator *SlashIndicatorSession) SlashDoubleSign(_validatorAddr common.Address, arg1 []byte) (*types.Transaction, error) {
-	return _SlashIndicator.Contract.SlashDoubleSign(&_SlashIndicator.TransactOpts, _validatorAddr, arg1)
+// Solidity: function slashDoubleSign(address _consensuAddr, bytes _header1, bytes _header2) returns()
+func (_SlashIndicator *SlashIndicatorSession) SlashDoubleSign(_consensuAddr common.Address, _header1 []byte, _header2 []byte) (*types.Transaction, error) {
+	return _SlashIndicator.Contract.SlashDoubleSign(&_SlashIndicator.TransactOpts, _consensuAddr, _header1, _header2)
 }
 
-// SlashDoubleSign is a paid mutator transaction binding the contract method 0x518e463a.
+// SlashDoubleSign is a paid mutator transaction binding the contract method 0x1e90b2a0.
 //
-// Solidity: function slashDoubleSign(address _validatorAddr, bytes ) returns()
-func (_SlashIndicator *SlashIndicatorTransactorSession) SlashDoubleSign(_validatorAddr common.Address, arg1 []byte) (*types.Transaction, error) {
-	return _SlashIndicator.Contract.SlashDoubleSign(&_SlashIndicator.TransactOpts, _validatorAddr, arg1)
+// Solidity: function slashDoubleSign(address _consensuAddr, bytes _header1, bytes _header2) returns()
+func (_SlashIndicator *SlashIndicatorTransactorSession) SlashDoubleSign(_consensuAddr common.Address, _header1 []byte, _header2 []byte) (*types.Transaction, error) {
+	return _SlashIndicator.Contract.SlashDoubleSign(&_SlashIndicator.TransactOpts, _consensuAddr, _header1, _header2)
 }
 
-// SlashIndicatorFelonyJailDurationUpdatedIterator is returned from FilterFelonyJailDurationUpdated and is used to iterate over the raw logs and unpacked data for FelonyJailDurationUpdated events raised by the SlashIndicator contract.
-type SlashIndicatorFelonyJailDurationUpdatedIterator struct {
-	Event *SlashIndicatorFelonyJailDurationUpdated // Event containing the contract specifics and raw log
+// SlashUnavailability is a paid mutator transaction binding the contract method 0xfd422cd0.
+//
+// Solidity: function slashUnavailability(address _validatorAddr) returns()
+func (_SlashIndicator *SlashIndicatorTransactor) SlashUnavailability(opts *bind.TransactOpts, _validatorAddr common.Address) (*types.Transaction, error) {
+	return _SlashIndicator.contract.Transact(opts, "slashUnavailability", _validatorAddr)
+}
+
+// SlashUnavailability is a paid mutator transaction binding the contract method 0xfd422cd0.
+//
+// Solidity: function slashUnavailability(address _validatorAddr) returns()
+func (_SlashIndicator *SlashIndicatorSession) SlashUnavailability(_validatorAddr common.Address) (*types.Transaction, error) {
+	return _SlashIndicator.Contract.SlashUnavailability(&_SlashIndicator.TransactOpts, _validatorAddr)
+}
+
+// SlashUnavailability is a paid mutator transaction binding the contract method 0xfd422cd0.
+//
+// Solidity: function slashUnavailability(address _validatorAddr) returns()
+func (_SlashIndicator *SlashIndicatorTransactorSession) SlashUnavailability(_validatorAddr common.Address) (*types.Transaction, error) {
+	return _SlashIndicator.Contract.SlashUnavailability(&_SlashIndicator.TransactOpts, _validatorAddr)
+}
+
+// UpdateCreditScore is a paid mutator transaction binding the contract method 0x129fccc1.
+//
+// Solidity: function updateCreditScore(address[] _validators, uint256 _period) returns()
+func (_SlashIndicator *SlashIndicatorTransactor) UpdateCreditScore(opts *bind.TransactOpts, _validators []common.Address, _period *big.Int) (*types.Transaction, error) {
+	return _SlashIndicator.contract.Transact(opts, "updateCreditScore", _validators, _period)
+}
+
+// UpdateCreditScore is a paid mutator transaction binding the contract method 0x129fccc1.
+//
+// Solidity: function updateCreditScore(address[] _validators, uint256 _period) returns()
+func (_SlashIndicator *SlashIndicatorSession) UpdateCreditScore(_validators []common.Address, _period *big.Int) (*types.Transaction, error) {
+	return _SlashIndicator.Contract.UpdateCreditScore(&_SlashIndicator.TransactOpts, _validators, _period)
+}
+
+// UpdateCreditScore is a paid mutator transaction binding the contract method 0x129fccc1.
+//
+// Solidity: function updateCreditScore(address[] _validators, uint256 _period) returns()
+func (_SlashIndicator *SlashIndicatorTransactorSession) UpdateCreditScore(_validators []common.Address, _period *big.Int) (*types.Transaction, error) {
+	return _SlashIndicator.Contract.UpdateCreditScore(&_SlashIndicator.TransactOpts, _validators, _period)
+}
+
+// SlashIndicatorBailedOutIterator is returned from FilterBailedOut and is used to iterate over the raw logs and unpacked data for BailedOut events raised by the SlashIndicator contract.
+type SlashIndicatorBailedOutIterator struct {
+	Event *SlashIndicatorBailedOut // Event containing the contract specifics and raw log
 
 	contract *bind.BoundContract // Generic contract to use for unpacking event data
 	event    string              // Event name to use for unpacking event data
@@ -824,7 +1094,7 @@ type SlashIndicatorFelonyJailDurationUpdatedIterator struct {
 // Next advances the iterator to the subsequent event, returning whether there
 // are any more events found. In case of a retrieval or parsing error, false is
 // returned and Error() can be queried for the exact failure.
-func (it *SlashIndicatorFelonyJailDurationUpdatedIterator) Next() bool {
+func (it *SlashIndicatorBailedOutIterator) Next() bool {
 	// If the iterator failed, stop iterating
 	if it.fail != nil {
 		return false
@@ -833,7 +1103,7 @@ func (it *SlashIndicatorFelonyJailDurationUpdatedIterator) Next() bool {
 	if it.done {
 		select {
 		case log := <-it.logs:
-			it.Event = new(SlashIndicatorFelonyJailDurationUpdated)
+			it.Event = new(SlashIndicatorBailedOut)
 			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 				it.fail = err
 				return false
@@ -848,7 +1118,7 @@ func (it *SlashIndicatorFelonyJailDurationUpdatedIterator) Next() bool {
 	// Iterator still in progress, wait for either a data or an error event
 	select {
 	case log := <-it.logs:
-		it.Event = new(SlashIndicatorFelonyJailDurationUpdated)
+		it.Event = new(SlashIndicatorBailedOut)
 		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 			it.fail = err
 			return false
@@ -864,41 +1134,52 @@ func (it *SlashIndicatorFelonyJailDurationUpdatedIterator) Next() bool {
 }
 
 // Error returns any retrieval or parsing error occurred during filtering.
-func (it *SlashIndicatorFelonyJailDurationUpdatedIterator) Error() error {
+func (it *SlashIndicatorBailedOutIterator) Error() error {
 	return it.fail
 }
 
 // Close terminates the iteration process, releasing any pending underlying
 // resources.
-func (it *SlashIndicatorFelonyJailDurationUpdatedIterator) Close() error {
+func (it *SlashIndicatorBailedOutIterator) Close() error {
 	it.sub.Unsubscribe()
 	return nil
 }
 
-// SlashIndicatorFelonyJailDurationUpdated represents a FelonyJailDurationUpdated event raised by the SlashIndicator contract.
-type SlashIndicatorFelonyJailDurationUpdated struct {
-	FelonyJailDuration *big.Int
-	Raw                types.Log // Blockchain specific contextual infos
+// SlashIndicatorBailedOut represents a BailedOut event raised by the SlashIndicator contract.
+type SlashIndicatorBailedOut struct {
+	Validator common.Address
+	Period    *big.Int
+	Raw       types.Log // Blockchain specific contextual infos
 }
 
-// FilterFelonyJailDurationUpdated is a free log retrieval operation binding the contract event 0x3092a623ebcf71b79f9f68801b081a4d0c839dfb4c0e6f9ff118f4fb870375dc.
+// FilterBailedOut is a free log retrieval operation binding the contract event 0xf05ce5353bbe65ac592f5b335f37b5efe46dfa2035bb2e1e19795e73eb535627.
 //
-// Solidity: event FelonyJailDurationUpdated(uint256 felonyJailDuration)
-func (_SlashIndicator *SlashIndicatorFilterer) FilterFelonyJailDurationUpdated(opts *bind.FilterOpts) (*SlashIndicatorFelonyJailDurationUpdatedIterator, error) {
+// Solidity: event BailedOut(address indexed validator, uint256 period)
+func (_SlashIndicator *SlashIndicatorFilterer) FilterBailedOut(opts *bind.FilterOpts, validator []common.Address) (*SlashIndicatorBailedOutIterator, error) {
 
-	logs, sub, err := _SlashIndicator.contract.FilterLogs(opts, "FelonyJailDurationUpdated")
+	var validatorRule []interface{}
+	for _, validatorItem := range validator {
+		validatorRule = append(validatorRule, validatorItem)
+	}
+
+	logs, sub, err := _SlashIndicator.contract.FilterLogs(opts, "BailedOut", validatorRule)
 	if err != nil {
 		return nil, err
 	}
-	return &SlashIndicatorFelonyJailDurationUpdatedIterator{contract: _SlashIndicator.contract, event: "FelonyJailDurationUpdated", logs: logs, sub: sub}, nil
+	return &SlashIndicatorBailedOutIterator{contract: _SlashIndicator.contract, event: "BailedOut", logs: logs, sub: sub}, nil
 }
 
-// WatchFelonyJailDurationUpdated is a free log subscription operation binding the contract event 0x3092a623ebcf71b79f9f68801b081a4d0c839dfb4c0e6f9ff118f4fb870375dc.
+// WatchBailedOut is a free log subscription operation binding the contract event 0xf05ce5353bbe65ac592f5b335f37b5efe46dfa2035bb2e1e19795e73eb535627.
 //
-// Solidity: event FelonyJailDurationUpdated(uint256 felonyJailDuration)
-func (_SlashIndicator *SlashIndicatorFilterer) WatchFelonyJailDurationUpdated(opts *bind.WatchOpts, sink chan<- *SlashIndicatorFelonyJailDurationUpdated) (event.Subscription, error) {
+// Solidity: event BailedOut(address indexed validator, uint256 period)
+func (_SlashIndicator *SlashIndicatorFilterer) WatchBailedOut(opts *bind.WatchOpts, sink chan<- *SlashIndicatorBailedOut, validator []common.Address) (event.Subscription, error) {
 
-	logs, sub, err := _SlashIndicator.contract.WatchLogs(opts, "FelonyJailDurationUpdated")
+	var validatorRule []interface{}
+	for _, validatorItem := range validator {
+		validatorRule = append(validatorRule, validatorItem)
+	}
+
+	logs, sub, err := _SlashIndicator.contract.WatchLogs(opts, "BailedOut", validatorRule)
 	if err != nil {
 		return nil, err
 	}
@@ -908,8 +1189,8 @@ func (_SlashIndicator *SlashIndicatorFilterer) WatchFelonyJailDurationUpdated(op
 			select {
 			case log := <-logs:
 				// New log arrived, parse the event and forward to the user
-				event := new(SlashIndicatorFelonyJailDurationUpdated)
-				if err := _SlashIndicator.contract.UnpackLog(event, "FelonyJailDurationUpdated", log); err != nil {
+				event := new(SlashIndicatorBailedOut)
+				if err := _SlashIndicator.contract.UnpackLog(event, "BailedOut", log); err != nil {
 					return err
 				}
 				event.Raw = log
@@ -930,12 +1211,689 @@ func (_SlashIndicator *SlashIndicatorFilterer) WatchFelonyJailDurationUpdated(op
 	}), nil
 }
 
-// ParseFelonyJailDurationUpdated is a log parse operation binding the contract event 0x3092a623ebcf71b79f9f68801b081a4d0c839dfb4c0e6f9ff118f4fb870375dc.
+// ParseBailedOut is a log parse operation binding the contract event 0xf05ce5353bbe65ac592f5b335f37b5efe46dfa2035bb2e1e19795e73eb535627.
 //
-// Solidity: event FelonyJailDurationUpdated(uint256 felonyJailDuration)
-func (_SlashIndicator *SlashIndicatorFilterer) ParseFelonyJailDurationUpdated(log types.Log) (*SlashIndicatorFelonyJailDurationUpdated, error) {
-	event := new(SlashIndicatorFelonyJailDurationUpdated)
-	if err := _SlashIndicator.contract.UnpackLog(event, "FelonyJailDurationUpdated", log); err != nil {
+// Solidity: event BailedOut(address indexed validator, uint256 period)
+func (_SlashIndicator *SlashIndicatorFilterer) ParseBailedOut(log types.Log) (*SlashIndicatorBailedOut, error) {
+	event := new(SlashIndicatorBailedOut)
+	if err := _SlashIndicator.contract.UnpackLog(event, "BailedOut", log); err != nil {
+		return nil, err
+	}
+	event.Raw = log
+	return event, nil
+}
+
+// SlashIndicatorBridgeOperatorSlashingConfigsUpdatedIterator is returned from FilterBridgeOperatorSlashingConfigsUpdated and is used to iterate over the raw logs and unpacked data for BridgeOperatorSlashingConfigsUpdated events raised by the SlashIndicator contract.
+type SlashIndicatorBridgeOperatorSlashingConfigsUpdatedIterator struct {
+	Event *SlashIndicatorBridgeOperatorSlashingConfigsUpdated // Event containing the contract specifics and raw log
+
+	contract *bind.BoundContract // Generic contract to use for unpacking event data
+	event    string              // Event name to use for unpacking event data
+
+	logs chan types.Log        // Log channel receiving the found contract events
+	sub  ethereum.Subscription // Subscription for errors, completion and termination
+	done bool                  // Whether the subscription completed delivering logs
+	fail error                 // Occurred error to stop iteration
+}
+
+// Next advances the iterator to the subsequent event, returning whether there
+// are any more events found. In case of a retrieval or parsing error, false is
+// returned and Error() can be queried for the exact failure.
+func (it *SlashIndicatorBridgeOperatorSlashingConfigsUpdatedIterator) Next() bool {
+	// If the iterator failed, stop iterating
+	if it.fail != nil {
+		return false
+	}
+	// If the iterator completed, deliver directly whatever's available
+	if it.done {
+		select {
+		case log := <-it.logs:
+			it.Event = new(SlashIndicatorBridgeOperatorSlashingConfigsUpdated)
+			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+				it.fail = err
+				return false
+			}
+			it.Event.Raw = log
+			return true
+
+		default:
+			return false
+		}
+	}
+	// Iterator still in progress, wait for either a data or an error event
+	select {
+	case log := <-it.logs:
+		it.Event = new(SlashIndicatorBridgeOperatorSlashingConfigsUpdated)
+		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+			it.fail = err
+			return false
+		}
+		it.Event.Raw = log
+		return true
+
+	case err := <-it.sub.Err():
+		it.done = true
+		it.fail = err
+		return it.Next()
+	}
+}
+
+// Error returns any retrieval or parsing error occurred during filtering.
+func (it *SlashIndicatorBridgeOperatorSlashingConfigsUpdatedIterator) Error() error {
+	return it.fail
+}
+
+// Close terminates the iteration process, releasing any pending underlying
+// resources.
+func (it *SlashIndicatorBridgeOperatorSlashingConfigsUpdatedIterator) Close() error {
+	it.sub.Unsubscribe()
+	return nil
+}
+
+// SlashIndicatorBridgeOperatorSlashingConfigsUpdated represents a BridgeOperatorSlashingConfigsUpdated event raised by the SlashIndicator contract.
+type SlashIndicatorBridgeOperatorSlashingConfigsUpdated struct {
+	MissingVotesRatioTier1                *big.Int
+	MissingVotesRatioTier2                *big.Int
+	JailDurationForMissingVotesRatioTier2 *big.Int
+	Raw                                   types.Log // Blockchain specific contextual infos
+}
+
+// FilterBridgeOperatorSlashingConfigsUpdated is a free log retrieval operation binding the contract event 0x48b79bd792893e8ce8de399a7c03796ca95a43d5782307ff7c775f492cdf7c82.
+//
+// Solidity: event BridgeOperatorSlashingConfigsUpdated(uint256 missingVotesRatioTier1, uint256 missingVotesRatioTier2, uint256 jailDurationForMissingVotesRatioTier2)
+func (_SlashIndicator *SlashIndicatorFilterer) FilterBridgeOperatorSlashingConfigsUpdated(opts *bind.FilterOpts) (*SlashIndicatorBridgeOperatorSlashingConfigsUpdatedIterator, error) {
+
+	logs, sub, err := _SlashIndicator.contract.FilterLogs(opts, "BridgeOperatorSlashingConfigsUpdated")
+	if err != nil {
+		return nil, err
+	}
+	return &SlashIndicatorBridgeOperatorSlashingConfigsUpdatedIterator{contract: _SlashIndicator.contract, event: "BridgeOperatorSlashingConfigsUpdated", logs: logs, sub: sub}, nil
+}
+
+// WatchBridgeOperatorSlashingConfigsUpdated is a free log subscription operation binding the contract event 0x48b79bd792893e8ce8de399a7c03796ca95a43d5782307ff7c775f492cdf7c82.
+//
+// Solidity: event BridgeOperatorSlashingConfigsUpdated(uint256 missingVotesRatioTier1, uint256 missingVotesRatioTier2, uint256 jailDurationForMissingVotesRatioTier2)
+func (_SlashIndicator *SlashIndicatorFilterer) WatchBridgeOperatorSlashingConfigsUpdated(opts *bind.WatchOpts, sink chan<- *SlashIndicatorBridgeOperatorSlashingConfigsUpdated) (event.Subscription, error) {
+
+	logs, sub, err := _SlashIndicator.contract.WatchLogs(opts, "BridgeOperatorSlashingConfigsUpdated")
+	if err != nil {
+		return nil, err
+	}
+	return event.NewSubscription(func(quit <-chan struct{}) error {
+		defer sub.Unsubscribe()
+		for {
+			select {
+			case log := <-logs:
+				// New log arrived, parse the event and forward to the user
+				event := new(SlashIndicatorBridgeOperatorSlashingConfigsUpdated)
+				if err := _SlashIndicator.contract.UnpackLog(event, "BridgeOperatorSlashingConfigsUpdated", log); err != nil {
+					return err
+				}
+				event.Raw = log
+
+				select {
+				case sink <- event:
+				case err := <-sub.Err():
+					return err
+				case <-quit:
+					return nil
+				}
+			case err := <-sub.Err():
+				return err
+			case <-quit:
+				return nil
+			}
+		}
+	}), nil
+}
+
+// ParseBridgeOperatorSlashingConfigsUpdated is a log parse operation binding the contract event 0x48b79bd792893e8ce8de399a7c03796ca95a43d5782307ff7c775f492cdf7c82.
+//
+// Solidity: event BridgeOperatorSlashingConfigsUpdated(uint256 missingVotesRatioTier1, uint256 missingVotesRatioTier2, uint256 jailDurationForMissingVotesRatioTier2)
+func (_SlashIndicator *SlashIndicatorFilterer) ParseBridgeOperatorSlashingConfigsUpdated(log types.Log) (*SlashIndicatorBridgeOperatorSlashingConfigsUpdated, error) {
+	event := new(SlashIndicatorBridgeOperatorSlashingConfigsUpdated)
+	if err := _SlashIndicator.contract.UnpackLog(event, "BridgeOperatorSlashingConfigsUpdated", log); err != nil {
+		return nil, err
+	}
+	event.Raw = log
+	return event, nil
+}
+
+// SlashIndicatorBridgeVotingSlashingConfigsUpdatedIterator is returned from FilterBridgeVotingSlashingConfigsUpdated and is used to iterate over the raw logs and unpacked data for BridgeVotingSlashingConfigsUpdated events raised by the SlashIndicator contract.
+type SlashIndicatorBridgeVotingSlashingConfigsUpdatedIterator struct {
+	Event *SlashIndicatorBridgeVotingSlashingConfigsUpdated // Event containing the contract specifics and raw log
+
+	contract *bind.BoundContract // Generic contract to use for unpacking event data
+	event    string              // Event name to use for unpacking event data
+
+	logs chan types.Log        // Log channel receiving the found contract events
+	sub  ethereum.Subscription // Subscription for errors, completion and termination
+	done bool                  // Whether the subscription completed delivering logs
+	fail error                 // Occurred error to stop iteration
+}
+
+// Next advances the iterator to the subsequent event, returning whether there
+// are any more events found. In case of a retrieval or parsing error, false is
+// returned and Error() can be queried for the exact failure.
+func (it *SlashIndicatorBridgeVotingSlashingConfigsUpdatedIterator) Next() bool {
+	// If the iterator failed, stop iterating
+	if it.fail != nil {
+		return false
+	}
+	// If the iterator completed, deliver directly whatever's available
+	if it.done {
+		select {
+		case log := <-it.logs:
+			it.Event = new(SlashIndicatorBridgeVotingSlashingConfigsUpdated)
+			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+				it.fail = err
+				return false
+			}
+			it.Event.Raw = log
+			return true
+
+		default:
+			return false
+		}
+	}
+	// Iterator still in progress, wait for either a data or an error event
+	select {
+	case log := <-it.logs:
+		it.Event = new(SlashIndicatorBridgeVotingSlashingConfigsUpdated)
+		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+			it.fail = err
+			return false
+		}
+		it.Event.Raw = log
+		return true
+
+	case err := <-it.sub.Err():
+		it.done = true
+		it.fail = err
+		return it.Next()
+	}
+}
+
+// Error returns any retrieval or parsing error occurred during filtering.
+func (it *SlashIndicatorBridgeVotingSlashingConfigsUpdatedIterator) Error() error {
+	return it.fail
+}
+
+// Close terminates the iteration process, releasing any pending underlying
+// resources.
+func (it *SlashIndicatorBridgeVotingSlashingConfigsUpdatedIterator) Close() error {
+	it.sub.Unsubscribe()
+	return nil
+}
+
+// SlashIndicatorBridgeVotingSlashingConfigsUpdated represents a BridgeVotingSlashingConfigsUpdated event raised by the SlashIndicator contract.
+type SlashIndicatorBridgeVotingSlashingConfigsUpdated struct {
+	BridgeVotingThreshold   *big.Int
+	BridgeVotingSlashAmount *big.Int
+	Raw                     types.Log // Blockchain specific contextual infos
+}
+
+// FilterBridgeVotingSlashingConfigsUpdated is a free log retrieval operation binding the contract event 0xbda9ec2980d7468ba6a9f363696315affca9f9770016396bdea2ac39c3e5d61a.
+//
+// Solidity: event BridgeVotingSlashingConfigsUpdated(uint256 bridgeVotingThreshold, uint256 bridgeVotingSlashAmount)
+func (_SlashIndicator *SlashIndicatorFilterer) FilterBridgeVotingSlashingConfigsUpdated(opts *bind.FilterOpts) (*SlashIndicatorBridgeVotingSlashingConfigsUpdatedIterator, error) {
+
+	logs, sub, err := _SlashIndicator.contract.FilterLogs(opts, "BridgeVotingSlashingConfigsUpdated")
+	if err != nil {
+		return nil, err
+	}
+	return &SlashIndicatorBridgeVotingSlashingConfigsUpdatedIterator{contract: _SlashIndicator.contract, event: "BridgeVotingSlashingConfigsUpdated", logs: logs, sub: sub}, nil
+}
+
+// WatchBridgeVotingSlashingConfigsUpdated is a free log subscription operation binding the contract event 0xbda9ec2980d7468ba6a9f363696315affca9f9770016396bdea2ac39c3e5d61a.
+//
+// Solidity: event BridgeVotingSlashingConfigsUpdated(uint256 bridgeVotingThreshold, uint256 bridgeVotingSlashAmount)
+func (_SlashIndicator *SlashIndicatorFilterer) WatchBridgeVotingSlashingConfigsUpdated(opts *bind.WatchOpts, sink chan<- *SlashIndicatorBridgeVotingSlashingConfigsUpdated) (event.Subscription, error) {
+
+	logs, sub, err := _SlashIndicator.contract.WatchLogs(opts, "BridgeVotingSlashingConfigsUpdated")
+	if err != nil {
+		return nil, err
+	}
+	return event.NewSubscription(func(quit <-chan struct{}) error {
+		defer sub.Unsubscribe()
+		for {
+			select {
+			case log := <-logs:
+				// New log arrived, parse the event and forward to the user
+				event := new(SlashIndicatorBridgeVotingSlashingConfigsUpdated)
+				if err := _SlashIndicator.contract.UnpackLog(event, "BridgeVotingSlashingConfigsUpdated", log); err != nil {
+					return err
+				}
+				event.Raw = log
+
+				select {
+				case sink <- event:
+				case err := <-sub.Err():
+					return err
+				case <-quit:
+					return nil
+				}
+			case err := <-sub.Err():
+				return err
+			case <-quit:
+				return nil
+			}
+		}
+	}), nil
+}
+
+// ParseBridgeVotingSlashingConfigsUpdated is a log parse operation binding the contract event 0xbda9ec2980d7468ba6a9f363696315affca9f9770016396bdea2ac39c3e5d61a.
+//
+// Solidity: event BridgeVotingSlashingConfigsUpdated(uint256 bridgeVotingThreshold, uint256 bridgeVotingSlashAmount)
+func (_SlashIndicator *SlashIndicatorFilterer) ParseBridgeVotingSlashingConfigsUpdated(log types.Log) (*SlashIndicatorBridgeVotingSlashingConfigsUpdated, error) {
+	event := new(SlashIndicatorBridgeVotingSlashingConfigsUpdated)
+	if err := _SlashIndicator.contract.UnpackLog(event, "BridgeVotingSlashingConfigsUpdated", log); err != nil {
+		return nil, err
+	}
+	event.Raw = log
+	return event, nil
+}
+
+// SlashIndicatorCreditScoreConfigsUpdatedIterator is returned from FilterCreditScoreConfigsUpdated and is used to iterate over the raw logs and unpacked data for CreditScoreConfigsUpdated events raised by the SlashIndicator contract.
+type SlashIndicatorCreditScoreConfigsUpdatedIterator struct {
+	Event *SlashIndicatorCreditScoreConfigsUpdated // Event containing the contract specifics and raw log
+
+	contract *bind.BoundContract // Generic contract to use for unpacking event data
+	event    string              // Event name to use for unpacking event data
+
+	logs chan types.Log        // Log channel receiving the found contract events
+	sub  ethereum.Subscription // Subscription for errors, completion and termination
+	done bool                  // Whether the subscription completed delivering logs
+	fail error                 // Occurred error to stop iteration
+}
+
+// Next advances the iterator to the subsequent event, returning whether there
+// are any more events found. In case of a retrieval or parsing error, false is
+// returned and Error() can be queried for the exact failure.
+func (it *SlashIndicatorCreditScoreConfigsUpdatedIterator) Next() bool {
+	// If the iterator failed, stop iterating
+	if it.fail != nil {
+		return false
+	}
+	// If the iterator completed, deliver directly whatever's available
+	if it.done {
+		select {
+		case log := <-it.logs:
+			it.Event = new(SlashIndicatorCreditScoreConfigsUpdated)
+			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+				it.fail = err
+				return false
+			}
+			it.Event.Raw = log
+			return true
+
+		default:
+			return false
+		}
+	}
+	// Iterator still in progress, wait for either a data or an error event
+	select {
+	case log := <-it.logs:
+		it.Event = new(SlashIndicatorCreditScoreConfigsUpdated)
+		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+			it.fail = err
+			return false
+		}
+		it.Event.Raw = log
+		return true
+
+	case err := <-it.sub.Err():
+		it.done = true
+		it.fail = err
+		return it.Next()
+	}
+}
+
+// Error returns any retrieval or parsing error occurred during filtering.
+func (it *SlashIndicatorCreditScoreConfigsUpdatedIterator) Error() error {
+	return it.fail
+}
+
+// Close terminates the iteration process, releasing any pending underlying
+// resources.
+func (it *SlashIndicatorCreditScoreConfigsUpdatedIterator) Close() error {
+	it.sub.Unsubscribe()
+	return nil
+}
+
+// SlashIndicatorCreditScoreConfigsUpdated represents a CreditScoreConfigsUpdated event raised by the SlashIndicator contract.
+type SlashIndicatorCreditScoreConfigsUpdated struct {
+	GainCreditScore       *big.Int
+	MaxCreditScore        *big.Int
+	BailOutCostMultiplier *big.Int
+	Raw                   types.Log // Blockchain specific contextual infos
+}
+
+// FilterCreditScoreConfigsUpdated is a free log retrieval operation binding the contract event 0xdfff174e3d0e322e127529251e09478f81f83b832d96f4d2b10c8416cc9e8525.
+//
+// Solidity: event CreditScoreConfigsUpdated(uint256 gainCreditScore, uint256 maxCreditScore, uint256 bailOutCostMultiplier)
+func (_SlashIndicator *SlashIndicatorFilterer) FilterCreditScoreConfigsUpdated(opts *bind.FilterOpts) (*SlashIndicatorCreditScoreConfigsUpdatedIterator, error) {
+
+	logs, sub, err := _SlashIndicator.contract.FilterLogs(opts, "CreditScoreConfigsUpdated")
+	if err != nil {
+		return nil, err
+	}
+	return &SlashIndicatorCreditScoreConfigsUpdatedIterator{contract: _SlashIndicator.contract, event: "CreditScoreConfigsUpdated", logs: logs, sub: sub}, nil
+}
+
+// WatchCreditScoreConfigsUpdated is a free log subscription operation binding the contract event 0xdfff174e3d0e322e127529251e09478f81f83b832d96f4d2b10c8416cc9e8525.
+//
+// Solidity: event CreditScoreConfigsUpdated(uint256 gainCreditScore, uint256 maxCreditScore, uint256 bailOutCostMultiplier)
+func (_SlashIndicator *SlashIndicatorFilterer) WatchCreditScoreConfigsUpdated(opts *bind.WatchOpts, sink chan<- *SlashIndicatorCreditScoreConfigsUpdated) (event.Subscription, error) {
+
+	logs, sub, err := _SlashIndicator.contract.WatchLogs(opts, "CreditScoreConfigsUpdated")
+	if err != nil {
+		return nil, err
+	}
+	return event.NewSubscription(func(quit <-chan struct{}) error {
+		defer sub.Unsubscribe()
+		for {
+			select {
+			case log := <-logs:
+				// New log arrived, parse the event and forward to the user
+				event := new(SlashIndicatorCreditScoreConfigsUpdated)
+				if err := _SlashIndicator.contract.UnpackLog(event, "CreditScoreConfigsUpdated", log); err != nil {
+					return err
+				}
+				event.Raw = log
+
+				select {
+				case sink <- event:
+				case err := <-sub.Err():
+					return err
+				case <-quit:
+					return nil
+				}
+			case err := <-sub.Err():
+				return err
+			case <-quit:
+				return nil
+			}
+		}
+	}), nil
+}
+
+// ParseCreditScoreConfigsUpdated is a log parse operation binding the contract event 0xdfff174e3d0e322e127529251e09478f81f83b832d96f4d2b10c8416cc9e8525.
+//
+// Solidity: event CreditScoreConfigsUpdated(uint256 gainCreditScore, uint256 maxCreditScore, uint256 bailOutCostMultiplier)
+func (_SlashIndicator *SlashIndicatorFilterer) ParseCreditScoreConfigsUpdated(log types.Log) (*SlashIndicatorCreditScoreConfigsUpdated, error) {
+	event := new(SlashIndicatorCreditScoreConfigsUpdated)
+	if err := _SlashIndicator.contract.UnpackLog(event, "CreditScoreConfigsUpdated", log); err != nil {
+		return nil, err
+	}
+	event.Raw = log
+	return event, nil
+}
+
+// SlashIndicatorCreditScoresUpdatedIterator is returned from FilterCreditScoresUpdated and is used to iterate over the raw logs and unpacked data for CreditScoresUpdated events raised by the SlashIndicator contract.
+type SlashIndicatorCreditScoresUpdatedIterator struct {
+	Event *SlashIndicatorCreditScoresUpdated // Event containing the contract specifics and raw log
+
+	contract *bind.BoundContract // Generic contract to use for unpacking event data
+	event    string              // Event name to use for unpacking event data
+
+	logs chan types.Log        // Log channel receiving the found contract events
+	sub  ethereum.Subscription // Subscription for errors, completion and termination
+	done bool                  // Whether the subscription completed delivering logs
+	fail error                 // Occurred error to stop iteration
+}
+
+// Next advances the iterator to the subsequent event, returning whether there
+// are any more events found. In case of a retrieval or parsing error, false is
+// returned and Error() can be queried for the exact failure.
+func (it *SlashIndicatorCreditScoresUpdatedIterator) Next() bool {
+	// If the iterator failed, stop iterating
+	if it.fail != nil {
+		return false
+	}
+	// If the iterator completed, deliver directly whatever's available
+	if it.done {
+		select {
+		case log := <-it.logs:
+			it.Event = new(SlashIndicatorCreditScoresUpdated)
+			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+				it.fail = err
+				return false
+			}
+			it.Event.Raw = log
+			return true
+
+		default:
+			return false
+		}
+	}
+	// Iterator still in progress, wait for either a data or an error event
+	select {
+	case log := <-it.logs:
+		it.Event = new(SlashIndicatorCreditScoresUpdated)
+		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+			it.fail = err
+			return false
+		}
+		it.Event.Raw = log
+		return true
+
+	case err := <-it.sub.Err():
+		it.done = true
+		it.fail = err
+		return it.Next()
+	}
+}
+
+// Error returns any retrieval or parsing error occurred during filtering.
+func (it *SlashIndicatorCreditScoresUpdatedIterator) Error() error {
+	return it.fail
+}
+
+// Close terminates the iteration process, releasing any pending underlying
+// resources.
+func (it *SlashIndicatorCreditScoresUpdatedIterator) Close() error {
+	it.sub.Unsubscribe()
+	return nil
+}
+
+// SlashIndicatorCreditScoresUpdated represents a CreditScoresUpdated event raised by the SlashIndicator contract.
+type SlashIndicatorCreditScoresUpdated struct {
+	Validators   []common.Address
+	CreditScores []*big.Int
+	Raw          types.Log // Blockchain specific contextual infos
+}
+
+// FilterCreditScoresUpdated is a free log retrieval operation binding the contract event 0x8c02b2ccee964dc50649a48bd0a0446f0f9e88ecdb72d099f4ace07c39c23480.
+//
+// Solidity: event CreditScoresUpdated(address[] validators, uint256[] creditScores)
+func (_SlashIndicator *SlashIndicatorFilterer) FilterCreditScoresUpdated(opts *bind.FilterOpts) (*SlashIndicatorCreditScoresUpdatedIterator, error) {
+
+	logs, sub, err := _SlashIndicator.contract.FilterLogs(opts, "CreditScoresUpdated")
+	if err != nil {
+		return nil, err
+	}
+	return &SlashIndicatorCreditScoresUpdatedIterator{contract: _SlashIndicator.contract, event: "CreditScoresUpdated", logs: logs, sub: sub}, nil
+}
+
+// WatchCreditScoresUpdated is a free log subscription operation binding the contract event 0x8c02b2ccee964dc50649a48bd0a0446f0f9e88ecdb72d099f4ace07c39c23480.
+//
+// Solidity: event CreditScoresUpdated(address[] validators, uint256[] creditScores)
+func (_SlashIndicator *SlashIndicatorFilterer) WatchCreditScoresUpdated(opts *bind.WatchOpts, sink chan<- *SlashIndicatorCreditScoresUpdated) (event.Subscription, error) {
+
+	logs, sub, err := _SlashIndicator.contract.WatchLogs(opts, "CreditScoresUpdated")
+	if err != nil {
+		return nil, err
+	}
+	return event.NewSubscription(func(quit <-chan struct{}) error {
+		defer sub.Unsubscribe()
+		for {
+			select {
+			case log := <-logs:
+				// New log arrived, parse the event and forward to the user
+				event := new(SlashIndicatorCreditScoresUpdated)
+				if err := _SlashIndicator.contract.UnpackLog(event, "CreditScoresUpdated", log); err != nil {
+					return err
+				}
+				event.Raw = log
+
+				select {
+				case sink <- event:
+				case err := <-sub.Err():
+					return err
+				case <-quit:
+					return nil
+				}
+			case err := <-sub.Err():
+				return err
+			case <-quit:
+				return nil
+			}
+		}
+	}), nil
+}
+
+// ParseCreditScoresUpdated is a log parse operation binding the contract event 0x8c02b2ccee964dc50649a48bd0a0446f0f9e88ecdb72d099f4ace07c39c23480.
+//
+// Solidity: event CreditScoresUpdated(address[] validators, uint256[] creditScores)
+func (_SlashIndicator *SlashIndicatorFilterer) ParseCreditScoresUpdated(log types.Log) (*SlashIndicatorCreditScoresUpdated, error) {
+	event := new(SlashIndicatorCreditScoresUpdated)
+	if err := _SlashIndicator.contract.UnpackLog(event, "CreditScoresUpdated", log); err != nil {
+		return nil, err
+	}
+	event.Raw = log
+	return event, nil
+}
+
+// SlashIndicatorDoubleSignSlashingConfigsUpdatedIterator is returned from FilterDoubleSignSlashingConfigsUpdated and is used to iterate over the raw logs and unpacked data for DoubleSignSlashingConfigsUpdated events raised by the SlashIndicator contract.
+type SlashIndicatorDoubleSignSlashingConfigsUpdatedIterator struct {
+	Event *SlashIndicatorDoubleSignSlashingConfigsUpdated // Event containing the contract specifics and raw log
+
+	contract *bind.BoundContract // Generic contract to use for unpacking event data
+	event    string              // Event name to use for unpacking event data
+
+	logs chan types.Log        // Log channel receiving the found contract events
+	sub  ethereum.Subscription // Subscription for errors, completion and termination
+	done bool                  // Whether the subscription completed delivering logs
+	fail error                 // Occurred error to stop iteration
+}
+
+// Next advances the iterator to the subsequent event, returning whether there
+// are any more events found. In case of a retrieval or parsing error, false is
+// returned and Error() can be queried for the exact failure.
+func (it *SlashIndicatorDoubleSignSlashingConfigsUpdatedIterator) Next() bool {
+	// If the iterator failed, stop iterating
+	if it.fail != nil {
+		return false
+	}
+	// If the iterator completed, deliver directly whatever's available
+	if it.done {
+		select {
+		case log := <-it.logs:
+			it.Event = new(SlashIndicatorDoubleSignSlashingConfigsUpdated)
+			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+				it.fail = err
+				return false
+			}
+			it.Event.Raw = log
+			return true
+
+		default:
+			return false
+		}
+	}
+	// Iterator still in progress, wait for either a data or an error event
+	select {
+	case log := <-it.logs:
+		it.Event = new(SlashIndicatorDoubleSignSlashingConfigsUpdated)
+		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+			it.fail = err
+			return false
+		}
+		it.Event.Raw = log
+		return true
+
+	case err := <-it.sub.Err():
+		it.done = true
+		it.fail = err
+		return it.Next()
+	}
+}
+
+// Error returns any retrieval or parsing error occurred during filtering.
+func (it *SlashIndicatorDoubleSignSlashingConfigsUpdatedIterator) Error() error {
+	return it.fail
+}
+
+// Close terminates the iteration process, releasing any pending underlying
+// resources.
+func (it *SlashIndicatorDoubleSignSlashingConfigsUpdatedIterator) Close() error {
+	it.sub.Unsubscribe()
+	return nil
+}
+
+// SlashIndicatorDoubleSignSlashingConfigsUpdated represents a DoubleSignSlashingConfigsUpdated event raised by the SlashIndicator contract.
+type SlashIndicatorDoubleSignSlashingConfigsUpdated struct {
+	SlashDoubleSignAmount       *big.Int
+	DoubleSigningJailUntilBlock *big.Int
+	Raw                         types.Log // Blockchain specific contextual infos
+}
+
+// FilterDoubleSignSlashingConfigsUpdated is a free log retrieval operation binding the contract event 0x2f551c9d5c16e8a5444109ee232c78ed055e4e5cefe25e162b3bae190af0dedc.
+//
+// Solidity: event DoubleSignSlashingConfigsUpdated(uint256 slashDoubleSignAmount, uint256 doubleSigningJailUntilBlock)
+func (_SlashIndicator *SlashIndicatorFilterer) FilterDoubleSignSlashingConfigsUpdated(opts *bind.FilterOpts) (*SlashIndicatorDoubleSignSlashingConfigsUpdatedIterator, error) {
+
+	logs, sub, err := _SlashIndicator.contract.FilterLogs(opts, "DoubleSignSlashingConfigsUpdated")
+	if err != nil {
+		return nil, err
+	}
+	return &SlashIndicatorDoubleSignSlashingConfigsUpdatedIterator{contract: _SlashIndicator.contract, event: "DoubleSignSlashingConfigsUpdated", logs: logs, sub: sub}, nil
+}
+
+// WatchDoubleSignSlashingConfigsUpdated is a free log subscription operation binding the contract event 0x2f551c9d5c16e8a5444109ee232c78ed055e4e5cefe25e162b3bae190af0dedc.
+//
+// Solidity: event DoubleSignSlashingConfigsUpdated(uint256 slashDoubleSignAmount, uint256 doubleSigningJailUntilBlock)
+func (_SlashIndicator *SlashIndicatorFilterer) WatchDoubleSignSlashingConfigsUpdated(opts *bind.WatchOpts, sink chan<- *SlashIndicatorDoubleSignSlashingConfigsUpdated) (event.Subscription, error) {
+
+	logs, sub, err := _SlashIndicator.contract.WatchLogs(opts, "DoubleSignSlashingConfigsUpdated")
+	if err != nil {
+		return nil, err
+	}
+	return event.NewSubscription(func(quit <-chan struct{}) error {
+		defer sub.Unsubscribe()
+		for {
+			select {
+			case log := <-logs:
+				// New log arrived, parse the event and forward to the user
+				event := new(SlashIndicatorDoubleSignSlashingConfigsUpdated)
+				if err := _SlashIndicator.contract.UnpackLog(event, "DoubleSignSlashingConfigsUpdated", log); err != nil {
+					return err
+				}
+				event.Raw = log
+
+				select {
+				case sink <- event:
+				case err := <-sub.Err():
+					return err
+				case <-quit:
+					return nil
+				}
+			case err := <-sub.Err():
+				return err
+			case <-quit:
+				return nil
+			}
+		}
+	}), nil
+}
+
+// ParseDoubleSignSlashingConfigsUpdated is a log parse operation binding the contract event 0x2f551c9d5c16e8a5444109ee232c78ed055e4e5cefe25e162b3bae190af0dedc.
+//
+// Solidity: event DoubleSignSlashingConfigsUpdated(uint256 slashDoubleSignAmount, uint256 doubleSigningJailUntilBlock)
+func (_SlashIndicator *SlashIndicatorFilterer) ParseDoubleSignSlashingConfigsUpdated(log types.Log) (*SlashIndicatorDoubleSignSlashingConfigsUpdated, error) {
+	event := new(SlashIndicatorDoubleSignSlashingConfigsUpdated)
+	if err := _SlashIndicator.contract.UnpackLog(event, "DoubleSignSlashingConfigsUpdated", log); err != nil {
 		return nil, err
 	}
 	event.Raw = log
@@ -1210,9 +2168,9 @@ func (_SlashIndicator *SlashIndicatorFilterer) ParseMaintenanceContractUpdated(l
 	return event, nil
 }
 
-// SlashIndicatorSlashDoubleSignAmountUpdatedIterator is returned from FilterSlashDoubleSignAmountUpdated and is used to iterate over the raw logs and unpacked data for SlashDoubleSignAmountUpdated events raised by the SlashIndicator contract.
-type SlashIndicatorSlashDoubleSignAmountUpdatedIterator struct {
-	Event *SlashIndicatorSlashDoubleSignAmountUpdated // Event containing the contract specifics and raw log
+// SlashIndicatorRoninGovernanceAdminContractUpdatedIterator is returned from FilterRoninGovernanceAdminContractUpdated and is used to iterate over the raw logs and unpacked data for RoninGovernanceAdminContractUpdated events raised by the SlashIndicator contract.
+type SlashIndicatorRoninGovernanceAdminContractUpdatedIterator struct {
+	Event *SlashIndicatorRoninGovernanceAdminContractUpdated // Event containing the contract specifics and raw log
 
 	contract *bind.BoundContract // Generic contract to use for unpacking event data
 	event    string              // Event name to use for unpacking event data
@@ -1226,7 +2184,7 @@ type SlashIndicatorSlashDoubleSignAmountUpdatedIterator struct {
 // Next advances the iterator to the subsequent event, returning whether there
 // are any more events found. In case of a retrieval or parsing error, false is
 // returned and Error() can be queried for the exact failure.
-func (it *SlashIndicatorSlashDoubleSignAmountUpdatedIterator) Next() bool {
+func (it *SlashIndicatorRoninGovernanceAdminContractUpdatedIterator) Next() bool {
 	// If the iterator failed, stop iterating
 	if it.fail != nil {
 		return false
@@ -1235,7 +2193,7 @@ func (it *SlashIndicatorSlashDoubleSignAmountUpdatedIterator) Next() bool {
 	if it.done {
 		select {
 		case log := <-it.logs:
-			it.Event = new(SlashIndicatorSlashDoubleSignAmountUpdated)
+			it.Event = new(SlashIndicatorRoninGovernanceAdminContractUpdated)
 			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 				it.fail = err
 				return false
@@ -1250,7 +2208,7 @@ func (it *SlashIndicatorSlashDoubleSignAmountUpdatedIterator) Next() bool {
 	// Iterator still in progress, wait for either a data or an error event
 	select {
 	case log := <-it.logs:
-		it.Event = new(SlashIndicatorSlashDoubleSignAmountUpdated)
+		it.Event = new(SlashIndicatorRoninGovernanceAdminContractUpdated)
 		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 			it.fail = err
 			return false
@@ -1266,41 +2224,41 @@ func (it *SlashIndicatorSlashDoubleSignAmountUpdatedIterator) Next() bool {
 }
 
 // Error returns any retrieval or parsing error occurred during filtering.
-func (it *SlashIndicatorSlashDoubleSignAmountUpdatedIterator) Error() error {
+func (it *SlashIndicatorRoninGovernanceAdminContractUpdatedIterator) Error() error {
 	return it.fail
 }
 
 // Close terminates the iteration process, releasing any pending underlying
 // resources.
-func (it *SlashIndicatorSlashDoubleSignAmountUpdatedIterator) Close() error {
+func (it *SlashIndicatorRoninGovernanceAdminContractUpdatedIterator) Close() error {
 	it.sub.Unsubscribe()
 	return nil
 }
 
-// SlashIndicatorSlashDoubleSignAmountUpdated represents a SlashDoubleSignAmountUpdated event raised by the SlashIndicator contract.
-type SlashIndicatorSlashDoubleSignAmountUpdated struct {
-	SlashDoubleSignAmount *big.Int
-	Raw                   types.Log // Blockchain specific contextual infos
+// SlashIndicatorRoninGovernanceAdminContractUpdated represents a RoninGovernanceAdminContractUpdated event raised by the SlashIndicator contract.
+type SlashIndicatorRoninGovernanceAdminContractUpdated struct {
+	Arg0 common.Address
+	Raw  types.Log // Blockchain specific contextual infos
 }
 
-// FilterSlashDoubleSignAmountUpdated is a free log retrieval operation binding the contract event 0x42458d43c99c17f034dde22f3a1cf003e4bc27372c1ff14cb9e68a79a1b1e8ed.
+// FilterRoninGovernanceAdminContractUpdated is a free log retrieval operation binding the contract event 0x9125df97e014f5cc4f107fd784acd35e8e2188ca7c2a0f7caa478365747c1c83.
 //
-// Solidity: event SlashDoubleSignAmountUpdated(uint256 slashDoubleSignAmount)
-func (_SlashIndicator *SlashIndicatorFilterer) FilterSlashDoubleSignAmountUpdated(opts *bind.FilterOpts) (*SlashIndicatorSlashDoubleSignAmountUpdatedIterator, error) {
+// Solidity: event RoninGovernanceAdminContractUpdated(address arg0)
+func (_SlashIndicator *SlashIndicatorFilterer) FilterRoninGovernanceAdminContractUpdated(opts *bind.FilterOpts) (*SlashIndicatorRoninGovernanceAdminContractUpdatedIterator, error) {
 
-	logs, sub, err := _SlashIndicator.contract.FilterLogs(opts, "SlashDoubleSignAmountUpdated")
+	logs, sub, err := _SlashIndicator.contract.FilterLogs(opts, "RoninGovernanceAdminContractUpdated")
 	if err != nil {
 		return nil, err
 	}
-	return &SlashIndicatorSlashDoubleSignAmountUpdatedIterator{contract: _SlashIndicator.contract, event: "SlashDoubleSignAmountUpdated", logs: logs, sub: sub}, nil
+	return &SlashIndicatorRoninGovernanceAdminContractUpdatedIterator{contract: _SlashIndicator.contract, event: "RoninGovernanceAdminContractUpdated", logs: logs, sub: sub}, nil
 }
 
-// WatchSlashDoubleSignAmountUpdated is a free log subscription operation binding the contract event 0x42458d43c99c17f034dde22f3a1cf003e4bc27372c1ff14cb9e68a79a1b1e8ed.
+// WatchRoninGovernanceAdminContractUpdated is a free log subscription operation binding the contract event 0x9125df97e014f5cc4f107fd784acd35e8e2188ca7c2a0f7caa478365747c1c83.
 //
-// Solidity: event SlashDoubleSignAmountUpdated(uint256 slashDoubleSignAmount)
-func (_SlashIndicator *SlashIndicatorFilterer) WatchSlashDoubleSignAmountUpdated(opts *bind.WatchOpts, sink chan<- *SlashIndicatorSlashDoubleSignAmountUpdated) (event.Subscription, error) {
+// Solidity: event RoninGovernanceAdminContractUpdated(address arg0)
+func (_SlashIndicator *SlashIndicatorFilterer) WatchRoninGovernanceAdminContractUpdated(opts *bind.WatchOpts, sink chan<- *SlashIndicatorRoninGovernanceAdminContractUpdated) (event.Subscription, error) {
 
-	logs, sub, err := _SlashIndicator.contract.WatchLogs(opts, "SlashDoubleSignAmountUpdated")
+	logs, sub, err := _SlashIndicator.contract.WatchLogs(opts, "RoninGovernanceAdminContractUpdated")
 	if err != nil {
 		return nil, err
 	}
@@ -1310,8 +2268,8 @@ func (_SlashIndicator *SlashIndicatorFilterer) WatchSlashDoubleSignAmountUpdated
 			select {
 			case log := <-logs:
 				// New log arrived, parse the event and forward to the user
-				event := new(SlashIndicatorSlashDoubleSignAmountUpdated)
-				if err := _SlashIndicator.contract.UnpackLog(event, "SlashDoubleSignAmountUpdated", log); err != nil {
+				event := new(SlashIndicatorRoninGovernanceAdminContractUpdated)
+				if err := _SlashIndicator.contract.UnpackLog(event, "RoninGovernanceAdminContractUpdated", log); err != nil {
 					return err
 				}
 				event.Raw = log
@@ -1332,21 +2290,21 @@ func (_SlashIndicator *SlashIndicatorFilterer) WatchSlashDoubleSignAmountUpdated
 	}), nil
 }
 
-// ParseSlashDoubleSignAmountUpdated is a log parse operation binding the contract event 0x42458d43c99c17f034dde22f3a1cf003e4bc27372c1ff14cb9e68a79a1b1e8ed.
+// ParseRoninGovernanceAdminContractUpdated is a log parse operation binding the contract event 0x9125df97e014f5cc4f107fd784acd35e8e2188ca7c2a0f7caa478365747c1c83.
 //
-// Solidity: event SlashDoubleSignAmountUpdated(uint256 slashDoubleSignAmount)
-func (_SlashIndicator *SlashIndicatorFilterer) ParseSlashDoubleSignAmountUpdated(log types.Log) (*SlashIndicatorSlashDoubleSignAmountUpdated, error) {
-	event := new(SlashIndicatorSlashDoubleSignAmountUpdated)
-	if err := _SlashIndicator.contract.UnpackLog(event, "SlashDoubleSignAmountUpdated", log); err != nil {
+// Solidity: event RoninGovernanceAdminContractUpdated(address arg0)
+func (_SlashIndicator *SlashIndicatorFilterer) ParseRoninGovernanceAdminContractUpdated(log types.Log) (*SlashIndicatorRoninGovernanceAdminContractUpdated, error) {
+	event := new(SlashIndicatorRoninGovernanceAdminContractUpdated)
+	if err := _SlashIndicator.contract.UnpackLog(event, "RoninGovernanceAdminContractUpdated", log); err != nil {
 		return nil, err
 	}
 	event.Raw = log
 	return event, nil
 }
 
-// SlashIndicatorSlashFelonyAmountUpdatedIterator is returned from FilterSlashFelonyAmountUpdated and is used to iterate over the raw logs and unpacked data for SlashFelonyAmountUpdated events raised by the SlashIndicator contract.
-type SlashIndicatorSlashFelonyAmountUpdatedIterator struct {
-	Event *SlashIndicatorSlashFelonyAmountUpdated // Event containing the contract specifics and raw log
+// SlashIndicatorRoninTrustedOrganizationContractUpdatedIterator is returned from FilterRoninTrustedOrganizationContractUpdated and is used to iterate over the raw logs and unpacked data for RoninTrustedOrganizationContractUpdated events raised by the SlashIndicator contract.
+type SlashIndicatorRoninTrustedOrganizationContractUpdatedIterator struct {
+	Event *SlashIndicatorRoninTrustedOrganizationContractUpdated // Event containing the contract specifics and raw log
 
 	contract *bind.BoundContract // Generic contract to use for unpacking event data
 	event    string              // Event name to use for unpacking event data
@@ -1360,7 +2318,7 @@ type SlashIndicatorSlashFelonyAmountUpdatedIterator struct {
 // Next advances the iterator to the subsequent event, returning whether there
 // are any more events found. In case of a retrieval or parsing error, false is
 // returned and Error() can be queried for the exact failure.
-func (it *SlashIndicatorSlashFelonyAmountUpdatedIterator) Next() bool {
+func (it *SlashIndicatorRoninTrustedOrganizationContractUpdatedIterator) Next() bool {
 	// If the iterator failed, stop iterating
 	if it.fail != nil {
 		return false
@@ -1369,7 +2327,7 @@ func (it *SlashIndicatorSlashFelonyAmountUpdatedIterator) Next() bool {
 	if it.done {
 		select {
 		case log := <-it.logs:
-			it.Event = new(SlashIndicatorSlashFelonyAmountUpdated)
+			it.Event = new(SlashIndicatorRoninTrustedOrganizationContractUpdated)
 			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 				it.fail = err
 				return false
@@ -1384,7 +2342,7 @@ func (it *SlashIndicatorSlashFelonyAmountUpdatedIterator) Next() bool {
 	// Iterator still in progress, wait for either a data or an error event
 	select {
 	case log := <-it.logs:
-		it.Event = new(SlashIndicatorSlashFelonyAmountUpdated)
+		it.Event = new(SlashIndicatorRoninTrustedOrganizationContractUpdated)
 		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 			it.fail = err
 			return false
@@ -1400,41 +2358,41 @@ func (it *SlashIndicatorSlashFelonyAmountUpdatedIterator) Next() bool {
 }
 
 // Error returns any retrieval or parsing error occurred during filtering.
-func (it *SlashIndicatorSlashFelonyAmountUpdatedIterator) Error() error {
+func (it *SlashIndicatorRoninTrustedOrganizationContractUpdatedIterator) Error() error {
 	return it.fail
 }
 
 // Close terminates the iteration process, releasing any pending underlying
 // resources.
-func (it *SlashIndicatorSlashFelonyAmountUpdatedIterator) Close() error {
+func (it *SlashIndicatorRoninTrustedOrganizationContractUpdatedIterator) Close() error {
 	it.sub.Unsubscribe()
 	return nil
 }
 
-// SlashIndicatorSlashFelonyAmountUpdated represents a SlashFelonyAmountUpdated event raised by the SlashIndicator contract.
-type SlashIndicatorSlashFelonyAmountUpdated struct {
-	SlashFelonyAmount *big.Int
-	Raw               types.Log // Blockchain specific contextual infos
+// SlashIndicatorRoninTrustedOrganizationContractUpdated represents a RoninTrustedOrganizationContractUpdated event raised by the SlashIndicator contract.
+type SlashIndicatorRoninTrustedOrganizationContractUpdated struct {
+	Arg0 common.Address
+	Raw  types.Log // Blockchain specific contextual infos
 }
 
-// FilterSlashFelonyAmountUpdated is a free log retrieval operation binding the contract event 0x71491762d43dbadd94f85cf7a0322192a7c22f3ca4fb30de8895420607b56712.
+// FilterRoninTrustedOrganizationContractUpdated is a free log retrieval operation binding the contract event 0xfd6f5f93d69a07c593a09be0b208bff13ab4ffd6017df3b33433d63bdc59b4d7.
 //
-// Solidity: event SlashFelonyAmountUpdated(uint256 slashFelonyAmount)
-func (_SlashIndicator *SlashIndicatorFilterer) FilterSlashFelonyAmountUpdated(opts *bind.FilterOpts) (*SlashIndicatorSlashFelonyAmountUpdatedIterator, error) {
+// Solidity: event RoninTrustedOrganizationContractUpdated(address arg0)
+func (_SlashIndicator *SlashIndicatorFilterer) FilterRoninTrustedOrganizationContractUpdated(opts *bind.FilterOpts) (*SlashIndicatorRoninTrustedOrganizationContractUpdatedIterator, error) {
 
-	logs, sub, err := _SlashIndicator.contract.FilterLogs(opts, "SlashFelonyAmountUpdated")
+	logs, sub, err := _SlashIndicator.contract.FilterLogs(opts, "RoninTrustedOrganizationContractUpdated")
 	if err != nil {
 		return nil, err
 	}
-	return &SlashIndicatorSlashFelonyAmountUpdatedIterator{contract: _SlashIndicator.contract, event: "SlashFelonyAmountUpdated", logs: logs, sub: sub}, nil
+	return &SlashIndicatorRoninTrustedOrganizationContractUpdatedIterator{contract: _SlashIndicator.contract, event: "RoninTrustedOrganizationContractUpdated", logs: logs, sub: sub}, nil
 }
 
-// WatchSlashFelonyAmountUpdated is a free log subscription operation binding the contract event 0x71491762d43dbadd94f85cf7a0322192a7c22f3ca4fb30de8895420607b56712.
+// WatchRoninTrustedOrganizationContractUpdated is a free log subscription operation binding the contract event 0xfd6f5f93d69a07c593a09be0b208bff13ab4ffd6017df3b33433d63bdc59b4d7.
 //
-// Solidity: event SlashFelonyAmountUpdated(uint256 slashFelonyAmount)
-func (_SlashIndicator *SlashIndicatorFilterer) WatchSlashFelonyAmountUpdated(opts *bind.WatchOpts, sink chan<- *SlashIndicatorSlashFelonyAmountUpdated) (event.Subscription, error) {
+// Solidity: event RoninTrustedOrganizationContractUpdated(address arg0)
+func (_SlashIndicator *SlashIndicatorFilterer) WatchRoninTrustedOrganizationContractUpdated(opts *bind.WatchOpts, sink chan<- *SlashIndicatorRoninTrustedOrganizationContractUpdated) (event.Subscription, error) {
 
-	logs, sub, err := _SlashIndicator.contract.WatchLogs(opts, "SlashFelonyAmountUpdated")
+	logs, sub, err := _SlashIndicator.contract.WatchLogs(opts, "RoninTrustedOrganizationContractUpdated")
 	if err != nil {
 		return nil, err
 	}
@@ -1444,8 +2402,8 @@ func (_SlashIndicator *SlashIndicatorFilterer) WatchSlashFelonyAmountUpdated(opt
 			select {
 			case log := <-logs:
 				// New log arrived, parse the event and forward to the user
-				event := new(SlashIndicatorSlashFelonyAmountUpdated)
-				if err := _SlashIndicator.contract.UnpackLog(event, "SlashFelonyAmountUpdated", log); err != nil {
+				event := new(SlashIndicatorRoninTrustedOrganizationContractUpdated)
+				if err := _SlashIndicator.contract.UnpackLog(event, "RoninTrustedOrganizationContractUpdated", log); err != nil {
 					return err
 				}
 				event.Raw = log
@@ -1466,21 +2424,21 @@ func (_SlashIndicator *SlashIndicatorFilterer) WatchSlashFelonyAmountUpdated(opt
 	}), nil
 }
 
-// ParseSlashFelonyAmountUpdated is a log parse operation binding the contract event 0x71491762d43dbadd94f85cf7a0322192a7c22f3ca4fb30de8895420607b56712.
+// ParseRoninTrustedOrganizationContractUpdated is a log parse operation binding the contract event 0xfd6f5f93d69a07c593a09be0b208bff13ab4ffd6017df3b33433d63bdc59b4d7.
 //
-// Solidity: event SlashFelonyAmountUpdated(uint256 slashFelonyAmount)
-func (_SlashIndicator *SlashIndicatorFilterer) ParseSlashFelonyAmountUpdated(log types.Log) (*SlashIndicatorSlashFelonyAmountUpdated, error) {
-	event := new(SlashIndicatorSlashFelonyAmountUpdated)
-	if err := _SlashIndicator.contract.UnpackLog(event, "SlashFelonyAmountUpdated", log); err != nil {
+// Solidity: event RoninTrustedOrganizationContractUpdated(address arg0)
+func (_SlashIndicator *SlashIndicatorFilterer) ParseRoninTrustedOrganizationContractUpdated(log types.Log) (*SlashIndicatorRoninTrustedOrganizationContractUpdated, error) {
+	event := new(SlashIndicatorRoninTrustedOrganizationContractUpdated)
+	if err := _SlashIndicator.contract.UnpackLog(event, "RoninTrustedOrganizationContractUpdated", log); err != nil {
 		return nil, err
 	}
 	event.Raw = log
 	return event, nil
 }
 
-// SlashIndicatorSlashThresholdsUpdatedIterator is returned from FilterSlashThresholdsUpdated and is used to iterate over the raw logs and unpacked data for SlashThresholdsUpdated events raised by the SlashIndicator contract.
-type SlashIndicatorSlashThresholdsUpdatedIterator struct {
-	Event *SlashIndicatorSlashThresholdsUpdated // Event containing the contract specifics and raw log
+// SlashIndicatorSlashedIterator is returned from FilterSlashed and is used to iterate over the raw logs and unpacked data for Slashed events raised by the SlashIndicator contract.
+type SlashIndicatorSlashedIterator struct {
+	Event *SlashIndicatorSlashed // Event containing the contract specifics and raw log
 
 	contract *bind.BoundContract // Generic contract to use for unpacking event data
 	event    string              // Event name to use for unpacking event data
@@ -1494,7 +2452,7 @@ type SlashIndicatorSlashThresholdsUpdatedIterator struct {
 // Next advances the iterator to the subsequent event, returning whether there
 // are any more events found. In case of a retrieval or parsing error, false is
 // returned and Error() can be queried for the exact failure.
-func (it *SlashIndicatorSlashThresholdsUpdatedIterator) Next() bool {
+func (it *SlashIndicatorSlashedIterator) Next() bool {
 	// If the iterator failed, stop iterating
 	if it.fail != nil {
 		return false
@@ -1503,7 +2461,7 @@ func (it *SlashIndicatorSlashThresholdsUpdatedIterator) Next() bool {
 	if it.done {
 		select {
 		case log := <-it.logs:
-			it.Event = new(SlashIndicatorSlashThresholdsUpdated)
+			it.Event = new(SlashIndicatorSlashed)
 			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 				it.fail = err
 				return false
@@ -1518,7 +2476,7 @@ func (it *SlashIndicatorSlashThresholdsUpdatedIterator) Next() bool {
 	// Iterator still in progress, wait for either a data or an error event
 	select {
 	case log := <-it.logs:
-		it.Event = new(SlashIndicatorSlashThresholdsUpdated)
+		it.Event = new(SlashIndicatorSlashed)
 		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
 			it.fail = err
 			return false
@@ -1534,188 +2492,53 @@ func (it *SlashIndicatorSlashThresholdsUpdatedIterator) Next() bool {
 }
 
 // Error returns any retrieval or parsing error occurred during filtering.
-func (it *SlashIndicatorSlashThresholdsUpdatedIterator) Error() error {
+func (it *SlashIndicatorSlashedIterator) Error() error {
 	return it.fail
 }
 
 // Close terminates the iteration process, releasing any pending underlying
 // resources.
-func (it *SlashIndicatorSlashThresholdsUpdatedIterator) Close() error {
+func (it *SlashIndicatorSlashedIterator) Close() error {
 	it.sub.Unsubscribe()
 	return nil
 }
 
-// SlashIndicatorSlashThresholdsUpdated represents a SlashThresholdsUpdated event raised by the SlashIndicator contract.
-type SlashIndicatorSlashThresholdsUpdated struct {
-	FelonyThreshold      *big.Int
-	MisdemeanorThreshold *big.Int
-	Raw                  types.Log // Blockchain specific contextual infos
-}
-
-// FilterSlashThresholdsUpdated is a free log retrieval operation binding the contract event 0x25a70459f14137ea646efb17b806c2e75632b931d69e642a8a809b6bfd7217a6.
-//
-// Solidity: event SlashThresholdsUpdated(uint256 felonyThreshold, uint256 misdemeanorThreshold)
-func (_SlashIndicator *SlashIndicatorFilterer) FilterSlashThresholdsUpdated(opts *bind.FilterOpts) (*SlashIndicatorSlashThresholdsUpdatedIterator, error) {
-
-	logs, sub, err := _SlashIndicator.contract.FilterLogs(opts, "SlashThresholdsUpdated")
-	if err != nil {
-		return nil, err
-	}
-	return &SlashIndicatorSlashThresholdsUpdatedIterator{contract: _SlashIndicator.contract, event: "SlashThresholdsUpdated", logs: logs, sub: sub}, nil
-}
-
-// WatchSlashThresholdsUpdated is a free log subscription operation binding the contract event 0x25a70459f14137ea646efb17b806c2e75632b931d69e642a8a809b6bfd7217a6.
-//
-// Solidity: event SlashThresholdsUpdated(uint256 felonyThreshold, uint256 misdemeanorThreshold)
-func (_SlashIndicator *SlashIndicatorFilterer) WatchSlashThresholdsUpdated(opts *bind.WatchOpts, sink chan<- *SlashIndicatorSlashThresholdsUpdated) (event.Subscription, error) {
-
-	logs, sub, err := _SlashIndicator.contract.WatchLogs(opts, "SlashThresholdsUpdated")
-	if err != nil {
-		return nil, err
-	}
-	return event.NewSubscription(func(quit <-chan struct{}) error {
-		defer sub.Unsubscribe()
-		for {
-			select {
-			case log := <-logs:
-				// New log arrived, parse the event and forward to the user
-				event := new(SlashIndicatorSlashThresholdsUpdated)
-				if err := _SlashIndicator.contract.UnpackLog(event, "SlashThresholdsUpdated", log); err != nil {
-					return err
-				}
-				event.Raw = log
-
-				select {
-				case sink <- event:
-				case err := <-sub.Err():
-					return err
-				case <-quit:
-					return nil
-				}
-			case err := <-sub.Err():
-				return err
-			case <-quit:
-				return nil
-			}
-		}
-	}), nil
-}
-
-// ParseSlashThresholdsUpdated is a log parse operation binding the contract event 0x25a70459f14137ea646efb17b806c2e75632b931d69e642a8a809b6bfd7217a6.
-//
-// Solidity: event SlashThresholdsUpdated(uint256 felonyThreshold, uint256 misdemeanorThreshold)
-func (_SlashIndicator *SlashIndicatorFilterer) ParseSlashThresholdsUpdated(log types.Log) (*SlashIndicatorSlashThresholdsUpdated, error) {
-	event := new(SlashIndicatorSlashThresholdsUpdated)
-	if err := _SlashIndicator.contract.UnpackLog(event, "SlashThresholdsUpdated", log); err != nil {
-		return nil, err
-	}
-	event.Raw = log
-	return event, nil
-}
-
-// SlashIndicatorUnavailabilitySlashedIterator is returned from FilterUnavailabilitySlashed and is used to iterate over the raw logs and unpacked data for UnavailabilitySlashed events raised by the SlashIndicator contract.
-type SlashIndicatorUnavailabilitySlashedIterator struct {
-	Event *SlashIndicatorUnavailabilitySlashed // Event containing the contract specifics and raw log
-
-	contract *bind.BoundContract // Generic contract to use for unpacking event data
-	event    string              // Event name to use for unpacking event data
-
-	logs chan types.Log        // Log channel receiving the found contract events
-	sub  ethereum.Subscription // Subscription for errors, completion and termination
-	done bool                  // Whether the subscription completed delivering logs
-	fail error                 // Occurred error to stop iteration
-}
-
-// Next advances the iterator to the subsequent event, returning whether there
-// are any more events found. In case of a retrieval or parsing error, false is
-// returned and Error() can be queried for the exact failure.
-func (it *SlashIndicatorUnavailabilitySlashedIterator) Next() bool {
-	// If the iterator failed, stop iterating
-	if it.fail != nil {
-		return false
-	}
-	// If the iterator completed, deliver directly whatever's available
-	if it.done {
-		select {
-		case log := <-it.logs:
-			it.Event = new(SlashIndicatorUnavailabilitySlashed)
-			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
-				it.fail = err
-				return false
-			}
-			it.Event.Raw = log
-			return true
-
-		default:
-			return false
-		}
-	}
-	// Iterator still in progress, wait for either a data or an error event
-	select {
-	case log := <-it.logs:
-		it.Event = new(SlashIndicatorUnavailabilitySlashed)
-		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
-			it.fail = err
-			return false
-		}
-		it.Event.Raw = log
-		return true
-
-	case err := <-it.sub.Err():
-		it.done = true
-		it.fail = err
-		return it.Next()
-	}
-}
-
-// Error returns any retrieval or parsing error occurred during filtering.
-func (it *SlashIndicatorUnavailabilitySlashedIterator) Error() error {
-	return it.fail
-}
-
-// Close terminates the iteration process, releasing any pending underlying
-// resources.
-func (it *SlashIndicatorUnavailabilitySlashedIterator) Close() error {
-	it.sub.Unsubscribe()
-	return nil
-}
-
-// SlashIndicatorUnavailabilitySlashed represents a UnavailabilitySlashed event raised by the SlashIndicator contract.
-type SlashIndicatorUnavailabilitySlashed struct {
+// SlashIndicatorSlashed represents a Slashed event raised by the SlashIndicator contract.
+type SlashIndicatorSlashed struct {
 	Validator common.Address
 	SlashType uint8
 	Period    *big.Int
 	Raw       types.Log // Blockchain specific contextual infos
 }
 
-// FilterUnavailabilitySlashed is a free log retrieval operation binding the contract event 0x8c2c2bfe532ccdb4523fa2392954fd58445929e7f260d786d0ab93cd981cde54.
+// FilterSlashed is a free log retrieval operation binding the contract event 0x607adba66cff84b627e3537d1c17d088a98556bccd0536a2f3590c56329023d9.
 //
-// Solidity: event UnavailabilitySlashed(address indexed validator, uint8 slashType, uint256 period)
-func (_SlashIndicator *SlashIndicatorFilterer) FilterUnavailabilitySlashed(opts *bind.FilterOpts, validator []common.Address) (*SlashIndicatorUnavailabilitySlashedIterator, error) {
+// Solidity: event Slashed(address indexed validator, uint8 slashType, uint256 period)
+func (_SlashIndicator *SlashIndicatorFilterer) FilterSlashed(opts *bind.FilterOpts, validator []common.Address) (*SlashIndicatorSlashedIterator, error) {
 
 	var validatorRule []interface{}
 	for _, validatorItem := range validator {
 		validatorRule = append(validatorRule, validatorItem)
 	}
 
-	logs, sub, err := _SlashIndicator.contract.FilterLogs(opts, "UnavailabilitySlashed", validatorRule)
+	logs, sub, err := _SlashIndicator.contract.FilterLogs(opts, "Slashed", validatorRule)
 	if err != nil {
 		return nil, err
 	}
-	return &SlashIndicatorUnavailabilitySlashedIterator{contract: _SlashIndicator.contract, event: "UnavailabilitySlashed", logs: logs, sub: sub}, nil
+	return &SlashIndicatorSlashedIterator{contract: _SlashIndicator.contract, event: "Slashed", logs: logs, sub: sub}, nil
 }
 
-// WatchUnavailabilitySlashed is a free log subscription operation binding the contract event 0x8c2c2bfe532ccdb4523fa2392954fd58445929e7f260d786d0ab93cd981cde54.
+// WatchSlashed is a free log subscription operation binding the contract event 0x607adba66cff84b627e3537d1c17d088a98556bccd0536a2f3590c56329023d9.
 //
-// Solidity: event UnavailabilitySlashed(address indexed validator, uint8 slashType, uint256 period)
-func (_SlashIndicator *SlashIndicatorFilterer) WatchUnavailabilitySlashed(opts *bind.WatchOpts, sink chan<- *SlashIndicatorUnavailabilitySlashed, validator []common.Address) (event.Subscription, error) {
+// Solidity: event Slashed(address indexed validator, uint8 slashType, uint256 period)
+func (_SlashIndicator *SlashIndicatorFilterer) WatchSlashed(opts *bind.WatchOpts, sink chan<- *SlashIndicatorSlashed, validator []common.Address) (event.Subscription, error) {
 
 	var validatorRule []interface{}
 	for _, validatorItem := range validator {
 		validatorRule = append(validatorRule, validatorItem)
 	}
 
-	logs, sub, err := _SlashIndicator.contract.WatchLogs(opts, "UnavailabilitySlashed", validatorRule)
+	logs, sub, err := _SlashIndicator.contract.WatchLogs(opts, "Slashed", validatorRule)
 	if err != nil {
 		return nil, err
 	}
@@ -1725,8 +2548,8 @@ func (_SlashIndicator *SlashIndicatorFilterer) WatchUnavailabilitySlashed(opts *
 			select {
 			case log := <-logs:
 				// New log arrived, parse the event and forward to the user
-				event := new(SlashIndicatorUnavailabilitySlashed)
-				if err := _SlashIndicator.contract.UnpackLog(event, "UnavailabilitySlashed", log); err != nil {
+				event := new(SlashIndicatorSlashed)
+				if err := _SlashIndicator.contract.UnpackLog(event, "Slashed", log); err != nil {
 					return err
 				}
 				event.Raw = log
@@ -1747,12 +2570,149 @@ func (_SlashIndicator *SlashIndicatorFilterer) WatchUnavailabilitySlashed(opts *
 	}), nil
 }
 
-// ParseUnavailabilitySlashed is a log parse operation binding the contract event 0x8c2c2bfe532ccdb4523fa2392954fd58445929e7f260d786d0ab93cd981cde54.
+// ParseSlashed is a log parse operation binding the contract event 0x607adba66cff84b627e3537d1c17d088a98556bccd0536a2f3590c56329023d9.
 //
-// Solidity: event UnavailabilitySlashed(address indexed validator, uint8 slashType, uint256 period)
-func (_SlashIndicator *SlashIndicatorFilterer) ParseUnavailabilitySlashed(log types.Log) (*SlashIndicatorUnavailabilitySlashed, error) {
-	event := new(SlashIndicatorUnavailabilitySlashed)
-	if err := _SlashIndicator.contract.UnpackLog(event, "UnavailabilitySlashed", log); err != nil {
+// Solidity: event Slashed(address indexed validator, uint8 slashType, uint256 period)
+func (_SlashIndicator *SlashIndicatorFilterer) ParseSlashed(log types.Log) (*SlashIndicatorSlashed, error) {
+	event := new(SlashIndicatorSlashed)
+	if err := _SlashIndicator.contract.UnpackLog(event, "Slashed", log); err != nil {
+		return nil, err
+	}
+	event.Raw = log
+	return event, nil
+}
+
+// SlashIndicatorUnavailabilitySlashingConfigsUpdatedIterator is returned from FilterUnavailabilitySlashingConfigsUpdated and is used to iterate over the raw logs and unpacked data for UnavailabilitySlashingConfigsUpdated events raised by the SlashIndicator contract.
+type SlashIndicatorUnavailabilitySlashingConfigsUpdatedIterator struct {
+	Event *SlashIndicatorUnavailabilitySlashingConfigsUpdated // Event containing the contract specifics and raw log
+
+	contract *bind.BoundContract // Generic contract to use for unpacking event data
+	event    string              // Event name to use for unpacking event data
+
+	logs chan types.Log        // Log channel receiving the found contract events
+	sub  ethereum.Subscription // Subscription for errors, completion and termination
+	done bool                  // Whether the subscription completed delivering logs
+	fail error                 // Occurred error to stop iteration
+}
+
+// Next advances the iterator to the subsequent event, returning whether there
+// are any more events found. In case of a retrieval or parsing error, false is
+// returned and Error() can be queried for the exact failure.
+func (it *SlashIndicatorUnavailabilitySlashingConfigsUpdatedIterator) Next() bool {
+	// If the iterator failed, stop iterating
+	if it.fail != nil {
+		return false
+	}
+	// If the iterator completed, deliver directly whatever's available
+	if it.done {
+		select {
+		case log := <-it.logs:
+			it.Event = new(SlashIndicatorUnavailabilitySlashingConfigsUpdated)
+			if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+				it.fail = err
+				return false
+			}
+			it.Event.Raw = log
+			return true
+
+		default:
+			return false
+		}
+	}
+	// Iterator still in progress, wait for either a data or an error event
+	select {
+	case log := <-it.logs:
+		it.Event = new(SlashIndicatorUnavailabilitySlashingConfigsUpdated)
+		if err := it.contract.UnpackLog(it.Event, it.event, log); err != nil {
+			it.fail = err
+			return false
+		}
+		it.Event.Raw = log
+		return true
+
+	case err := <-it.sub.Err():
+		it.done = true
+		it.fail = err
+		return it.Next()
+	}
+}
+
+// Error returns any retrieval or parsing error occurred during filtering.
+func (it *SlashIndicatorUnavailabilitySlashingConfigsUpdatedIterator) Error() error {
+	return it.fail
+}
+
+// Close terminates the iteration process, releasing any pending underlying
+// resources.
+func (it *SlashIndicatorUnavailabilitySlashingConfigsUpdatedIterator) Close() error {
+	it.sub.Unsubscribe()
+	return nil
+}
+
+// SlashIndicatorUnavailabilitySlashingConfigsUpdated represents a UnavailabilitySlashingConfigsUpdated event raised by the SlashIndicator contract.
+type SlashIndicatorUnavailabilitySlashingConfigsUpdated struct {
+	UnavailabilityTier1Threshold                *big.Int
+	UnavailabilityTier2Threshold                *big.Int
+	SlashAmountForUnavailabilityTier2Threshold  *big.Int
+	JailDurationForUnavailabilityTier2Threshold *big.Int
+	Raw                                         types.Log // Blockchain specific contextual infos
+}
+
+// FilterUnavailabilitySlashingConfigsUpdated is a free log retrieval operation binding the contract event 0x442862e6143ad95854e7c13ff4947ec6e43bc87160e3b193e7c1abaf6e3aaa98.
+//
+// Solidity: event UnavailabilitySlashingConfigsUpdated(uint256 unavailabilityTier1Threshold, uint256 unavailabilityTier2Threshold, uint256 slashAmountForUnavailabilityTier2Threshold, uint256 jailDurationForUnavailabilityTier2Threshold)
+func (_SlashIndicator *SlashIndicatorFilterer) FilterUnavailabilitySlashingConfigsUpdated(opts *bind.FilterOpts) (*SlashIndicatorUnavailabilitySlashingConfigsUpdatedIterator, error) {
+
+	logs, sub, err := _SlashIndicator.contract.FilterLogs(opts, "UnavailabilitySlashingConfigsUpdated")
+	if err != nil {
+		return nil, err
+	}
+	return &SlashIndicatorUnavailabilitySlashingConfigsUpdatedIterator{contract: _SlashIndicator.contract, event: "UnavailabilitySlashingConfigsUpdated", logs: logs, sub: sub}, nil
+}
+
+// WatchUnavailabilitySlashingConfigsUpdated is a free log subscription operation binding the contract event 0x442862e6143ad95854e7c13ff4947ec6e43bc87160e3b193e7c1abaf6e3aaa98.
+//
+// Solidity: event UnavailabilitySlashingConfigsUpdated(uint256 unavailabilityTier1Threshold, uint256 unavailabilityTier2Threshold, uint256 slashAmountForUnavailabilityTier2Threshold, uint256 jailDurationForUnavailabilityTier2Threshold)
+func (_SlashIndicator *SlashIndicatorFilterer) WatchUnavailabilitySlashingConfigsUpdated(opts *bind.WatchOpts, sink chan<- *SlashIndicatorUnavailabilitySlashingConfigsUpdated) (event.Subscription, error) {
+
+	logs, sub, err := _SlashIndicator.contract.WatchLogs(opts, "UnavailabilitySlashingConfigsUpdated")
+	if err != nil {
+		return nil, err
+	}
+	return event.NewSubscription(func(quit <-chan struct{}) error {
+		defer sub.Unsubscribe()
+		for {
+			select {
+			case log := <-logs:
+				// New log arrived, parse the event and forward to the user
+				event := new(SlashIndicatorUnavailabilitySlashingConfigsUpdated)
+				if err := _SlashIndicator.contract.UnpackLog(event, "UnavailabilitySlashingConfigsUpdated", log); err != nil {
+					return err
+				}
+				event.Raw = log
+
+				select {
+				case sink <- event:
+				case err := <-sub.Err():
+					return err
+				case <-quit:
+					return nil
+				}
+			case err := <-sub.Err():
+				return err
+			case <-quit:
+				return nil
+			}
+		}
+	}), nil
+}
+
+// ParseUnavailabilitySlashingConfigsUpdated is a log parse operation binding the contract event 0x442862e6143ad95854e7c13ff4947ec6e43bc87160e3b193e7c1abaf6e3aaa98.
+//
+// Solidity: event UnavailabilitySlashingConfigsUpdated(uint256 unavailabilityTier1Threshold, uint256 unavailabilityTier2Threshold, uint256 slashAmountForUnavailabilityTier2Threshold, uint256 jailDurationForUnavailabilityTier2Threshold)
+func (_SlashIndicator *SlashIndicatorFilterer) ParseUnavailabilitySlashingConfigsUpdated(log types.Log) (*SlashIndicatorUnavailabilitySlashingConfigsUpdated, error) {
+	event := new(SlashIndicatorUnavailabilitySlashingConfigsUpdated)
+	if err := _SlashIndicator.contract.UnpackLog(event, "UnavailabilitySlashingConfigsUpdated", log); err != nil {
 		return nil, err
 	}
 	event.Raw = log
