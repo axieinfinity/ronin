@@ -410,8 +410,9 @@ func (c *CliqueConfig) String() string {
 
 // ConsortiumConfig is the consensus engine configs for proof-of-authority based sealing.
 type ConsortiumConfig struct {
-	Period uint64 `json:"period"` // Number of seconds between blocks to enforce
-	Epoch  uint64 `json:"epoch"`  // Epoch length to reset votes and checkpoint
+	Period  uint64 `json:"period"` // Number of seconds between blocks to enforce
+	Epoch   uint64 `json:"epoch"`  // Epoch length to reset votes and checkpoint
+	EpochV2 uint64 `json:"epochV2"`
 }
 
 // String implements the stringer interface, returning the consensus engine details.

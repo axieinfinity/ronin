@@ -205,7 +205,7 @@ func (s *Snapshot) apply(headers []*types.Header, chain consensus.ChainHeaderRea
 		}
 		snap.Recents[number] = validator
 		// Change the validator set base on the size of the validators set
-		if number > 0 && number%s.config.Epoch == uint64(len(snap.Validators)/2) {
+		if number > 0 && number%s.config.EpochV2 == uint64(len(snap.Validators)/2) {
 			// Get the most recent checkpoint header
 			checkpointHeader := FindAncientHeader(header, uint64(len(snap.Validators)/2), chain, parents)
 			if checkpointHeader == nil {
