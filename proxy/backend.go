@@ -20,6 +20,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/ethdb/httpdb"
 	"github.com/ethereum/go-ethereum/event"
+	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -52,6 +53,7 @@ type backend struct {
 	fgpClient      *ethclient.Client
 	chainConfig    *params.ChainConfig
 	safeBlockRange uint
+	genesisHash    common.Hash
 }
 
 func (b *backend) Config() *params.ChainConfig {
@@ -115,7 +117,7 @@ func NewBackend(cfg *Config, ethConfig *ethconfig.Config) (*backend, error) {
 	if err != nil {
 		return nil, err
 	}
-	chainConfig, _, err := core.SetupGenesisBlockWithOverride(db, nil, nil, false)
+	chainConfig, genesisHash, err := core.SetupGenesisBlockWithOverride(db, nil, nil, false)
 	if err != nil {
 		return nil, err
 	}
@@ -127,6 +129,7 @@ func NewBackend(cfg *Config, ethConfig *ethconfig.Config) (*backend, error) {
 		currentBlock:   &atomic.Value{},
 		safeBlockRange: defaultSafeBlockRange,
 		stateCache:     state.NewDatabaseWithConfig(db, &trie.Config{Cache: 16}),
+		genesisHash:    genesisHash,
 	}
 	if cfg.FreeGasProxy != "" {
 		if b.fgpClient, err = ethclient.Dial(cfg.FreeGasProxy); err != nil {
@@ -431,7 +434,8 @@ func (b *backend) ChainConfig() *params.ChainConfig {
 }
 
 func (b *backend) Engine() consensus.Engine {
-	return consortium.New(&params.ConsortiumConfig{}, b.db)
+	ethAPI := ethapi.NewPublicBlockChainAPI(b)
+	return consortium.New(b.ChainConfig(), b.db, ethAPI, b.genesisHash)
 }
 
 func (b *backend) GetHeader(hash common.Hash, number uint64) *types.Header {

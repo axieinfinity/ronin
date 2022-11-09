@@ -12,7 +12,8 @@ type TestOpEvent struct {
 	feed *event.Feed
 }
 
-func (tx *TestOpEvent) Publish(stateDB StateDB, hash common.Hash, from, to common.Address, value *big.Int, input []byte, err error) error {
+func (tx *TestOpEvent) Publish(opcode OpCode, order uint64, stateDB StateDB, blockHeight uint64,
+	blockHash common.Hash, blockTime uint64, hash common.Hash, from, to common.Address, value *big.Int, input []byte, err error) error {
 	tx.feed.Send(true)
 	return nil
 }
@@ -42,7 +43,7 @@ func TestPublishEvents(t *testing.T) {
 	}
 
 	evm := &EVM{Context: ctx}
-	evm.PublishEvent(CALL, common.Address{}, common.Address{}, big.NewInt(0), []byte(""), nil)
+	evm.PublishEvent(CALL, 1, common.Address{}, common.Address{}, big.NewInt(0), []byte(""), nil)
 	select {
 	case rs = <-ch:
 		if !rs {

@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
-package consortium
+package v1
 
 import (
 	"encoding/json"
@@ -135,7 +135,7 @@ func (s *Snapshot) apply(chain consensus.ChainHeaderReader, c *Consortium, heade
 		}
 
 		// Resolve the authorization key and check against signers
-		signer, err := ecrecover(header, s.sigcache)
+		signer, err := Ecrecover(header, s.sigcache)
 		if err != nil {
 			return nil, err
 		}

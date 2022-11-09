@@ -2,6 +2,7 @@ package proxy
 
 import (
 	"errors"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/consortium"
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
@@ -12,7 +13,6 @@ import (
 	"github.com/go-redis/redis/v8"
 	"time"
 )
-
 
 // Server is a proxy server that simulates rpc structures,
 // it uses http database which remotely connects to other rpc nodes to get and cache data if needed
@@ -60,7 +60,7 @@ func NewServer(config *Config, ethConfig *ethconfig.Config, nodeConfig *node.Con
 }
 
 func (s *Server) Start() {
-	engine := consortium.New(&params.ConsortiumConfig{}, s.backend.db)
+	engine := consortium.New(&params.ChainConfig{}, s.backend.db, nil, common.Hash{})
 	var apis = []rpc.API{
 		{
 			Namespace: "eth",

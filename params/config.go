@@ -20,6 +20,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math/big"
+	"reflect"
 
 	"github.com/ethereum/go-ethereum/common"
 	"golang.org/x/crypto/sha3"
@@ -281,16 +282,16 @@ var (
 	//
 	// This configuration is intentionally not using keyed fields to force anyone
 	// adding flags to the config to also have to set these fields.
-	AllEthashProtocolChanges = &ChainConfig{big.NewInt(1337), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, nil, nil, nil, nil, nil, nil, new(EthashConfig), nil, nil}
+	AllEthashProtocolChanges = &ChainConfig{big.NewInt(1337), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, nil, nil, nil, nil, nil, nil, nil, new(EthashConfig), nil, nil, nil}
 
 	// AllCliqueProtocolChanges contains every protocol change (EIPs) introduced
 	// and accepted by the Ethereum core developers into the Clique consensus.
 	//
 	// This configuration is intentionally not using keyed fields to force anyone
 	// adding flags to the config to also have to set these fields.
-	AllCliqueProtocolChanges = &ChainConfig{big.NewInt(1337), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, nil, nil, nil, nil, nil, nil, nil, &CliqueConfig{Period: 0, Epoch: 30000}, nil}
+	AllCliqueProtocolChanges = &ChainConfig{big.NewInt(1337), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, nil, nil, nil, nil, nil, nil, nil, nil, &CliqueConfig{Period: 0, Epoch: 30000}, nil, nil}
 
-	TestChainConfig = &ChainConfig{big.NewInt(1), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, nil, nil, nil, nil, nil, nil, new(EthashConfig), nil, nil}
+	TestChainConfig = &ChainConfig{big.NewInt(1), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, nil, nil, nil, nil, nil, nil, nil, new(EthashConfig), nil, nil, nil}
 	TestRules       = TestChainConfig.Rules(new(big.Int))
 )
 
@@ -372,6 +373,7 @@ type ChainConfig struct {
 	ArrowGlacierBlock   *big.Int `json:"arrowGlacierBlock,omitempty"`   // Eip-4345 (bomb delay) switch block (nil = no fork, 0 = already activated)
 	OdysseusBlock       *big.Int `json:"odysseusBlock,omitempty"`       // Odysseus switch block (nil = no fork, 0 = already on activated)
 	FenixBlock          *big.Int `json:"fenixBlock,omitempty"`          // Fenix switch block (nil = no fork, 0 = already on activated)
+	ConsortiumV2Block   *big.Int `json:"consortiumV2Block,omitempty"`   // Consortium v2 switch block (nil = no fork, 0 = already on activated)
 
 	BlacklistContractAddress      *common.Address `json:"blacklistContractAddress,omitempty"`      // Address of Blacklist Contract (nil = no blacklist)
 	FenixValidatorContractAddress *common.Address `json:"fenixValidatorContractAddress,omitempty"` // Address of Ronin Contract in the Fenix hardfork (nil = no blacklist)
@@ -381,9 +383,10 @@ type ChainConfig struct {
 	TerminalTotalDifficulty *big.Int `json:"terminalTotalDifficulty,omitempty"`
 
 	// Various consensus engines
-	Ethash     *EthashConfig     `json:"ethash,omitempty"`
-	Clique     *CliqueConfig     `json:"clique,omitempty"`
-	Consortium *ConsortiumConfig `json:"consortium,omitempty"`
+	Ethash                *EthashConfig          `json:"ethash,omitempty"`
+	Clique                *CliqueConfig          `json:"clique,omitempty"`
+	Consortium            *ConsortiumConfig      `json:"consortium,omitempty"`
+	ConsortiumV2Contracts *ConsortiumV2Contracts `json:"consortiumV2Contracts"`
 }
 
 // EthashConfig is the consensus engine configs for proof-of-work based sealing.
@@ -407,13 +410,31 @@ func (c *CliqueConfig) String() string {
 
 // ConsortiumConfig is the consensus engine configs for proof-of-authority based sealing.
 type ConsortiumConfig struct {
-	Period uint64 `json:"period"` // Number of seconds between blocks to enforce
-	Epoch  uint64 `json:"epoch"`  // Epoch length to reset votes and checkpoint
+	Period  uint64 `json:"period"` // Number of seconds between blocks to enforce
+	Epoch   uint64 `json:"epoch"`  // Epoch length to reset votes and checkpoint
+	EpochV2 uint64 `json:"epochV2"`
 }
 
 // String implements the stringer interface, returning the consensus engine details.
 func (c *ConsortiumConfig) String() string {
 	return "consortium"
+}
+
+type ConsortiumV2Contracts struct {
+	StakingContract   common.Address `json:"stakingContract"`
+	RoninValidatorSet common.Address `json:"roninValidatorSet"`
+	SlashIndicator    common.Address `json:"slashIndicator"`
+}
+
+func (c *ConsortiumV2Contracts) IsSystemContract(address common.Address) bool {
+	e := reflect.ValueOf(c).Elem()
+	for i := 0; i < e.NumField(); i++ {
+		if e.Field(i).Interface().(common.Address) == address {
+			return true
+		}
+	}
+
+	return false
 }
 
 // String implements the fmt.Stringer interface.
@@ -429,7 +450,22 @@ func (c *ChainConfig) String() string {
 	default:
 		engine = "unknown"
 	}
-	return fmt.Sprintf("{ChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v Petersburg: %v Istanbul: %v, Odysseus: %v, Fenix: %v, Muir Glacier: %v, Berlin: %v, London: %v, Arrow Glacier: %v, Engine: %v, Blacklist Contract: %v, Fenix Validator Contract: %v}",
+	roninValidatorSetSC := common.HexToAddress("")
+	if c.ConsortiumV2Contracts != nil {
+		roninValidatorSetSC = c.ConsortiumV2Contracts.RoninValidatorSet
+	}
+
+	slashIndicatorSC := common.HexToAddress("")
+	if c.ConsortiumV2Contracts != nil {
+		slashIndicatorSC = c.ConsortiumV2Contracts.SlashIndicator
+	}
+
+	stakingContract := common.HexToAddress("")
+	if c.ConsortiumV2Contracts != nil {
+		stakingContract = c.ConsortiumV2Contracts.StakingContract
+	}
+
+	return fmt.Sprintf("{ChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v Petersburg: %v Istanbul: %v, Odysseus: %v, Fenix: %v, Muir Glacier: %v, Berlin: %v, London: %v, Arrow Glacier: %v, Engine: %v, Blacklist Contract: %v, Fenix Validator Contract: %v, ConsortiumV2: %v, ConsortiumV2.RoninValidatorSet: %v, ConsortiumV2.SlashIndicator: %v, ConsortiumV2.StakingContract: %v}",
 		c.ChainID,
 		c.HomesteadBlock,
 		c.DAOForkBlock,
@@ -450,6 +486,10 @@ func (c *ChainConfig) String() string {
 		engine,
 		c.BlacklistContractAddress,
 		c.FenixValidatorContractAddress,
+		c.ConsortiumV2Block,
+		roninValidatorSetSC.Hex(),
+		slashIndicatorSC.Hex(),
+		stakingContract.Hex(),
 	)
 }
 
@@ -536,6 +576,16 @@ func (c *ChainConfig) IsOdysseus(num *big.Int) bool {
 // IsFenix returns whether the num is equals to or larger than the Fenix fork block.
 func (c *ChainConfig) IsFenix(num *big.Int) bool {
 	return isForked(c.FenixBlock, num)
+}
+
+// IsConsortiumV2 returns whether the num is equals to or larger than the consortiumV2 fork block.
+func (c *ChainConfig) IsConsortiumV2(num *big.Int) bool {
+	return isForked(c.ConsortiumV2Block, num)
+}
+
+// IsOnConsortiumV2 returns whether the num is equals to the consortiumV2 fork block.
+func (c *ChainConfig) IsOnConsortiumV2(num *big.Int) bool {
+	return configNumEqual(c.ConsortiumV2Block, num)
 }
 
 // CheckCompatible checks whether scheduled fork transitions have been imported
@@ -725,7 +775,7 @@ type Rules struct {
 	IsHomestead, IsEIP150, IsEIP155, IsEIP158               bool
 	IsByzantium, IsConstantinople, IsPetersburg, IsIstanbul bool
 	IsBerlin, IsLondon                                      bool
-	IsOdysseusFork, IsFenix                                 bool
+	IsOdysseusFork, IsFenix, IsConsortiumV2                 bool
 }
 
 // Rules ensures c's ChainID is not nil.
@@ -748,5 +798,6 @@ func (c *ChainConfig) Rules(num *big.Int) Rules {
 		IsLondon:         c.IsLondon(num),
 		IsOdysseusFork:   c.IsOdysseus(num),
 		IsFenix:          c.IsFenix(num),
+		IsConsortiumV2:   c.IsConsortiumV2(num),
 	}
 }

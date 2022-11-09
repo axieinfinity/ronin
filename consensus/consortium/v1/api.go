@@ -14,11 +14,12 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
-package consortium
+package v1
 
 import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
+	consortiumCommon "github.com/ethereum/go-ethereum/consensus/consortium/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -42,7 +43,7 @@ func (api *API) GetSigners(number *rpc.BlockNumber) ([]common.Address, error) {
 	}
 	// Ensure we have an actually valid block and return the signers from its snapshot
 	if header == nil {
-		return nil, errUnknownBlock
+		return nil, consortiumCommon.ErrUnknownBlock
 	}
 
 	validators, err := api.consortium.getValidatorsFromLastCheckpoint(api.chain, header.Number.Uint64(), nil)

@@ -18,6 +18,7 @@ package core
 
 import (
 	"fmt"
+	"github.com/ethereum/go-ethereum/consensus"
 	"math"
 	"math/big"
 
@@ -332,11 +333,19 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 		// After EIP-3529: refunds are capped to gasUsed / 5
 		st.refundGas(params.RefundQuotientEIP3529)
 	}
+
 	effectiveTip := st.gasPrice
 	if london {
 		effectiveTip = cmath.BigMin(st.gasTipCap, new(big.Int).Sub(st.gasFeeCap, st.evm.Context.BaseFee))
 	}
-	st.state.AddBalance(st.evm.Context.Coinbase, new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), effectiveTip))
+
+	// if currentBlock is ConsortiumV2 then add balance to system address
+	newEffectiveTip := new(big.Int).Mul(new(big.Int).SetUint64(st.gasUsed()), effectiveTip)
+	if st.evm.ChainConfig().IsConsortiumV2(st.evm.Context.BlockNumber) {
+		st.state.AddBalance(consensus.SystemAddress, newEffectiveTip)
+	} else {
+		st.state.AddBalance(st.evm.Context.Coinbase, newEffectiveTip)
+	}
 
 	return &ExecutionResult{
 		UsedGas:    st.gasUsed(),
