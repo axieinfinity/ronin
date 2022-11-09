@@ -110,8 +110,8 @@ func New(
 ) *Consortium {
 	consortiumConfig := chainConfig.Consortium
 
-	if consortiumConfig != nil && consortiumConfig.Epoch == 0 {
-		consortiumConfig.Epoch = epochLength
+	if consortiumConfig != nil && consortiumConfig.EpochV2 == 0 {
+		consortiumConfig.EpochV2 = epochLength
 	}
 
 	// Allocate the snapshot caches and create the engine
@@ -207,7 +207,7 @@ func (c *Consortium) VerifyHeaderAndParents(chain consensus.ChainHeaderReader, h
 		return consortiumCommon.ErrMissingSignature
 	}
 	// Check extra data
-	isEpoch := number%c.config.Epoch == 0 || c.chainConfig.IsOnConsortiumV2(header.Number)
+	isEpoch := number%c.config.EpochV2 == 0 || c.chainConfig.IsOnConsortiumV2(header.Number)
 
 	// Ensure that the extra-data contains a signer list on checkpoint, but none otherwise
 	signersBytes := len(header.Extra) - extraVanity - extraSeal
@@ -303,7 +303,7 @@ func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, 
 		}
 
 		// If an on-disk checkpoint snapshot can be found, use that
-		if number%c.config.Epoch == 0 {
+		if number%c.config.EpochV2 == 0 {
 			var err error
 
 			// NOTE(linh): In case the snapshot of hardfork - 1 is requested, we find the latest snapshot
@@ -375,7 +375,7 @@ func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, 
 	c.recents.Add(snap.Hash, snap)
 
 	// If we've generated a new checkpoint snapshot, save to disk
-	if snap.Number%c.config.Epoch == 0 && len(headers) > 0 {
+	if snap.Number%c.config.EpochV2 == 0 && len(headers) > 0 {
 		if err = snap.store(c.db); err != nil {
 			return nil, err
 		}
@@ -471,7 +471,7 @@ func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.He
 	}
 	header.Extra = header.Extra[:extraVanity]
 
-	if number%c.config.Epoch == 0 || c.chainConfig.IsOnConsortiumV2(big.NewInt(int64(number))) {
+	if number%c.config.EpochV2 == 0 || c.chainConfig.IsOnConsortiumV2(big.NewInt(int64(number))) {
 		// This block is not inserted, the transactions in this block are not applied, so we need
 		// the call GetValidators at the context of previous block
 		newValidators, err := c.contract.GetValidators(new(big.Int).Sub(header.Number, common.Big1))
@@ -539,7 +539,7 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 
 	// If the block is an epoch end block, verify the validator list
 	// The verification can only be done when the state is ready, it can't be done in VerifyHeader.
-	if header.Number.Uint64()%c.config.Epoch == 0 {
+	if header.Number.Uint64()%c.config.EpochV2 == 0 {
 		// The GetValidators in Prepare is called on the context of previous block so here it must
 		// be called on context of previous block too
 		newValidators, err := c.contract.GetValidators(new(big.Int).Sub(header.Number, common.Big1))
@@ -579,7 +579,7 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 		}
 	}
 
-	if header.Number.Uint64()%c.config.Epoch == c.config.Epoch-1 {
+	if header.Number.Uint64()%c.config.EpochV2 == c.config.EpochV2-1 {
 		if err := c.contract.WrapUpEpoch(transactOpts); err != nil {
 			log.Error("Failed to update validators", "err", err)
 			return err
@@ -654,7 +654,7 @@ func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, head
 		}
 	}
 
-	if header.Number.Uint64()%c.config.Epoch == c.config.Epoch-1 {
+	if header.Number.Uint64()%c.config.EpochV2 == c.config.EpochV2-1 {
 		if err := c.contract.WrapUpEpoch(transactOpts); err != nil {
 			log.Error("Wrap up epoch failed", "block hash", header.Hash(), "error", err)
 			return nil, nil, err
