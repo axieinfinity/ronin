@@ -80,6 +80,7 @@ var (
 type Consortium struct {
 	chainConfig *params.ChainConfig
 	config      *params.ConsortiumConfig // Consensus engine configuration parameters
+	forkedBlock uint64
 	genesisHash common.Hash
 	db          ethdb.Database // Database to store and retrieve snapshot checkpoints
 
@@ -128,6 +129,7 @@ func New(
 		signatures:  signatures,
 		signer:      types.NewEIP155Signer(chainConfig.ChainID),
 		v1:          v1,
+		forkedBlock: chainConfig.ConsortiumV2Block.Uint64(),
 	}
 }
 
@@ -304,14 +306,14 @@ func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, 
 		}
 
 		// If an on-disk checkpoint snapshot can be found, use that
-		if number%c.config.EpochV2 == 0 {
+		if number%c.config.EpochV2 == 0 || number == c.forkedBlock-1 {
 			var err error
 
 			// NOTE(linh): In case the snapshot of hardfork - 1 is requested, we find the latest snapshot
 			// 	in the last checkpoint of v1. We need to use the correct load snapshot version
 			// 	to load the snapshot coming from v1.
 			if !c.chainConfig.IsConsortiumV2(new(big.Int).SetUint64(number)) {
-				snap, err = loadSnapshotV1(c.config, c.signatures, c.db, hash, c.ethAPI, c.chainConfig)
+				snap, err = loadSnapshotV1(chain, c.v1, c.config, c.signatures, number, c.ethAPI, c.chainConfig)
 			} else {
 				snap, err = loadSnapshot(c.config, c.signatures, c.db, hash, c.ethAPI, c.chainConfig)
 			}

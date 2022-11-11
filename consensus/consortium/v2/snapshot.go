@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	consortiumCommon "github.com/ethereum/go-ethereum/consensus/consortium/common"
 	"math/big"
 	"sort"
 
@@ -59,23 +60,15 @@ func newSnapshot(config *params.ConsortiumConfig, sigcache *lru.ARCCache, number
 // loadSnapshotV1 loads an existing snapshot of v1 from the database
 // and convert it into v2 for backward compatible
 func loadSnapshotV1(
+	chain consensus.ChainHeaderReader,
+	consortiumV1 consortiumCommon.ConsortiumAdapter,
 	config *params.ConsortiumConfig,
 	sigcache *lru.ARCCache,
-	db ethdb.Database,
-	hash common.Hash,
+	number uint64,
 	ethAPI *ethapi.PublicBlockChainAPI,
 	chainConfig *params.ChainConfig,
 ) (*Snapshot, error) {
-
-	blob, err := db.Get(append([]byte("consortium-"), hash[:]...))
-	if err != nil {
-		return nil, err
-	}
-	snap := new(v1.Snapshot)
-	if err := json.Unmarshal(blob, snap); err != nil {
-		return nil, err
-	}
-
+	snap := consortiumV1.GetRecents(chain, number)
 	snapV2 := &Snapshot{
 		chainConfig: chainConfig,
 		config:      config,
