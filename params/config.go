@@ -420,6 +420,10 @@ func (c *ConsortiumConfig) String() string {
 	return "consortium"
 }
 
+func (c *ConsortiumConfig) RecentSnapshotNumber() uint64 {
+	return c.EpochV2 - (c.EpochV2 % c.Epoch)
+}
+
 type ConsortiumV2Contracts struct {
 	StakingContract   common.Address `json:"stakingContract"`
 	RoninValidatorSet common.Address `json:"roninValidatorSet"`

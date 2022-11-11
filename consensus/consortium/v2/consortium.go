@@ -304,7 +304,7 @@ func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, 
 		}
 
 		// If an on-disk checkpoint snapshot can be found, use that
-		if number%c.config.EpochV2 == 0 {
+		if number%c.config.EpochV2 == 0 || number == c.config.RecentSnapshotNumber() {
 			var err error
 
 			// NOTE(linh): In case the snapshot of hardfork - 1 is requested, we find the latest snapshot
