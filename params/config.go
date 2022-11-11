@@ -420,10 +420,6 @@ func (c *ConsortiumConfig) String() string {
 	return "consortium"
 }
 
-func (c *ConsortiumConfig) RecentSnapshotNumber() uint64 {
-	return c.EpochV2 - (c.EpochV2 % c.Epoch)
-}
-
 type ConsortiumV2Contracts struct {
 	StakingContract   common.Address `json:"stakingContract"`
 	RoninValidatorSet common.Address `json:"roninValidatorSet"`
@@ -590,6 +586,15 @@ func (c *ChainConfig) IsConsortiumV2(num *big.Int) bool {
 // IsOnConsortiumV2 returns whether the num is equals to the consortiumV2 fork block.
 func (c *ChainConfig) IsOnConsortiumV2(num *big.Int) bool {
 	return configNumEqual(c.ConsortiumV2Block, num)
+}
+
+func (c *ChainConfig) RecentSnapshotNumber(num *big.Int) bool {
+	if !c.IsOnConsortiumV2(num) {
+		recentSnapshotBlock := big.NewInt(0).Sub(c.ConsortiumV2Block, big.NewInt(0).SetUint64(c.Consortium.Epoch))
+		return recentSnapshotBlock.Cmp(num) == 0
+	}
+
+	return false
 }
 
 // CheckCompatible checks whether scheduled fork transitions have been imported
