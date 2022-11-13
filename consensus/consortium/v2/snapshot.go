@@ -41,15 +41,16 @@ func (s validatorsAscending) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 // newSnapshot creates a new snapshot with the specified startup parameters. This
 // method does not initialize the set of recent validators, so only ever use if for
 // the genesis block
-func newSnapshot(config *params.ConsortiumConfig, sigcache *lru.ARCCache, number uint64, hash common.Hash, validators []common.Address, ethAPI *ethapi.PublicBlockChainAPI) *Snapshot {
+func newSnapshot(chainConfig *params.ChainConfig, config *params.ConsortiumConfig, sigcache *lru.ARCCache, number uint64, hash common.Hash, validators []common.Address, ethAPI *ethapi.PublicBlockChainAPI) *Snapshot {
 	snap := &Snapshot{
-		config:     config,
-		ethAPI:     ethAPI,
-		sigCache:   sigcache,
-		Number:     number,
-		Hash:       hash,
-		Recents:    make(map[uint64]common.Address),
-		Validators: make(map[common.Address]struct{}),
+		chainConfig: chainConfig,
+		config:      config,
+		ethAPI:      ethAPI,
+		sigCache:    sigcache,
+		Number:      number,
+		Hash:        hash,
+		Recents:     make(map[uint64]common.Address),
+		Validators:  make(map[common.Address]struct{}),
 	}
 	for _, v := range validators {
 		snap.Validators[v] = struct{}{}

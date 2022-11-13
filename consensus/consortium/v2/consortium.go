@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/common-nighthawk/go-figure"
 	"io"
 	"math/big"
 	"math/rand"
@@ -305,35 +306,51 @@ func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, 
 			break
 		}
 
-		// If an on-disk checkpoint snapshot can be found, use that
-		if number%c.config.EpochV2 == 0 || number == c.forkedBlock-1 {
-			var err error
-
-			// NOTE(linh): In case the snapshot of hardfork - 1 is requested, we find the latest snapshot
-			// 	in the last checkpoint of v1. We need to use the correct load snapshot version
-			// 	to load the snapshot coming from v1.
-			if !c.chainConfig.IsConsortiumV2(new(big.Int).SetUint64(number)) {
-				snap, err = loadSnapshotV1(chain, c.v1, c.config, c.signatures, number, c.ethAPI, c.chainConfig)
-			} else {
-				snap, err = loadSnapshot(c.config, c.signatures, c.db, hash, c.ethAPI, c.chainConfig)
+		// init snapshot if it is at forkedBlock
+		if number == c.forkedBlock-1 {
+			var (
+				err        error
+				validators []common.Address
+			)
+			// loop until validators are loaded
+			// FIXME: should we use this infinite loop or not?
+			//  I think if the node comes to this phase (prepare new block), it should have state to get validators set
+			for len(validators) == 0 {
+				validators, err = c.contract.GetValidators(big.NewInt(0).SetUint64(number))
+				if err != nil {
+					log.Error("Load validators at the beginning failed", "err", err)
+				}
+				time.Sleep(wiggleTime)
 			}
+			snap = newSnapshot(c.chainConfig, c.config, c.signatures, number, hash, validators, c.ethAPI)
 
+			// load v1 recent list to prevent recent producing-block-validators produce block again
+			snapV1 := c.v1.GetRecents(chain, number)
+
+			// NOTE(linh): In version 1, the snapshot is not used correctly, so we must clean up
+			// 	incorrect data in the recent list before going to version 2
+			// 	Example: The current block is 1000, and the recents list is
+			// 	[2: address1, 3: address2, ...,998: addressN - 1,999: addressN]
+			// 	we need to remove elements which are not continuously
+			// 	So the final result must be [998: addressN - 1,999: addressN]
+			snap.Recents = consortiumCommon.RemoveOutdatedRecents(snapV1.Recents, number)
+
+			if err := snap.store(c.db); err != nil {
+				return nil, err
+			}
+			log.Info("Stored checkpoint snapshot to disk", "number", number, "hash", hash)
+			figure.NewColorFigure("Welcome to DPOS", "", "green", true).Print()
+			break
+		}
+
+		// If an on-disk checkpoint snapshot can be found, use that
+		if number%c.config.EpochV2 == 0 {
+			var err error
+			snap, err = loadSnapshot(c.config, c.signatures, c.db, hash, c.ethAPI, c.chainConfig)
 			if err != nil {
 				log.Debug("Load snapshot failed", "number", number, "hash", hash.Hex())
-			}
-
-			if err == nil {
+			} else {
 				log.Trace("Loaded snapshot from disk", "number", number, "hash", hash.Hex())
-				if !c.chainConfig.IsConsortiumV2(new(big.Int).SetUint64(snap.Number)) {
-					// NOTE(linh): In version 1, the snapshot is not used correctly, so we must clean up
-					// 	incorrect data in the recent list before going to version 2
-					// 	Example: The current block is 1000, and the recents list is
-					// 	[2: address1, 3: address2, ...,998: addressN - 1,999: addressN]
-					// 	So we need to remove these elements are not continuously
-					// 	So the final result must be [998: addressN - 1,999: addressN]
-					snap.Recents = consortiumCommon.RemoveOutdatedRecents(snap.Recents, number)
-					log.Info("Added previous recents to current snapshot", "number", number, "hash", hash.Hex(), "recents", snap.Recents)
-				}
 				break
 			}
 		}
