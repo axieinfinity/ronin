@@ -312,20 +312,16 @@ func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, 
 				err        error
 				validators []common.Address
 			)
-			// loop until validators are loaded
-			// FIXME: should we use this infinite loop or not?
-			//  I think if the node comes to this phase (prepare new block), it should have state to get validators set
-			for len(validators) == 0 {
-				validators, err = c.contract.GetValidators(big.NewInt(0).SetUint64(number))
-				if err != nil {
-					log.Error("Load validators at the beginning failed", "err", err)
-				}
-				time.Sleep(wiggleTime)
+			// get validators set from number
+			validators, err = c.contract.GetValidators(big.NewInt(0).SetUint64(number))
+			if err != nil {
+				log.Error("Load validators at the beginning failed", "err", err)
+				return nil, err
 			}
 			snap = newSnapshot(c.chainConfig, c.config, c.signatures, number, hash, validators, c.ethAPI)
 
 			// load v1 recent list to prevent recent producing-block-validators produce block again
-			snapV1 := c.v1.GetRecents(chain, number)
+			snapV1 := c.v1.GetSnapshot(chain, number, cpyParents)
 
 			// NOTE(linh): In version 1, the snapshot is not used correctly, so we must clean up
 			// 	incorrect data in the recent list before going to version 2
