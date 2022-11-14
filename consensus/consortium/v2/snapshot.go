@@ -40,54 +40,21 @@ func (s validatorsAscending) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 // newSnapshot creates a new snapshot with the specified startup parameters. This
 // method does not initialize the set of recent validators, so only ever use if for
 // the genesis block
-func newSnapshot(config *params.ConsortiumConfig, sigcache *lru.ARCCache, number uint64, hash common.Hash, validators []common.Address, ethAPI *ethapi.PublicBlockChainAPI) *Snapshot {
+func newSnapshot(chainConfig *params.ChainConfig, config *params.ConsortiumConfig, sigcache *lru.ARCCache, number uint64, hash common.Hash, validators []common.Address, ethAPI *ethapi.PublicBlockChainAPI) *Snapshot {
 	snap := &Snapshot{
-		config:     config,
-		ethAPI:     ethAPI,
-		sigCache:   sigcache,
-		Number:     number,
-		Hash:       hash,
-		Recents:    make(map[uint64]common.Address),
-		Validators: make(map[common.Address]struct{}),
+		chainConfig: chainConfig,
+		config:      config,
+		ethAPI:      ethAPI,
+		sigCache:    sigcache,
+		Number:      number,
+		Hash:        hash,
+		Recents:     make(map[uint64]common.Address),
+		Validators:  make(map[common.Address]struct{}),
 	}
 	for _, v := range validators {
 		snap.Validators[v] = struct{}{}
 	}
 	return snap
-}
-
-// loadSnapshotV1 loads an existing snapshot of v1 from the database
-// and convert it into v2 for backward compatible
-func loadSnapshotV1(
-	config *params.ConsortiumConfig,
-	sigcache *lru.ARCCache,
-	db ethdb.Database,
-	hash common.Hash,
-	ethAPI *ethapi.PublicBlockChainAPI,
-	chainConfig *params.ChainConfig,
-) (*Snapshot, error) {
-
-	blob, err := db.Get(append([]byte("consortium-"), hash[:]...))
-	if err != nil {
-		return nil, err
-	}
-	snap := new(v1.Snapshot)
-	if err := json.Unmarshal(blob, snap); err != nil {
-		return nil, err
-	}
-
-	snapV2 := &Snapshot{
-		chainConfig: chainConfig,
-		config:      config,
-		ethAPI:      ethAPI,
-		sigCache:    sigcache,
-		Number:      snap.Number,
-		Hash:        snap.Hash,
-		Validators:  snap.SignerSet,
-		Recents:     snap.Recents,
-	}
-
-	return snapV2, nil
 }
 
 // loadSnapshot loads an existing snapshot from the database.
