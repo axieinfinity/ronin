@@ -3,8 +3,8 @@
 Official Golang execution layer implementation of the Ronin protocol. It is a fork of Go Ethereum - 
 [https://github.com/ethereum/go-ethereum](https://github.com/ethereum/go-ethereum) and EVM compatible.
 
-Ronin consensus is using delegated proof of stake to enable complete decentralization as well as nodes'
-freedom to join the network as validators.
+Ronin consensus use Proof of Staked Authority, a combination of dPoS and PoA, to increase the level of 
+decentralization and allows the token holders to join the network as validators
 
 Check out the [whitepaper]() for more information.
 
