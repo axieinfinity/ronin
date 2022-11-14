@@ -321,7 +321,7 @@ func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, 
 			snap = newSnapshot(c.chainConfig, c.config, c.signatures, number, hash, validators, c.ethAPI)
 
 			// load v1 recent list to prevent recent producing-block-validators produce block again
-			snapV1 := c.v1.GetSnapshot(chain, number, cpyParents)
+			snapV1 := c.v1.GetSnapshot(chain, number, parents)
 
 			// NOTE(linh): In version 1, the snapshot is not used correctly, so we must clean up
 			// 	incorrect data in the recent list before going to version 2
