@@ -33,11 +33,16 @@ but we've enumerated a few common parameter combos to get you up to speed quickl
 on how you can run your own `geth` instance.
 
 ### Requirements
-The minimum recommended hardware specification for nodes connected to Mainnet is:
+Running a full Ronin node:
 - CPU: Equivalent of 8 AWS vCPU
-- RAM: 16GiB
-- Storage: 1 TiB
-- OS: Ubuntu 20.04 or macOS >= 12
+- RAM: 16GB
+- Storage: At least 1 TB high-speed SSD
+- Network: Reliable IPv4 or IPv6 network connection, with an open public port
+
+Running an archive Ronin node:
+- CPU: Equivalent of 8 AWS vCPU
+- RAM: 16GB
+- Storage: At least 5 TB high-speed SSD
 - Network: Reliable IPv4 or IPv6 network connection, with an open public port
 
 ### Building the source
@@ -61,7 +66,7 @@ $ ronin --http.api eth,net,web3,consortium --networkid 2020 --bootnodes enode://
 ```
 
 This command will:
-* Start `ronin` in snap sync mode (default, can be changed with the `--syncmode` flag),
+* Start `ronin` in full sync mode (default, can be changed with the `--syncmode` flag),
   causing it to download more data in exchange for avoiding processing the entire history
   of the Ronin network, which is very CPU intensive.
 
