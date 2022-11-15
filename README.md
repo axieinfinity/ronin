@@ -1,14 +1,29 @@
 ## Go Ronin
 
-Official Golang execution layer implementation of the Ronin protocol. It is a fork of Go Ethereum - 
-[https://github.com/ethereum/go-ethereum](https://github.com/ethereum/go-ethereum) and EVM compatible.
+Official Golang implementation of the Ronin protocol.
 
-Ronin consensus use Proof of Staked Authority, a combination of dPoS and PoA, to increase the level of 
-decentralization and allows the token holders to join the network as validators
+Ronin is a Byzantine Fault Tolerant proof of authority (POA) network operated by validators. Carefully selected, trusted validators are predefined at the bootstrap of the network. Later, new validators can be added or old validators can be removed if the decision is approved by the majority of currently active validators.
 
-Check out the [whitepaper]() for more information.
+In the future, Ronin consensus will be migrated to dPOS to enable complete decentralization as well as nodes' freedom to join the network as validators/miners. dPoS is a more democratic way of choosing who verifies the next block, allowing a more diverse group of people to participate in the process since it’s based on earned reputation as a lawful staker and not overall wealth. Additionally, because there are a limited number of validators, DPoS allows the network to reach consensus more quickly.
+
+Ronin starts its development based on go-ethereum fork. So you may see many toolings, binaries and also docs are based on Ethereum ones
 
 [![Discord](https://img.shields.io/badge/discord-join%20chat-blue.svg)](https://discord.com/invite/pjgPrrZJyZ)
+
+## Building the source
+
+Building `ronin` requires both a Go (version 1.17 or later) and a C compiler. You can install
+them using your favourite package manager. Once the dependencies are installed, run
+
+```shell
+make ronin
+```
+
+or, to build the full suite of utilities:
+
+```shell
+make all
+```
 
 ## Executables
 
@@ -32,28 +47,6 @@ Going through all the possible command line flags is out of scope here (please c
 [CLI Wiki page](https://geth.ethereum.org/docs/interface/command-line-options)),
 but we've enumerated a few common parameter combos to get you up to speed quickly
 on how you can run your own `geth` instance.
-
-### Requirements
-The minimum recommended hardware specification for nodes connected to Mainnet is:
-- CPU: Equivalent of 8 AWS vCPU
-- RAM: 16GiB
-- Storage: 1 TiB
-- OS: Ubuntu 20.04 or macOS >= 12
-- Network: Reliable IPv4 or IPv6 network connection, with an open public port
-
-### Building the source
-Building `ronin` requires both a Go (version 1.17 or later) and a C compiler. You can install
-them using your favourite package manager. Once the dependencies are installed, run
-
-```shell
-make ronin
-```
-
-or, to build the full suite of utilities:
-
-```shell
-make all
-```
 
 ### Full node on the main Ronin network
 
@@ -123,37 +116,31 @@ Ethereum nodes with exposed APIs! Further, all browser tabs can access locally
 running web servers, so malicious web pages could try to subvert locally available
 APIs!**
 
-## How to contribute
+## Contribution
 
-### Contribution guidelines
-- Quality: Code in the Ronin project should meet the style guidelines, with sufficient test-cases, descriptive commit
-  messages, evidence that the contribution does not break any compatibility commitments or cause adverse feature
-  interactions, and evidence of high-quality peer-review.
-- Size: The Ronin project's culture is one of small pull-requests, regularly submitted. The larger a pull-request,
-  the more likely it is that you will be asked to resubmit as a series of self-contained and individually reviewable
-  smaller PRs.
-- Maintainability: If the feature will require ongoing maintenance (eg support for a particular branch of database),
-  we nay ask you to accept responsibility for maintaining this feature
-- Commit message: Commit messages of Ronin project follows [https://www.conventionalcommits.org/en/v1.0.0/](https://www.conventionalcommits.org/en/v1.0.0/)
+Thank you for considering to help out with the source code! We welcome contributions
+from anyone on the internet, and are grateful for even the smallest of fixes!
 
-### Submit an issue
-- Create a new issue
-- Comment on the issue (if you'd like to be assigned to it) - that way our team can assign the issue to you
-- If you do not have a specific contribution in mind, you can also browse the issues labelled as `help wanted`
-- Issues that additionally have the `good first issue` label are considered ideal for first-timers
+If you'd like to contribute to go-ethereum, please fork, fix, commit and send a pull request
+for the maintainers to review and merge into the main code base. If you wish to submit
+more complex changes though, please check up with the core devs first on [our Discord Server](https://discord.com/invite/pjgPrrZJyZ)
+to ensure those changes are in line with the general philosophy of the project and/or get
+some early feedback which can make both your efforts much lighter as well as our review
+and merge procedures quick and simple.
 
-### Submit your PR
-- After your changes are committed to your GitHub fork, submit a pull request (PR) to the `master` branch of the
-  axieinfinity/ronin repo
-- In your PR description, reference the issue it resolves (see [linking a pull request to an issue using a keyword](https://docs.github.com/en/issues/tracking-your-work-with-issues/linking-a-pull-request-to-an-issue#linking-a-pull-request-to-an-issue-using-a-keyword))
-    - ex: `[FIXES #123] feat: update out of date content`
+Please make sure your contributions adhere to our coding guidelines:
 
-### Wait for review
-- The team reviews every PR
-- Acceptable PRs will be approved & merged into the `master` branch
+ * Code must adhere to the official Go [formatting](https://golang.org/doc/effective_go.html#formatting)
+   guidelines (i.e. uses [gofmt](https://golang.org/cmd/gofmt/)).
+ * Code must be documented adhering to the official Go [commentary](https://golang.org/doc/effective_go.html#commentary)
+   guidelines.
+ * Pull requests need to be based on and opened against the `master` branch.
+ * Commit messages should be prefixed with the package(s) they modify.
+   * E.g. "eth, rpc: make trace configs optional"
 
-### Release
-- You can [view the history of release](https://github.com/axieinfinity/ronin/releases), which include PR highlights
+Please see the [Developers' Guide](https://geth.ethereum.org/docs/developers/devguide)
+for more details on configuring your environment, managing project dependencies, and
+testing procedures.
 
 ## License
 
