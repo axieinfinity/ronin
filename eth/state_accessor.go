@@ -20,8 +20,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/ethereum/go-ethereum/eth/tracers"
 	"time"
+
+	"github.com/ethereum/go-ethereum/eth/tracers"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/consortium"
@@ -212,7 +213,7 @@ func (eth *Ethereum) stateAtTransaction(ctx context.Context, block *types.Block,
 		}
 		// Not yet the searched for transaction, execute on top of the current state
 		vmenv := vm.NewEVM(context, txContext, statedb, eth.blockchain.Config(), vm.Config{})
-		statedb.Prepare(tx.Hash(), idx)
+		statedb.SetTxContext(tx.Hash(), idx)
 		if consortium.HandleSystemTransaction(eth.engine, statedb, msg, block) {
 			vmenv.Config.IsSystemTransaction = true
 		}
