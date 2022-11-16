@@ -347,14 +347,12 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 
 	msg := st.msg
 	sender := vm.AccountRef(msg.From())
-	homestead := st.evm.ChainConfig().IsHomestead(st.evm.Context.BlockNumber)
-	istanbul := st.evm.ChainConfig().IsIstanbul(st.evm.Context.BlockNumber)
-	london := st.evm.ChainConfig().IsLondon(st.evm.Context.BlockNumber)
+	rules := st.evm.ChainConfig().Rules(st.evm.Context.BlockNumber)
 	contractCreation := msg.To() == nil
 
 	// Check clauses 4-5, subtract intrinsic gas if everything is correct
 	if !st.evm.Config.IsSystemTransaction {
-		gas, err := IntrinsicGas(st.data, st.msg.AccessList(), contractCreation, homestead, istanbul)
+		gas, err := IntrinsicGas(st.data, st.msg.AccessList(), contractCreation, rules.IsHomestead, rules.IsIstanbul)
 		if err != nil {
 			return nil, err
 		}
@@ -369,10 +367,11 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 		return nil, fmt.Errorf("%w: address %v", ErrInsufficientFundsForTransfer, msg.From().Hex())
 	}
 
-	// Set up the initial access list.
-	if rules := st.evm.ChainConfig().Rules(st.evm.Context.BlockNumber); rules.IsBerlin {
-		st.state.PrepareAccessList(msg.From(), msg.To(), vm.ActivePrecompiles(rules), msg.AccessList())
-	}
+	// Execute the preparatory steps for state transition which includes:
+	// - prepare accessList(post-berlin)
+	// - reset transient storage(eip 1153)
+	st.state.Prepare(rules, msg.From(), msg.To(), vm.ActivePrecompiles(rules), msg.AccessList())
+
 	var (
 		ret   []byte
 		vmerr error // vm errors do not effect consensus and are therefore not assigned to err
@@ -387,7 +386,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 
 	var gasRefund uint64
 	if !st.evm.Config.IsSystemTransaction {
-		if !london {
+		if !rules.IsLondon {
 			// Before EIP-3529: refunds were capped to gasUsed / 2
 			gasRefund = st.refundGas(params.RefundQuotient)
 		} else {
@@ -397,7 +396,7 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	}
 
 	effectiveTip := st.gasPrice
-	if london {
+	if rules.IsLondon {
 		effectiveTip = cmath.BigMin(st.gasTipCap, new(big.Int).Sub(st.gasFeeCap, st.evm.Context.BaseFee))
 	}
 
