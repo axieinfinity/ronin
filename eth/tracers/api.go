@@ -562,7 +562,7 @@ func (api *API) IntermediateRoots(ctx context.Context, hash common.Hash, config 
 			txContext = core.NewEVMTxContext(msg)
 			vmenv     = vm.NewEVM(vmctx, txContext, statedb, chainConfig, vm.Config{})
 		)
-		statedb.Prepare(tx.Hash(), i)
+		statedb.SetTxContext(tx.Hash(), i)
 		if consortium.HandleSystemTransaction(api.backend.Engine(), statedb, msg, block) {
 			vmenv.Config.IsSystemTransaction = true
 		}
@@ -710,7 +710,7 @@ txloop:
 
 		// Generate the next state snapshot fast without tracing
 		msg, _ := tx.AsMessage(signer, block.BaseFee())
-		statedb.Prepare(tx.Hash(), i)
+		statedb.SetTxContext(tx.Hash(), i)
 		vmenv := vm.NewEVM(blockCtx, core.NewEVMTxContext(msg), statedb, api.backend.ChainConfig(), vm.Config{})
 		if consortium.HandleSystemTransaction(api.backend.Engine(), statedb, msg, block) {
 			vmenv.Config.IsSystemTransaction = true
@@ -808,7 +808,7 @@ txloop:
 
 		// Generate the next state snapshot fast without tracing
 		msg, _ := tx.AsMessage(signer, block.BaseFee())
-		statedb.Prepare(tx.Hash(), i)
+		statedb.SetTxContext(tx.Hash(), i)
 		vmenv := vm.NewEVM(blockCtx, core.NewEVMTxContext(msg), statedb, api.backend.ChainConfig(), vm.Config{})
 		if consortium.HandleSystemTransaction(api.backend.Engine(), statedb, msg, block) {
 			vmenv.Config.IsSystemTransaction = true
@@ -931,7 +931,7 @@ func (api *API) standardTraceBlockToFile(ctx context.Context, block *types.Block
 		}
 		// Execute the transaction and flush any traces to disk
 		vmenv := vm.NewEVM(vmctx, txContext, statedb, chainConfig, vmConf)
-		statedb.Prepare(tx.Hash(), i)
+		statedb.SetTxContext(tx.Hash(), i)
 		if consortium.HandleSystemTransaction(api.backend.Engine(), statedb, msg, block) {
 			vmenv.Config.IsSystemTransaction = true
 		}
@@ -1118,7 +1118,7 @@ func (api *API) traceTx(
 	defer cancel()
 
 	// Call Prepare to clear out the statedb access list
-	statedb.Prepare(txctx.TxHash, txctx.TxIndex)
+	statedb.SetTxContext(txctx.TxHash, txctx.TxIndex)
 
 	if consortium.HandleSystemTransaction(api.backend.Engine(), statedb, message, block) {
 		vmenv.Config.IsSystemTransaction = true

@@ -507,7 +507,7 @@ func ApplyTransaction(msg types.Message, opts *ApplyTransactOpts) (err error) {
 		// move to next
 		*receivedTxs = (*receivedTxs)[1:]
 	}
-	opts.State.Prepare(expectedTx.Hash(), len(*txs))
+	opts.State.SetTxContext(expectedTx.Hash(), len(*txs))
 	opts.State.SetNonce(msg.From(), nonce+1)
 	gasUsed, err := applyMessage(opts.ApplyMessageOpts, expectedTx)
 	if err != nil {
