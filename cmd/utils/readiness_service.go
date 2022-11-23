@@ -84,11 +84,7 @@ func (h handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	var response Response
 	err = json.Unmarshal(body, &response)
-	if err != nil {
-		log.Error("[Readiness] Failed to parse body", "error", err)
-		respond(w, errorJSON("Failed to parse body"), http.StatusOK)
-		return
-	}
+	// "value":[1669104409.589,"11849564"]}]}}, value return 2 different types, should bypass error here.
 
 	if response.Status != "success" {
 		log.Error("[Readiness] Process query to prometheus", "status", response.Status, "query", query)
