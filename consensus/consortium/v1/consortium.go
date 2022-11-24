@@ -603,10 +603,6 @@ func (c *Consortium) Authorize(signer common.Address, signFn consortiumCommon.Si
 	c.signTxFn = signTxFn
 }
 
-func (c *Consortium) Delay(chain consensus.ChainReader, header *types.Header) *time.Duration {
-	return nil
-}
-
 // Seal implements consensus.Engine, attempting to create a sealed block using
 // the local signing credentials.
 func (c *Consortium) Seal(chain consensus.ChainHeaderReader, block *types.Block, results chan<- *types.Block, stop <-chan struct{}) error {

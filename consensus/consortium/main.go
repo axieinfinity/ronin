@@ -1,9 +1,6 @@
 package consortium
 
 import (
-	"math/big"
-	"time"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	consortiumCommon "github.com/ethereum/go-ethereum/consensus/consortium/common"
@@ -15,6 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
+	"math/big"
 )
 
 // Consortium is a proxy that decides the consensus version will be called
@@ -121,17 +119,6 @@ func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, head
 	}
 
 	return c.v1.FinalizeAndAssemble(chain, header, state, txs, uncles, receipts)
-}
-
-// Delay implements consensus.Engine as a proxy, returning the max duration the miner can commit txs.
-// It decides what Consortium version will be called
-// Related issue: https://skymavis.atlassian.net/browse/RON-273
-func (c *Consortium) Delay(chain consensus.ChainReader, header *types.Header) *time.Duration {
-	if c.chainConfig.IsConsortiumV2(header.Number) {
-		return c.v2.Delay(chain, header)
-	}
-
-	return c.v1.Delay(chain, header)
 }
 
 // Seal implements consensus.Engine, attempting to create a sealed block using

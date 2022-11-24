@@ -510,7 +510,7 @@ func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.He
 	if parent == nil {
 		return consensus.ErrUnknownAncestor
 	}
-	header.Time = c.blockTimeForConsortiumV2Fork(snap, header, parent)
+	header.Time = parent.Time + c.config.Period
 	if header.Time < uint64(time.Now().Unix()) {
 		header.Time = uint64(time.Now().Unix())
 	}
@@ -709,23 +709,6 @@ func (c *Consortium) Authorize(signer common.Address, signFn consortiumCommon.Si
 	c.val = signer
 	c.signFn = signFn
 	c.signTxFn = signTxFn
-}
-
-// Delay implements consensus.Engine, returning the max duration the miner can commit txs.
-// Related issue: https://skymavis.atlassian.net/browse/RON-273
-func (c *Consortium) Delay(chain consensus.ChainReader, header *types.Header) *time.Duration {
-	number := header.Number.Uint64()
-	snap, err := c.snapshot(chain, number-1, header.ParentHash, nil)
-	if err != nil {
-		return nil
-	}
-	delay := c.delayForConsortiumV2Fork(snap, header)
-	// The blocking time should be no more than half of period
-	half := time.Duration(c.config.Period) * time.Second / 2
-	if delay > half {
-		delay = half
-	}
-	return &delay
 }
 
 // Seal implements consensus.Engine, attempting to create a sealed block using

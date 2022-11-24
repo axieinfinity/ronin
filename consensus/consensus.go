@@ -18,10 +18,8 @@
 package consensus
 
 import (
-	"math/big"
-	"time"
-
 	"github.com/ethereum/go-ethereum/ethdb"
+	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/state"
@@ -126,9 +124,6 @@ type Engine interface {
 
 	// APIs returns the RPC APIs this consensus engine provides.
 	APIs(chain ChainHeaderReader) []rpc.API
-
-	// Delay returns the max duration the miner can commit txs
-	Delay(chain ChainReader, header *types.Header) *time.Duration
 
 	// Close terminates any background threads maintained by the consensus engine.
 	Close() error
