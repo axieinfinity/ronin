@@ -81,7 +81,7 @@ accountsCount=$(
 )
 
 # private key
-if [[ $accountsCount -le 0 ]]; then
+if [[ $accountsCount -le 0 && -z $KMS_SERVICE_ADDRESS ]]; then
   echo "No accounts found"
   if [[ ! -z $PRIVATE_KEY ]]; then
     echo "Creating account from private key"
@@ -100,7 +100,7 @@ if [[ $accountsCount -le 0 ]]; then
   fi
 fi
 
-if [[ ! -z $KEYSTORE_DIR ]]; then
+if [[ ! -z $KEYSTORE_DIR && -z $KMS_SERVICE_ADDRESS ]]; then
   account=$(
     ronin account list --datadir $datadir  --keystore $KEYSTORE_DIR \
     2> /dev/null \
@@ -196,6 +196,26 @@ fi
 
 if [[ "$mine" = "true" ]]; then
   params="$params --mine"
+fi
+
+if [[ ! -z $KMS_SERVICE_ADDRESS ]]; then
+  params="$params --kms.service.address $KMS_SERVICE_ADDRESS"
+fi
+
+if [[ ! -z $KMS_TOKEN_KEY_PATH ]]; then
+  params="$params --kms.tokenKey.path $KMS_TOKEN_KEY_PATH"
+fi
+
+if [[ ! -z $KMS_SOURCE_ADDRESS ]]; then
+  params="$params --kms.source.address $KMS_SOURCE_ADDRESS"
+fi
+
+if [[ ! -z $KMS_SSL_CERT_PATH ]]; then
+  params="$params --kms.ssl.certificate.path $KMS_SSL_CERT_PATH"
+fi
+
+if [[ ! -z $KMS_SIGN_TIMEOUT ]]; then
+  params="$params --kms.sign.timeout $KMS_SIGN_TIMEOUT"
 fi
 
 # dump

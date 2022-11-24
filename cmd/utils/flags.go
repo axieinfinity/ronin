@@ -867,9 +867,37 @@ var (
 		Name:  "proxy.redis.connectionTimeout",
 		Usage: "Amount of time client waits for connection",
 	}
+
 	ForceOverrideChainConfigFlag = cli.BoolFlag{
 		Name:  "overrideChainConfig",
 		Usage: "force override chainconfig",
+	}
+
+	KMSAddressFlag = cli.StringFlag{
+		Name:  "kms.service.address",
+		Usage: "Key management service address",
+	}
+
+	KMSKeyTokenPathFlag = cli.StringFlag{
+		Name:  "kms.tokenKey.path",
+		Usage: "Token key file path of KMS wallet account",
+	}
+
+	KMSSourceAddressFlag = cli.StringFlag{
+		Name:  "kms.source.address",
+		Usage: "The source address connecting to KMS service",
+	}
+
+	KMSSslCertificatePathFlag = cli.StringFlag{
+		Name:  "kms.ssl.certificate.path",
+		Usage: "The KMS service SSL certificate path",
+	}
+
+	KMSSignTimeout = cli.Int64Flag{
+		Name:  "kms.sign.timeout",
+		Usage: "The KMS signing timeout (milliseconds)",
+		// Default duration 1 minute
+		Value: 60 * 1000,
 	}
 )
 
@@ -1323,6 +1351,21 @@ func SetNodeConfig(ctx *cli.Context, cfg *node.Config) {
 	}
 	if ctx.GlobalIsSet(EnableSigningMethodsFlag.Name) {
 		cfg.EnableSigningMethods = ctx.GlobalBool(EnableSigningMethodsFlag.Name)
+	}
+	if ctx.GlobalIsSet(KMSAddressFlag.Name) {
+		cfg.KMSAddress = ctx.GlobalString(KMSAddressFlag.Name)
+	}
+	if ctx.GlobalIsSet(KMSKeyTokenPathFlag.Name) {
+		cfg.KMSKeyTokenPath = ctx.GlobalString(KMSKeyTokenPathFlag.Name)
+	}
+	if ctx.GlobalIsSet(KMSSourceAddressFlag.Name) {
+		cfg.KMSSourceAddress = ctx.GlobalString(KMSSourceAddressFlag.Name)
+	}
+	if ctx.GlobalIsSet(KMSSslCertificatePathFlag.Name) {
+		cfg.KMSSslCertificatePath = ctx.GlobalString(KMSSslCertificatePathFlag.Name)
+	}
+	if ctx.GlobalIsSet(KMSSignTimeout.Name) {
+		cfg.KMSSignTimeout = ctx.GlobalInt64(KMSSignTimeout.Name)
 	}
 }
 

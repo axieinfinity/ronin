@@ -157,6 +157,11 @@ var (
 		utils.MinerNotifyFullFlag,
 		configFileFlag,
 		utils.CatalystFlag,
+		utils.KMSAddressFlag,
+		utils.KMSKeyTokenPathFlag,
+		utils.KMSSourceAddressFlag,
+		utils.KMSSslCertificatePathFlag,
+		utils.KMSSignTimeout,
 	}
 
 	rpcFlags = []cli.Flag{

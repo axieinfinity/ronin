@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+option go_package = ".;vkms";
+
+package vkms;
+
+service User {
+  rpc Sign (SignRequest) returns (SignResponse) {}
+}
+
+message SignRequest {
+  bytes key_usage_token = 1;
+  bytes data = 2;
+}
+
+message SignResponse {
+  int32 code = 1;
+  bytes signature = 2;
+}

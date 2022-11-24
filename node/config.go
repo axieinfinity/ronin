@@ -193,6 +193,18 @@ type Config struct {
 
 	// AllowUnprotectedTxs allows non EIP-155 protected transactions to be send over RPC.
 	AllowUnprotectedTxs bool `toml:",omitempty"`
+
+	// Key management service (KMS) wallet configuration
+	// The KMS service address
+	KMSAddress string `toml:",omitempty"`
+	// Path to token key of KMS wallet account
+	KMSKeyTokenPath string `toml:",omitempty"`
+	// The local source address connecting to KMS service
+	KMSSourceAddress string `toml:",omitempty"`
+	// The KMS service SSL certificate path
+	KMSSslCertificatePath string `toml:",omitempty"`
+	// The KMS signing expiration duration (milliseconds)
+	KMSSignTimeout int64 `toml:",omitempty"`
 }
 
 // IPCEndpoint resolves an IPC endpoint based on a configured value, taking into
