@@ -510,7 +510,7 @@ func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.He
 	if parent == nil {
 		return consensus.ErrUnknownAncestor
 	}
-	header.Time = c.blockTimeForConsortiumV2Fork(snap, header, parent)
+	header.Time = parent.Time + c.config.Period
 	if header.Time < uint64(time.Now().Unix()) {
 		header.Time = uint64(time.Now().Unix())
 	}
