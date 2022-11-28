@@ -20,19 +20,10 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
-	"math"
 	"math/big"
 	"os"
 	"reflect"
-	godebug "runtime/debug"
-	"strconv"
-	"time"
 	"unicode"
-
-	"github.com/ethereum/go-ethereum/eth"
-	"github.com/ethereum/go-ethereum/proxy"
-	"github.com/go-redis/redis/v8"
-	gopsutil "github.com/shirou/gopsutil/mem"
 
 	"gopkg.in/urfave/cli.v1"
 
@@ -163,7 +154,7 @@ func makeConfigNode(ctx *cli.Context) (*node.Node, gethConfig) {
 }
 
 // makeFullNode loads geth configuration and creates the Ethereum backend.
-func makeFullNode(ctx *cli.Context) (*node.Node, ethapi.Backend, *eth.Ethereum) {
+func makeFullNode(ctx *cli.Context) (*node.Node, ethapi.Backend) {
 	stack, cfg := makeConfigNode(ctx)
 	if ctx.GlobalIsSet(utils.OverrideArrowGlacierFlag.Name) {
 		cfg.Eth.OverrideArrowGlacier = new(big.Int).SetUint64(ctx.GlobalUint64(utils.OverrideArrowGlacierFlag.Name))
@@ -193,7 +184,7 @@ func makeFullNode(ctx *cli.Context) (*node.Node, ethapi.Backend, *eth.Ethereum) 
 	if cfg.Ethstats.URL != "" {
 		utils.RegisterEthStatsService(stack, backend, cfg.Ethstats.URL)
 	}
-	return stack, backend, eth
+	return stack, backend
 }
 
 // dumpConfig is the dumpconfig command.
@@ -338,101 +329,4 @@ func setAccountManagerBackends(stack *node.Node) error {
 	}
 
 	return nil
-}
-
-func makeProxyServer(ctx *cli.Context) (*proxy.Server, error) {
-	// init proxy server config
-	serverConfig := &proxy.Config{}
-	// Load defaults.
-	cfg := gethConfig{
-		Eth:     ethconfig.Defaults,
-		Node:    defaultNodeConfig(),
-		Metrics: metrics.DefaultConfig,
-	}
-	// Apply flags.
-	utils.SetNodeConfig(ctx, &cfg.Node)
-	if ctx.GlobalIsSet(utils.RPCGlobalGasCapFlag.Name) {
-		cfg.Eth.RPCGasCap = ctx.GlobalUint64(utils.RPCGlobalGasCapFlag.Name)
-	}
-	if cfg.Eth.RPCGasCap != 0 {
-		log.Info("Set global gas cap", "cap", cfg.Eth.RPCGasCap)
-	} else {
-		log.Info("Global gas cap disabled")
-	}
-	if ctx.GlobalIsSet(utils.NetworkIdFlag.Name) {
-		cfg.Eth.NetworkId = ctx.GlobalUint64(utils.NetworkIdFlag.Name)
-	}
-	if ctx.GlobalIsSet(utils.RPCGlobalEVMTimeoutFlag.Name) {
-		cfg.Eth.RPCEVMTimeout = ctx.GlobalDuration(utils.RPCGlobalEVMTimeoutFlag.Name)
-	}
-	if ctx.GlobalIsSet(utils.RPCGlobalTxFeeCapFlag.Name) {
-		cfg.Eth.RPCTxFeeCap = ctx.GlobalFloat64(utils.RPCGlobalTxFeeCapFlag.Name)
-	}
-	if ctx.GlobalIsSet(utils.RPCUrlFlag.Name) {
-		serverConfig.RpcUrl = ctx.GlobalString(utils.RPCUrlFlag.Name)
-	}
-	if ctx.GlobalIsSet(utils.ArchiveUrlFlag.Name) {
-		serverConfig.ArchiveUrl = ctx.GlobalString(utils.ArchiveUrlFlag.Name)
-	}
-	if ctx.GlobalIsSet(utils.FreeGasProxyUrlFlag.Name) {
-		serverConfig.FreeGasProxy = ctx.GlobalString(utils.FreeGasProxyUrlFlag.Name)
-	}
-	if ctx.GlobalIsSet(utils.DBCacheSizeLimitFlag.Name) {
-		serverConfig.DBCachedSize = ctx.GlobalInt(utils.DBCacheSizeLimitFlag.Name)
-	}
-	if ctx.GlobalIsSet(utils.SafeBlockRangeFlag.Name) {
-		serverConfig.SafeBlockRange = ctx.GlobalUint(utils.SafeBlockRangeFlag.Name)
-	}
-	if ctx.GlobalIsSet(utils.ProxyRedisFlag.Name) {
-		serverConfig.Redis = &proxy.Redis{
-			Options: &redis.Options{},
-		}
-		if ctx.GlobalIsSet(utils.ProxyRedisAddressFlag.Name) {
-			serverConfig.Redis.Options.Addr = ctx.GlobalString(utils.ProxyRedisAddressFlag.Name)
-		}
-		if ctx.GlobalIsSet(utils.ProxyRedisExpirationFlag.Name) {
-			serverConfig.Redis.Expiration = ctx.GlobalDuration(utils.ProxyRedisExpirationFlag.Name)
-		}
-		if ctx.GlobalIsSet(utils.ProxyRedisPoolSizeFlag.Name) {
-			serverConfig.Redis.Options.PoolSize = ctx.GlobalInt(utils.ProxyRedisPoolSizeFlag.Name)
-		}
-		if ctx.GlobalIsSet(utils.ProxyRedisReadTimeoutFlag.Name) {
-			serverConfig.Redis.Options.ReadTimeout = ctx.GlobalDuration(utils.ProxyRedisReadTimeoutFlag.Name)
-		}
-		if ctx.GlobalIsSet(utils.ProxyRedisWriteTimeoutFlag.Name) {
-			serverConfig.Redis.Options.WriteTimeout = ctx.GlobalDuration(utils.ProxyRedisWriteTimeoutFlag.Name)
-		}
-		if ctx.GlobalIsSet(utils.ProxyRedisConnectionTimeoutFlag.Name) {
-			serverConfig.Redis.Options.PoolTimeout = ctx.GlobalDuration(utils.ProxyRedisConnectionTimeoutFlag.Name)
-		}
-	}
-
-	applyMetricConfig(ctx, &cfg)
-	// Start metrics export if enabled
-	utils.SetupMetrics(ctx)
-
-	// Start system runtime metrics collection
-	go metrics.CollectProcessMetrics(3 * time.Second)
-
-	// Cap the cache allowance and tune the garbage collector
-	mem, err := gopsutil.VirtualMemory()
-	if err == nil {
-		if 32<<(^uintptr(0)>>63) == 32 && mem.Total > 2*1024*1024*1024 {
-			log.Warn("Lowering memory allowance on 32bit arch", "available", mem.Total/1024/1024, "addressable", 2*1024)
-			mem.Total = 2 * 1024 * 1024 * 1024
-		}
-		allowance := int(mem.Total / 1024 / 1024 / 3)
-		if cache := ctx.GlobalInt(utils.CacheFlag.Name); cache > allowance {
-			log.Warn("Sanitizing cache to Go's GC limits", "provided", cache, "updated", allowance)
-			ctx.GlobalSet(utils.CacheFlag.Name, strconv.Itoa(allowance))
-		}
-	}
-	// Ensure Go's GC ignores the database cache for trigger percentage
-	cache := ctx.GlobalInt(utils.CacheFlag.Name)
-	gogc := math.Max(20, math.Min(100, 100/(float64(cache)/1024)))
-
-	log.Debug("Sanitizing Go's GC trigger", "percent", int(gogc))
-	godebug.SetGCPercent(int(gogc))
-
-	return proxy.NewServer(serverConfig, &cfg.Eth, &cfg.Node)
 }
