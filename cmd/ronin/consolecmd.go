@@ -76,7 +76,7 @@ JavaScript API. See https://geth.ethereum.org/docs/interface/javascript-console`
 func localConsole(ctx *cli.Context) error {
 	// Create and start the node based on the CLI flags
 	prepare(ctx)
-	stack, backend, _ := makeFullNode(ctx)
+	stack, backend := makeFullNode(ctx)
 	startNode(ctx, stack, backend)
 	defer stack.Close()
 
@@ -188,7 +188,7 @@ func dialRPC(endpoint string) (*rpc.Client, error) {
 // everything down.
 func ephemeralConsole(ctx *cli.Context) error {
 	// Create and start the node based on the CLI flags
-	stack, backend, _ := makeFullNode(ctx)
+	stack, backend := makeFullNode(ctx)
 	startNode(ctx, stack, backend)
 	defer stack.Close()
 

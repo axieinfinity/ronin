@@ -27,11 +27,10 @@ const (
 	FastSync                  // Quickly download the headers, full sync only at the chain
 	SnapSync                  // Download the chain and the state via compact snapshots
 	LightSync                 // Download only the headers and terminate afterwards
-	ProxySync
 )
 
 func (mode SyncMode) IsValid() bool {
-	return mode >= FullSync && mode <= ProxySync
+	return mode >= FullSync
 }
 
 // String implements the stringer interface.
@@ -45,8 +44,6 @@ func (mode SyncMode) String() string {
 		return "snap"
 	case LightSync:
 		return "light"
-	case ProxySync:
-		return "proxy"
 	default:
 		return "unknown"
 	}
@@ -62,8 +59,6 @@ func (mode SyncMode) MarshalText() ([]byte, error) {
 		return []byte("snap"), nil
 	case LightSync:
 		return []byte("light"), nil
-	case ProxySync:
-		return []byte("proxy"), nil
 	default:
 		return nil, fmt.Errorf("unknown sync mode %d", mode)
 	}
@@ -79,8 +74,6 @@ func (mode *SyncMode) UnmarshalText(text []byte) error {
 		*mode = SnapSync
 	case "light":
 		*mode = LightSync
-	case "proxy":
-		*mode = ProxySync
 	default:
 		return fmt.Errorf(`unknown sync mode %q, want "full", "fast" or "light"`, text)
 	}

@@ -217,33 +217,6 @@ var (
 		utils.MetricsInfluxDBBucketFlag,
 		utils.MetricsInfluxDBOrganizationFlag,
 	}
-
-	subscriberFlags = []cli.Flag{
-		SubscriberFlag,
-		ChainEventFlag,
-		ReOrgBlockEventFlag,
-		TransactionEventFlag,
-		ReorgTransactionEventFlag,
-		TransactionResultEventFlag,
-		KafkaPartitionFlag,
-		KafkaUrlFlag,
-		KafkaAuthenticationFlag,
-		kafkaUsernameFlag,
-		kafkaPasswordFlag,
-		MaxRetryFlag,
-		NumberOfWorkerFlag,
-		BackOffFlag,
-		PublisherFlag,
-		FromHeightFlag,
-		LogsEventFlag,
-		QueueSizeFlag,
-		BlockConfirmedEventFlag,
-		TransactionConfirmedEventFlag,
-		LogsConfirmedEventFlag,
-		SafeBlockRangeFlag,
-		CoolDownDurationFlag,
-		InternalTxEventFlag,
-	}
 )
 
 func init() {
@@ -291,7 +264,6 @@ func init() {
 	app.Flags = append(app.Flags, consoleFlags...)
 	app.Flags = append(app.Flags, debug.Flags...)
 	app.Flags = append(app.Flags, metricsFlags...)
-	app.Flags = append(app.Flags, subscriberFlags...)
 
 	app.Before = func(ctx *cli.Context) error {
 		return debug.Setup(ctx)
@@ -363,28 +335,9 @@ func geth(ctx *cli.Context) error {
 	if args := ctx.Args(); len(args) > 0 {
 		return fmt.Errorf("invalid command: %q", args[0])
 	}
-	// start proxy server if sync mode is proxy
-	if ctx.GlobalString(utils.SyncModeFlag.Name) == "proxy" {
-		server, err := makeProxyServer(ctx)
-		if err != nil {
-			return err
-		}
-		defer server.Close()
-		server.Start()
-		return nil
-	}
 	prepare(ctx)
-	stack, backend, eth := makeFullNode(ctx)
+	stack, backend := makeFullNode(ctx)
 	defer stack.Close()
-
-	// subscribe backend event if any
-	if ctx.GlobalBool(SubscriberFlag.Name) {
-		subs := NewSubscriber(eth, backend, ctx)
-		defer subs.Close()
-		// wait until subscriber finishes its initiation
-		<-subs.Start()
-	}
-
 	startNode(ctx, stack, backend)
 	stack.Wait()
 	return nil

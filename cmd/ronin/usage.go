@@ -216,10 +216,6 @@ var AppHelpFlagGroups = []flags.FlagGroup{
 		}, debug.Flags...),
 	},
 	{
-		Name:  "SUBSCRIBER",
-		Flags: subscriberFlags,
-	},
-	{
 		Name:  "METRICS AND STATS",
 		Flags: metricsFlags,
 	},
@@ -227,23 +223,6 @@ var AppHelpFlagGroups = []flags.FlagGroup{
 		Name: "ALIASED (deprecated)",
 		Flags: []cli.Flag{
 			utils.NoUSBFlag,
-		},
-	},
-	{
-		Name: "PROXY NODE",
-		Flags: []cli.Flag{
-			utils.RPCUrlFlag,
-			utils.FreeGasProxyUrlFlag,
-			utils.DBCacheSizeLimitFlag,
-			utils.SafeBlockRangeFlag,
-			utils.ArchiveUrlFlag,
-			utils.ProxyRedisFlag,
-			utils.ProxyRedisAddressFlag,
-			utils.ProxyRedisExpirationFlag,
-			utils.ProxyRedisPoolSizeFlag,
-			utils.ProxyRedisReadTimeoutFlag,
-			utils.ProxyRedisWriteTimeoutFlag,
-			utils.ProxyRedisConnectionTimeoutFlag,
 		},
 	},
 	{
