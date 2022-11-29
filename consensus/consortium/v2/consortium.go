@@ -4,13 +4,14 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/common-nighthawk/go-figure"
 	"io"
 	"math/big"
 	"math/rand"
 	"sort"
 	"sync"
 	"time"
+
+	"github.com/common-nighthawk/go-figure"
 
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
@@ -517,6 +518,65 @@ func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.He
 	return nil
 }
 
+func (c *Consortium) submitBlockReward(transactOpts *consortiumCommon.ApplyTransactOpts) error {
+	if err := c.contract.SubmitBlockReward(transactOpts); err != nil {
+		log.Error("Failed to submit block reward", "err", err)
+		return err
+	}
+	return nil
+}
+
+func (c *Consortium) processSystemTransactions(chain consensus.ChainHeaderReader, header *types.Header,
+	transactOpts *consortiumCommon.ApplyTransactOpts, isFinalizeAndAssemble bool) error {
+
+	if header.Difficulty.Cmp(diffInTurn) != 0 {
+		number := header.Number.Uint64()
+		snap, err := c.snapshot(chain, number-1, header.ParentHash, nil)
+		if err != nil {
+			return err
+		}
+		spoiledVal := snap.supposeValidator()
+		signedRecently := false
+		for _, recent := range snap.Recents {
+			if recent == spoiledVal {
+				signedRecently = true
+				break
+			}
+		}
+		if !signedRecently {
+			if isFinalizeAndAssemble {
+				log.Info("Slash validator", "number", header.Number, "spoiled", spoiledVal)
+			}
+			if err := c.contract.Slash(transactOpts, spoiledVal); err != nil {
+				// it is possible that slash validator failed because of the slash channel is disabled.
+				log.Error("Failed to slash validator", "block hash", header.Hash(), "address", spoiledVal)
+				return err
+			}
+		}
+	}
+
+	// Previously, we call WrapUpEpoch before SubmitBlockReward which is the wrong order.
+	// We create a hardfork here to fix the contract call order.
+	if c.chainConfig.IsPuffy(header.Number) {
+		if err := c.submitBlockReward(transactOpts); err != nil {
+			return err
+		}
+	}
+
+	if header.Number.Uint64()%c.config.EpochV2 == c.config.EpochV2-1 {
+		if err := c.contract.WrapUpEpoch(transactOpts); err != nil {
+			log.Error("Failed to wrap up epoch", "err", err)
+			return err
+		}
+	}
+
+	if !c.chainConfig.IsPuffy(header.Number) {
+		return c.submitBlockReward(transactOpts)
+	}
+
+	return nil
+}
+
 // Finalize implements consensus.Engine that calls three methods from smart contracts:
 // - WrapUpEpoch at epoch to distribute rewards and sort the validators set
 // - Slash the validator who does not sign if it is in-turn
@@ -527,11 +587,6 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 		return err
 	}
 
-	number := header.Number.Uint64()
-	snap, err := c.snapshot(chain, number-1, header.ParentHash, nil)
-	if err != nil {
-		return err
-	}
 	transactOpts := &consortiumCommon.ApplyTransactOpts{
 		ApplyMessageOpts: &consortiumCommon.ApplyMessageOpts{
 			State:        state,
@@ -572,37 +627,11 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 			return errMismatchingEpochValidators
 		}
 	}
-	// No block rewards in PoA, so the state remains as is and uncles are dropped
-	if header.Difficulty.Cmp(diffInTurn) != 0 {
-		spoiledVal := snap.supposeValidator()
-		signedRecently := false
-		for _, recent := range snap.Recents {
-			if recent == spoiledVal {
-				signedRecently = true
-				break
-			}
-		}
-		if !signedRecently {
-			log.Info("Slash validator", "number", header.Number, "spoiled", spoiledVal)
-			err = c.contract.Slash(transactOpts, spoiledVal)
-			if err != nil {
-				// it is possible that slash validator failed because of the slash channel is disabled.
-				log.Error("slash validator failed", "block hash", header.Hash(), "address", spoiledVal)
-				return err
-			}
-		}
-	}
 
-	if header.Number.Uint64()%c.config.EpochV2 == c.config.EpochV2-1 {
-		if err := c.contract.WrapUpEpoch(transactOpts); err != nil {
-			log.Error("Failed to update validators", "err", err)
-			return err
-		}
-	}
-
-	if err = c.contract.SubmitBlockReward(transactOpts); err != nil {
+	if err := c.processSystemTransactions(chain, header, transactOpts, false); err != nil {
 		return err
 	}
+
 	if len(*systemTxs) > 0 {
 		return errors.New("the length of systemTxs do not match")
 	}
@@ -644,40 +673,11 @@ func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, head
 		Signer:      c.signer,
 		SignTxFn:    c.signTxFn,
 	}
-	if header.Difficulty.Cmp(diffInTurn) != 0 {
-		number := header.Number.Uint64()
-		snap, err := c.snapshot(chain, number-1, header.ParentHash, nil)
-		if err != nil {
-			return nil, nil, err
-		}
-		spoiledVal := snap.supposeValidator()
-		signedRecently := false
-		for _, recent := range snap.Recents {
-			if recent == spoiledVal {
-				signedRecently = true
-				break
-			}
-		}
-		if !signedRecently {
-			err = c.contract.Slash(transactOpts, spoiledVal)
-			if err != nil {
-				// It is possible that slash validator failed because of the slash channel is disabled.
-				log.Error("Slash validator failed", "block hash", header.Hash(), "address", spoiledVal, "error", err)
-				return nil, nil, err
-			}
-		}
-	}
 
-	if header.Number.Uint64()%c.config.EpochV2 == c.config.EpochV2-1 {
-		if err := c.contract.WrapUpEpoch(transactOpts); err != nil {
-			log.Error("Wrap up epoch failed", "block hash", header.Hash(), "error", err)
-			return nil, nil, err
-		}
-	}
-
-	if err := c.contract.SubmitBlockReward(transactOpts); err != nil {
+	if err := c.processSystemTransactions(chain, header, transactOpts, true); err != nil {
 		return nil, nil, err
 	}
+
 	// should not happen. Once happen, stop the node is better than broadcast the block
 	if header.GasLimit < header.GasUsed {
 		return nil, nil, errors.New("gas consumption of system txs exceed the gas limit")
