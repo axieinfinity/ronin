@@ -275,6 +275,12 @@ func (w *worker) setGasCeil(ceil uint64) {
 	w.config.GasCeil = ceil
 }
 
+func (w *worker) setGasReserve(reserve uint64) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.config.GasReserve = reserve
+}
+
 // setExtra sets the content used to initialize the block extra field.
 func (w *worker) setExtra(extra []byte) {
 	w.mu.Lock()
@@ -813,6 +819,12 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 	gasLimit := w.current.header.GasLimit
 	if w.current.gasPool == nil {
 		w.current.gasPool = new(core.GasPool).AddGas(gasLimit)
+
+		// If the gas pool is newly created, reserve some gas for system transactions
+		if err := w.current.gasPool.SubGas(w.config.GasReserve); err != nil {
+			log.Error("Failed to reserve gas for system transactions", "pool", w.current.gasPool, "reserve", w.config.GasReserve, "error", err)
+			return true
+		}
 	}
 
 	var coalescedLogs []*types.Log

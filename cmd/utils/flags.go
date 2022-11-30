@@ -450,6 +450,10 @@ var (
 		Usage: "Target gas ceiling for mined blocks",
 		Value: ethconfig.Defaults.Miner.GasCeil,
 	}
+	MinerGasReserveFlag = cli.Uint64Flag{
+		Name:  "miner.gasreserve",
+		Usage: "Reserved gas for system transactions",
+	}
 	MinerGasPriceFlag = BigFlag{
 		Name:  "miner.gasprice",
 		Usage: "Minimum gas price for mining a transaction",
@@ -1473,6 +1477,9 @@ func setMiner(ctx *cli.Context, cfg *miner.Config) {
 	}
 	if ctx.GlobalIsSet(MinerGasLimitFlag.Name) {
 		cfg.GasCeil = ctx.GlobalUint64(MinerGasLimitFlag.Name)
+	}
+	if ctx.GlobalIsSet(MinerGasReserveFlag.Name) {
+		cfg.GasReserve = ctx.GlobalUint64(MinerGasReserveFlag.Name)
 	}
 	if ctx.GlobalIsSet(MinerGasPriceFlag.Name) {
 		cfg.GasPrice = GlobalBig(ctx, MinerGasPriceFlag.Name)
