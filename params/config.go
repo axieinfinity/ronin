@@ -282,17 +282,101 @@ var (
 	//
 	// This configuration is intentionally not using keyed fields to force anyone
 	// adding flags to the config to also have to set these fields.
-	AllEthashProtocolChanges = &ChainConfig{big.NewInt(1337), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, nil, nil, nil, nil, nil, nil, nil, new(EthashConfig), nil, nil, nil}
+	AllEthashProtocolChanges = &ChainConfig{
+		ChainID:                       big.NewInt(1337),
+		HomesteadBlock:                big.NewInt(0),
+		DAOForkBlock:                  nil,
+		DAOForkSupport:                false,
+		EIP150Block:                   big.NewInt(0),
+		EIP150Hash:                    common.Hash{},
+		EIP155Block:                   big.NewInt(0),
+		EIP158Block:                   big.NewInt(0),
+		ByzantiumBlock:                big.NewInt(0),
+		ConstantinopleBlock:           big.NewInt(0),
+		PetersburgBlock:               big.NewInt(0),
+		IstanbulBlock:                 big.NewInt(0),
+		MuirGlacierBlock:              big.NewInt(0),
+		BerlinBlock:                   big.NewInt(0),
+		LondonBlock:                   nil,
+		ArrowGlacierBlock:             nil,
+		OdysseusBlock:                 nil,
+		FenixBlock:                    nil,
+		ConsortiumV2Block:             nil,
+		PuffyBlock:                    nil,
+		BlacklistContractAddress:      nil,
+		FenixValidatorContractAddress: nil,
+		TerminalTotalDifficulty:       nil,
+		Ethash:                        new(EthashConfig),
+		Clique:                        nil,
+		Consortium:                    nil,
+		ConsortiumV2Contracts:         nil,
+	}
 
 	// AllCliqueProtocolChanges contains every protocol change (EIPs) introduced
 	// and accepted by the Ethereum core developers into the Clique consensus.
 	//
 	// This configuration is intentionally not using keyed fields to force anyone
 	// adding flags to the config to also have to set these fields.
-	AllCliqueProtocolChanges = &ChainConfig{big.NewInt(1337), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, nil, nil, nil, nil, nil, nil, nil, nil, &CliqueConfig{Period: 0, Epoch: 30000}, nil, nil}
+	AllCliqueProtocolChanges = &ChainConfig{
+		ChainID:                       big.NewInt(1337),
+		HomesteadBlock:                big.NewInt(0),
+		DAOForkBlock:                  nil,
+		DAOForkSupport:                false,
+		EIP150Block:                   big.NewInt(0),
+		EIP150Hash:                    common.Hash{},
+		EIP155Block:                   big.NewInt(0),
+		EIP158Block:                   big.NewInt(0),
+		ByzantiumBlock:                big.NewInt(0),
+		ConstantinopleBlock:           big.NewInt(0),
+		PetersburgBlock:               big.NewInt(0),
+		IstanbulBlock:                 big.NewInt(0),
+		MuirGlacierBlock:              big.NewInt(0),
+		BerlinBlock:                   big.NewInt(0),
+		LondonBlock:                   nil,
+		ArrowGlacierBlock:             nil,
+		OdysseusBlock:                 nil,
+		FenixBlock:                    nil,
+		ConsortiumV2Block:             nil,
+		PuffyBlock:                    nil,
+		BlacklistContractAddress:      nil,
+		FenixValidatorContractAddress: nil,
+		TerminalTotalDifficulty:       nil,
+		Ethash:                        nil,
+		Clique:                        &CliqueConfig{Period: 0, Epoch: 30000},
+		Consortium:                    nil,
+		ConsortiumV2Contracts:         nil,
+	}
 
-	TestChainConfig = &ChainConfig{big.NewInt(1), big.NewInt(0), nil, false, big.NewInt(0), common.Hash{}, big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, nil, nil, nil, nil, nil, nil, nil, new(EthashConfig), nil, nil, nil}
-	TestRules       = TestChainConfig.Rules(new(big.Int))
+	TestChainConfig = &ChainConfig{
+		ChainID:                       big.NewInt(1),
+		HomesteadBlock:                big.NewInt(0),
+		DAOForkBlock:                  nil,
+		DAOForkSupport:                false,
+		EIP150Block:                   big.NewInt(0),
+		EIP150Hash:                    common.Hash{},
+		EIP155Block:                   big.NewInt(0),
+		EIP158Block:                   big.NewInt(0),
+		ByzantiumBlock:                big.NewInt(0),
+		ConstantinopleBlock:           big.NewInt(0),
+		PetersburgBlock:               big.NewInt(0),
+		IstanbulBlock:                 big.NewInt(0),
+		MuirGlacierBlock:              big.NewInt(0),
+		BerlinBlock:                   big.NewInt(0),
+		LondonBlock:                   nil,
+		ArrowGlacierBlock:             nil,
+		OdysseusBlock:                 nil,
+		FenixBlock:                    nil,
+		ConsortiumV2Block:             nil,
+		PuffyBlock:                    nil,
+		BlacklistContractAddress:      nil,
+		FenixValidatorContractAddress: nil,
+		TerminalTotalDifficulty:       nil,
+		Ethash:                        new(EthashConfig),
+		Clique:                        nil,
+		Consortium:                    nil,
+		ConsortiumV2Contracts:         nil,
+	}
+	TestRules = TestChainConfig.Rules(new(big.Int))
 )
 
 // TrustedCheckpoint represents a set of post-processed trie roots (CHT and
@@ -374,6 +458,9 @@ type ChainConfig struct {
 	OdysseusBlock       *big.Int `json:"odysseusBlock,omitempty"`       // Odysseus switch block (nil = no fork, 0 = already on activated)
 	FenixBlock          *big.Int `json:"fenixBlock,omitempty"`          // Fenix switch block (nil = no fork, 0 = already on activated)
 	ConsortiumV2Block   *big.Int `json:"consortiumV2Block,omitempty"`   // Consortium v2 switch block (nil = no fork, 0 = already on activated)
+
+	// Puffy hardfork fix the wrong order in system transactions included in a block
+	PuffyBlock *big.Int `json:"puffyBlock,omitempty"` // Puffy switch block (nil = no fork, 0 = already on activated)
 
 	BlacklistContractAddress      *common.Address `json:"blacklistContractAddress,omitempty"`      // Address of Blacklist Contract (nil = no blacklist)
 	FenixValidatorContractAddress *common.Address `json:"fenixValidatorContractAddress,omitempty"` // Address of Ronin Contract in the Fenix hardfork (nil = no blacklist)
@@ -586,6 +673,11 @@ func (c *ChainConfig) IsConsortiumV2(num *big.Int) bool {
 // IsOnConsortiumV2 returns whether the num is equals to the consortiumV2 fork block.
 func (c *ChainConfig) IsOnConsortiumV2(num *big.Int) bool {
 	return configNumEqual(c.ConsortiumV2Block, num)
+}
+
+// IsPuffy returns whether the num is equals to or larger than the puffy fork block.
+func (c *ChainConfig) IsPuffy(num *big.Int) bool {
+	return isForked(c.PuffyBlock, num)
 }
 
 // CheckCompatible checks whether scheduled fork transitions have been imported
