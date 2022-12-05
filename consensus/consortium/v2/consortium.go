@@ -544,7 +544,7 @@ func (c *Consortium) processSystemTransactions(chain consensus.ChainHeaderReader
 			}
 		}
 		if !signedRecently {
-			if isFinalizeAndAssemble {
+			if !isFinalizeAndAssemble {
 				log.Info("Slash validator", "number", header.Number, "spoiled", spoiledVal)
 			}
 			if err := c.contract.Slash(transactOpts, spoiledVal); err != nil {
