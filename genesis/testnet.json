@@ -24,7 +24,7 @@
       "slashIndicator": "0xF7837778b6E180Df6696C8Fa986d62f8b6186752",
       "stakingContract": "0x9C245671791834daf3885533D24dce516B763B28"
     },
-    "puffyBlock": 12252800
+    "puffyBlock": 12254000
   },
   "alloc": {
     "0x0000000000000000000000000000000000000011": {
