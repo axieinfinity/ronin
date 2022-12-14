@@ -262,7 +262,7 @@ func (b *LesApiBackend) SubscribeRemovedLogsEvent(ch chan<- core.RemovedLogsEven
 	return b.eth.blockchain.SubscribeRemovedLogsEvent(ch)
 }
 
-func (b *LesApiBackend) SubscribeInternalTransactionEvent(ch chan<- types.InternalTransaction) event.Subscription {
+func (b *LesApiBackend) SubscribeInternalTransactionEvent(ch chan<- []*types.InternalTransaction) event.Subscription {
 	return b.eth.blockchain.SubscribeInternalTransactionEvent(ch)
 }
 

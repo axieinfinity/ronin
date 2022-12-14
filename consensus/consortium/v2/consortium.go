@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/ethereum/go-ethereum/core"
 	"io"
 	"math/big"
 	"math/rand"
@@ -582,17 +583,17 @@ func (c *Consortium) processSystemTransactions(chain consensus.ChainHeaderReader
 // - Slash the validator who does not sign if it is in-turn
 // - SubmitBlockRewards of the current block
 func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs *[]*types.Transaction,
-	uncles []*types.Header, receipts *[]*types.Receipt, systemTxs *[]*types.Transaction, usedGas *uint64) error {
+	uncles []*types.Header, receipts *[]*types.Receipt, systemTxs *[]*types.Transaction, internalTxs *[]*types.InternalTransaction, usedGas *uint64) error {
 	if err := c.initContract(); err != nil {
 		return err
 	}
-
+	evmContext := core.NewEVMBlockContext(header, consortiumCommon.ChainContext{Chain: chain, Consortium: c}, &header.Coinbase, chain.OpEvents()...)
 	transactOpts := &consortiumCommon.ApplyTransactOpts{
 		ApplyMessageOpts: &consortiumCommon.ApplyMessageOpts{
-			State:        state,
-			Header:       header,
-			ChainConfig:  c.chainConfig,
-			ChainContext: consortiumCommon.ChainContext{Chain: chain, Consortium: c},
+			State:       state,
+			Header:      header,
+			ChainConfig: c.chainConfig,
+			EVMContext:  &evmContext,
 		},
 		Txs:      txs,
 		Receipts: receipts,
@@ -631,7 +632,9 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 	if err := c.processSystemTransactions(chain, header, transactOpts, false); err != nil {
 		return err
 	}
-
+	if len(*transactOpts.EVMContext.InternalTransactions) > 0 {
+		*internalTxs = append(*internalTxs, *transactOpts.EVMContext.InternalTransactions...)
+	}
 	if len(*systemTxs) > 0 {
 		return errors.New("the length of systemTxs do not match")
 	}
@@ -655,13 +658,13 @@ func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, head
 	if receipts == nil {
 		receipts = make([]*types.Receipt, 0)
 	}
-
+	evmContext := core.NewEVMBlockContext(header, consortiumCommon.ChainContext{Chain: chain, Consortium: c}, &header.Coinbase, chain.OpEvents()...)
 	transactOpts := &consortiumCommon.ApplyTransactOpts{
 		ApplyMessageOpts: &consortiumCommon.ApplyMessageOpts{
-			State:        state,
-			Header:       header,
-			ChainConfig:  c.chainConfig,
-			ChainContext: consortiumCommon.ChainContext{Chain: chain, Consortium: c},
+			State:       state,
+			Header:      header,
+			ChainConfig: c.chainConfig,
+			EVMContext:  &evmContext,
 		},
 		Txs:      &txs,
 		Receipts: &receipts,

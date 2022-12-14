@@ -642,6 +642,11 @@ const (
 	InternalTransactionContractCreation = "create"
 )
 
+type InternalTransactions struct {
+	BlockNumber  uint64
+	Transactions []*InternalTransaction
+}
+
 type InternalTransaction struct {
 	Opcode  string `rlp:"-"`
 	Type    string `rlp:"-"`
@@ -656,9 +661,9 @@ type InternalTransaction struct {
 	To              common.Address
 
 	// block info
-	Height          uint64
-	BlockHash       common.Hash
-	BlockTime       uint64
+	Height    uint64
+	BlockHash common.Hash
+	BlockTime uint64
 }
 
 func (internal *InternalTransaction) Hash() common.Hash {

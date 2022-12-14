@@ -20,6 +20,7 @@ package v1
 import (
 	"bytes"
 	"errors"
+	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -491,7 +492,7 @@ func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.He
 // Finalize implements consensus.Engine, ensuring no uncles are set, nor block
 // rewards given.
 func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs *[]*types.Transaction,
-	uncles []*types.Header, receipts *[]*types.Receipt, systemTxs *[]*types.Transaction, usedGas *uint64) error {
+	uncles []*types.Header, receipts *[]*types.Receipt, systemTxs *[]*types.Transaction, internalTxs *[]*types.InternalTransaction, usedGas *uint64) error {
 	if err := c.initContract(); err != nil {
 		return err
 	}
@@ -502,12 +503,13 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 		if err != nil {
 			return err
 		}
+		evmContext := core.NewEVMBlockContext(header, consortiumCommon.ChainContext{Chain: chain, Consortium: c}, &header.Coinbase, chain.OpEvents()...)
 		transactOpts := &consortiumCommon.ApplyTransactOpts{
 			ApplyMessageOpts: &consortiumCommon.ApplyMessageOpts{
-				State:        state,
-				Header:       header,
-				ChainConfig:  c.chainConfig,
-				ChainContext: consortiumCommon.ChainContext{Chain: chain, Consortium: c},
+				State:       state,
+				Header:      header,
+				ChainConfig: c.chainConfig,
+				EVMContext:  &evmContext,
 			},
 			Txs:         txs,
 			Receipts:    receipts,
@@ -546,12 +548,13 @@ func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, head
 	header.UncleHash = types.CalcUncleHash(nil)
 
 	if c.chainConfig.IsOnConsortiumV2(big.NewInt(header.Number.Int64() + 1)) {
+		evmContext := core.NewEVMBlockContext(header, consortiumCommon.ChainContext{Chain: chain, Consortium: c}, &header.Coinbase, chain.OpEvents()...)
 		transactOpts := &consortiumCommon.ApplyTransactOpts{
 			ApplyMessageOpts: &consortiumCommon.ApplyMessageOpts{
-				State:        state,
-				Header:       header,
-				ChainConfig:  c.chainConfig,
-				ChainContext: consortiumCommon.ChainContext{Chain: chain, Consortium: c},
+				State:       state,
+				Header:      header,
+				ChainConfig: c.chainConfig,
+				EVMContext:  &evmContext,
 			},
 			Txs:         &txs,
 			Receipts:    &receipts,

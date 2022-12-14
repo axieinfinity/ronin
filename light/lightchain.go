@@ -21,6 +21,7 @@ package light
 import (
 	"context"
 	"errors"
+	"github.com/ethereum/go-ethereum/core/vm"
 	"math/big"
 	"sync"
 	"sync/atomic"
@@ -223,6 +224,10 @@ func (lc *LightChain) Genesis() *types.Block {
 }
 
 func (lc *LightChain) StateCache() state.Database {
+	panic("not implemented")
+}
+
+func (lc *LightChain) OpEvents() []*vm.PublishEvent {
 	panic("not implemented")
 }
 
@@ -572,7 +577,7 @@ func (lc *LightChain) SubscribeReorgEvent(ch chan<- core.ReorgEvent) event.Subsc
 	return lc.scope.Track(new(event.Feed).Subscribe(ch))
 }
 
-func (lc *LightChain) SubscribeInternalTransactionEvent(ch chan<- types.InternalTransaction) event.Subscription {
+func (lc *LightChain) SubscribeInternalTransactionEvent(ch chan<- []*types.InternalTransaction) event.Subscription {
 	return lc.scope.Track(new(event.Feed).Subscribe(ch))
 }
 

@@ -239,7 +239,7 @@ func (b *EthAPIBackend) SubscribeReorgEvent(ch chan<- core.ReorgEvent) event.Sub
 	return b.eth.BlockChain().SubscribeReorgEvent(ch)
 }
 
-func (b *EthAPIBackend) SubscribeInternalTransactionEvent(ch chan<- types.InternalTransaction) event.Subscription {
+func (b *EthAPIBackend) SubscribeInternalTransactionEvent(ch chan<- []*types.InternalTransaction) event.Subscription {
 	return b.eth.blockchain.SubscribeInternalTransactionEvent(ch)
 }
 

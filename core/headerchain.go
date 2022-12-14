@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/core/vm"
 	"math"
 	"math/big"
 	mrand "math/rand"
@@ -630,5 +631,9 @@ func (hc *HeaderChain) GetBlock(hash common.Hash, number uint64) *types.Block {
 }
 
 func (hc *HeaderChain) StateCache() state.Database {
+	return nil
+}
+
+func (hc *HeaderChain) OpEvents() []*vm.PublishEvent {
 	return nil
 }
