@@ -642,11 +642,6 @@ const (
 	InternalTransactionContractCreation = "create"
 )
 
-type InternalTransactions struct {
-	BlockNumber  uint64
-	Transactions []*InternalTransaction
-}
-
 type InternalTransaction struct {
 	Opcode  string `rlp:"-"`
 	Type    string `rlp:"-"`
