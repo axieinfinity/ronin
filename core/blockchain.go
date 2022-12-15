@@ -1624,11 +1624,16 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, er
 
 		// Process block using the parent state as reference point
 		substart := time.Now()
-		receipts, logs, usedGas, err := bc.processor.Process(block, statedb, bc.vmConfig, bc.OpEvents()...)
+		receipts, logs, internalTxs, usedGas, err := bc.processor.Process(block, statedb, bc.vmConfig, bc.OpEvents()...)
 		if err != nil {
 			bc.reportBlock(block, receipts, err)
 			atomic.StoreUint32(&followupInterrupt, 1)
 			return it.index, err
+		}
+
+		// send internalTxs events
+		if len(internalTxs) > 0 {
+			bc.internalTxFeed.Send(internalTxs)
 		}
 
 		// Update the metrics touched during block processing

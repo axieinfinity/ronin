@@ -17,7 +17,6 @@ import (
 	"github.com/ethereum/go-ethereum/consensus"
 	roninValidatorSet "github.com/ethereum/go-ethereum/consensus/consortium/generated_contracts/ronin_validator_set"
 	slashIndicator "github.com/ethereum/go-ethereum/consensus/consortium/generated_contracts/slash_indicator"
-	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
@@ -104,7 +103,6 @@ func (c *ContractIntegrator) WrapUpEpoch(opts *ApplyTransactOpts) error {
 	if err != nil {
 		return err
 	}
-
 	msg := types.NewMessage(
 		opts.Header.Coinbase,
 		tx.To(),
@@ -196,10 +194,10 @@ func (c *ContractIntegrator) Slash(opts *ApplyTransactOpts, spoiledValidator com
 
 // ApplyMessageOpts is the collection of options to fine tune a contract call request.
 type ApplyMessageOpts struct {
-	State        *state.StateDB
-	Header       *types.Header
-	ChainConfig  *chainParams.ChainConfig
-	ChainContext core.ChainContext
+	State       *state.StateDB
+	Header      *types.Header
+	ChainConfig *chainParams.ChainConfig
+	EVMContext  *vm.BlockContext
 }
 
 // ApplyTransactOpts is the collection of authorization data required to create a
@@ -304,10 +302,10 @@ func applyMessage(
 	opts *ApplyMessageOpts,
 ) (uint64, error) {
 	// Create a new context to be used in the EVM environment
-	context := core.NewEVMBlockContext(opts.Header, opts.ChainContext, &opts.Header.Coinbase)
+	opts.EVMContext.CurrentTransaction = types.NewTransaction(msg.Nonce(), *msg.To(), msg.Value(), msg.Gas(), msg.GasPrice(), msg.Data())
 	// Create a new environment which holds all relevant information
 	// about the transaction and calling mechanisms.
-	vmenv := vm.NewEVM(context, vm.TxContext{Origin: msg.From(), GasPrice: big.NewInt(0)}, opts.State, opts.ChainConfig, vm.Config{})
+	vmenv := vm.NewEVM(*opts.EVMContext, vm.TxContext{Origin: msg.From(), GasPrice: big.NewInt(0)}, opts.State, opts.ChainConfig, vm.Config{})
 	// Apply the transaction to the current State (included in the env)
 	ret, returnGas, err := vmenv.Call(
 		vm.AccountRef(msg.From()),

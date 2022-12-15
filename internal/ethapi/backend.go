@@ -91,7 +91,7 @@ type Backend interface {
 	SubscribePendingLogsEvent(ch chan<- []*types.Log) event.Subscription
 	SubscribeRemovedLogsEvent(ch chan<- core.RemovedLogsEvent) event.Subscription
 	SubscribeReorgEvent(ch chan<- core.ReorgEvent) event.Subscription
-	SubscribeInternalTransactionEvent(ch chan<- types.InternalTransaction) event.Subscription
+	SubscribeInternalTransactionEvent(ch chan<- []*types.InternalTransaction) event.Subscription
 
 	ChainConfig() *params.ChainConfig
 	Engine() consensus.Engine

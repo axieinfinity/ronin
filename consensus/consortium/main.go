@@ -103,12 +103,12 @@ func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.He
 
 // Finalize implements consensus.Engine as a proxy
 func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs *[]*types.Transaction,
-	uncles []*types.Header, receipts *[]*types.Receipt, systemTxs *[]*types.Transaction, usedGas *uint64) error {
+	uncles []*types.Header, receipts *[]*types.Receipt, systemTxs *[]*types.Transaction, internalTxs *[]*types.InternalTransaction, usedGas *uint64) error {
 	if c.chainConfig.IsConsortiumV2(header.Number) {
-		return c.v2.Finalize(chain, header, state, txs, uncles, receipts, systemTxs, usedGas)
+		return c.v2.Finalize(chain, header, state, txs, uncles, receipts, systemTxs, internalTxs, usedGas)
 	}
 
-	return c.v1.Finalize(chain, header, state, txs, uncles, receipts, systemTxs, usedGas)
+	return c.v1.Finalize(chain, header, state, txs, uncles, receipts, systemTxs, internalTxs, usedGas)
 }
 
 // FinalizeAndAssemble implements consensus.Engine as a proxy

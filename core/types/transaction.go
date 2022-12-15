@@ -656,9 +656,9 @@ type InternalTransaction struct {
 	To              common.Address
 
 	// block info
-	Height          uint64
-	BlockHash       common.Hash
-	BlockTime       uint64
+	Height    uint64
+	BlockHash common.Hash
+	BlockTime uint64
 }
 
 func (internal *InternalTransaction) Hash() common.Hash {

@@ -316,3 +316,4 @@ func (cr *fakeChainReader) GetHeader(hash common.Hash, number uint64) *types.Hea
 func (cr *fakeChainReader) GetBlock(hash common.Hash, number uint64) *types.Block   { return nil }
 func (cr *fakeChainReader) DB() ethdb.Database                                      { return nil }
 func (cr *fakeChainReader) StateCache() state.Database                              { return nil }
+func (cr *fakeChainReader) OpEvents() []*vm.PublishEvent                            { return nil }
