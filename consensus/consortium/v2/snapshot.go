@@ -140,11 +140,10 @@ func (s *Snapshot) apply(headers []*types.Header, chain consensus.ChainHeaderRea
 
 	// Number of consecutive blocks out of which a validator may only sign one.
 	// Must be len(snap.Validators)/2 + 1 to enforce majority consensus on a chain
-	validatorLimit := len(snap.Validators)/2 + 1
 	for _, header := range headers {
 		number := header.Number.Uint64()
 		// Delete the oldest validators from the recent list to allow it signing again
-		if limit := uint64(validatorLimit); number >= limit {
+		if limit := uint64(len(snap.Validators)/2 + 1); number >= limit {
 			delete(snap.Recents, number-limit)
 		}
 		// Resolve the authorization key and check against signers
@@ -189,7 +188,7 @@ func (s *Snapshot) apply(headers []*types.Header, chain consensus.ChainHeaderRea
 			for _, val := range newValArr {
 				newVals[val] = struct{}{}
 			}
-			oldLimit := validatorLimit
+			oldLimit := len(snap.Validators)/2 + 1
 			newLimit := len(newVals)/2 + 1
 			if newLimit < oldLimit {
 				for i := 0; i < oldLimit-newLimit; i++ {
