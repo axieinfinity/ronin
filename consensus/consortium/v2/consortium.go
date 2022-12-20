@@ -4,13 +4,14 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/ethereum/go-ethereum/core"
 	"io"
 	"math/big"
 	"math/rand"
 	"sort"
 	"sync"
 	"time"
+
+	"github.com/ethereum/go-ethereum/core"
 
 	"github.com/common-nighthawk/go-figure"
 
@@ -200,10 +201,6 @@ func (c *Consortium) VerifyHeaderAndParents(chain consensus.ChainHeaderReader, h
 	}
 	number := header.Number.Uint64()
 
-	// Don't waste time checking blocks from the future
-	if header.Time > uint64(time.Now().Unix()) {
-		return consensus.ErrFutureBlock
-	}
 	// Check that the extra-data contains the vanity, validators and signature.
 	if len(header.Extra) < extraVanity {
 		return consortiumCommon.ErrMissingVanity
@@ -282,8 +279,17 @@ func (c *Consortium) verifyCascadingFields(chain consensus.ChainHeaderReader, he
 		return err
 	}
 
+	// Retrieve the snapshot needed to verify this header and cache it
+	snap, err := c.snapshot(chain, number-1, header.ParentHash, parents)
+	if err != nil {
+		return err
+	}
+	if err = c.verifyHeaderTime(header, parent, snap); err != nil {
+		return err
+	}
+
 	// All basic checks passed, verify the seal and return
-	return c.verifySeal(chain, header, parents)
+	return c.verifySeal(chain, header, parents, snap)
 }
 
 // snapshot retrieves the authorization snapshot at a given point in time.
@@ -413,16 +419,11 @@ func (c *Consortium) VerifyUncles(chain consensus.ChainReader, block *types.Bloc
 // consensus protocol requirements. The method accepts an optional list of parent
 // headers that aren't yet part of the local blockchain to generate the snapshots
 // from.
-func (c *Consortium) verifySeal(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header) error {
+func (c *Consortium) verifySeal(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header, snap *Snapshot) error {
 	// Verifying the genesis block is not supported
 	number := header.Number.Uint64()
 	if number == 0 {
 		return consortiumCommon.ErrUnknownBlock
-	}
-	// Retrieve the snapshot needed to verify this header and cache it
-	snap, err := c.snapshot(chain, number-1, header.ParentHash, parents)
-	if err != nil {
-		return err
 	}
 
 	// Resolve the authorization key and check against validators
@@ -456,6 +457,58 @@ func (c *Consortium) verifySeal(chain consensus.ChainHeaderReader, header *types
 		}
 		if !inturn && header.Difficulty.Cmp(diffNoTurn) != 0 {
 			return consortiumCommon.ErrWrongDifficulty
+		}
+	}
+
+	return nil
+}
+
+func (c *Consortium) backOffTime(header *types.Header, snapshot *Snapshot) uint64 {
+	coinbase := header.Coinbase
+	if snapshot.inturn(coinbase) {
+		return 0
+	}
+
+	distance := snapshot.distanceToInturn(coinbase)
+	source := rand.NewSource(header.Number.Int64())
+	rand := rand.New(source)
+
+	// Every other not inturn validator has a different delay.
+	// The delay equals to their random delayMultiplier * wiggleTime.
+	// The delayMultiplier is random in range [1, len(validators)]
+	delayMultiplier := make([]int, 0, len(snapshot.Validators))
+	for i := 0; i < len(snapshot.Validators); i++ {
+		delayMultiplier = append(delayMultiplier, i+1)
+	}
+	rand.Shuffle(len(delayMultiplier), func(i, j int) {
+		delayMultiplier[i], delayMultiplier[j] = delayMultiplier[j], delayMultiplier[i]
+	})
+
+	return uint64((int(wiggleTime) + delayMultiplier[distance]*int(wiggleTime)/2) / int(time.Second))
+}
+
+func (c *Consortium) computeHeaderTime(header, parent *types.Header, snapshot *Snapshot) uint64 {
+	headerTime := parent.Time + c.config.Period
+
+	if c.chainConfig.IsBuba(header.Number) {
+		headerTime += c.backOffTime(header, snapshot)
+	}
+
+	if headerTime < uint64(time.Now().Unix()) {
+		headerTime = uint64(time.Now().Unix())
+	}
+	return headerTime
+}
+
+func (c *Consortium) verifyHeaderTime(header, parent *types.Header, snapshot *Snapshot) error {
+	if header.Time > uint64(time.Now().Unix()) {
+		return consensus.ErrFutureBlock
+	}
+
+	if c.chainConfig.IsBuba(header.Number) {
+		expectedHeaderTime := parent.Time + c.config.Period + c.backOffTime(header, snapshot)
+		if header.Time < expectedHeaderTime {
+			return consensus.ErrFutureBlock
 		}
 	}
 
@@ -512,10 +565,8 @@ func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.He
 	if parent == nil {
 		return consensus.ErrUnknownAncestor
 	}
-	header.Time = parent.Time + c.config.Period
-	if header.Time < uint64(time.Now().Unix()) {
-		header.Time = uint64(time.Now().Unix())
-	}
+
+	header.Time = c.computeHeaderTime(header, parent, snap)
 	return nil
 }
 
@@ -755,15 +806,17 @@ func (c *Consortium) Seal(chain consensus.ChainHeaderReader, block *types.Block,
 	}
 
 	// Sweet, the protocol permits us to sign the block, wait for our time
-	delay := time.Unix(int64(header.Time), 0).Sub(time.Now()) // nolint: gosimple
-	if header.Difficulty.Cmp(diffInTurn) != 0 {
-		// It's not our turn explicitly to sign, delay it a bit
-		wiggle := time.Duration(len(snap.Validators)/2+1) * wiggleTime
-		delay += time.Duration(rand.Int63n(int64(wiggle))) + wiggleTime // delay for 0.5s more
+	// After the Buba hardfork, the delay is included in header time already
+	delay := time.Until(time.Unix(int64(header.Time), 0))
+	if !c.chainConfig.IsBuba(block.Number()) {
+		if header.Difficulty.Cmp(diffInTurn) != 0 {
+			// It's not our turn explicitly to sign, delay it a bit
+			wiggle := time.Duration(len(snap.Validators)/2+1) * wiggleTime
+			delay += time.Duration(rand.Int63n(int64(wiggle))) + wiggleTime // delay for 0.5s more
 
-		log.Trace("Out-of-turn signing requested", "wiggle", common.PrettyDuration(wiggle))
+			log.Trace("Out-of-turn signing requested", "wiggle", common.PrettyDuration(wiggle))
+		}
 	}
-
 	log.Info("Sealing block with", "number", number, "delay", delay, "headerDifficulty", header.Difficulty, "val", val.Hex(), "txs", len(block.Transactions()))
 
 	// Sign all the things!

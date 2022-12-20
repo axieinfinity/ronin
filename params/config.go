@@ -461,6 +461,7 @@ type ChainConfig struct {
 
 	// Puffy hardfork fix the wrong order in system transactions included in a block
 	PuffyBlock *big.Int `json:"puffyBlock,omitempty"` // Puffy switch block (nil = no fork, 0 = already on activated)
+	BubaBlock  *big.Int `json:"bubaBlock,omitempty"`  // Buba switch block (nil = no fork, 0 = already on activated)
 
 	BlacklistContractAddress      *common.Address `json:"blacklistContractAddress,omitempty"`      // Address of Blacklist Contract (nil = no blacklist)
 	FenixValidatorContractAddress *common.Address `json:"fenixValidatorContractAddress,omitempty"` // Address of Ronin Contract in the Fenix hardfork (nil = no blacklist)
@@ -552,7 +553,12 @@ func (c *ChainConfig) String() string {
 		stakingContract = c.ConsortiumV2Contracts.StakingContract
 	}
 
-	return fmt.Sprintf("{ChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v Petersburg: %v Istanbul: %v, Odysseus: %v, Fenix: %v, Muir Glacier: %v, Berlin: %v, London: %v, Arrow Glacier: %v, Engine: %v, Blacklist Contract: %v, Fenix Validator Contract: %v, ConsortiumV2: %v, ConsortiumV2.RoninValidatorSet: %v, ConsortiumV2.SlashIndicator: %v, ConsortiumV2.StakingContract: %v}",
+	chainConfigFmt := "{ChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v "
+	chainConfigFmt += "Petersburg: %v Istanbul: %v, Odysseus: %v, Fenix: %v, Muir Glacier: %v, Berlin: %v, London: %v, Arrow Glacier: %v, "
+	chainConfigFmt += "Engine: %v, Blacklist Contract: %v, Fenix Validator Contract: %v, ConsortiumV2: %v, ConsortiumV2.RoninValidatorSet: %v, "
+	chainConfigFmt += "ConsortiumV2.SlashIndicator: %v, ConsortiumV2.StakingContract: %v, Puffy: %v, Buba: %v}"
+
+	return fmt.Sprintf(chainConfigFmt,
 		c.ChainID,
 		c.HomesteadBlock,
 		c.DAOForkBlock,
@@ -577,6 +583,8 @@ func (c *ChainConfig) String() string {
 		roninValidatorSetSC.Hex(),
 		slashIndicatorSC.Hex(),
 		stakingContract.Hex(),
+		c.PuffyBlock,
+		c.BubaBlock,
 	)
 }
 
@@ -678,6 +686,11 @@ func (c *ChainConfig) IsOnConsortiumV2(num *big.Int) bool {
 // IsPuffy returns whether the num is equals to or larger than the puffy fork block.
 func (c *ChainConfig) IsPuffy(num *big.Int) bool {
 	return isForked(c.PuffyBlock, num)
+}
+
+// IsPuffy returns whether the num is equals to or larger than the puffy fork block.
+func (c *ChainConfig) IsBuba(num *big.Int) bool {
+	return isForked(c.BubaBlock, num)
 }
 
 // CheckCompatible checks whether scheduled fork transitions have been imported
