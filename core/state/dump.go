@@ -29,7 +29,7 @@ import (
 	"github.com/ethereum/go-ethereum/trie"
 )
 
-// DumpConfig is a set of options to control what portions of the statewill be
+// DumpConfig is a set of options to control what portions of the state will be
 // iterated and collected.
 type DumpConfig struct {
 	SkipCode          bool
@@ -138,6 +138,7 @@ func (s *StateDB) DumpToCollector(c DumpCollector, conf *DumpConfig) (nextKey []
 	)
 	log.Info("Trie dumping started", "root", s.trie.Hash())
 	c.OnRoot(s.trie.Hash())
+
 	trieIt, err := s.trie.NodeIterator(conf.Start)
 	if err != nil {
 		return nil
@@ -172,7 +173,12 @@ func (s *StateDB) DumpToCollector(c DumpCollector, conf *DumpConfig) (nextKey []
 
 		if !conf.SkipStorage {
 			account.Storage = make(map[common.Hash]string)
-			trieIt, err := obj.getTrie().NodeIterator(nil)
+			tr, err := obj.getTrie()
+			if err != nil {
+				log.Error("Failed to load storage trie", "err", err)
+				continue
+			}
+			trieIt, err := tr.NodeIterator(nil)
 			if err != nil {
 				log.Error("Failed to create trie iterator", "err", err)
 				continue
