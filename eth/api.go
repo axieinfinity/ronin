@@ -462,7 +462,11 @@ func (api *PrivateDebugAPI) StorageRangeAt(ctx context.Context, blockHash common
 		return StorageRangeResult{}, err
 	}
 	defer release()
-	st := statedb.StorageTrie(contractAddress)
+
+	st, err := statedb.StorageTrie(contractAddress)
+	if err != nil {
+		return StorageRangeResult{}, err
+	}
 	if st == nil {
 		return StorageRangeResult{}, fmt.Errorf("account %x doesn't exist", contractAddress)
 	}
