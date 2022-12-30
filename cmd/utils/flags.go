@@ -477,6 +477,11 @@ var (
 		Name:  "miner.noverify",
 		Usage: "Disable remote sealing verification",
 	}
+	MinerBlockProduceLeftoverFlag = cli.DurationFlag{
+		Name:  "miner.leftover",
+		Usage: "The interval block with transactions needs committing before empty block is produced",
+		Value: ethconfig.Defaults.Miner.BlockProduceLeftOver,
+	}
 	// Account settings
 	UnlockedAccountFlag = cli.StringFlag{
 		Name:  "unlock",
@@ -1489,6 +1494,9 @@ func setMiner(ctx *cli.Context, cfg *miner.Config) {
 	}
 	if ctx.GlobalIsSet(MinerNoVerifyFlag.Name) {
 		cfg.Noverify = ctx.GlobalBool(MinerNoVerifyFlag.Name)
+	}
+	if ctx.GlobalIsSet(MinerBlockProduceLeftoverFlag.Name) {
+		cfg.BlockProduceLeftOver = ctx.GlobalDuration(MinerBlockProduceLeftoverFlag.Name)
 	}
 	if ctx.GlobalIsSet(LegacyMinerGasTargetFlag.Name) {
 		log.Warn("The generic --miner.gastarget flag is deprecated and will be removed in the future!")
