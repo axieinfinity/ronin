@@ -263,6 +263,7 @@ type TxPool struct {
 	odysseus bool // Fork indicator whether we are in the Odysseus stage.
 	antenna  bool // Fork indicator whether we are in Antenna stage.
 	miko     bool // Fork indicator whether we are using sponsored trnasactions.
+	shanghai bool // Fork indicator whether we are in the Shanghai stage.
 
 	currentTime   uint64         // Current block time in blockchain head
 	currentState  *state.StateDB // Current state in the blockchain head
@@ -743,7 +744,7 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	}
 
 	// Ensure the transaction has more gas than the basic tx fee.
-	intrGas, err := IntrinsicGas(tx.Data(), tx.AccessList(), tx.To() == nil, true, pool.istanbul)
+	intrGas, err := IntrinsicGas(tx.Data(), tx.AccessList(), tx.To() == nil, true, pool.istanbul, pool.shanghai)
 	if err != nil {
 		return err
 	}
@@ -1497,6 +1498,7 @@ func (pool *TxPool) reset(oldHead, newHead *types.Header) {
 	pool.odysseus = pool.chainconfig.IsOdysseus(next)
 	pool.antenna = pool.chainconfig.IsAntenna(next)
 	pool.miko = pool.chainconfig.IsMiko(next)
+	pool.shanghai = pool.chainconfig.IsShanghai(next)
 }
 
 // promoteExecutables moves transactions that have become processable from the
