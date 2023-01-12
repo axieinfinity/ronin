@@ -66,7 +66,8 @@ type JumpTable [256]*operation
 
 func newShanghaiInstructionSet() JumpTable {
 	instructionSet := newLondonInstructionSet()
-	enable3860(&instructionSet)
+	enable3855(&instructionSet) // PUSH0 instruction
+	enable3860(&instructionSet) // Limit and meter initcode
 	return instructionSet
 }
 
