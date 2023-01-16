@@ -152,6 +152,11 @@ func (api *PrivateMinerAPI) SetRecommitInterval(interval int) {
 	api.e.Miner().SetRecommitInterval(time.Duration(interval) * time.Millisecond)
 }
 
+// SetBlockProducerLeftover updates the interval for block producer leftover in milliseconds
+func (api *PrivateMinerAPI) SetBlockProducerLeftover(interval int) {
+	api.e.Miner().SetBlockProducerLeftover(time.Duration(interval) * time.Millisecond)
+}
+
 // PrivateAdminAPI is the collection of Ethereum full node-related APIs
 // exposed over the private admin endpoint.
 type PrivateAdminAPI struct {

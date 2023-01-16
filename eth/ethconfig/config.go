@@ -18,14 +18,15 @@
 package ethconfig
 
 import (
-	"github.com/ethereum/go-ethereum/consensus/consortium"
-	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"math/big"
 	"os"
 	"os/user"
 	"path/filepath"
 	"runtime"
 	"time"
+
+	"github.com/ethereum/go-ethereum/consensus/consortium"
+	"github.com/ethereum/go-ethereum/internal/ethapi"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -85,9 +86,10 @@ var Defaults = Config{
 	TrieTimeout:             60 * time.Minute,
 	SnapshotCache:           102,
 	Miner: miner.Config{
-		GasCeil:  8000000,
-		GasPrice: big.NewInt(params.GWei),
-		Recommit: 3 * time.Second,
+		GasCeil:              8000000,
+		GasPrice:             big.NewInt(params.GWei),
+		Recommit:             3 * time.Second,
+		BlockProduceLeftOver: 200 * time.Millisecond,
 	},
 	TxPool:        core.DefaultTxPoolConfig,
 	RPCGasCap:     50000000,

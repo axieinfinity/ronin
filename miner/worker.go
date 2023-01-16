@@ -293,6 +293,12 @@ func (w *worker) setRecommitInterval(interval time.Duration) {
 	w.resubmitIntervalCh <- interval
 }
 
+func (w *worker) setBlockProducerLeftover(interval time.Duration) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.config.BlockProduceLeftOver = interval
+}
+
 // disablePreseal disables pre-sealing mining feature
 func (w *worker) disablePreseal() {
 	atomic.StoreUint32(&w.noempty, 1)
@@ -828,8 +834,28 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 	}
 
 	var coalescedLogs []*types.Log
+	var timer *time.Timer
 
+	// This timer is only shipped after Buba hardfork
+	// When it is nearly the time an empty block is produced,
+	// we break the commit transactions process, allow the
+	// block with transactions to be produced and abort the
+	// empty block producer.
+	if w.chainConfig.IsBuba(w.current.header.Number) {
+		duration := time.Until(time.Unix(int64(w.current.header.Time), 0)) - w.config.BlockProduceLeftOver
+		timer = time.NewTimer(duration)
+	}
+
+Loop:
 	for {
+		if timer != nil {
+			select {
+			case <-timer.C:
+				break Loop
+			default:
+			}
+		}
+
 		// In the following three cases, we will interrupt the execution of the transaction.
 		// (1) new head block event arrival, the interrupt signal is 1
 		// (2) worker start or restart, the interrupt signal is 1
