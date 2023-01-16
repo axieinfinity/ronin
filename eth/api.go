@@ -136,6 +136,11 @@ func (api *PrivateMinerAPI) SetGasLimit(gasLimit hexutil.Uint64) bool {
 	return true
 }
 
+func (api *PrivateMinerAPI) SetGasReserve(gasReserve hexutil.Uint64) bool {
+	api.e.Miner().SetGasReserve(uint64(gasReserve))
+	return true
+}
+
 // SetEtherbase sets the etherbase of the miner
 func (api *PrivateMinerAPI) SetEtherbase(etherbase common.Address) bool {
 	api.e.SetEtherbase(etherbase)
