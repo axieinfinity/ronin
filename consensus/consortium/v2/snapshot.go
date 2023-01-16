@@ -220,6 +220,32 @@ func (s *Snapshot) inturn(validator common.Address) bool {
 	return validators[offset] == validator
 }
 
+// distanceToInturn returns the distance until the validator gets its turn
+// This function is only used to calculate delay time in backOffTime
+func (s *Snapshot) distanceToInturn(validator common.Address) int {
+	validators := s.validators()
+
+	validatorIndex := -1
+	for i, val := range validators {
+		if val == validator {
+			validatorIndex = i
+			break
+		}
+	}
+	// This address is not in validator list, the block is discarded later.
+	// Therefore, we return a dummy value here as the result is useless
+	if validatorIndex == -1 {
+		return 0
+	}
+
+	offset := (s.Number + 1) % uint64(len(validators))
+	if validatorIndex > int(offset) {
+		return validatorIndex - int(offset)
+	} else {
+		return len(validators) + validatorIndex - int(offset)
+	}
+}
+
 // supposeValidator returns the in-turn validator at a given block height
 func (s *Snapshot) supposeValidator() common.Address {
 	validators := s.validators()
