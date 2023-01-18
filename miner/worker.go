@@ -1097,6 +1097,7 @@ func (w *worker) commit(uncles []*types.Header, interval func(), update bool, st
 		// As consortium does not use uncles, we don't care about copying uncles here
 		block, receipts, err := w.engine.FinalizeAndAssemble(w.chain, env.header, env.state, env.txs, uncles, env.receipts)
 		if err != nil {
+			log.Error("Failed to FinalizeAndAssemble a block", "error", err)
 			return err
 		}
 
