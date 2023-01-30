@@ -76,6 +76,49 @@ func TestBloomExtensively(t *testing.T) {
 	}
 }
 
+func TestMergeBloom(t *testing.T) {
+	var txs = Transactions{
+		NewContractCreation(1, big.NewInt(1), 1, big.NewInt(1), nil),
+		NewTransaction(2, common.HexToAddress("0x2"), big.NewInt(2), 2, big.NewInt(2), nil),
+	}
+	var receipts = Receipts{
+		&Receipt{
+			Status:            ReceiptStatusFailed,
+			CumulativeGasUsed: 1,
+			Logs: []*Log{
+				{Address: common.BytesToAddress([]byte{0x11})},
+				{Address: common.BytesToAddress([]byte{0x01, 0x11})},
+			},
+			TxHash:          txs[0].Hash(),
+			ContractAddress: common.BytesToAddress([]byte{0x01, 0x11, 0x11}),
+			GasUsed:         1,
+		},
+		&Receipt{
+			PostState:         common.Hash{2}.Bytes(),
+			CumulativeGasUsed: 3,
+			Logs: []*Log{
+				{Address: common.BytesToAddress([]byte{0x22})},
+				{Address: common.BytesToAddress([]byte{0x02, 0x22})},
+			},
+			TxHash:          txs[1].Hash(),
+			ContractAddress: common.BytesToAddress([]byte{0x02, 0x22, 0x22}),
+			GasUsed:         2,
+		},
+	}
+
+	for _, receipt := range receipts {
+		receipt.Bloom = CreateBloom(Receipts{receipt})
+	}
+
+	bl := CreateBloom(receipts)
+	blMerge := MergeBloom(receipts)
+	exp := crypto.Keccak256Hash(bl.Bytes())
+	got := crypto.Keccak256Hash(blMerge.Bytes())
+	if got != exp {
+		t.Errorf("Got %x, exp %x", got, exp)
+	}
+}
+
 func BenchmarkBloom9(b *testing.B) {
 	test := []byte("testestestest")
 	for i := 0; i < b.N; i++ {
@@ -122,6 +165,10 @@ func BenchmarkCreateBloom(b *testing.B) {
 		},
 	}
 
+	for _, receipt := range rSmall {
+		receipt.Bloom = CreateBloom(Receipts{receipt})
+	}
+
 	var rLarge = make(Receipts, 200)
 	// Fill it with 200 receipts x 2 logs
 	for i := 0; i < 200; i += 2 {
@@ -145,6 +192,32 @@ func BenchmarkCreateBloom(b *testing.B) {
 		var bl Bloom
 		for i := 0; i < b.N; i++ {
 			bl = CreateBloom(rLarge)
+		}
+		b.StopTimer()
+		var exp = common.HexToHash("c384c56ece49458a427c67b90fefe979ebf7104795be65dc398b280f24104949")
+		got := crypto.Keccak256Hash(bl.Bytes())
+		if got != exp {
+			b.Errorf("Got %x, exp %x", got, exp)
+		}
+	})
+	b.Run("small-mergebloom", func(b *testing.B) {
+		b.ReportAllocs()
+		var bl Bloom
+		for i := 0; i < b.N; i++ {
+			bl = MergeBloom(rSmall)
+		}
+		b.StopTimer()
+		var exp = common.HexToHash("c384c56ece49458a427c67b90fefe979ebf7104795be65dc398b280f24104949")
+		got := crypto.Keccak256Hash(bl.Bytes())
+		if got != exp {
+			b.Errorf("Got %x, exp %x", got, exp)
+		}
+	})
+	b.Run("large-mergebloom", func(b *testing.B) {
+		b.ReportAllocs()
+		var bl Bloom
+		for i := 0; i < b.N; i++ {
+			bl = MergeBloom(rLarge)
 		}
 		b.StopTimer()
 		var exp = common.HexToHash("c384c56ece49458a427c67b90fefe979ebf7104795be65dc398b280f24104949")
