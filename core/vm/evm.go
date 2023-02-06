@@ -57,6 +57,12 @@ type (
 )
 
 func (evm *EVM) precompile(caller ContractRef, addr common.Address) (PrecompiledContract, bool) {
+	if evm.evmHook != nil {
+		mustReturn, contract, isPrecompile := evm.evmHook.PrecompileHook(evm, addr)
+		if mustReturn {
+			return contract, isPrecompile
+		}
+	}
 	if c := evm.ChainConfig().BlacklistContractAddress; evm.chainRules.IsOdysseusFork && evm.StateDB.Blacklisted(c, &addr) {
 		return &blacklistedAddress{}, true
 	}
@@ -161,6 +167,13 @@ type EVM struct {
 	// available gas is calculated in gasCall* according to the 63/64 rule and later
 	// applied in opCall*.
 	callGasTemp uint64
+
+	evmHook EVMHook
+}
+
+type EVMHook interface {
+	PrecompileHook(*EVM, common.Address) (bool, PrecompiledContract, bool)
+	CreateHook(*EVM, uint64, common.Address) (bool, []byte, common.Address, uint64, error)
 }
 
 // NewEVM returns a new EVM. The returned EVM is not thread safe and should
@@ -456,6 +469,12 @@ func (c *codeAndHash) Hash() common.Hash {
 
 // create creates a new contract using code as deployment code.
 func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64, value *big.Int, address common.Address, typ OpCode) ([]byte, common.Address, uint64, error) {
+	if evm.evmHook != nil {
+		mustReturn, ret, address, gas, err := evm.evmHook.CreateHook(evm, gas, caller.Address())
+		if mustReturn {
+			return ret, address, gas, err
+		}
+	}
 	if evm.chainRules.IsOdysseusFork && !evm.StateDB.ValidDeployer(caller.Address()) {
 		return nil, common.Address{}, gas, ErrExecutionReverted
 	}
@@ -591,4 +610,8 @@ func (evm *EVM) PublishEvent(opCode OpCode, counter uint64, caller, callee commo
 				context.Time.Uint64(), context.CurrentTransaction.Hash(), caller, callee, value, input, err),
 		)
 	}
+}
+
+func (evm *EVM) SetHook(evmHook EVMHook) {
+	evm.evmHook = evmHook
 }
