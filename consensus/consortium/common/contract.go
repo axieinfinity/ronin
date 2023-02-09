@@ -121,7 +121,7 @@ func (c *ContractIntegrator) WrapUpEpoch(opts *ApplyTransactOpts) error {
 		return err
 	}
 
-	log.Info("Wrapped up epoch", "block hash", opts.Header.Hash(), "tx hash", tx.Hash().Hex())
+	log.Info("Wrapped up epoch", "block", opts.Header.Number)
 	return err
 }
 
@@ -138,7 +138,7 @@ func (c *ContractIntegrator) SubmitBlockReward(opts *ApplyTransactOpts) error {
 	if err != nil {
 		return err
 	}
-	log.Info("Submitted block reward", "block hash", opts.Header.Hash(), "tx hash", tx.Hash().Hex(), "amount", balance.Uint64())
+	log.Info("Submitted block reward", "block", opts.Header.Number, "amount", balance.Uint64())
 
 	msg := types.NewMessage(
 		opts.Header.Coinbase,
