@@ -463,35 +463,41 @@ func (c *Consortium) verifySeal(chain consensus.ChainHeaderReader, header *types
 	return nil
 }
 
-func (c *Consortium) backOffTime(header *types.Header, snapshot *Snapshot) uint64 {
+func backOffTime(header *types.Header, snapshot *Snapshot) uint64 {
 	coinbase := header.Coinbase
 	if snapshot.inturn(coinbase) {
 		return 0
 	}
 
-	distance := snapshot.distanceToInturn(coinbase)
+	position, numOfSealableValidators := snapshot.sealableValidators(coinbase)
+	// This block doesn't pass the recent check and will fail later, returns
+	// dummy value for delay here
+	if position == -1 {
+		return 0
+	}
+
 	source := rand.NewSource(header.Number.Int64())
 	rand := rand.New(source)
 
-	// Every other not inturn validator has a different delay.
+	// Every validator that can seal a block may have different delay
 	// The delay equals to their random delayMultiplier * wiggleTime.
-	// The delayMultiplier is random in range [1, len(validators)]
-	delayMultiplier := make([]int, 0, len(snapshot.Validators))
-	for i := 0; i < len(snapshot.Validators); i++ {
-		delayMultiplier = append(delayMultiplier, i+1)
+	// The delayMultiplier is random in range [1, numOfSealableValidators]
+	delayMultiplier := make([]int, numOfSealableValidators)
+	for i := range delayMultiplier {
+		delayMultiplier[i] = i + 1
 	}
 	rand.Shuffle(len(delayMultiplier), func(i, j int) {
 		delayMultiplier[i], delayMultiplier[j] = delayMultiplier[j], delayMultiplier[i]
 	})
 
-	return uint64((int(wiggleTime) + delayMultiplier[distance]*int(wiggleTime)/2) / int(time.Second))
+	return uint64((int(wiggleTime) + delayMultiplier[position]*int(wiggleTime)/2) / int(time.Second))
 }
 
 func (c *Consortium) computeHeaderTime(header, parent *types.Header, snapshot *Snapshot) uint64 {
 	headerTime := parent.Time + c.config.Period
 
 	if c.chainConfig.IsBuba(header.Number) {
-		headerTime += c.backOffTime(header, snapshot)
+		headerTime += backOffTime(header, snapshot)
 	}
 
 	if headerTime < uint64(time.Now().Unix()) {
@@ -506,7 +512,7 @@ func (c *Consortium) verifyHeaderTime(header, parent *types.Header, snapshot *Sn
 	}
 
 	if c.chainConfig.IsBuba(header.Number) {
-		expectedHeaderTime := parent.Time + c.config.Period + c.backOffTime(header, snapshot)
+		expectedHeaderTime := parent.Time + c.config.Period + backOffTime(header, snapshot)
 		if header.Time < expectedHeaderTime {
 			return consensus.ErrFutureBlock
 		}

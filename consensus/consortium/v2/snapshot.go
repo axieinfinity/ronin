@@ -220,30 +220,36 @@ func (s *Snapshot) inturn(validator common.Address) bool {
 	return validators[offset] == validator
 }
 
-// distanceToInturn returns the distance until the validator gets its turn
-// This function is only used to calculate delay time in backOffTime
-func (s *Snapshot) distanceToInturn(validator common.Address) int {
+// sealableValidators finds the validators that are not in recent sign list, which mean they can seal
+// a new block.
+// This function returns the position of input validator in the sealable validators list and the length
+// of that list. In case the input validator is not in sealable validators list, position is -1
+func (s *Snapshot) sealableValidators(validator common.Address) (position, numOfSealableValidators int) {
 	validators := s.validators()
-
-	validatorIndex := -1
-	for i, val := range validators {
-		if val == validator {
-			validatorIndex = i
-			break
+	sealable := make([]common.Address, 0, len(validators))
+	for _, val := range validators {
+		allowToSeal := true
+		for seen, recent := range s.Recents {
+			if recent == val {
+				if limit := uint64(len(validators)/2 + 1); seen > s.Number+1-limit {
+					allowToSeal = false
+					break
+				}
+			}
+		}
+		if allowToSeal {
+			sealable = append(sealable, val)
 		}
 	}
-	// This address is not in validator list, the block is discarded later.
-	// Therefore, we return a dummy value here as the result is useless
-	if validatorIndex == -1 {
-		return 0
+
+	numOfSealableValidators = len(sealable)
+	for i, sealableVal := range sealable {
+		if validator == sealableVal {
+			return i, numOfSealableValidators
+		}
 	}
 
-	offset := (s.Number + 1) % uint64(len(validators))
-	if validatorIndex > int(offset) {
-		return validatorIndex - int(offset)
-	} else {
-		return len(validators) + validatorIndex - int(offset)
-	}
+	return -1, numOfSealableValidators
 }
 
 // supposeValidator returns the in-turn validator at a given block height
