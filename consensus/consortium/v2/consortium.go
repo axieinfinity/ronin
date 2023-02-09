@@ -150,7 +150,7 @@ func (c *Consortium) IsSystemTransaction(tx *types.Transaction, header *types.He
 	if err != nil {
 		return false, errors.New("UnAuthorized transaction")
 	}
-	if sender == header.Coinbase && c.IsSystemContract(tx.To()) && tx.GasPrice().Cmp(big.NewInt(0)) == 0 {
+	if sender == header.Coinbase && c.IsSystemContract(tx.To()) {
 		return true, nil
 	}
 	return false, nil
