@@ -137,7 +137,7 @@ func applyTransaction(
 	blockHash common.Hash,
 	tx *types.Transaction,
 	usedGas *uint64, evm *vm.EVM,
-	receiptProcessors ...ReceiptProcessor,
+	receiptProcessor ReceiptProcessor,
 ) (*types.Receipt, *ExecutionResult, error) {
 	// Create a new context to be used in the EVM environment.
 	txContext := NewEVMTxContext(msg)
@@ -193,13 +193,12 @@ func applyTransaction(
 
 	// Set the receipt logs and create the bloom filter.
 	receipt.Logs = statedb.GetLogs(tx.Hash(), blockHash)
-	receipt.Bloom = types.CreateBloom(types.Receipts{receipt})
 	receipt.BlockHash = blockHash
 	receipt.BlockNumber = blockNumber
 	receipt.TransactionIndex = uint(statedb.TxIndex())
-	for _, receiptProcessor := range receiptProcessors {
-		receiptProcessor.Apply(receipt)
-	}
+	// create the bloom filter
+	receiptProcessor.Apply(receipt)
+
 	return receipt, result, err
 }
 
@@ -207,7 +206,19 @@ func applyTransaction(
 // and uses the input parameters for its environment. It returns the receipt
 // for the transaction, gas used and an error if the transaction failed,
 // indicating the block was invalid.
-func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *common.Address, gp *GasPool, statedb *state.StateDB, header *types.Header, tx *types.Transaction, usedGas *uint64, cfg vm.Config, publishEvents ...*vm.PublishEvent) (*types.Receipt, *ExecutionResult, error) {
+func ApplyTransaction(
+	config *params.ChainConfig,
+	bc ChainContext,
+	author *common.Address,
+	gp *GasPool,
+	statedb *state.StateDB,
+	header *types.Header,
+	tx *types.Transaction,
+	usedGas *uint64,
+	cfg vm.Config,
+	receiptProcessors ReceiptProcessor,
+	publishEvents ...*vm.PublishEvent,
+) (*types.Receipt, *ExecutionResult, error) {
 	msg, err := tx.AsMessage(types.MakeSigner(config, header.Number), header.BaseFee)
 	if err != nil {
 		return nil, nil, err
@@ -215,5 +226,5 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 	// Create a new context to be used in the EVM environment
 	blockContext := NewEVMBlockContext(header, bc, author, publishEvents...)
 	vmenv := vm.NewEVM(blockContext, vm.TxContext{}, statedb, config, cfg)
-	return applyTransaction(msg, config, bc, author, gp, statedb, header.Number, header.Hash(), tx, usedGas, vmenv)
+	return applyTransaction(msg, config, bc, author, gp, statedb, header.Number, header.Hash(), tx, usedGas, vmenv, receiptProcessors)
 }
