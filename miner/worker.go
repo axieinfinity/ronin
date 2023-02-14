@@ -35,6 +35,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/trie"
+	lru "github.com/hashicorp/golang-lru"
 )
 
 const (
@@ -75,6 +76,10 @@ const (
 
 	// staleThreshold is the maximum depth of the acceptable stale block.
 	staleThreshold = 7
+
+	// recentMinedCacheLimit is the maximum blocks stored in recentMinedBlocks for avoiding
+	// double sign a block
+	recentMinedCacheLimit = 20
 )
 
 // environment is the worker's current environment and holds all of the current state information.
@@ -210,6 +215,8 @@ type worker struct {
 	skipSealHook func(*task) bool                   // Method to decide whether skipping the sealing.
 	fullTaskHook func()                             // Method to call before pushing the full sealing task.
 	resubmitHook func(time.Duration, time.Duration) // Method to call upon updating resubmitting interval.
+
+	recentMinedBlocks *lru.Cache
 }
 
 func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, isLocalBlock func(*types.Block) bool, init bool) *worker {
@@ -241,6 +248,8 @@ func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus
 	// Subscribe events for blockchain
 	worker.chainHeadSub = eth.BlockChain().SubscribeChainHeadEvent(worker.chainHeadCh)
 	worker.chainSideSub = eth.BlockChain().SubscribeChainSideEvent(worker.chainSideCh)
+
+	worker.recentMinedBlocks, _ = lru.New(recentMinedCacheLimit)
 
 	// Sanitize recommit interval if the user-specified one is too short.
 	recommit := worker.config.Recommit
@@ -664,6 +673,29 @@ func (w *worker) resultLoop() {
 				log.Error("Block found but no relative pending task", "number", block.Number(), "sealhash", sealhash, "hash", hash)
 				continue
 			}
+
+			if w.chainConfig.IsConsortiumV2(block.Number()) {
+				if parents, ok := w.recentMinedBlocks.Get(block.NumberU64()); ok {
+					isDoubleSign := false
+					parentsHash := parents.([]common.Hash)
+					for _, parent := range parentsHash {
+						if block.ParentHash() == parent {
+							isDoubleSign = true
+							log.Info("Possibly double sign, drop block", "block", block.Number(), "hash", block.Hash(), "parent", block.ParentHash())
+						}
+					}
+					// Don't broadcast and write this block to chain,
+					// continue receiving next sealed block from result channel
+					if isDoubleSign {
+						continue
+					}
+					parentsHash = append(parentsHash, block.ParentHash())
+					w.recentMinedBlocks.Add(block.NumberU64(), parentsHash)
+				} else {
+					w.recentMinedBlocks.Add(block.NumberU64(), []common.Hash{block.ParentHash()})
+				}
+			}
+
 			// Different block could share same sealhash, deep copy here to prevent write-write conflict.
 			var (
 				receipts = make([]*types.Receipt, len(task.receipts))
