@@ -41,11 +41,11 @@ func MakeSigner(config *params.ChainConfig, blockNumber *big.Int) Signer {
 	var signer Signer
 	switch {
 	case config.IsLondon(blockNumber):
-		signer = NewLondonSigner(config.ChainID)
+		signer = NewLondonSigner(config.GetChainID(blockNumber))
 	case config.IsBerlin(blockNumber):
-		signer = NewEIP2930Signer(config.ChainID)
+		signer = NewEIP2930Signer(config.GetChainID(blockNumber))
 	case config.IsEIP155(blockNumber):
-		signer = NewEIP155Signer(config.ChainID)
+		signer = NewEIP155Signer(config.GetChainID(blockNumber))
 	case config.IsHomestead(blockNumber):
 		signer = HomesteadSigner{}
 	default:

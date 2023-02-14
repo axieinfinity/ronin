@@ -529,6 +529,14 @@ type ChainConfig struct {
 	ConsortiumV2Contracts *ConsortiumV2Contracts `json:"consortiumV2Contracts"`
 }
 
+func (c *ChainConfig) GetChainID(blockNumber *big.Int) *big.Int {
+	if c.ChainID.Cmp(big.NewInt(2022)) == 0 && blockNumber.Cmp(big.NewInt(11453473)) <= 0 {
+		return big.NewInt(2021)
+	} else {
+		return c.ChainID
+	}
+}
+
 // EthashConfig is the consensus engine configs for proof-of-work based sealing.
 type EthashConfig struct{}
 
