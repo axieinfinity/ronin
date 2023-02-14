@@ -138,7 +138,8 @@ func TestParseEntry(t *testing.T) {
 }
 
 func TestMakeTree(t *testing.T) {
-	nodes := testNodes(nodesSeed2, 50)
+	keys := testKeys(50)
+	nodes := testNodes(keys)
 	tree, err := MakeTree(2, nodes, nil)
 	if err != nil {
 		t.Fatal(err)
