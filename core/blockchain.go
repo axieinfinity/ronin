@@ -179,13 +179,14 @@ type BlockChain struct {
 	chainFeed     event.Feed
 	chainSideFeed event.Feed
 	// reorgFeed is used when canonical turns into side
-	reorgFeed      event.Feed
-	chainHeadFeed  event.Feed
-	logsFeed       event.Feed
-	blockProcFeed  event.Feed
-	internalTxFeed event.Feed
-	scope          event.SubscriptionScope
-	genesisBlock   *types.Block
+	reorgFeed        event.Feed
+	chainHeadFeed    event.Feed
+	logsFeed         event.Feed
+	blockProcFeed    event.Feed
+	internalTxFeed   event.Feed
+	dirtyAccountFeed event.Feed
+	scope            event.SubscriptionScope
+	genesisBlock     *types.Block
 
 	// This mutex synchronizes chain write operations.
 	// Readers don't need to take it, they can just read the database.
@@ -1197,9 +1198,9 @@ func (bc *BlockChain) writeKnownBlock(block *types.Block) error {
 }
 
 // WriteBlockWithState writes the block and all associated state to the database.
-func (bc *BlockChain) WriteBlockWithState(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB, emitHeadEvent bool) (status WriteStatus, err error) {
+func (bc *BlockChain) WriteBlockWithState(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB, emitHeadEvent bool) (status WriteStatus, dirtyAccounts []types.DirtyStateAccount, err error) {
 	if !bc.chainmu.TryLock() {
-		return NonStatTy, errInsertionInterrupted
+		return NonStatTy, nil, errInsertionInterrupted
 	}
 	defer bc.chainmu.Unlock()
 	return bc.writeBlockWithState(block, receipts, logs, state, emitHeadEvent)
@@ -1207,15 +1208,15 @@ func (bc *BlockChain) WriteBlockWithState(block *types.Block, receipts []*types.
 
 // writeBlockWithState writes the block and all associated state to the database,
 // but is expects the chain mutex to be held.
-func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB, emitHeadEvent bool) (status WriteStatus, err error) {
+func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB, emitHeadEvent bool) (status WriteStatus, dirtyAccounts []types.DirtyStateAccount, err error) {
 	if bc.insertStopped() {
-		return NonStatTy, errInsertionInterrupted
+		return NonStatTy, nil, errInsertionInterrupted
 	}
 
 	// Calculate the total difficulty of the block
 	ptd := bc.GetTd(block.ParentHash(), block.NumberU64()-1)
 	if ptd == nil {
-		return NonStatTy, consensus.ErrUnknownAncestor
+		return NonStatTy, nil, consensus.ErrUnknownAncestor
 	}
 	// Make sure no inconsistent state is leaked during insertion
 	currentBlock := bc.CurrentBlock()
@@ -1235,16 +1236,17 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 		log.Crit("Failed to write block into disk", "err", err)
 	}
 	// Commit all cached state changes into underlying memory database.
+	dirtyAccounts = state.DirtyAccounts(block.ParentHash(), block.NumberU64())
 	root, err := state.Commit(bc.chainConfig.IsEIP158(block.Number()))
 	if err != nil {
-		return NonStatTy, err
+		return NonStatTy, nil, err
 	}
 	triedb := bc.stateCache.TrieDB()
 
 	// If we're running an archive node, always flush
 	if bc.cacheConfig.TrieDirtyDisabled {
 		if err := triedb.Commit(root, false, nil); err != nil {
-			return NonStatTy, err
+			return NonStatTy, nil, err
 		}
 	} else {
 		// Full but not archive node, do proper garbage collection
@@ -1317,7 +1319,7 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 			log.Info("[reorg][writeBlockWithState]",
 				"currentBlock", currentBlock, "currentTD", localTd.Uint64(), "newBlock", block, "newTD", externTd.Uint64())
 			if err := bc.reorg(currentBlock, block); err != nil {
-				return NonStatTy, err
+				return NonStatTy, nil, err
 			}
 		}
 		status = CanonStatTy
@@ -1346,7 +1348,7 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 	} else {
 		bc.chainSideFeed.Send(ChainSideEvent{Block: block})
 	}
-	return status, nil
+	return status, dirtyAccounts, nil
 }
 
 // addFutureBlock checks if the block is within the max allowed window to get
@@ -1666,11 +1668,16 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, er
 
 		// Write the block to the chain and get the status.
 		substart = time.Now()
-		status, err := bc.writeBlockWithState(block, receipts, logs, statedb, false)
+		status, dirtyAccounts, err := bc.writeBlockWithState(block, receipts, logs, statedb, false)
 		atomic.StoreUint32(&followupInterrupt, 1)
 		if err != nil {
 			return it.index, err
 		}
+
+		if dirtyAccounts != nil {
+			bc.dirtyAccountFeed.Send(dirtyAccounts)
+		}
+
 		// Update the metrics touched during block commit
 		accountCommitTimer.Update(statedb.AccountCommits)   // Account commits are complete, we can mark them
 		storageCommitTimer.Update(statedb.StorageCommits)   // Storage commits are complete, we can mark them
