@@ -266,6 +266,10 @@ func (b *LesApiBackend) SubscribeInternalTransactionEvent(ch chan<- []*types.Int
 	return b.eth.blockchain.SubscribeInternalTransactionEvent(ch)
 }
 
+func (b *LesApiBackend) SubscribeDirtyAccountEvent(ch chan<- []types.DirtyStateAccount) event.Subscription {
+	return b.eth.blockchain.SubscribeDirtyAccountEvent(ch)
+}
+
 func (b *LesApiBackend) SyncProgress() ethereum.SyncProgress {
 	return b.eth.Downloader().Progress()
 }

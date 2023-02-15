@@ -396,6 +396,10 @@ func (bc *BlockChain) SubscribeInternalTransactionEvent(ch chan<- []*types.Inter
 	return bc.scope.Track(bc.internalTxFeed.Subscribe(ch))
 }
 
+func (bc *BlockChain) SubscribeDirtyAccountEvent(ch chan<- []types.DirtyStateAccount) event.Subscription {
+	return bc.scope.Track(bc.dirtyAccountFeed.Subscribe(ch))
+}
+
 func (bc *BlockChain) OpEvents() []*vm.PublishEvent {
 	return []*vm.PublishEvent{
 		{

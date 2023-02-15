@@ -243,6 +243,10 @@ func (b *EthAPIBackend) SubscribeInternalTransactionEvent(ch chan<- []*types.Int
 	return b.eth.blockchain.SubscribeInternalTransactionEvent(ch)
 }
 
+func (b *EthAPIBackend) SubscribeDirtyAccountEvent(ch chan<- []types.DirtyStateAccount) event.Subscription {
+	return b.eth.blockchain.SubscribeDirtyAccountEvent(ch)
+}
+
 func (b *EthAPIBackend) SendTx(ctx context.Context, signedTx *types.Transaction) error {
 	return b.eth.txPool.AddLocal(signedTx)
 }

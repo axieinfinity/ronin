@@ -30,3 +30,15 @@ type StateAccount struct {
 	Root     common.Hash // merkle root of the storage trie
 	CodeHash []byte
 }
+
+type DirtyStateAccount struct {
+	Address     common.Address
+	Nonce       uint64
+	Balance     string
+	Root        common.Hash // merkle root of the storage trie
+	CodeHash    common.Hash
+	BlockNumber uint64
+	BlockHash   common.Hash
+	Deleted     bool
+	Suicided    bool
+}

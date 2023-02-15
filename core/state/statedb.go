@@ -602,8 +602,8 @@ func (s *StateDB) createObject(addr common.Address) (newobj, prev *stateObject) 
 // CreateAccount is called during the EVM CREATE operation. The situation might arise that
 // a contract does the following:
 //
-//   1. sends funds to sha(account ++ (nonce + 1))
-//   2. tx_create(sha(account ++ nonce)) (note that this gets the address of 1)
+//  1. sends funds to sha(account ++ (nonce + 1))
+//  2. tx_create(sha(account ++ nonce)) (note that this gets the address of 1)
 //
 // Carrying over the balance ensures that Ether doesn't disappear.
 func (s *StateDB) CreateAccount(addr common.Address) {
@@ -1053,4 +1053,24 @@ func (s *StateDB) AddressInAccessList(addr common.Address) bool {
 // SlotInAccessList returns true if the given (address, slot)-tuple is in the access list.
 func (s *StateDB) SlotInAccessList(addr common.Address, slot common.Hash) (addressPresent bool, slotPresent bool) {
 	return s.accessList.Contains(addr, slot)
+}
+
+func (s *StateDB) DirtyAccounts(hash common.Hash, number uint64) []types.DirtyStateAccount {
+	dirtyAccounts := make([]types.DirtyStateAccount, 0)
+	for addr, obj := range s.stateObjects {
+		acc := obj.data
+		dirtyAccounts = append(dirtyAccounts, types.DirtyStateAccount{
+			Address:     addr,
+			Nonce:       acc.Nonce,
+			Balance:     acc.Balance.String(),
+			Root:        acc.Root,
+			CodeHash:    common.BytesToHash(acc.CodeHash),
+			BlockNumber: number,
+			BlockHash:   hash,
+			Deleted:     obj.deleted,
+			Suicided:    obj.suicided,
+		})
+	}
+
+	return dirtyAccounts
 }
