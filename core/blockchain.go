@@ -1237,7 +1237,6 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 	}
 	// Commit all cached state changes into underlying memory database.
 	dirtyAccounts = state.DirtyAccounts(block.ParentHash(), block.NumberU64())
-	//log.Info("blockchain dirtyAccounts", "dirtyAccounts", dirtyAccounts)
 	root, err := state.Commit(bc.chainConfig.IsEIP158(block.Number()))
 	if err != nil {
 		return NonStatTy, nil, err
