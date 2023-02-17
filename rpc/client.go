@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	jsoniter "github.com/json-iterator/go"
 	"net/url"
 	"reflect"
 	"strconv"
@@ -334,7 +333,7 @@ func (c *Client) CallContext(ctx context.Context, result interface{}, method str
 	case len(resp.Result) == 0:
 		return ErrNoResult
 	default:
-		return jsoniter.Unmarshal(resp.Result, &result)
+		return json.Unmarshal(resp.Result, &result)
 	}
 }
 
