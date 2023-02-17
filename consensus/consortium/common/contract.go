@@ -265,6 +265,10 @@ func ApplyTransaction(msg types.Message, opts *ApplyTransactOpts) (err error) {
 	opts.State.Prepare(expectedTx.Hash(), len(*txs))
 	gasUsed, err := applyMessage(msg, opts.ApplyMessageOpts)
 	if err != nil {
+		// After Olek, don't allow system transaction revert in mined block
+		if opts.ChainConfig.IsOlek(opts.Header.Number) {
+			return err
+		}
 		failed = true
 	} else {
 		failed = false
