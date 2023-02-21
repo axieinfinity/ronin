@@ -22,7 +22,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	jsoniter "github.com/json-iterator/go"
 	"io"
 	"reflect"
 	"strings"
@@ -193,8 +192,8 @@ func NewFuncCodec(conn deadlineCloser, encode, decode func(v interface{}) error)
 // NewCodec creates a codec on the given connection. If conn implements ConnRemoteAddr, log
 // messages will use it to include the remote address of the connection.
 func NewCodec(conn Conn) ServerCodec {
-	enc := jsoniter.NewEncoder(conn)
-	dec := jsoniter.NewDecoder(conn)
+	enc := json.NewEncoder(conn)
+	dec := json.NewDecoder(conn)
 	dec.UseNumber()
 	return NewFuncCodec(conn, enc.Encode, dec.Decode)
 }
