@@ -1,4 +1,4 @@
-name: Dockerize
+name: Run Test
 
 on:
   push:
@@ -22,4 +22,4 @@ jobs:
         uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c #v3.3.0
 
       - name: 'Go Test'
-        rune: make test
+        run: make test
