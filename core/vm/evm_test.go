@@ -1,36 +1,39 @@
 package vm
 
 import (
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
-	"github.com/ethereum/go-ethereum/event"
 	"math/big"
 	"testing"
+
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
 )
 
 type TestOpEvent struct {
-	feed *event.Feed
 }
 
 func (tx *TestOpEvent) Publish(opcode OpCode, order uint64, stateDB StateDB, blockHeight uint64,
-	blockHash common.Hash, blockTime uint64, hash common.Hash, from, to common.Address, value *big.Int, input []byte, err error) error {
-	tx.feed.Send(true)
-	return nil
+	blockHash common.Hash, blockTime uint64, hash common.Hash, from, to common.Address, value *big.Int, input []byte, err error) *types.InternalTransaction {
+	return &types.InternalTransaction{
+		Opcode:          opcode.String(),
+		Order:           order,
+		TransactionHash: hash,
+		Type:            "test",
+		Value:           value,
+		Input:           input,
+		From:            from,
+		To:              to,
+		Success:         err == nil,
+		Error:           "",
+		Height:          blockHeight,
+		BlockHash:       blockHash,
+		BlockTime:       blockTime,
+	}
 }
 
 func TestPublishEvents(t *testing.T) {
-	var (
-		internalTxFeed event.Feed
-		scope          event.SubscriptionScope
-		rs             bool
-	)
-
-	ch := make(chan bool, 1)
-	scope.Track(internalTxFeed.Subscribe(ch))
-
 	ctx := BlockContext{
 		PublishEvents: map[OpCode]OpEvent{
-			CALL: &TestOpEvent{feed: &internalTxFeed},
+			CALL: &TestOpEvent{},
 		},
 		CurrentTransaction: types.NewTx(&types.LegacyTx{
 			Nonce:    1,
@@ -40,14 +43,14 @@ func TestPublishEvents(t *testing.T) {
 			GasPrice: big.NewInt(0),
 			Data:     []byte(""),
 		}),
+		BlockNumber:          common.Big0,
+		Time:                 common.Big0,
+		InternalTransactions: &[]*types.InternalTransaction{},
 	}
 
 	evm := &EVM{Context: ctx}
 	evm.PublishEvent(CALL, 1, common.Address{}, common.Address{}, big.NewInt(0), []byte(""), nil)
-	select {
-	case rs = <-ch:
-		if !rs {
-			t.Fatal("Publish Event failed")
-		}
+	if len(*evm.Context.InternalTransactions) != 1 || (*evm.Context.InternalTransactions)[0].Type != "test" {
+		t.Error("Failed to publish opcode event")
 	}
 }

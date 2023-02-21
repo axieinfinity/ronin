@@ -223,6 +223,11 @@ func GenerateChain(config *params.ChainConfig, parent *types.Block, engine conse
 			gen(i, b)
 		}
 		if b.engine != nil {
+			for _, receipt := range b.receipts {
+				if len(receipt.Logs) != 0 && receipt.Bloom == types.EmptyBloom {
+					receipt.Bloom = types.CreateBloom(types.Receipts{receipt})
+				}
+			}
 			// Finalize and seal the block
 			block, receipts, _ := b.engine.FinalizeAndAssemble(chainreader, b.header, statedb, b.txs, b.uncles, b.receipts)
 

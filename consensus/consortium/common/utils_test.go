@@ -1,9 +1,10 @@
 package common
 
 import (
-	"github.com/ethereum/go-ethereum/common"
 	"reflect"
 	"testing"
+
+	"github.com/ethereum/go-ethereum/common"
 )
 
 func TestExtractAddressFromBytes(t *testing.T) {
@@ -55,7 +56,7 @@ func TestRemoveInvalidRecents(t *testing.T) {
 		7408557: common.HexToAddress("0xB6bc5bc0410773A3F86B1537ce7495C52e38f88B"),
 		7408558: common.HexToAddress("0x3B9F2587d55E96276B09b258ac909D809961F6C2"),
 	}
-	actual := RemoveOutdatedRecents(recents, 7408559)
+	actual := RemoveOutdatedRecents(recents, 7408558)
 	expected := map[uint64]common.Address{
 		7408557: common.HexToAddress("0xB6bc5bc0410773A3F86B1537ce7495C52e38f88B"),
 		7408558: common.HexToAddress("0x3B9F2587d55E96276B09b258ac909D809961F6C2"),
