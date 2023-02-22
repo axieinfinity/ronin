@@ -32,13 +32,14 @@ type StateAccount struct {
 }
 
 type DirtyStateAccount struct {
-	Address     common.Address
-	Nonce       uint64
-	Balance     string
-	Root        common.Hash // merkle root of the storage trie
-	CodeHash    common.Hash
-	BlockNumber uint64
-	BlockHash   common.Hash
-	Deleted     bool
-	Suicided    bool
+	Address     common.Address `json:"address"`
+	Nonce       uint64         `json:"nonce"`
+	Balance     string         `json:"balance"`
+	Root        common.Hash    `json:"root"` // merkle root of the storage trie
+	CodeHash    common.Hash    `json:"codeHash"`
+	BlockNumber uint64         `json:"blockNumber"`
+	BlockHash   common.Hash    `json:"blockHash"`
+	Deleted     bool           `json:"deleted"`
+	Suicided    bool           `json:"suicided"`
+	DirtyCode   bool           `json:"dirtyCode"`
 }
