@@ -3,6 +3,10 @@ package vm
 import (
 	"bytes"
 	"fmt"
+	"math/big"
+	"strings"
+	"testing"
+
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
@@ -11,9 +15,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
-	"math/big"
-	"strings"
-	"testing"
 )
 
 /*
@@ -675,8 +676,12 @@ func TestConsortiumVerifyHeaders_verify(t *testing.T) {
 		t.Fatal(err)
 	}
 	c := &consortiumVerifyHeaders{evm: &EVM{chainConfig: &params.ChainConfig{ChainID: big1}}}
-	if !c.verify(*fromHeader(header1, big1), *fromHeader(header2, big1)) {
+	if !c.verify(*types.FromHeader(header1, big1), *types.FromHeader(header2, big1)) {
 		t.Fatal("expected true, got false")
+	}
+
+	if c.verify(*types.FromHeader(header1, big1), *types.FromHeader(header1, big1)) {
+		t.Fatal("expected false, got true")
 	}
 }
 
@@ -697,11 +702,11 @@ func TestConsortiumVerifyHeaders_Run(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	encodedHeader1, err := fromHeader(header1, big1).Bytes()
+	encodedHeader1, err := types.FromHeader(header1, big1).Bytes(consortiumVerifyHeadersAbi, getHeader)
 	if err != nil {
 		t.Fatal(err)
 	}
-	encodedHeader2, err := fromHeader(header2, big1).Bytes()
+	encodedHeader2, err := types.FromHeader(header2, big1).Bytes(consortiumVerifyHeadersAbi, getHeader)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -735,11 +740,11 @@ func TestConsortiumVerifyHeaders_Run2(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	encodedHeader1, err := fromHeader(header1, big1).Bytes()
+	encodedHeader1, err := types.FromHeader(header1, big1).Bytes(consortiumVerifyHeadersAbi, getHeader)
 	if err != nil {
 		t.Fatal(err)
 	}
-	encodedHeader2, err := fromHeader(header2, big1).Bytes()
+	encodedHeader2, err := types.FromHeader(header2, big1).Bytes(consortiumVerifyHeadersAbi, getHeader)
 	if err != nil {
 		t.Fatal(err)
 	}
