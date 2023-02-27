@@ -3,6 +3,13 @@ package vm
 import (
 	"errors"
 	"fmt"
+	"io"
+	"math/big"
+	"math/rand"
+	"os"
+	"strings"
+	"time"
+
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
@@ -11,12 +18,6 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
 	"golang.org/x/crypto/sha3"
-	"io"
-	"math/big"
-	"math/rand"
-	"os"
-	"strings"
-	"time"
 )
 
 var (
@@ -343,72 +344,6 @@ func loadMethodAndArgs(smcAbi string, input []byte) (abi.ABI, *abi.Method, []int
 	return pAbi, method, args, nil
 }
 
-type BlockHeader struct {
-	ChainId          *big.Int       `abi:"chainId"`
-	ParentHash       [32]uint8      `abi:"parentHash"`
-	OmmersHash       [32]uint8      `abi:"ommersHash"`
-	Benificiary      common.Address `abi:"coinbase"`
-	StateRoot        [32]uint8      `abi:"stateRoot"`
-	TransactionsRoot [32]uint8      `abi:"transactionsRoot"`
-	ReceiptsRoot     [32]uint8      `abi:"receiptsRoot"`
-	LogsBloom        [256]uint8     `abi:"logsBloom"`
-	Difficulty       *big.Int       `abi:"difficulty"`
-	Number           *big.Int       `abi:"number"`
-	GasLimit         uint64         `abi:"gasLimit"`
-	GasUsed          uint64         `abi:"gasUsed"`
-	Timestamp        uint64         `abi:"timestamp"`
-	ExtraData        []byte         `abi:"extraData"`
-	MixHash          [32]uint8      `abi:"mixHash"`
-	Nonce            uint64         `abi:"nonce"`
-}
-
-func fromHeader(header *types.Header, chainId *big.Int) *BlockHeader {
-	blockHeader := &BlockHeader{
-		ChainId:     chainId,
-		Difficulty:  header.Difficulty,
-		Number:      header.Number,
-		GasLimit:    header.GasLimit,
-		GasUsed:     header.GasUsed,
-		Timestamp:   header.Time,
-		Nonce:       header.Nonce.Uint64(),
-		ExtraData:   header.Extra,
-		LogsBloom:   header.Bloom,
-		Benificiary: header.Coinbase,
-	}
-	copy(blockHeader.ParentHash[:], header.ParentHash.Bytes())
-	copy(blockHeader.StateRoot[:], header.Root.Bytes())
-	copy(blockHeader.TransactionsRoot[:], header.TxHash.Bytes())
-	copy(blockHeader.ReceiptsRoot[:], header.ReceiptHash.Bytes())
-	copy(blockHeader.MixHash[:], header.MixDigest.Bytes())
-	return blockHeader
-}
-
-func (b *BlockHeader) toHeader() *types.Header {
-	return &types.Header{
-		ParentHash:  common.BytesToHash(b.ParentHash[:]),
-		Root:        common.BytesToHash(b.StateRoot[:]),
-		TxHash:      common.BytesToHash(b.TransactionsRoot[:]),
-		ReceiptHash: common.BytesToHash(b.ReceiptsRoot[:]),
-		Bloom:       types.BytesToBloom(b.LogsBloom[:]),
-		Difficulty:  b.Difficulty,
-		Number:      b.Number,
-		GasLimit:    b.GasLimit,
-		GasUsed:     b.GasUsed,
-		Time:        b.Timestamp,
-		Extra:       b.ExtraData,
-		MixDigest:   common.BytesToHash(b.MixHash[:]),
-		Nonce:       types.EncodeNonce(b.Nonce),
-		Coinbase:    b.Benificiary,
-	}
-}
-
-func (b *BlockHeader) Bytes() ([]byte, error) {
-	pAbi, _ := abi.JSON(strings.NewReader(consortiumVerifyHeadersAbi))
-	bloom := types.BytesToBloom(b.LogsBloom[:])
-	var uncles [32]uint8
-	return pAbi.Methods[getHeader].Inputs.Pack(b.ChainId, b.ParentHash, uncles, b.Benificiary, b.StateRoot, b.TransactionsRoot, b.ReceiptsRoot, bloom.Bytes(), b.Difficulty, b.Number, b.GasLimit, b.GasUsed, b.Timestamp, b.ExtraData, b.MixHash, b.Nonce)
-}
-
 type consortiumVerifyHeaders struct {
 	caller ContractRef
 	evm    *EVM
@@ -437,7 +372,7 @@ func (c *consortiumVerifyHeaders) Run(input []byte) ([]byte, error) {
 		return nil, errors.New(fmt.Sprintf("invalid arguments, expected 2 got %d", len(args)))
 	}
 	// decode header1, header2
-	var blockHeader1, blockHeader2 BlockHeader
+	var blockHeader1, blockHeader2 types.BlockHeader
 	if err := c.unpack(smcAbi, &blockHeader1, args[0].([]byte)); err != nil {
 		return nil, err
 	}
@@ -458,14 +393,14 @@ func (c *consortiumVerifyHeaders) unpack(smcAbi abi.ABI, v interface{}, input []
 	return args.Copy(v, output)
 }
 
-func (c *consortiumVerifyHeaders) getSigner(header BlockHeader) (common.Address, error) {
+func (c *consortiumVerifyHeaders) getSigner(header types.BlockHeader) (common.Address, error) {
 	if header.Number == nil || header.Timestamp > uint64(time.Now().Unix()) || len(header.ExtraData) < crypto.SignatureLength {
 		return common.Address{}, errors.New("invalid header")
 	}
 	signature := header.ExtraData[len(header.ExtraData)-crypto.SignatureLength:]
 
 	// Recover the public key and the Ethereum address
-	pubkey, err := crypto.Ecrecover(SealHash(header.toHeader(), header.ChainId).Bytes(), signature)
+	pubkey, err := crypto.Ecrecover(SealHash(header.ToHeader(), header.ChainId).Bytes(), signature)
 	if err != nil {
 		return common.Address{}, err
 	}
@@ -475,8 +410,8 @@ func (c *consortiumVerifyHeaders) getSigner(header BlockHeader) (common.Address,
 	return signer, nil
 }
 
-func (c *consortiumVerifyHeaders) verify(header1, header2 BlockHeader) bool {
-	if header1.toHeader().ParentHash.Hex() != header2.toHeader().ParentHash.Hex() {
+func (c *consortiumVerifyHeaders) verify(header1, header2 types.BlockHeader) bool {
+	if header1.ToHeader().ParentHash.Hex() != header2.ToHeader().ParentHash.Hex() {
 		return false
 	}
 	signer1, err := c.getSigner(header1)

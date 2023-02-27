@@ -23,9 +23,11 @@ import (
 	"io"
 	"math/big"
 	"reflect"
+	"strings"
 	"sync/atomic"
 	"time"
 
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -61,6 +63,94 @@ func (n BlockNonce) MarshalText() ([]byte, error) {
 // UnmarshalText implements encoding.TextUnmarshaler.
 func (n *BlockNonce) UnmarshalText(input []byte) error {
 	return hexutil.UnmarshalFixedText("BlockNonce", input, n[:])
+}
+
+// BlockHeader is used for consortium precompiled contracts
+type BlockHeader struct {
+	ChainId          *big.Int       `abi:"chainId"`
+	ParentHash       [32]uint8      `abi:"parentHash"`
+	OmmersHash       [32]uint8      `abi:"ommersHash"`
+	Benificiary      common.Address `abi:"coinbase"`
+	StateRoot        [32]uint8      `abi:"stateRoot"`
+	TransactionsRoot [32]uint8      `abi:"transactionsRoot"`
+	ReceiptsRoot     [32]uint8      `abi:"receiptsRoot"`
+	LogsBloom        [256]uint8     `abi:"logsBloom"`
+	Difficulty       *big.Int       `abi:"difficulty"`
+	Number           *big.Int       `abi:"number"`
+	GasLimit         uint64         `abi:"gasLimit"`
+	GasUsed          uint64         `abi:"gasUsed"`
+	Timestamp        uint64         `abi:"timestamp"`
+	ExtraData        []byte         `abi:"extraData"`
+	MixHash          [32]uint8      `abi:"mixHash"`
+	Nonce            uint64         `abi:"nonce"`
+}
+
+func (h *BlockHeader) Hash() common.Hash {
+	return rlpHash(h)
+}
+
+func FromHeader(header *Header, chainId *big.Int) *BlockHeader {
+	blockHeader := &BlockHeader{
+		ChainId:     chainId,
+		Difficulty:  header.Difficulty,
+		Number:      header.Number,
+		GasLimit:    header.GasLimit,
+		GasUsed:     header.GasUsed,
+		Timestamp:   header.Time,
+		Nonce:       header.Nonce.Uint64(),
+		ExtraData:   header.Extra,
+		LogsBloom:   header.Bloom,
+		Benificiary: header.Coinbase,
+	}
+	copy(blockHeader.ParentHash[:], header.ParentHash.Bytes())
+	copy(blockHeader.StateRoot[:], header.Root.Bytes())
+	copy(blockHeader.TransactionsRoot[:], header.TxHash.Bytes())
+	copy(blockHeader.ReceiptsRoot[:], header.ReceiptHash.Bytes())
+	copy(blockHeader.MixHash[:], header.MixDigest.Bytes())
+	return blockHeader
+}
+
+func (b *BlockHeader) Bytes(consortiumVerifyHeadersAbi string, methodName string) ([]byte, error) {
+	pAbi, _ := abi.JSON(strings.NewReader(consortiumVerifyHeadersAbi))
+	bloom := BytesToBloom(b.LogsBloom[:])
+	var uncles [32]uint8
+	return pAbi.Methods[methodName].Inputs.Pack(
+		b.ChainId,
+		b.ParentHash,
+		uncles,
+		b.Benificiary,
+		b.StateRoot,
+		b.TransactionsRoot,
+		b.ReceiptsRoot,
+		bloom.Bytes(),
+		b.Difficulty,
+		b.Number,
+		b.GasLimit,
+		b.GasUsed,
+		b.Timestamp,
+		b.ExtraData,
+		b.MixHash,
+		b.Nonce,
+	)
+}
+
+func (b *BlockHeader) ToHeader() *Header {
+	return &Header{
+		ParentHash:  common.BytesToHash(b.ParentHash[:]),
+		Root:        common.BytesToHash(b.StateRoot[:]),
+		TxHash:      common.BytesToHash(b.TransactionsRoot[:]),
+		ReceiptHash: common.BytesToHash(b.ReceiptsRoot[:]),
+		Bloom:       BytesToBloom(b.LogsBloom[:]),
+		Difficulty:  b.Difficulty,
+		Number:      b.Number,
+		GasLimit:    b.GasLimit,
+		GasUsed:     b.GasUsed,
+		Time:        b.Timestamp,
+		Extra:       b.ExtraData,
+		MixDigest:   common.BytesToHash(b.MixHash[:]),
+		Nonce:       EncodeNonce(b.Nonce),
+		Coinbase:    b.Benificiary,
+	}
 }
 
 //go:generate gencodec -type Header -field-override headerMarshaling -out gen_header_json.go
