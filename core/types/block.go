@@ -85,10 +85,6 @@ type BlockHeader struct {
 	Nonce            uint64         `abi:"nonce"`
 }
 
-func (h *BlockHeader) Hash() common.Hash {
-	return rlpHash(h)
-}
-
 func FromHeader(header *Header, chainId *big.Int) *BlockHeader {
 	blockHeader := &BlockHeader{
 		ChainId:     chainId,
