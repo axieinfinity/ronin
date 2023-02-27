@@ -414,6 +414,9 @@ func (c *consortiumVerifyHeaders) verify(header1, header2 types.BlockHeader) boo
 	if header1.ToHeader().ParentHash.Hex() != header2.ToHeader().ParentHash.Hex() {
 		return false
 	}
+	if header1.Hash() == header2.Hash() {
+		return false
+	}
 	signer1, err := c.getSigner(header1)
 	if err != nil {
 		log.Trace("[consortiumVerifyHeaders][verify] error while getting signer from header1", "err", err)

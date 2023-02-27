@@ -679,6 +679,10 @@ func TestConsortiumVerifyHeaders_verify(t *testing.T) {
 	if !c.verify(*types.FromHeader(header1, big1), *types.FromHeader(header2, big1)) {
 		t.Fatal("expected true, got false")
 	}
+
+	if c.verify(*types.FromHeader(header1, big1), *types.FromHeader(header1, big1)) {
+		t.Fatal("expected false, got true")
+	}
 }
 
 // TestConsortiumVerifyHeaders_Run init 2 headers, pack them and call `Run` function directly
