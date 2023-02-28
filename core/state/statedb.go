@@ -1063,7 +1063,7 @@ func (s *StateDB) DirtyAccounts(hash common.Hash, number uint64) []types.DirtySt
 			dirtyAccounts = append(dirtyAccounts, types.DirtyStateAccount{
 				Address:     addr,
 				Nonce:       acc.Nonce,
-				Balance:     acc.Balance,
+				Balance:     acc.Balance.String(),
 				Root:        acc.Root,
 				CodeHash:    common.BytesToHash(acc.CodeHash),
 				BlockNumber: number,
@@ -1073,6 +1073,7 @@ func (s *StateDB) DirtyAccounts(hash common.Hash, number uint64) []types.DirtySt
 				DirtyCode:   obj.dirtyCode,
 			})
 		}
+
 	}
 
 	return dirtyAccounts
