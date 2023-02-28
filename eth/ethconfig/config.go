@@ -208,6 +208,9 @@ type Config struct {
 
 	// Arrow Glacier block override (TODO: remove after the fork)
 	OverrideArrowGlacier *big.Int `toml:",omitempty"`
+
+	// Enable double sign monitoring
+	EnableMonitorDoubleSign bool
 }
 
 // CreateConsensusEngine creates a consensus engine for the given chain configuration.
