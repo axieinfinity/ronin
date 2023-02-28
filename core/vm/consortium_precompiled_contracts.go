@@ -405,6 +405,13 @@ func (c *consortiumVerifyHeaders) getSigner(header types.BlockHeader) (common.Ad
 	if err != nil {
 		return common.Address{}, err
 	}
+	r := new(big.Int).SetBytes(signature[:32])
+	s := new(big.Int).SetBytes(signature[32:64])
+	v := signature[64]
+	if !crypto.ValidateSignatureValues(v, r, s, true) {
+		return common.Address{}, err
+	}
+
 	var signer common.Address
 	copy(signer[:], crypto.Keccak256(pubkey[1:])[12:])
 
