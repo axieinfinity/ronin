@@ -415,6 +415,9 @@ func (c *consortiumVerifyHeaders) verify(header1, header2 types.BlockHeader) boo
 	if header1.ToHeader().ParentHash.Hex() != header2.ToHeader().ParentHash.Hex() {
 		return false
 	}
+	if len(header1.ExtraData) < crypto.SignatureLength || len(header2.ExtraData) < crypto.SignatureLength {
+		return false
+	}
 	if bytes.Equal(SealHash(header1.ToHeader(), header1.ChainId).Bytes(), SealHash(header2.ToHeader(), header2.ChainId).Bytes()) {
 		return false
 	}
