@@ -34,7 +34,7 @@ type StateAccount struct {
 type DirtyStateAccount struct {
 	Address     common.Address `json:"address"`
 	Nonce       uint64         `json:"nonce"`
-	Balance     string         `json:"balance"`
+	Balance     *big.Int       `json:"balance"`
 	Root        common.Hash    `json:"root"` // merkle root of the storage trie
 	CodeHash    common.Hash    `json:"codeHash"`
 	BlockNumber uint64         `json:"blockNumber"`
