@@ -315,8 +315,8 @@ contract VerifyHeaderTestContract {
 
 	    constructor() {}
 
-	    function verify(bytes memory header1, bytes memory header2) public view returns (bool) {
-	        bytes memory payload = abi.encodeWithSignature("validatingDoubleSignProof(bytes,bytes)", header1, header2);
+	    function verify(address consensusAddr, bytes memory header1, bytes memory header2) public view returns (bool) {
+	        bytes memory payload = abi.encodeWithSignature("validatingDoubleSignProof(address,bytes,bytes)", consensusAddr, header1, header2);
 	        uint payloadLength = payload.length;
 	        address _smc = address(0x67);
 	        uint[1] memory _output;
@@ -331,8 +331,8 @@ contract VerifyHeaderTestContract {
 	}
 */
 const (
-	verifyHeadersTestCode = "608060405234801561001057600080fd5b50610299806100206000396000f3fe608060405234801561001057600080fd5b506004361061002b5760003560e01c8063f7e83aee14610030575b600080fd5b61004361003e36600461018b565b610057565b604051901515815260200160405180910390f35b600080838360405160240161006d929190610235565b60408051601f198184030181529190526020810180516001600160e01b031663580a316360e01b179052805190915060676100a66100ca565b602084016020828583866000fa6100bc57600080fd5b505115159695505050505050565b60405180602001604052806001906020820280368337509192915050565b634e487b7160e01b600052604160045260246000fd5b600082601f83011261010f57600080fd5b813567ffffffffffffffff8082111561012a5761012a6100e8565b604051601f8301601f19908116603f01168101908282118183101715610152576101526100e8565b8160405283815286602085880101111561016b57600080fd5b836020870160208301376000602085830101528094505050505092915050565b6000806040838503121561019e57600080fd5b823567ffffffffffffffff808211156101b657600080fd5b6101c2868387016100fe565b935060208501359150808211156101d857600080fd5b506101e5858286016100fe565b9150509250929050565b6000815180845260005b81811015610215576020818501810151868301820152016101f9565b506000602082860101526020601f19601f83011685010191505092915050565b60408152600061024860408301856101ef565b828103602084015261025a81856101ef565b9594505050505056fea2646970667358221220e689890bbe17c2e97389470ed4baa21af25fd9cd6348d7511924615440d967d364736f6c63430008110033"
-	verifyHeadersTestAbi  = `[{"inputs":[],"stateMutability":"nonpayable","type":"constructor"},{"inputs":[{"internalType":"bytes","name":"header1","type":"bytes"},{"internalType":"bytes","name":"header2","type":"bytes"}],"name":"verify","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"view","type":"function"}]`
+	verifyHeadersTestCode = "608060405234801561001057600080fd5b5061051f806100206000396000f3fe608060405234801561001057600080fd5b506004361061002b5760003560e01c80635ade663314610030575b600080fd5b61004a60048036038101906100459190610326565b610060565b60405161005791906103cc565b60405180910390f35b60008084848460405160240161007893929190610475565b6040516020818303038152906040527f7fc35677000000000000000000000000000000000000000000000000000000007bffffffffffffffffffffffffffffffffffffffffffffffffffffffff19166020820180517bffffffffffffffffffffffffffffffffffffffffffffffffffffffff8381831617835250505050905060008151905060006067905061010b61014c565b602084016020828583866000fa61012157600080fd5b50600081600060018110610138576101376104ba565b5b602002015114159450505050509392505050565b6040518060200160405280600190602082028036833780820191505090505090565b6000604051905090565b600080fd5b600080fd5b600073ffffffffffffffffffffffffffffffffffffffff82169050919050565b60006101ad82610182565b9050919050565b6101bd816101a2565b81146101c857600080fd5b50565b6000813590506101da816101b4565b92915050565b600080fd5b600080fd5b6000601f19601f8301169050919050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052604160045260246000fd5b610233826101ea565b810181811067ffffffffffffffff82111715610252576102516101fb565b5b80604052505050565b600061026561016e565b9050610271828261022a565b919050565b600067ffffffffffffffff821115610291576102906101fb565b5b61029a826101ea565b9050602081019050919050565b82818337600083830152505050565b60006102c96102c484610276565b61025b565b9050828152602081018484840111156102e5576102e46101e5565b5b6102f08482856102a7565b509392505050565b600082601f83011261030d5761030c6101e0565b5b813561031d8482602086016102b6565b91505092915050565b60008060006060848603121561033f5761033e610178565b5b600061034d868287016101cb565b935050602084013567ffffffffffffffff81111561036e5761036d61017d565b5b61037a868287016102f8565b925050604084013567ffffffffffffffff81111561039b5761039a61017d565b5b6103a7868287016102f8565b9150509250925092565b60008115159050919050565b6103c6816103b1565b82525050565b60006020820190506103e160008301846103bd565b92915050565b6103f0816101a2565b82525050565b600081519050919050565b600082825260208201905092915050565b60005b83811015610430578082015181840152602081019050610415565b60008484015250505050565b6000610447826103f6565b6104518185610401565b9350610461818560208601610412565b61046a816101ea565b840191505092915050565b600060608201905061048a60008301866103e7565b818103602083015261049c818561043c565b905081810360408301526104b0818461043c565b9050949350505050565b7f4e487b7100000000000000000000000000000000000000000000000000000000600052603260045260246000fdfea2646970667358221220b2167eb04eee0f56f8c28babdf4532ccf4f16efd57221c4209fecf9f853e3b8164736f6c63430008110033"
+	verifyHeadersTestAbi  = `[{"inputs":[],"stateMutability":"nonpayable","type":"constructor"},{"inputs":[{"internalType":"address","name":"consensusAddr","type":"address"},{"internalType":"bytes","name":"header1","type":"bytes"},{"internalType":"bytes","name":"header2","type":"bytes"}],"name":"verify","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"view","type":"function"}]`
 )
 
 type TestScenario struct {
@@ -675,17 +675,47 @@ func TestConsortiumVerifyHeaders_verify(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c := &consortiumVerifyHeaders{evm: &EVM{chainConfig: &params.ChainConfig{ChainID: big1}}}
-	if !c.verify(*types.FromHeader(header1, big1), *types.FromHeader(header2, big1)) {
+	c := &consortiumVerifyHeaders{
+		evm: &EVM{
+			chainConfig: &params.ChainConfig{ChainID: big1, ConsortiumV2Block: big.NewInt(500)},
+			Context:     BlockContext{BlockNumber: header1.Number},
+		},
+	}
+	if !c.verify(header1.Coinbase, *types.FromHeader(header1, big1), *types.FromHeader(header2, big1)) {
 		t.Fatal("expected true, got false")
 	}
 
-	if c.verify(*types.FromHeader(header1, big1), *types.FromHeader(header1, big1)) {
+	// Test the same headers passed into verify
+	if c.verify(header1.Coinbase, *types.FromHeader(header1, big1), *types.FromHeader(header1, big1)) {
 		t.Fatal("expected false, got true")
 	}
 
+	// Test consensus address is different from header.Coinbase
+	if c.verify(common.Address{}, *types.FromHeader(header1, big1), *types.FromHeader(header2, big1)) {
+		t.Fatal("expected false, got true")
+	}
+
+	// Test current block is lower than double signed block
+	c.evm.Context.BlockNumber = new(big.Int).Sub(header1.Number, common.Big1)
+	if !c.verify(header1.Coinbase, *types.FromHeader(header1, big1), *types.FromHeader(header2, big1)) {
+		t.Fatal("expected true, got false")
+	}
+
+	// Test current block is higher than signed block but lower than signed block + 28800
+	c.evm.Context.BlockNumber = new(big.Int).Add(header1.Number, big.NewInt(500))
+	if !c.verify(header1.Coinbase, *types.FromHeader(header1, big1), *types.FromHeader(header2, big1)) {
+		t.Fatal("expected true, got false")
+	}
+
+	// Test current block is higher than signed block + 28800
+	c.evm.Context.BlockNumber = new(big.Int).Add(header1.Number, big.NewInt(28801))
+	if c.verify(header1.Coinbase, *types.FromHeader(header1, big1), *types.FromHeader(header2, big1)) {
+		t.Fatal("expected false, got true")
+	}
+
+	// Test too small header's extra data
 	header1.Extra = nil
-	if c.verify(*types.FromHeader(header1, big1), *types.FromHeader(header2, big1)) {
+	if c.verify(header1.Coinbase, *types.FromHeader(header1, big1), *types.FromHeader(header2, big1)) {
 		t.Fatal("expected false, got true")
 	}
 }
@@ -715,7 +745,7 @@ func TestConsortiumVerifyHeaders_Run(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	input, err := smcAbi.Pack(verifyHeaders, encodedHeader1, encodedHeader2)
+	input, err := smcAbi.Pack(verifyHeaders, header1.Coinbase, encodedHeader1, encodedHeader2)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -772,7 +802,7 @@ func TestConsortiumVerifyHeaders_malleability(t *testing.T) {
 	}
 
 	c := &consortiumVerifyHeaders{evm: &EVM{chainConfig: &params.ChainConfig{ChainID: big1}}}
-	if c.verify(*types.FromHeader(header1, big1), *types.FromHeader(header2, big1)) {
+	if c.verify(header1.Coinbase, *types.FromHeader(header1, big1), *types.FromHeader(header2, big1)) {
 		t.Fatal("expected false, got true")
 	}
 }
@@ -798,7 +828,7 @@ func TestConsortiumVerifyHeaders_Run2(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	input, err := smcAbi.Pack("verify", encodedHeader1, encodedHeader2)
+	input, err := smcAbi.Pack("verify", header1.Coinbase, encodedHeader1, encodedHeader2)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1656,11 +1686,13 @@ func newEVM(caller common.Address, statedb StateDB) (*EVM, error) {
 		Context: BlockContext{
 			CanTransfer: func(state StateDB, addr common.Address, value *big.Int) bool { return true },
 			Transfer:    func(StateDB, common.Address, common.Address, *big.Int) {},
+			BlockNumber: common.Big1,
 		},
 		chainConfig: params.TestChainConfig,
 		StateDB:     statedb,
 		chainRules:  params.Rules{IsIstanbul: true, IsEIP150: true},
 	}
+	evm.chainConfig.ConsortiumV2Block = common.Big1
 	evm.interpreter = NewEVMInterpreter(evm, Config{NoBaseFee: true})
 	_, contract, _, err := evm.Create(AccountRef(caller), common.FromHex(testSortCode), math.MaxUint64/2, big0)
 	if err != nil {
