@@ -22,21 +22,23 @@ import (
 )
 
 var (
-	consortiumLogAbi              = `[{"inputs":[{"internalType":"string","name":"message","type":"string"}],"name":"log","outputs":[],"stateMutability":"nonpayable","type":"function"}]`
-	consortiumSortValidatorAbi    = `[{"inputs":[],"stateMutability":"nonpayable","type":"constructor"},{"inputs":[{"internalType":"address[]","name":"validators","type":"address[]"},{"internalType":"uint256[]","name":"weights","type":"uint256[]"}],"name":"sortValidators","outputs":[{"internalType":"address[]","name":"_validators","type":"address[]"}],"stateMutability":"view","type":"function"}]`
-	consortiumVerifyHeadersAbi    = `[{"outputs":[],"name":"getHeader","inputs":[{"internalType":"uint256","name":"chainId","type":"uint256"},{"internalType":"bytes32","name":"parentHash","type":"bytes32"},{"internalType":"bytes32","name":"ommersHash","type":"bytes32"},{"internalType":"address","name":"coinbase","type":"address"},{"internalType":"bytes32","name":"stateRoot","type":"bytes32"},{"internalType":"bytes32","name":"transactionsRoot","type":"bytes32"},{"internalType":"bytes32","name":"receiptsRoot","type":"bytes32"},{"internalType":"uint8[256]","name":"logsBloom","type":"uint8[256]"},{"internalType":"uint256","name":"difficulty","type":"uint256"},{"internalType":"uint256","name":"number","type":"uint256"},{"internalType":"uint64","name":"gasLimit","type":"uint64"},{"internalType":"uint64","name":"gasUsed","type":"uint64"},{"internalType":"uint64","name":"timestamp","type":"uint64"},{"internalType":"bytes","name":"extraData","type":"bytes"},{"internalType":"bytes32","name":"mixHash","type":"bytes32"},{"internalType":"uint64","name":"nonce","type":"uint64"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"consensusAddr","type":"address"},{"internalType":"bytes","name":"header1","type":"bytes"},{"internalType":"bytes","name":"header2","type":"bytes"}],"name":"validatingDoubleSignProof","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"view","type":"function"}]`
-	consortiumPickValidatorSetAbi = `[{"inputs":[],"stateMutability":"nonpayable","type":"constructor"},{"inputs":[{"internalType":"address[]","name":"_candidates","type":"address[]"},{"internalType":"uint256[]","name":"_weights","type":"uint256[]"},{"internalType":"uint256[]","name":"_trustedWeights","type":"uint256[]"},{"internalType":"uint256","name":"_maxValidatorNumber","type":"uint256"},{"internalType":"uint256","name":"_maxPrioritizedValidatorNumber","type":"uint256"}],"name":"pickValidatorSet","outputs":[{"internalType":"address[]","name":"_validators","type":"address[]"}],"stateMutability":"view","type":"function"}]`
+	consortiumLogAbi                = `[{"inputs":[{"internalType":"string","name":"message","type":"string"}],"name":"log","outputs":[],"stateMutability":"nonpayable","type":"function"}]`
+	consortiumSortValidatorAbi      = `[{"inputs":[],"stateMutability":"nonpayable","type":"constructor"},{"inputs":[{"internalType":"address[]","name":"validators","type":"address[]"},{"internalType":"uint256[]","name":"weights","type":"uint256[]"}],"name":"sortValidators","outputs":[{"internalType":"address[]","name":"_validators","type":"address[]"}],"stateMutability":"view","type":"function"}]`
+	consortiumVerifyHeadersAbi      = `[{"outputs":[],"name":"getHeader","inputs":[{"internalType":"uint256","name":"chainId","type":"uint256"},{"internalType":"bytes32","name":"parentHash","type":"bytes32"},{"internalType":"bytes32","name":"ommersHash","type":"bytes32"},{"internalType":"address","name":"coinbase","type":"address"},{"internalType":"bytes32","name":"stateRoot","type":"bytes32"},{"internalType":"bytes32","name":"transactionsRoot","type":"bytes32"},{"internalType":"bytes32","name":"receiptsRoot","type":"bytes32"},{"internalType":"uint8[256]","name":"logsBloom","type":"uint8[256]"},{"internalType":"uint256","name":"difficulty","type":"uint256"},{"internalType":"uint256","name":"number","type":"uint256"},{"internalType":"uint64","name":"gasLimit","type":"uint64"},{"internalType":"uint64","name":"gasUsed","type":"uint64"},{"internalType":"uint64","name":"timestamp","type":"uint64"},{"internalType":"bytes","name":"extraData","type":"bytes"},{"internalType":"bytes32","name":"mixHash","type":"bytes32"},{"internalType":"uint64","name":"nonce","type":"uint64"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"consensusAddr","type":"address"},{"internalType":"bytes","name":"header1","type":"bytes"},{"internalType":"bytes","name":"header2","type":"bytes"}],"name":"validatingDoubleSignProof","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"view","type":"function"}]`
+	consortiumPickValidatorSetAbi   = `[{"inputs":[],"stateMutability":"nonpayable","type":"constructor"},{"inputs":[{"internalType":"address[]","name":"_candidates","type":"address[]"},{"internalType":"uint256[]","name":"_weights","type":"uint256[]"},{"internalType":"uint256[]","name":"_trustedWeights","type":"uint256[]"},{"internalType":"uint256","name":"_maxValidatorNumber","type":"uint256"},{"internalType":"uint256","name":"_maxPrioritizedValidatorNumber","type":"uint256"}],"name":"pickValidatorSet","outputs":[{"internalType":"address[]","name":"_validators","type":"address[]"}],"stateMutability":"view","type":"function"}]`
+	getDoubleSignSlashingConfigsAbi = `[{"inputs":[],"name":"getDoubleSignSlashingConfigs","outputs":[{"internalType":"uint256","name":"","type":"uint256"},{"internalType":"uint256","name":"","type":"uint256"},{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"}]`
 )
 
 const (
-	sortValidatorsMethod   = "sortValidators"
-	pickValidatorSetMethod = "pickValidatorSet"
-	logMethod              = "log"
-	getValidatorsMethod    = "getValidatorCandidates"
-	totalBalancesMethod    = "totalBalances"
-	verifyHeaders          = "validatingDoubleSignProof"
-	getHeader              = "getHeader"
-	extraVanity            = 32
+	sortValidatorsMethod         = "sortValidators"
+	pickValidatorSetMethod       = "pickValidatorSet"
+	logMethod                    = "log"
+	getValidatorsMethod          = "getValidatorCandidates"
+	totalBalancesMethod          = "totalBalances"
+	verifyHeaders                = "validatingDoubleSignProof"
+	getHeader                    = "getHeader"
+	getDoubleSignSlashingConfigs = "getDoubleSignSlashingConfigs"
+	extraVanity                  = 32
 )
 
 func PrecompiledContractsConsortium(caller ContractRef, evm *EVM) map[common.Address]PrecompiledContract {
@@ -345,9 +347,13 @@ func loadMethodAndArgs(smcAbi string, input []byte) (abi.ABI, *abi.Method, []int
 	return pAbi, method, args, nil
 }
 
+const doubleSigningOffsetTest = 28800
+
 type consortiumVerifyHeaders struct {
 	caller ContractRef
 	evm    *EVM
+
+	test bool
 }
 
 func (c *consortiumVerifyHeaders) RequiredGas(_ []byte) uint64 {
@@ -423,6 +429,8 @@ func (c *consortiumVerifyHeaders) getSigner(header types.BlockHeader) (common.Ad
 }
 
 func (c *consortiumVerifyHeaders) verify(consensusAddr common.Address, header1, header2 types.BlockHeader) bool {
+	var maxOffset *big.Int
+
 	if !c.evm.chainConfig.IsConsortiumV2(header1.Number) {
 		return false
 	}
@@ -445,10 +453,36 @@ func (c *consortiumVerifyHeaders) verify(consensusAddr common.Address, header1, 
 		log.Trace("[consortiumVerifyHeaders][verify] error while getting signer from header2", "err", err)
 		return false
 	}
-	currentBlock := c.evm.Context.BlockNumber.Uint64()
-	// TODO: Get the number 28800 dynamically
-	// What if current block < header1.Number.Uint64()?
-	if currentBlock > header1.Number.Uint64() && currentBlock-header1.Number.Uint64() > 28800 {
+	methodAbi, _ := abi.JSON(strings.NewReader(getDoubleSignSlashingConfigsAbi))
+
+	if c.test {
+		maxOffset = big.NewInt(doubleSigningOffsetTest)
+	} else {
+		if c.evm.chainConfig.ConsortiumV2Contracts == nil {
+			return false
+		} else {
+			rawMaxOffset, err := staticCall(
+				c.evm,
+				methodAbi,
+				getDoubleSignSlashingConfigs,
+				c.evm.chainConfig.ConsortiumV2Contracts.SlashIndicator,
+				common.Address{},
+			)
+			if err != nil {
+				log.Error("Failed to get double sign config", "err", err)
+				return false
+			}
+			if len(rawMaxOffset) < 3 {
+				log.Error("Invalid output length when getting double sign config", "length", len(rawMaxOffset))
+				return false
+			}
+			maxOffset = rawMaxOffset[2].(*big.Int)
+		}
+	}
+
+	currentBlock := c.evm.Context.BlockNumber
+	// What if current block < header1.Number?
+	if currentBlock.Cmp(header1.Number) > 0 && new(big.Int).Sub(currentBlock, header1.Number).Cmp(maxOffset) > 0 {
 		return false
 	}
 
