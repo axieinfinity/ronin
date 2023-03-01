@@ -194,6 +194,13 @@ type txTraceResult struct {
 	Error  string      `json:"error,omitempty"`  // Trace failure produced by the tracer
 }
 
+// txTraceResult2 is the result of a single transaction trace.
+type internalAndAccountResult struct {
+	InternalTxs   []*txTraceResult          `json:"internalTxs,omitempty"` // Trace results produced by the tracer
+	DirtyAccounts []types.DirtyStateAccount `json:"dirtyAccounts,omitempty"`
+	Error         string                    `json:"error,omitempty"` // Trace failure produced by the tracer
+}
+
 // blockTraceTask represents a single block trace task when an entire chain is
 // being traced.
 type blockTraceTask struct {
@@ -449,6 +456,16 @@ func (api *API) TraceBlockByHash(ctx context.Context, hash common.Hash, config *
 	return api.traceBlock(ctx, block, config)
 }
 
+// TraceInternalsAndAccountsByBlockHash returns the structured logs created during the execution of
+// EVM and returns them as a JSON object.
+func (api *API) TraceInternalsAndAccountsByBlockHash(ctx context.Context, hash common.Hash, config *TraceConfig) (*internalAndAccountResult, error) {
+	block, err := api.blockByHash(ctx, hash)
+	if err != nil {
+		return nil, err
+	}
+	return api.traceInternalsAndAccounts(ctx, block, config)
+}
+
 // TraceBlock returns the structured logs created during the execution of EVM
 // and returns them as a JSON object.
 func (api *API) TraceBlock(ctx context.Context, blob []byte, config *TraceConfig) ([]*txTraceResult, error) {
@@ -639,6 +656,97 @@ func (api *API) traceBlock(ctx context.Context, block *types.Block, config *Trac
 	if failed != nil {
 		return nil, failed
 	}
+	return results, nil
+}
+
+// traceInternalsAndAccounts configures a new tracer according to the provided configuration, and
+// executes all the transactions contained within. The return value will be one item
+// per transaction, dependent on the requestd tracer, and all dirty accounts.
+func (api *API) traceInternalsAndAccounts(ctx context.Context, block *types.Block, config *TraceConfig) (*internalAndAccountResult, error) {
+	if block.NumberU64() == 0 {
+		return nil, errors.New("genesis is not traceable")
+	}
+	parent, err := api.blockByNumberAndHash(ctx, rpc.BlockNumber(block.NumberU64()-1), block.ParentHash())
+	if err != nil {
+		return nil, err
+	}
+	reexec := defaultTraceReexec
+	if config != nil && config.Reexec != nil {
+		reexec = *config.Reexec
+	}
+	statedb, err := api.backend.StateAtBlock(ctx, parent, reexec, nil, true, false)
+	if err != nil {
+		return nil, err
+	}
+	// Execute all the transaction contained within the block concurrently
+	var (
+		signer  = types.MakeSigner(api.backend.ChainConfig(), block.Number())
+		txs     = block.Transactions()
+		results = &internalAndAccountResult{
+			InternalTxs:   make([]*txTraceResult, len(txs)),
+			DirtyAccounts: make([]types.DirtyStateAccount, 0),
+		}
+
+		pend = new(sync.WaitGroup)
+		jobs = make(chan *txTraceTask, len(txs))
+	)
+	threads := runtime.NumCPU()
+	if threads > len(txs) {
+		threads = len(txs)
+	}
+	blockCtx := core.NewEVMBlockContext(block.Header(), api.chainContext(ctx), nil)
+	blockHash := block.Hash()
+	for th := 0; th < threads; th++ {
+		pend.Add(1)
+		go func() {
+			defer pend.Done()
+			// Fetch and execute the next transaction trace tasks
+			for task := range jobs {
+				msg, _ := txs[task.index].AsMessage(signer, block.BaseFee())
+				txctx := &Context{
+					BlockHash: blockHash,
+					TxIndex:   task.index,
+					TxHash:    txs[task.index].Hash(),
+				}
+				res, err := api.traceTx(ctx, msg, txctx, blockCtx, task.statedb, config)
+				if err != nil {
+					results.InternalTxs[task.index] = &txTraceResult{Error: err.Error()}
+					continue
+				}
+				results.InternalTxs[task.index] = &txTraceResult{
+					Result: res,
+				}
+			}
+		}()
+	}
+	// Feed the transactions into the tracers and return
+	var failed error
+	for i, tx := range txs {
+		// Send the trace task over for execution
+		jobs <- &txTraceTask{statedb: statedb.Copy(), index: i}
+
+		// Generate the next state snapshot fast without tracing
+		msg, _ := tx.AsMessage(signer, block.BaseFee())
+		statedb.Prepare(tx.Hash(), i)
+		vmenv := vm.NewEVM(blockCtx, core.NewEVMTxContext(msg), statedb, api.backend.ChainConfig(), vm.Config{})
+		if _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(msg.Gas())); err != nil {
+			failed = err
+			break
+		}
+		// Finalize the state so any modifications are written to the trie
+		// Only delete empty objects if EIP158/161 (a.k.a Spurious Dragon) is in effect
+		statedb.Finalise(vmenv.ChainConfig().IsEIP158(block.Number()))
+	}
+	close(jobs)
+	pend.Wait()
+
+	// If execution failed in between, abort
+	if failed != nil {
+		return nil, failed
+	}
+
+	results.DirtyAccounts = statedb.DirtyAccounts(blockHash, block.NumberU64())
+
 	return results, nil
 }
 
