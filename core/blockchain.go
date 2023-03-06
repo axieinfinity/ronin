@@ -1198,7 +1198,7 @@ func (bc *BlockChain) writeKnownBlock(block *types.Block) error {
 }
 
 // WriteBlockWithState writes the block and all associated state to the database.
-func (bc *BlockChain) WriteBlockWithState(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB, emitHeadEvent bool) (status WriteStatus, dirtyAccounts []types.DirtyStateAccount, err error) {
+func (bc *BlockChain) WriteBlockWithState(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB, emitHeadEvent bool) (status WriteStatus, dirtyAccounts []*types.DirtyStateAccount, err error) {
 	if !bc.chainmu.TryLock() {
 		return NonStatTy, nil, errInsertionInterrupted
 	}
@@ -1208,7 +1208,7 @@ func (bc *BlockChain) WriteBlockWithState(block *types.Block, receipts []*types.
 
 // writeBlockWithState writes the block and all associated state to the database,
 // but is expects the chain mutex to be held.
-func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB, emitHeadEvent bool) (status WriteStatus, dirtyAccounts []types.DirtyStateAccount, err error) {
+func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB, emitHeadEvent bool) (status WriteStatus, dirtyAccounts []*types.DirtyStateAccount, err error) {
 	if bc.insertStopped() {
 		return NonStatTy, nil, errInsertionInterrupted
 	}
@@ -1236,7 +1236,7 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 		log.Crit("Failed to write block into disk", "err", err)
 	}
 	// Commit all cached state changes into underlying memory database.
-	dirtyAccounts = state.DirtyAccounts(block.ParentHash(), block.NumberU64())
+	dirtyAccounts = state.DirtyAccounts(block.Hash(), block.NumberU64())
 	root, err := state.Commit(bc.chainConfig.IsEIP158(block.Number()))
 	if err != nil {
 		return NonStatTy, nil, err

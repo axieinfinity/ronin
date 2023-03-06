@@ -243,7 +243,7 @@ func (b *EthAPIBackend) SubscribeInternalTransactionEvent(ch chan<- []*types.Int
 	return b.eth.blockchain.SubscribeInternalTransactionEvent(ch)
 }
 
-func (b *EthAPIBackend) SubscribeDirtyAccountEvent(ch chan<- []types.DirtyStateAccount) event.Subscription {
+func (b *EthAPIBackend) SubscribeDirtyAccountEvent(ch chan<- []*types.DirtyStateAccount) event.Subscription {
 	return b.eth.blockchain.SubscribeDirtyAccountEvent(ch)
 }
 

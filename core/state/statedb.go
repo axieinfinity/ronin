@@ -1055,12 +1055,12 @@ func (s *StateDB) SlotInAccessList(addr common.Address, slot common.Hash) (addre
 	return s.accessList.Contains(addr, slot)
 }
 
-func (s *StateDB) DirtyAccounts(hash common.Hash, number uint64) []types.DirtyStateAccount {
-	dirtyAccounts := make([]types.DirtyStateAccount, 0)
+func (s *StateDB) DirtyAccounts(hash common.Hash, number uint64) []*types.DirtyStateAccount {
+	dirtyAccounts := make([]*types.DirtyStateAccount, 0)
 	for addr := range s.stateObjectsDirty {
 		if obj, exist := s.stateObjects[addr]; exist {
 			acc := obj.data
-			dirtyAccounts = append(dirtyAccounts, types.DirtyStateAccount{
+			dirtyAccounts = append(dirtyAccounts, &types.DirtyStateAccount{
 				Address:     addr,
 				Nonce:       acc.Nonce,
 				Balance:     acc.Balance,

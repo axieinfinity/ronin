@@ -92,7 +92,7 @@ type Backend interface {
 	SubscribeRemovedLogsEvent(ch chan<- core.RemovedLogsEvent) event.Subscription
 	SubscribeReorgEvent(ch chan<- core.ReorgEvent) event.Subscription
 	SubscribeInternalTransactionEvent(ch chan<- []*types.InternalTransaction) event.Subscription
-	SubscribeDirtyAccountEvent(ch chan<- []types.DirtyStateAccount) event.Subscription
+	SubscribeDirtyAccountEvent(ch chan<- []*types.DirtyStateAccount) event.Subscription
 
 	ChainConfig() *params.ChainConfig
 	Engine() consensus.Engine
