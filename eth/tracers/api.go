@@ -196,9 +196,9 @@ type txTraceResult struct {
 
 // txTraceResult2 is the result of a single transaction trace.
 type internalAndAccountResult struct {
-	InternalTxs   []*txTraceResult          `json:"internalTxs,omitempty"` // Trace results produced by the tracer
-	DirtyAccounts []types.DirtyStateAccount `json:"dirtyAccounts,omitempty"`
-	Error         string                    `json:"error,omitempty"` // Trace failure produced by the tracer
+	InternalTxs   []*txTraceResult           `json:"internalTxs,omitempty"` // Trace results produced by the tracer
+	DirtyAccounts []*types.DirtyStateAccount `json:"dirtyAccounts,omitempty"`
+	Error         string                     `json:"error,omitempty"` // Trace failure produced by the tracer
 }
 
 // blockTraceTask represents a single block trace task when an entire chain is
@@ -684,7 +684,7 @@ func (api *API) traceInternalsAndAccounts(ctx context.Context, block *types.Bloc
 		txs     = block.Transactions()
 		results = &internalAndAccountResult{
 			InternalTxs:   make([]*txTraceResult, len(txs)),
-			DirtyAccounts: make([]types.DirtyStateAccount, 0),
+			DirtyAccounts: make([]*types.DirtyStateAccount, 0),
 		}
 
 		pend = new(sync.WaitGroup)
