@@ -17,6 +17,7 @@
 package miner
 
 import (
+	"bytes"
 	"math/big"
 	"math/rand"
 	"sync/atomic"
@@ -519,5 +520,77 @@ func testAdjustInterval(t *testing.T, chainConfig *params.ChainConfig, engine co
 	case <-progress:
 	case <-time.NewTimer(time.Second).C:
 		t.Error("interval reset timeout")
+	}
+}
+
+func TestDoubleSignPrevention(t *testing.T) {
+	chainConfig := cliqueChainConfig
+	/* The double sign prevention logic only applies in consortium v2 */
+	chainConfig.ConsortiumV2Block = common.Big0
+	chainConfig.Clique.Period = 1
+
+	w, b := newTestWorker(t, chainConfig, clique.New(cliqueChainConfig.Clique, rawdb.NewMemoryDatabase()), rawdb.NewMemoryDatabase(), 0)
+	defer w.close()
+
+	chainEvent := make(chan core.ChainEvent)
+	chainEventSub := b.chain.SubscribeChainEvent(chainEvent)
+	defer chainEventSub.Unsubscribe()
+
+	chainSideEvent := make(chan core.ChainSideEvent)
+	chainSideEventSub := b.chain.SubscribeChainSideEvent(chainSideEvent)
+	defer chainSideEventSub.Unsubscribe()
+
+	w.start()
+
+	done := make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(500 * time.Millisecond)
+		for {
+			select {
+			case <-ticker.C:
+				// Spam transactions to trigger recommit
+				b.txPool.AddLocal(b.newRandomTx(false))
+			case <-done:
+				return
+			}
+		}
+	}()
+
+	timer := time.NewTimer(10 * time.Second)
+	generatedBlocks := make(map[uint64][]*types.Block)
+	for {
+		select {
+		case ev := <-chainEvent:
+			newBlock := ev.Block
+			if blocks, ok := generatedBlocks[newBlock.NumberU64()]; ok {
+				for _, block := range blocks {
+					if bytes.Equal(block.ParentHash().Bytes(), newBlock.ParentHash().Bytes()) {
+						t.Errorf("Block %d is double signed", newBlock.NumberU64())
+						return
+					}
+				}
+				blocks = append(blocks, newBlock)
+				generatedBlocks[newBlock.NumberU64()] = blocks
+			} else {
+				generatedBlocks[newBlock.NumberU64()] = []*types.Block{newBlock}
+			}
+		case ev := <-chainSideEvent:
+			newBlock := ev.Block
+			if blocks, ok := generatedBlocks[newBlock.NumberU64()]; ok {
+				for _, block := range blocks {
+					if bytes.Equal(block.ParentHash().Bytes(), newBlock.ParentHash().Bytes()) {
+						t.Errorf("Block %d is double signed", newBlock.NumberU64())
+						return
+					}
+				}
+				blocks = append(blocks, newBlock)
+				generatedBlocks[newBlock.NumberU64()] = blocks
+			} else {
+				generatedBlocks[newBlock.NumberU64()] = []*types.Block{newBlock}
+			}
+		case <-timer.C:
+			done <- struct{}{}
+			return
+		}
 	}
 }
