@@ -320,6 +320,12 @@ func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, 
 				err        error
 				validators []common.Address
 			)
+			snap, err = loadSnapshot(c.config, c.signatures, c.db, hash, c.ethAPI, c.chainConfig)
+			if err == nil {
+				log.Trace("Loaded snapshot from disk", "number", number, "hash", hash.Hex())
+				break
+			}
+
 			// get validators set from number
 			validators, err = c.contract.GetValidators(big.NewInt(0).SetUint64(number))
 			if err != nil {
