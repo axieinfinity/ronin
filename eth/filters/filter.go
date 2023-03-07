@@ -19,7 +19,10 @@ package filters
 import (
 	"context"
 	"errors"
+	"math"
 	"math/big"
+	"os"
+	"strconv"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
@@ -27,6 +30,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
 )
 
@@ -59,6 +63,21 @@ type Filter struct {
 	begin, end int64       // Range interval if filtering multiple blocks
 
 	matcher *bloombits.Matcher
+}
+
+var blockRangeLimit uint64 = math.MaxUint64
+
+func init() {
+	env := os.Getenv("FILTER_BLOCK_RANGE_LIMIT")
+	if env != "" {
+		newLimit, err := strconv.ParseUint(env, 10, 64)
+		if err != nil {
+			log.Info("Failed to parse filter block range limit", "err", err)
+		} else {
+			log.Info("New block range limit in log filter", "limit", newLimit)
+			blockRangeLimit = newLimit
+		}
+	}
 }
 
 // NewRangeFilter creates a new filter which uses a bloom filter on blocks to
@@ -141,6 +160,13 @@ func (f *Filter) Logs(ctx context.Context) ([]*types.Log, error) {
 	end := uint64(f.end)
 	if f.end == -1 {
 		end = head
+	}
+	if end-uint64(f.begin) > blockRangeLimit {
+		log.Info(
+			"Filter block range is higher than the limit",
+			"limit", blockRangeLimit, "request", end-uint64(f.begin),
+		)
+		return nil, errors.New("filter block range is higher than the limit")
 	}
 	// Gather all indexed logs, and finish with non indexed ones
 	var (
