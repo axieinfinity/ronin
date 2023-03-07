@@ -683,6 +683,11 @@ func TestConsortiumVerifyHeaders_verify(t *testing.T) {
 	if c.verify(*types.FromHeader(header1, big1), *types.FromHeader(header1, big1)) {
 		t.Fatal("expected false, got true")
 	}
+
+	header1.Extra = nil
+	if c.verify(*types.FromHeader(header1, big1), *types.FromHeader(header2, big1)) {
+		t.Fatal("expected false, got true")
+	}
 }
 
 // TestConsortiumVerifyHeaders_Run init 2 headers, pack them and call `Run` function directly
@@ -724,6 +729,51 @@ func TestConsortiumVerifyHeaders_Run(t *testing.T) {
 	}
 	if result[len(result)-1] != 1 {
 		t.Fatal(fmt.Sprintf("expected 1 (true) got %d", result[len(result)-1]))
+	}
+}
+
+func TestConsortiumVerifyHeaders_malleability(t *testing.T) {
+	n, _ := new(big.Int).SetString("fffffffffffffffffffffffffffffffebaaedce6af48a03bbfd25e8cd0364141", 16)
+
+	header1, _, err := prepareHeader(big1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var sig1 []byte = make([]byte, crypto.SignatureLength)
+	nbytes := copy(sig1, header1.Extra[len(header1.Extra)-crypto.SignatureLength:])
+	if nbytes != crypto.SignatureLength {
+		t.Fatal("copy signature from header1 failed")
+	}
+	var header2 *types.Header = types.CopyHeader(header1)
+
+	var sig2 []byte = make([]byte, crypto.SignatureLength)
+	copy(sig2, sig1)
+	s1 := new(big.Int).SetBytes(sig1[32:64])
+	var s2 *big.Int = new(big.Int)
+	s2.Sub(n, s1)
+	nbytes = copy(sig2[32:], s2.Bytes())
+	if nbytes != 32 {
+		t.Fatal("copy s2 to sig2 failed")
+	}
+
+	v1 := sig1[len(sig1)-1]
+	var v2 byte
+	if v1 == 0 {
+		v2 = 1
+	} else {
+		v2 = 0
+	}
+	sig2[len(sig2)-1] = v2
+
+	nbytes = copy(header2.Extra[len(header2.Extra)-crypto.SignatureLength:], sig2)
+	if nbytes != crypto.SignatureLength {
+		t.Fatal("copy sig2 to header2 failed")
+	}
+
+	c := &consortiumVerifyHeaders{evm: &EVM{chainConfig: &params.ChainConfig{ChainID: big1}}}
+	if c.verify(*types.FromHeader(header1, big1), *types.FromHeader(header2, big1)) {
+		t.Fatal("expected false, got true")
 	}
 }
 

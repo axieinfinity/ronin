@@ -1,6 +1,7 @@
 package vm
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -404,6 +405,13 @@ func (c *consortiumVerifyHeaders) getSigner(header types.BlockHeader) (common.Ad
 	if err != nil {
 		return common.Address{}, err
 	}
+	r := new(big.Int).SetBytes(signature[:32])
+	s := new(big.Int).SetBytes(signature[32:64])
+	v := signature[64]
+	if !crypto.ValidateSignatureValues(v, r, s, true) {
+		return common.Address{}, err
+	}
+
 	var signer common.Address
 	copy(signer[:], crypto.Keccak256(pubkey[1:])[12:])
 
@@ -414,7 +422,10 @@ func (c *consortiumVerifyHeaders) verify(header1, header2 types.BlockHeader) boo
 	if header1.ToHeader().ParentHash.Hex() != header2.ToHeader().ParentHash.Hex() {
 		return false
 	}
-	if header1.Hash() == header2.Hash() {
+	if len(header1.ExtraData) < crypto.SignatureLength || len(header2.ExtraData) < crypto.SignatureLength {
+		return false
+	}
+	if bytes.Equal(SealHash(header1.ToHeader(), header1.ChainId).Bytes(), SealHash(header2.ToHeader(), header2.ChainId).Bytes()) {
 		return false
 	}
 	signer1, err := c.getSigner(header1)
