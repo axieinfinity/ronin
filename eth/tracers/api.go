@@ -194,11 +194,10 @@ type txTraceResult struct {
 	Error  string      `json:"error,omitempty"`  // Trace failure produced by the tracer
 }
 
-// txTraceResult2 is the result of a single transaction trace.
+// internalAndAccountResult is the result of a single transaction trace.
 type internalAndAccountResult struct {
-	InternalTxs   []*txTraceResult           `json:"internalTxs,omitempty"` // Trace results produced by the tracer
-	DirtyAccounts []*types.DirtyStateAccount `json:"dirtyAccounts,omitempty"`
-	Error         string                     `json:"error,omitempty"` // Trace failure produced by the tracer
+	InternalTxs   map[common.Hash]*txTraceResult `json:"internalTxs,omitempty"` // Trace results produced by the tracer
+	DirtyAccounts []*types.DirtyStateAccount     `json:"dirtyAccounts,omitempty"`
 }
 
 // blockTraceTask represents a single block trace task when an entire chain is
@@ -683,7 +682,7 @@ func (api *API) traceInternalsAndAccounts(ctx context.Context, block *types.Bloc
 		signer  = types.MakeSigner(api.backend.ChainConfig(), block.Number())
 		txs     = block.Transactions()
 		results = &internalAndAccountResult{
-			InternalTxs:   make([]*txTraceResult, len(txs)),
+			InternalTxs:   make(map[common.Hash]*txTraceResult),
 			DirtyAccounts: make([]*types.DirtyStateAccount, 0),
 		}
 
@@ -703,17 +702,18 @@ func (api *API) traceInternalsAndAccounts(ctx context.Context, block *types.Bloc
 			// Fetch and execute the next transaction trace tasks
 			for task := range jobs {
 				msg, _ := txs[task.index].AsMessage(signer, block.BaseFee())
+				txHash := txs[task.index].Hash()
 				txctx := &Context{
 					BlockHash: blockHash,
 					TxIndex:   task.index,
-					TxHash:    txs[task.index].Hash(),
+					TxHash:    txHash,
 				}
 				res, err := api.traceTx(ctx, msg, txctx, blockCtx, task.statedb, config)
 				if err != nil {
-					results.InternalTxs[task.index] = &txTraceResult{Error: err.Error()}
+					results.InternalTxs[txHash] = &txTraceResult{Error: err.Error()}
 					continue
 				}
-				results.InternalTxs[task.index] = &txTraceResult{
+				results.InternalTxs[txHash] = &txTraceResult{
 					Result: res,
 				}
 			}
