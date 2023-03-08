@@ -42,6 +42,7 @@ import (
 	"github.com/ethereum/go-ethereum/internal/syncx"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/metrics"
+	"github.com/ethereum/go-ethereum/monitor"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/trie"
 	lru "github.com/hashicorp/golang-lru"
@@ -406,6 +407,38 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 		}()
 	}
 	return bc, nil
+}
+
+func (bc *BlockChain) StartDoubleSignMonitor() {
+	log.Info("Starting double sign monitor")
+	doubleSignMonitor, err := monitor.NewDoubleSignMonitor()
+	if err != nil {
+		log.Error("Double sign monitor creation failed", "err", err)
+		return
+	}
+
+	chainEventCh := make(chan ChainEvent)
+	chainSideEventCh := make(chan ChainSideEvent)
+
+	chainEventSub := bc.SubscribeChainEvent(chainEventCh)
+	defer chainEventSub.Unsubscribe()
+	chainSideEventSub := bc.SubscribeChainSideEvent(chainSideEventCh)
+	defer chainSideEventSub.Unsubscribe()
+
+	for {
+		select {
+		case ev := <-chainEventCh:
+			doubleSignMonitor.CheckDoubleSign(ev.Block.Header())
+		case ev := <-chainSideEventCh:
+			doubleSignMonitor.CheckDoubleSign(ev.Block.Header())
+		case <-chainEventSub.Err():
+			return
+		case <-chainSideEventSub.Err():
+			return
+		case <-bc.quit:
+			return
+		}
+	}
 }
 
 // empty returns an indicator whether the blockchain is empty.
