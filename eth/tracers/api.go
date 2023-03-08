@@ -198,6 +198,9 @@ type txTraceResult struct {
 type internalAndAccountResult struct {
 	InternalTxs   map[common.Hash]*txTraceResult `json:"internalTxs,omitempty"` // Trace results produced by the tracer
 	DirtyAccounts []*types.DirtyStateAccount     `json:"dirtyAccounts,omitempty"`
+
+	// private field that is ignored by json
+	internalTxsMu sync.Mutex
 }
 
 // blockTraceTask represents a single block trace task when an entire chain is
@@ -709,13 +712,15 @@ func (api *API) traceInternalsAndAccounts(ctx context.Context, block *types.Bloc
 					TxHash:    txHash,
 				}
 				res, err := api.traceTx(ctx, msg, txctx, blockCtx, task.statedb, config)
+				results.internalTxsMu.Lock()
 				if err != nil {
 					results.InternalTxs[txHash] = &txTraceResult{Error: err.Error()}
-					continue
+				} else {
+					results.InternalTxs[txHash] = &txTraceResult{
+						Result: res,
+					}
 				}
-				results.InternalTxs[txHash] = &txTraceResult{
-					Result: res,
-				}
+				results.internalTxsMu.Unlock()
 			}
 		}()
 	}
