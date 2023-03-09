@@ -194,10 +194,23 @@ type txTraceResult struct {
 	Error  string      `json:"error,omitempty"`  // Trace failure produced by the tracer
 }
 
+type stateAccount struct {
+	Address     common.Address `json:"address"`
+	Nonce       uint64         `json:"nonce"`
+	Balance     *hexutil.Big   `json:"balance"`
+	Root        common.Hash    `json:"root"` // merkle root of the storage trie
+	CodeHash    common.Hash    `json:"codeHash"`
+	BlockNumber uint64         `json:"blockNumber"`
+	BlockHash   common.Hash    `json:"blockHash"`
+	Deleted     bool           `json:"deleted"`
+	Suicided    bool           `json:"suicided"`
+	DirtyCode   bool           `json:"dirtyCode"`
+}
+
 // internalAndAccountResult is the result of a single transaction trace.
 type internalAndAccountResult struct {
 	InternalTxs   map[common.Hash]*txTraceResult `json:"internalTxs,omitempty"` // Trace results produced by the tracer
-	DirtyAccounts []*types.DirtyStateAccount     `json:"dirtyAccounts,omitempty"`
+	DirtyAccounts []*stateAccount                `json:"dirtyAccounts,omitempty"`
 }
 
 // blockTraceTask represents a single block trace task when an entire chain is
@@ -673,17 +686,20 @@ func (api *API) traceInternalsAndAccounts(ctx context.Context, block *types.Bloc
 	if config != nil && config.Reexec != nil {
 		reexec = *config.Reexec
 	}
+
+	// Get parent statedb to process then next block
 	statedb, err := api.backend.StateAtBlock(ctx, parent, reexec, nil, true, false)
 	if err != nil {
 		return nil, err
 	}
+
 	// Execute all the transaction contained within the block concurrently
 	var (
 		signer  = types.MakeSigner(api.backend.ChainConfig(), block.Number())
 		txs     = block.Transactions()
 		results = &internalAndAccountResult{
 			InternalTxs:   make(map[common.Hash]*txTraceResult),
-			DirtyAccounts: make([]*types.DirtyStateAccount, 0),
+			DirtyAccounts: make([]*stateAccount, 0),
 		}
 
 		pend = new(sync.WaitGroup)
@@ -745,7 +761,28 @@ func (api *API) traceInternalsAndAccounts(ctx context.Context, block *types.Bloc
 		return nil, failed
 	}
 
-	results.DirtyAccounts = statedb.DirtyAccounts(blockHash, block.NumberU64())
+	// Get new statedb from the current block to get the latest data
+	newStatedb, err := api.backend.StateAtBlock(ctx, block, reexec, nil, true, false)
+	if err != nil {
+		return nil, err
+	}
+
+	results.DirtyAccounts = make([]*stateAccount, 0)
+	for _, acc := range statedb.DirtyAccounts(blockHash, block.NumberU64()) {
+		stateObject := newStatedb.GetOrNewStateObject(acc.Address)
+		results.DirtyAccounts = append(results.DirtyAccounts, &stateAccount{
+			Address:     acc.Address,
+			Nonce:       acc.Nonce,
+			Balance:     (*hexutil.Big)(stateObject.Balance()),
+			Root:        stateObject.Root(),
+			CodeHash:    common.BytesToHash(stateObject.CodeHash()),
+			BlockNumber: acc.BlockNumber,
+			BlockHash:   acc.BlockHash,
+			Deleted:     acc.Deleted,
+			Suicided:    acc.Suicided,
+			DirtyCode:   acc.DirtyCode,
+		})
+	}
 
 	return results, nil
 }
