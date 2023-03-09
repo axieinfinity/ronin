@@ -190,14 +190,20 @@ type StdTraceConfig struct {
 
 // txTraceResult is the result of a single transaction trace.
 type txTraceResult struct {
-	Result interface{} `json:"result,omitempty"` // Trace results produced by the tracer
-	Error  string      `json:"error,omitempty"`  // Trace failure produced by the tracer
+	TransactionHash common.Hash `json:"transactionHash,omitempty"`
+	Result          interface{} `json:"result,omitempty"` // Trace results produced by the tracer
+	Error           string      `json:"error,omitempty"`  // Trace failure produced by the tracer
 }
 
 // internalAndAccountResult is the result of a single transaction trace.
 type internalAndAccountResult struct {
-	InternalTxs   map[common.Hash]*txTraceResult `json:"internalTxs,omitempty"` // Trace results produced by the tracer
-	DirtyAccounts []*types.DirtyStateAccount     `json:"dirtyAccounts,omitempty"`
+	InternalTxs   []*txTraceResult `json:"internalTxs,omitempty"` // Trace results produced by the tracer
+	DirtyAccounts []*dirtyAccount  `json:"dirtyAccounts,omitempty"`
+}
+
+type dirtyAccount struct {
+	*types.DirtyStateAccount
+	Balance *hexutil.Big `json:"balance"`
 }
 
 // blockTraceTask represents a single block trace task when an entire chain is
@@ -682,8 +688,8 @@ func (api *API) traceInternalsAndAccounts(ctx context.Context, block *types.Bloc
 		signer  = types.MakeSigner(api.backend.ChainConfig(), block.Number())
 		txs     = block.Transactions()
 		results = &internalAndAccountResult{
-			InternalTxs:   make(map[common.Hash]*txTraceResult),
-			DirtyAccounts: make([]*types.DirtyStateAccount, 0),
+			InternalTxs:   make([]*txTraceResult, len(txs)),
+			DirtyAccounts: make([]*dirtyAccount, 0),
 		}
 
 		pend = new(sync.WaitGroup)
@@ -710,11 +716,15 @@ func (api *API) traceInternalsAndAccounts(ctx context.Context, block *types.Bloc
 				}
 				res, err := api.traceTx(ctx, msg, txctx, blockCtx, task.statedb, config)
 				if err != nil {
-					results.InternalTxs[txHash] = &txTraceResult{Error: err.Error()}
+					results.InternalTxs[task.index] = &txTraceResult{
+						TransactionHash: txHash,
+						Error:           err.Error(),
+					}
 					continue
 				}
-				results.InternalTxs[txHash] = &txTraceResult{
-					Result: res,
+				results.InternalTxs[task.index] = &txTraceResult{
+					TransactionHash: txHash,
+					Result:          res,
 				}
 			}
 		}()
@@ -733,19 +743,27 @@ func (api *API) traceInternalsAndAccounts(ctx context.Context, block *types.Bloc
 			failed = err
 			break
 		}
-		// Finalize the state so any modifications are written to the trie
-		// Only delete empty objects if EIP158/161 (a.k.a Spurious Dragon) is in effect
-		statedb.Finalise(vmenv.ChainConfig().IsEIP158(block.Number()))
 	}
 	close(jobs)
 	pend.Wait()
+
+	// Finalize the state so any modifications are written to the trie
+	// Only delete empty objects if EIP158/161 (a.k.a Spurious Dragon) is in effect
+	statedb.IntermediateRoot(api.backend.ChainConfig().IsEIP158(block.Number()))
 
 	// If execution failed in between, abort
 	if failed != nil {
 		return nil, failed
 	}
 
-	results.DirtyAccounts = statedb.DirtyAccounts(blockHash, block.NumberU64())
+	// Convert balance from big.Int into hex
+	dirtyAccounts := statedb.DirtyAccounts(blockHash, block.NumberU64())
+	for _, acc := range dirtyAccounts {
+		results.DirtyAccounts = append(results.DirtyAccounts, &dirtyAccount{
+			DirtyStateAccount: acc,
+			Balance:           (*hexutil.Big)(acc.Balance),
+		})
+	}
 
 	return results, nil
 }
