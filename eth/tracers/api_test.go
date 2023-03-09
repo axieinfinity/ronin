@@ -373,7 +373,7 @@ func TestTraceBlock(t *testing.T) {
 		// Trace head block
 		{
 			blockNumber: rpc.BlockNumber(genBlocks),
-			want:        `[{"result":{"gas":21000,"failed":false,"returnValue":"","structLogs":[]}}]`,
+			want:        `[{"transactionHash":"0x0000000000000000000000000000000000000000000000000000000000000000","result":{"gas":21000,"failed":false,"returnValue":"","structLogs":[]}}]`,
 		},
 		// Trace non-existent block
 		{
@@ -383,12 +383,12 @@ func TestTraceBlock(t *testing.T) {
 		// Trace latest block
 		{
 			blockNumber: rpc.LatestBlockNumber,
-			want:        `[{"result":{"gas":21000,"failed":false,"returnValue":"","structLogs":[]}}]`,
+			want:        `[{"transactionHash":"0x0000000000000000000000000000000000000000000000000000000000000000","result":{"gas":21000,"failed":false,"returnValue":"","structLogs":[]}}]`,
 		},
 		// Trace pending block
 		{
 			blockNumber: rpc.PendingBlockNumber,
-			want:        `[{"result":{"gas":21000,"failed":false,"returnValue":"","structLogs":[]}}]`,
+			want:        `[{"transactionHash":"0x0000000000000000000000000000000000000000000000000000000000000000","result":{"gas":21000,"failed":false,"returnValue":"","structLogs":[]}}]`,
 		},
 	}
 	for i, tc := range testSuite {
@@ -527,7 +527,7 @@ func TestTraceInternalsAndAccounts_BatchTransferAccounts(t *testing.T) {
 			t.Errorf("account %v not found", actual.Address)
 		}
 
-		if actual.Balance.Cmp(expectedBalance) != 0 {
+		if actual.Balance.ToInt().Cmp(expectedBalance) != 0 {
 			t.Errorf("account balance is not match got %v, wanted %v", actual.Balance, expectedBalance)
 		}
 	}
@@ -630,7 +630,7 @@ func TestTraceInternalsAndAccounts_CreateContract(t *testing.T) {
 			continue
 		}
 
-		if actual.Balance.Cmp(expectedBalance) != 0 {
+		if actual.Balance.ToInt().Cmp(expectedBalance) != 0 {
 			t.Errorf("account balance is not match got %v, wanted %v", actual.Balance, expectedBalance)
 		}
 	}
@@ -733,7 +733,7 @@ func TestTraceInternalsAndAccounts_Create2Contract(t *testing.T) {
 			continue
 		}
 
-		if actual.Balance.Cmp(expectedBalance) != 0 {
+		if actual.Balance.ToInt().Cmp(expectedBalance) != 0 {
 			t.Errorf("account balance is not match got %v, wanted %v", actual.Balance, expectedBalance)
 		}
 	}
