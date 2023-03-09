@@ -527,7 +527,7 @@ func TestTraceInternalsAndAccounts_BatchTransferAccounts(t *testing.T) {
 			t.Errorf("account %v not found", actual.Address)
 		}
 
-		if actual.Balance.Cmp(expectedBalance) != 0 {
+		if actual.Balance.ToInt().Cmp(expectedBalance) != 0 {
 			t.Errorf("account balance is not match got %v, wanted %v", actual.Balance, expectedBalance)
 		}
 	}
@@ -630,7 +630,7 @@ func TestTraceInternalsAndAccounts_CreateContract(t *testing.T) {
 			continue
 		}
 
-		if actual.Balance.Cmp(expectedBalance) != 0 {
+		if actual.Balance.ToInt().Cmp(expectedBalance) != 0 {
 			t.Errorf("account balance is not match got %v, wanted %v", actual.Balance, expectedBalance)
 		}
 	}
@@ -733,7 +733,7 @@ func TestTraceInternalsAndAccounts_Create2Contract(t *testing.T) {
 			continue
 		}
 
-		if actual.Balance.Cmp(expectedBalance) != 0 {
+		if actual.Balance.ToInt().Cmp(expectedBalance) != 0 {
 			t.Errorf("account balance is not match got %v, wanted %v", actual.Balance, expectedBalance)
 		}
 	}
