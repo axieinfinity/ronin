@@ -20,16 +20,17 @@ package v1
 import (
 	"bytes"
 	"errors"
-	"github.com/ethereum/go-ethereum/core"
-	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/internal/ethapi"
-	"github.com/ethereum/go-ethereum/rlp"
-	"golang.org/x/crypto/sha3"
 	"io"
 	"math/big"
 	"math/rand"
 	"sync"
 	"time"
+
+	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/internal/ethapi"
+	"github.com/ethereum/go-ethereum/rlp"
+	"golang.org/x/crypto/sha3"
 
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
@@ -497,12 +498,13 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 		return err
 	}
 
+	lastBlockInV1 := c.chainConfig.IsOnConsortiumV2(new(big.Int).Add(header.Number, common.Big1))
+	if (len(*systemTxs) > 0 && !lastBlockInV1) || (len(*systemTxs) == 0 && lastBlockInV1) {
+		return errors.New("the length of systemTxs does not match")
+	}
+
 	if len(*systemTxs) > 0 {
 		log.Info("processing system tx from consortium v1", "systemTxs", len(*systemTxs), "coinbase", header.Coinbase.Hex())
-		msg, err := (*systemTxs)[0].AsMessage(c.signer, big.NewInt(0))
-		if err != nil {
-			return err
-		}
 		evmContext := core.NewEVMBlockContext(header, consortiumCommon.ChainContext{Chain: chain, Consortium: c}, &header.Coinbase, chain.OpEvents()...)
 		transactOpts := &consortiumCommon.ApplyTransactOpts{
 			ApplyMessageOpts: &consortiumCommon.ApplyMessageOpts{
@@ -520,7 +522,7 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 			SignTxFn:    c.signTxFn,
 			EthAPI:      c.ethAPI,
 		}
-		if err = consortiumCommon.ApplyTransaction(msg, transactOpts); err != nil {
+		if err := c.contract.WrapUpEpoch(transactOpts); err != nil {
 			return err
 		}
 		if len(*systemTxs) > 0 {
