@@ -253,21 +253,23 @@ type txList struct {
 	strict bool         // Whether nonces are strictly continuous or not
 	txs    *txSortedMap // Heap indexed sorted hash map of the transactions
 
-	costcap *big.Int               // Price of the highest costing transaction (reset only if exceeds balance)
-	gascap  uint64                 // Gas limit of the highest spending transaction (reset only if exceeds block limit)
-	signer  types.Signer           // The signer of the transaction pool
-	payers  map[common.Address]int // The reference count of payers
+	costcap   *big.Int               // Price of the highest costing transaction (reset only if exceeds balance)
+	gascap    uint64                 // Gas limit of the highest spending transaction (reset only if exceeds block limit)
+	totalcost *big.Int               // Total cost of all transactions in the list
+	signer    types.Signer           // The signer of the transaction pool
+	payers    map[common.Address]int // The reference count of payers
 }
 
 // newTxList create a new transaction list for maintaining nonce-indexable fast,
 // gapped, sortable transaction lists.
 func newTxList(strict bool, signer types.Signer) *txList {
 	return &txList{
-		strict:  strict,
-		txs:     newTxSortedMap(),
-		costcap: new(big.Int),
-		signer:  signer,
-		payers:  make(map[common.Address]int),
+		strict:    strict,
+		txs:       newTxSortedMap(),
+		costcap:   new(big.Int),
+		totalcost: new(big.Int),
+		signer:    signer,
+		payers:    make(map[common.Address]int),
 	}
 }
 
@@ -315,7 +317,12 @@ func (l *txList) Add(tx *types.Transaction, priceBump uint64) (bool, *types.Tran
 		if tx.GasFeeCapIntCmp(thresholdFeeCap) < 0 || tx.GasTipCapIntCmp(thresholdTip) < 0 {
 			return false, nil
 		}
+		// Old is being replaced, subtract old cost
+		l.subTotalCost([]*types.Transaction{old})
+		l.removePayer([]*types.Transaction{old})
 	}
+	// Add new tx cost to totalcost
+	l.totalcost.Add(l.totalcost, tx.Cost())
 	// Otherwise overwrite the old transaction with the current one
 	l.txs.Put(tx)
 	if cost := tx.Cost(); l.costcap.Cmp(cost) < 0 {
@@ -351,6 +358,7 @@ func (l *txList) removePayer(removed types.Transactions) {
 func (l *txList) Forward(threshold uint64) types.Transactions {
 	removed := l.txs.Forward(threshold)
 	l.removePayer(removed)
+	l.subTotalCost(removed)
 	return removed
 }
 
@@ -412,6 +420,9 @@ func (l *txList) Filter(
 		}
 		invalids = l.txs.filter(func(tx *types.Transaction) bool { return tx.Nonce() > lowest })
 	}
+	// Reset total cost
+	l.subTotalCost(removed)
+	l.subTotalCost(invalids)
 	l.txs.reheap()
 	l.removePayer(removed)
 	l.removePayer(invalids)
@@ -423,6 +434,7 @@ func (l *txList) Filter(
 func (l *txList) Cap(threshold int) types.Transactions {
 	removed := l.txs.Cap(threshold)
 	l.removePayer(removed)
+	l.subTotalCost(removed)
 	return removed
 }
 
@@ -442,9 +454,11 @@ func (l *txList) Remove(tx *types.Transaction) (bool, types.Transactions) {
 		filteredTx := l.txs.Filter(func(tx *types.Transaction) bool { return tx.Nonce() > nonce })
 		removed = append(removed, filteredTx...)
 		l.removePayer(removed)
+		l.subTotalCost(removed)
 		return true, filteredTx
 	}
 	l.removePayer(removed)
+	l.subTotalCost(removed)
 	return true, nil
 }
 
@@ -456,7 +470,10 @@ func (l *txList) Remove(tx *types.Transaction) (bool, types.Transactions) {
 // prevent getting into and invalid state. This is not something that should ever
 // happen but better to be self correcting than failing!
 func (l *txList) Ready(start uint64) types.Transactions {
-	return l.txs.Ready(start)
+	removed := l.txs.Ready(start)
+	l.removePayer(removed)
+	l.subTotalCost(removed)
+	return removed
 }
 
 // Len returns the length of the transaction list.
@@ -491,6 +508,14 @@ func (l *txList) Payers() []common.Address {
 	}
 
 	return payers
+}
+
+// subTotalCost subtracts the cost of the given transactions from the
+// total cost of all transactions.
+func (l *txList) subTotalCost(txs []*types.Transaction) {
+	for _, tx := range txs {
+		l.totalcost.Sub(l.totalcost, tx.Cost())
+	}
 }
 
 // priceHeap is a heap.Interface implementation over transactions for retrieving
@@ -637,6 +662,7 @@ func (l *txPricedList) underpricedFor(h *priceHeap, tx *types.Transaction) bool 
 
 // Discard finds a number of most underpriced transactions, removes them from the
 // priced list and returns them for further removal from the entire pool.
+// If noPending is set to true, we will only consider the floating list
 //
 // Note local transaction won't be considered for eviction.
 func (l *txPricedList) Discard(slots int, force bool) (types.Transactions, bool) {
