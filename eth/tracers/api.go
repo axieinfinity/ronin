@@ -743,12 +743,14 @@ func (api *API) traceInternalsAndAccounts(ctx context.Context, block *types.Bloc
 			failed = err
 			break
 		}
+		// Finalize the state so any modifications are written to the trie
+		// Only delete empty objects if EIP158/161 (a.k.a Spurious Dragon) is in effect
+		statedb.Finalise(vmenv.ChainConfig().IsEIP158(block.Number()))
 	}
 	close(jobs)
 	pend.Wait()
 
-	// Finalize the state so any modifications are written to the trie
-	// Only delete empty objects if EIP158/161 (a.k.a Spurious Dragon) is in effect
+	// Computes the current root hash of the state trie
 	statedb.IntermediateRoot(api.backend.ChainConfig().IsEIP158(block.Number()))
 
 	// If execution failed in between, abort
