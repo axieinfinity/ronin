@@ -59,7 +59,15 @@ or, to build the full suite of utilities:
 make all
 ```
 
+### Init genesis
+
+Before running a full node, init genesis block is necessary
+```shell
+ronin init genesis/mainnet.json --datadir /opt/ronin
+```
+
 ### Full node on the main Ronin network
+
 
 ```shell
 $ ronin --http.api eth,net,web3,consortium --networkid 2020 --bootnodes enode://a166ab6437cf370bc604097529a0fb6a8a4836bb85833fbf588b130cb73fe0517940d10c5d89c0e3e1c2800a774ac1ae2108d62cb4608556e41bc1fc4482241a@35.193.159.26:30303 --datadir /opt/ronin --port 30303 --http --http.corsdomain '*' --http.addr 0.0.0.0 --http.port 8545 --http.vhosts '*' --ws --ws.addr 0.0.0.0 --ws.port 8546 --ws.origins '*' 
