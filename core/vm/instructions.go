@@ -657,6 +657,8 @@ func opCall(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byt
 	toAddr := common.Address(addr.Bytes20())
 	// Get the arguments from the memory.
 	args := scope.Memory.GetPtr(int64(inOffset.Uint64()), int64(inSize.Uint64()))
+	cpyArgs := make([]byte, len(args))
+	copy(cpyArgs, args)
 
 	var bigVal = big0
 	//TODO: use uint256.Int instead of converting with toBig()
@@ -681,7 +683,7 @@ func opCall(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byt
 	}
 	scope.Contract.Gas += returnGas
 	// call publish event to publish CALL event
-	interpreter.evm.PublishEvent(CALL, counter, scope.Contract.Address(), toAddr, bigVal, args, err)
+	interpreter.evm.PublishEvent(CALL, counter, scope.Contract.Address(), toAddr, bigVal, cpyArgs, err)
 	return ret, nil
 }
 
