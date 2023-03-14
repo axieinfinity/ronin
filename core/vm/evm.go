@@ -35,7 +35,7 @@ import (
 var emptyCodeHash = crypto.Keccak256Hash(nil)
 
 type OpEvent interface {
-	Publish(op OpCode, order uint64, state StateDB, blockHeight uint64, blockHash common.Hash, timestamp uint64, txHash common.Hash, caller common.Address, callee common.Address, value *big.Int, input []byte, err error) *types.InternalTransaction
+	Publish(op OpCode, order, blockHeight uint64, blockHash common.Hash, timestamp uint64, txHash common.Hash, from, to common.Address, value *big.Int, input, output []byte, err error) *types.InternalTransaction
 }
 
 type (
@@ -575,20 +575,39 @@ func (evm *EVM) Create2(caller ContractRef, code []byte, gas uint64, endowment *
 func (evm *EVM) ChainConfig() *params.ChainConfig { return evm.chainConfig }
 
 // PublishEvent executes Publish function from OpEvent if OpCode is found in Context.PublishEvents
-func (evm *EVM) PublishEvent(opCode OpCode, counter uint64, caller, callee common.Address, value *big.Int, input []byte, err error) {
+func (evm *EVM) PublishEvent(
+	opCode OpCode,
+	counter uint64,
+	from, to common.Address,
+	value *big.Int,
+	input, output []byte,
+	err error,
+) {
 	context := evm.Context
 	if context.CurrentTransaction == nil {
 		log.Debug("[EVM] PublishEvent - Transaction is nil", "height", context.BlockNumber.Int64())
 		return
 	}
-	log.Debug("[EVM] PublishEvent",
-		"transaction", context.CurrentTransaction.Hash().Hex(), "opCode", opCode.String(),
-		"caller", caller.Hash().Hex())
+
+	txHash := context.CurrentTransaction.Hash()
+	log.Debug("[EVM] PublishEvent", "transaction", txHash.Hex(), "opCode", opCode.String(), "from", from.Hash().Hex())
 	if event, ok := evm.Context.PublishEvents[opCode]; ok {
 		*context.InternalTransactions = append(
 			*context.InternalTransactions,
-			event.Publish(opCode, counter, evm.StateDB, evm.Context.BlockNumber.Uint64(), context.BlockHash,
-				context.Time.Uint64(), context.CurrentTransaction.Hash(), caller, callee, value, input, err),
+			event.Publish(
+				opCode,
+				counter,
+				evm.Context.BlockNumber.Uint64(),
+				context.BlockHash,
+				context.Time.Uint64(),
+				txHash,
+				from,
+				to,
+				value,
+				input,
+				output,
+				err,
+			),
 		)
 	}
 }

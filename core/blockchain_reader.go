@@ -415,8 +415,17 @@ func (bc *BlockChain) OpEvents() []*vm.PublishEvent {
 
 type InternalTransferOrSmcCallEvent struct{}
 
-func (tx *InternalTransferOrSmcCallEvent) Publish(opcode vm.OpCode, order uint64, stateDB vm.StateDB, blockHeight uint64,
-	blockHash common.Hash, blockTime uint64, hash common.Hash, from, to common.Address, value *big.Int, input []byte, err error) *types.InternalTransaction {
+func (tx *InternalTransferOrSmcCallEvent) Publish(
+	opcode vm.OpCode,
+	order, blockHeight uint64,
+	blockHash common.Hash,
+	blockTime uint64,
+	hash common.Hash,
+	from, to common.Address,
+	value *big.Int,
+	input, output []byte,
+	err error,
+) *types.InternalTransaction {
 	internal := &types.InternalTransaction{
 		Opcode:          opcode.String(),
 		Order:           order,
@@ -424,6 +433,7 @@ func (tx *InternalTransferOrSmcCallEvent) Publish(opcode vm.OpCode, order uint64
 		Type:            types.InternalTransactionContractCall,
 		Value:           value,
 		Input:           input,
+		Output:          output,
 		From:            from,
 		To:              to,
 		Success:         err == nil,
@@ -443,8 +453,17 @@ func (tx *InternalTransferOrSmcCallEvent) Publish(opcode vm.OpCode, order uint64
 
 type InternalTransactionContractCreation struct{}
 
-func (tx *InternalTransactionContractCreation) Publish(opcode vm.OpCode, order uint64, stateDB vm.StateDB, blockHeight uint64,
-	blockHash common.Hash, blockTime uint64, hash common.Hash, from, to common.Address, value *big.Int, input []byte, err error) *types.InternalTransaction {
+func (tx *InternalTransactionContractCreation) Publish(
+	opcode vm.OpCode,
+	order, blockHeight uint64,
+	blockHash common.Hash,
+	blockTime uint64,
+	hash common.Hash,
+	from, to common.Address,
+	value *big.Int,
+	input, output []byte,
+	err error,
+) *types.InternalTransaction {
 	internal := &types.InternalTransaction{
 		Opcode:          opcode.String(),
 		Order:           order,
@@ -452,6 +471,7 @@ func (tx *InternalTransactionContractCreation) Publish(opcode vm.OpCode, order u
 		Type:            types.InternalTransactionContractCreation,
 		Value:           value,
 		Input:           input,
+		Output:          output,
 		From:            from,
 		To:              to,
 		Success:         err == nil,

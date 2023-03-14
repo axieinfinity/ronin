@@ -11,8 +11,17 @@ import (
 type TestOpEvent struct {
 }
 
-func (tx *TestOpEvent) Publish(opcode OpCode, order uint64, stateDB StateDB, blockHeight uint64,
-	blockHash common.Hash, blockTime uint64, hash common.Hash, from, to common.Address, value *big.Int, input []byte, err error) *types.InternalTransaction {
+func (tx *TestOpEvent) Publish(
+	opcode OpCode,
+	order, blockHeight uint64,
+	blockHash common.Hash,
+	blockTime uint64,
+	hash common.Hash,
+	from, to common.Address,
+	value *big.Int,
+	input, output []byte,
+	err error,
+) *types.InternalTransaction {
 	return &types.InternalTransaction{
 		Opcode:          opcode.String(),
 		Order:           order,
@@ -20,6 +29,7 @@ func (tx *TestOpEvent) Publish(opcode OpCode, order uint64, stateDB StateDB, blo
 		Type:            "test",
 		Value:           value,
 		Input:           input,
+		Output:          output,
 		From:            from,
 		To:              to,
 		Success:         err == nil,
@@ -49,7 +59,7 @@ func TestPublishEvents(t *testing.T) {
 	}
 
 	evm := &EVM{Context: ctx}
-	evm.PublishEvent(CALL, 1, common.Address{}, common.Address{}, big.NewInt(0), []byte(""), nil)
+	evm.PublishEvent(CALL, 1, common.Address{}, common.Address{}, big.NewInt(0), []byte(""), []byte(""), nil)
 	if len(*evm.Context.InternalTransactions) != 1 || (*evm.Context.InternalTransactions)[0].Type != "test" {
 		t.Error("Failed to publish opcode event")
 	}
