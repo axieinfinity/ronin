@@ -208,8 +208,6 @@ exec ronin $params \
   --verbosity $VERBOSITY \
   --datadir $datadir \
   --port 30303 \
-  --txpool.globalqueue 10000 \
-  --txpool.globalslots 10000 \
   --http \
   --http.corsdomain "*" \
   --http.addr 0.0.0.0 \
