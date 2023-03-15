@@ -403,7 +403,7 @@ func (bc *BlockChain) SubscribeDirtyAccountEvent(ch chan<- []*types.DirtyStateAc
 func (bc *BlockChain) OpEvents() []*vm.PublishEvent {
 	return []*vm.PublishEvent{
 		{
-			OpCodes: []vm.OpCode{vm.CALL},
+			OpCodes: []vm.OpCode{vm.CALL, vm.DELEGATECALL},
 			Event:   &InternalTransferOrSmcCallEvent{},
 		},
 		{
@@ -442,7 +442,7 @@ func (tx *InternalTransferOrSmcCallEvent) Publish(
 		BlockHash:       blockHash,
 		BlockTime:       blockTime,
 	}
-	if value.Cmp(big.NewInt(0)) > 0 && (input == nil || len(input) == 0) {
+	if value != nil && value.Cmp(big.NewInt(0)) > 0 && (input == nil || len(input) == 0) {
 		internal.Type = types.InternalTransactionTransfer
 	}
 	if err != nil {
