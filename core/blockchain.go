@@ -1190,12 +1190,12 @@ func (bc *BlockChain) InsertReceiptChain(blockChain types.Blocks, receiptChain [
 
 func (bc *BlockChain) sendNewBlockEvent(block *types.Block, receipts types.Receipts) {
 	logs := make([]*types.Log, 0)
-	internals := make([]*types.InternalTransaction, 0)
+	internalTxs := make([]*types.InternalTransaction, 0)
 	for _, receipt := range receipts {
 		logs = append(logs, receipt.Logs...)
 	}
 	log.Info("send new block event", "height", block.NumberU64(), "txs", len(block.Transactions()), "logs", len(logs))
-	bc.chainFeed.Send(ChainEvent{Block: block, Hash: block.Hash(), Logs: logs, Internals: internals, Receipts: receipts})
+	bc.chainFeed.Send(ChainEvent{Block: block, Hash: block.Hash(), Logs: logs, InternalTxs: internalTxs, Receipts: receipts})
 }
 
 var lastWrite uint64
@@ -1232,17 +1232,19 @@ func (bc *BlockChain) writeKnownBlock(block *types.Block) error {
 }
 
 // WriteBlockWithState writes the block and all associated state to the database.
-func (bc *BlockChain) WriteBlockWithState(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB) (status WriteStatus, dirtyAccounts []*types.DirtyStateAccount, err error) {
+func (bc *BlockChain) WriteBlockWithState(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB, emitHeadEvent bool) (status WriteStatus, dirtyAccounts []*types.DirtyStateAccount, err error) {
 	if !bc.chainmu.TryLock() {
 		return NonStatTy, nil, errInsertionInterrupted
 	}
 	defer bc.chainmu.Unlock()
-	return bc.writeBlockWithState(block, receipts, logs, state)
+
+	internalTxs := make([]*types.InternalTransaction, 0)
+	return bc.writeBlockWithState(block, receipts, logs, internalTxs, state, emitHeadEvent)
 }
 
 // writeBlockWithState writes the block and all associated state to the database,
 // but is expects the chain mutex to be held.
-func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB) (status WriteStatus, dirtyAccounts []*types.DirtyStateAccount, err error) {
+func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.Receipt, logs []*types.Log, internalTxs []*types.InternalTransaction, state *state.StateDB, emitHeadEvent bool) (status WriteStatus, dirtyAccounts []*types.DirtyStateAccount, err error) {
 	if bc.insertStopped() {
 		return NonStatTy, nil, errInsertionInterrupted
 	}
@@ -1366,6 +1368,22 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 	}
 	bc.futureBlocks.Remove(block.Hash())
 
+	if status == CanonStatTy {
+		bc.chainFeed.Send(ChainEvent{Block: block, Hash: block.Hash(), Logs: logs, InternalTxs: internalTxs, Receipts: receipts})
+		if len(logs) > 0 {
+			bc.logsFeed.Send(logs)
+		}
+		// In theory we should fire a ChainHeadEvent when we inject
+		// a canonical block, but sometimes we can insert a batch of
+		// canonicial blocks. Avoid firing too much ChainHeadEvents,
+		// we will fire an accumulated ChainHeadEvent and disable fire
+		// event here.
+		if emitHeadEvent {
+			bc.chainHeadFeed.Send(ChainHeadEvent{Block: block})
+		}
+	} else {
+		bc.chainSideFeed.Send(ChainSideEvent{Block: block})
+	}
 	return status, dirtyAccounts, nil
 }
 
@@ -1686,19 +1704,10 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, er
 
 		// Write the block to the chain and get the status.
 		substart = time.Now()
-		status, dirtyAccounts, err := bc.writeBlockWithState(block, receipts, logs, statedb)
+		status, dirtyAccounts, err := bc.writeBlockWithState(block, receipts, logs, internalTxs, statedb, false)
 		atomic.StoreUint32(&followupInterrupt, 1)
 		if err != nil {
 			return it.index, err
-		}
-
-		if status == CanonStatTy {
-			bc.chainFeed.Send(ChainEvent{Block: block, Hash: block.Hash(), Logs: logs, Internals: internalTxs, Receipts: receipts})
-			if len(logs) > 0 {
-				bc.logsFeed.Send(logs)
-			}
-		} else {
-			bc.chainSideFeed.Send(ChainSideEvent{Block: block})
 		}
 
 		if dirtyAccounts != nil {

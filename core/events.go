@@ -31,11 +31,11 @@ type NewMinedBlockEvent struct{ Block *types.Block }
 type RemovedLogsEvent struct{ Logs []*types.Log }
 
 type ChainEvent struct {
-	Block     *types.Block
-	Hash      common.Hash
-	Logs      []*types.Log
-	Internals []*types.InternalTransaction
-	Receipts  types.Receipts
+	Block       *types.Block
+	Hash        common.Hash
+	Logs        []*types.Log
+	InternalTxs []*types.InternalTransaction
+	Receipts    types.Receipts
 }
 
 type ChainSideEvent struct {
