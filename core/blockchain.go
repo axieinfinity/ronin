@@ -1191,11 +1191,12 @@ func (bc *BlockChain) InsertReceiptChain(blockChain types.Blocks, receiptChain [
 func (bc *BlockChain) sendNewBlockEvent(block *types.Block, receipts types.Receipts) {
 	logs := make([]*types.Log, 0)
 	internalTxs := make([]*types.InternalTransaction, 0)
+	dirtyAccounts := make([]*types.DirtyStateAccount, 0)
 	for _, receipt := range receipts {
 		logs = append(logs, receipt.Logs...)
 	}
 	log.Info("send new block event", "height", block.NumberU64(), "txs", len(block.Transactions()), "logs", len(logs))
-	bc.chainFeed.Send(ChainEvent{Block: block, Hash: block.Hash(), Logs: logs, InternalTxs: internalTxs, Receipts: receipts})
+	bc.chainFeed.Send(ChainEvent{Block: block, Hash: block.Hash(), Logs: logs, InternalTxs: internalTxs, DirtyAccounts: dirtyAccounts, Receipts: receipts})
 }
 
 var lastWrite uint64
@@ -1369,7 +1370,7 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 	bc.futureBlocks.Remove(block.Hash())
 
 	if status == CanonStatTy {
-		bc.chainFeed.Send(ChainEvent{Block: block, Hash: block.Hash(), Logs: logs, InternalTxs: internalTxs, Receipts: receipts})
+		bc.chainFeed.Send(ChainEvent{Block: block, Hash: block.Hash(), Logs: logs, InternalTxs: internalTxs, DirtyAccounts: dirtyAccounts, Receipts: receipts})
 		if len(logs) > 0 {
 			bc.logsFeed.Send(logs)
 		}
