@@ -123,7 +123,7 @@ func New(
 	recents, _ := lru.NewARC(inmemorySnapshots)
 	signatures, _ := lru.NewARC(inmemorySignatures)
 
-	return &Consortium{
+	consortium := Consortium{
 		chainConfig: chainConfig,
 		config:      consortiumConfig,
 		genesisHash: genesisHash,
@@ -135,6 +135,12 @@ func New(
 		v1:          v1,
 		forkedBlock: chainConfig.ConsortiumV2Block.Uint64(),
 	}
+	err := consortium.initContract(common.Address{}, nil)
+	if err != nil {
+		log.Error("Failed to init system contract caller", "err", err)
+	}
+
+	return &consortium
 }
 
 // IsSystemTransaction implements consensus.PoSA, checking whether a transaction is a system
@@ -300,9 +306,6 @@ func (c *Consortium) verifyCascadingFields(chain consensus.ChainHeaderReader, he
 
 // snapshot retrieves the authorization snapshot at a given point in time.
 func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, hash common.Hash, parents []*types.Header) (*Snapshot, error) {
-	if err := c.initContract(); err != nil {
-		return nil, err
-	}
 	// Search for a snapshot in memory or on disk for checkpoints
 	var (
 		headers    []*types.Header
@@ -536,10 +539,6 @@ func (c *Consortium) verifyHeaderTime(header, parent *types.Header, snapshot *Sn
 // Prepare implements consensus.Engine, preparing all the consensus fields of the
 // header for running the transactions on top.
 func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.Header) error {
-	if err := c.initContract(); err != nil {
-		return err
-	}
-
 	coinbase, _, _ := c.readSigner()
 	header.Coinbase = coinbase
 	header.Nonce = types.BlockNonce{}
@@ -654,9 +653,6 @@ func (c *Consortium) processSystemTransactions(chain consensus.ChainHeaderReader
 // - SubmitBlockRewards of the current block
 func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs *[]*types.Transaction,
 	uncles []*types.Header, receipts *[]*types.Receipt, systemTxs *[]*types.Transaction, internalTxs *[]*types.InternalTransaction, usedGas *uint64) error {
-	if err := c.initContract(); err != nil {
-		return err
-	}
 	_, _, signTxFn := c.readSigner()
 	evmContext := core.NewEVMBlockContext(header, consortiumCommon.ChainContext{Chain: chain, Consortium: c}, &header.Coinbase, chain.OpEvents()...)
 	transactOpts := &consortiumCommon.ApplyTransactOpts{
@@ -718,10 +714,6 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 // - SubmitBlockRewards of the current block
 func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB,
 	txs []*types.Transaction, uncles []*types.Header, receipts []*types.Receipt) (*types.Block, []*types.Receipt, error) {
-	if err := c.initContract(); err != nil {
-		return nil, nil, err
-	}
-
 	// No block rewards in PoA, so the state remains as is and uncles are dropped
 	if txs == nil {
 		txs = make([]*types.Transaction, 0)
@@ -779,11 +771,15 @@ func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, head
 // Authorize injects a private key into the consensus engine to mint new blocks with
 func (c *Consortium) Authorize(signer common.Address, signFn consortiumCommon.SignerFn, signTxFn consortiumCommon.SignerTxFn) {
 	c.lock.Lock()
-	defer c.lock.Unlock()
-
 	c.val = signer
 	c.signFn = signFn
 	c.signTxFn = signTxFn
+	c.lock.Unlock()
+
+	err := c.initContract(signer, signTxFn)
+	if err != nil {
+		log.Error("Failed to init system contract caller", "err", err)
+	}
 }
 
 // Seal implements consensus.Engine, attempting to create a sealed block using
@@ -903,8 +899,7 @@ func CalcDifficulty(snap *Snapshot, signer common.Address) *big.Int {
 }
 
 // initContract creates NewContractIntegrator instance
-func (c *Consortium) initContract() error {
-	coinbase, _, signTxFn := c.readSigner()
+func (c *Consortium) initContract(coinbase common.Address, signTxFn consortiumCommon.SignerTxFn) error {
 	contract, err := consortiumCommon.NewContractIntegrator(c.chainConfig, consortiumCommon.NewConsortiumBackend(c.ethAPI), signTxFn, coinbase)
 	if err != nil {
 		return err

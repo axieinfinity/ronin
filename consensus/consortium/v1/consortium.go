@@ -131,7 +131,7 @@ func New(chainConfig *params.ChainConfig, db ethdb.Database, ethAPI *ethapi.Publ
 	recents, _ := lru.NewARC(inmemorySnapshots)
 	signatures, _ := lru.NewARC(inmemorySignatures)
 
-	return &Consortium{
+	consortium := Consortium{
 		chainConfig: chainConfig,
 		config:      &consortiumConfig,
 		db:          db,
@@ -141,6 +141,13 @@ func New(chainConfig *params.ChainConfig, db ethdb.Database, ethAPI *ethapi.Publ
 		proposals:   make(map[common.Address]bool),
 		signer:      types.NewEIP155Signer(chainConfig.ChainID),
 	}
+
+	err := consortium.initContract(common.Address{}, nil)
+	if err != nil {
+		log.Error("Failed to init system contract caller", "err", err)
+	}
+
+	return &consortium
 }
 
 // SetGetSCValidatorsFn sets the function to get a list of validators from smart contracts
@@ -494,10 +501,6 @@ func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.He
 // rewards given.
 func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs *[]*types.Transaction,
 	uncles []*types.Header, receipts *[]*types.Receipt, systemTxs *[]*types.Transaction, internalTxs *[]*types.InternalTransaction, usedGas *uint64) error {
-	if err := c.initContract(); err != nil {
-		return err
-	}
-
 	lastBlockInV1 := c.chainConfig.IsOnConsortiumV2(new(big.Int).Add(header.Number, common.Big1))
 	if (len(*systemTxs) > 0 && !lastBlockInV1) || (len(*systemTxs) == 0 && lastBlockInV1) {
 		return errors.New("the length of systemTxs does not match")
@@ -541,10 +544,6 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 // nor block rewards given, and returns the final block.
 func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction,
 	uncles []*types.Header, receipts []*types.Receipt) (*types.Block, []*types.Receipt, error) {
-	if err := c.initContract(); err != nil {
-		return nil, nil, err
-	}
-
 	// No block rewards in PoA, so the state remains as is and uncles are dropped
 	header.Root = state.IntermediateRoot(chain.Config().IsEIP158(header.Number))
 	header.UncleHash = types.CalcUncleHash(nil)
@@ -601,11 +600,15 @@ func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, head
 // with.
 func (c *Consortium) Authorize(signer common.Address, signFn consortiumCommon.SignerFn, signTxFn consortiumCommon.SignerTxFn) {
 	c.lock.Lock()
-	defer c.lock.Unlock()
-
 	c.val = signer
 	c.signFn = signFn
 	c.signTxFn = signTxFn
+	c.lock.Unlock()
+
+	err := c.initContract(signer, signTxFn)
+	if err != nil {
+		log.Error("Failed to init system contract caller", "err", err)
+	}
 }
 
 // Seal implements consensus.Engine, attempting to create a sealed block using
@@ -783,9 +786,9 @@ func (c *Consortium) signerInTurn(signer common.Address, number uint64, validato
 	return validators[index] == signer
 }
 
-func (c *Consortium) initContract() error {
+func (c *Consortium) initContract(coinbase common.Address, signTxFn consortiumCommon.SignerTxFn) error {
 	if c.chainConfig.ConsortiumV2Block != nil && c.chainConfig.ConsortiumV2Contracts != nil {
-		contract, err := consortiumCommon.NewContractIntegrator(c.chainConfig, consortiumCommon.NewConsortiumBackend(c.ethAPI), c.signTxFn, c.val)
+		contract, err := consortiumCommon.NewContractIntegrator(c.chainConfig, consortiumCommon.NewConsortiumBackend(c.ethAPI), signTxFn, coinbase)
 		if err != nil {
 			return err
 		}
