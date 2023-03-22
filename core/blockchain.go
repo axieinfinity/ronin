@@ -805,10 +805,6 @@ func (bc *BlockChain) Stop() {
 	if !atomic.CompareAndSwapInt32(&bc.running, 0, 1) {
 		return
 	}
-
-	// Unsubscribe all subscriptions registered from blockchain.
-	bc.scope.Close()
-
 	// Signal shutdown to all goroutines.
 	close(bc.quit)
 	bc.StopInsert()
@@ -821,6 +817,9 @@ func (bc *BlockChain) Stop() {
 	// returned.
 	bc.chainmu.Close()
 	bc.wg.Wait()
+
+	// Unsubscribe all subscriptions registered from blockchain.
+	bc.scope.Close()
 
 	// Ensure that the entirety of the state snapshot is journalled to disk.
 	var snapBase common.Hash
