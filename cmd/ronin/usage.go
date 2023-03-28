@@ -229,6 +229,16 @@ var AppHelpFlagGroups = []flags.FlagGroup{
 		},
 	},
 	{
+		Name: "PROFILING",
+		Flags: []cli.Flag{
+			utils.PyroscopeEnableFlag,
+			utils.PyroscopeApplicationName,
+			utils.PyroscopeServerAddress,
+			utils.PyroscopeBlockProfileRate,
+			utils.PyroscopeMutexProfileFraction,
+		},
+	},
+	{
 		Name: "MISC",
 		Flags: []cli.Flag{
 			utils.SnapshotFlag,
