@@ -85,13 +85,15 @@ var (
 )
 
 const (
-	bodyCacheLimit      = 256
-	blockCacheLimit     = 256
-	receiptsCacheLimit  = 32
-	txLookupCacheLimit  = 1024
-	maxFutureBlocks     = 256
-	maxTimeFutureBlocks = 30
-	TriesInMemory       = 128
+	bodyCacheLimit          = 256
+	blockCacheLimit         = 256
+	receiptsCacheLimit      = 32
+	txLookupCacheLimit      = 1024
+	maxFutureBlocks         = 256
+	maxTimeFutureBlocks     = 30
+	TriesInMemory           = 128
+	dirtyAccountsCacheLimit = 32
+	internalTxsCacheLimit   = 32
 
 	// BlockChainVersion ensures that an incompatible database forces a resync from scratch.
 	//
@@ -196,13 +198,15 @@ type BlockChain struct {
 	currentBlock     atomic.Value // Current head of the block chain
 	currentFastBlock atomic.Value // Current head of the fast-sync chain (may be above the block chain!)
 
-	stateCache    state.Database // State database to reuse between imports (contains state cache)
-	bodyCache     *lru.Cache     // Cache for the most recent block bodies
-	bodyRLPCache  *lru.Cache     // Cache for the most recent block bodies in RLP encoded format
-	receiptsCache *lru.Cache     // Cache for the most recent receipts per block
-	blockCache    *lru.Cache     // Cache for the most recent entire blocks
-	txLookupCache *lru.Cache     // Cache for the most recent transaction lookup data.
-	futureBlocks  *lru.Cache     // future blocks are blocks added for later processing
+	stateCache                state.Database // State database to reuse between imports (contains state cache)
+	bodyCache                 *lru.Cache     // Cache for the most recent block bodies
+	bodyRLPCache              *lru.Cache     // Cache for the most recent block bodies in RLP encoded format
+	receiptsCache             *lru.Cache     // Cache for the most recent receipts per block
+	blockCache                *lru.Cache     // Cache for the most recent entire blocks
+	txLookupCache             *lru.Cache     // Cache for the most recent transaction lookup data.
+	futureBlocks              *lru.Cache     // future blocks are blocks added for later processing
+	dirtyAccountsCache        *lru.Cache     // Cache for the most recent dirtyAccounts
+	internalTransactionsCache *lru.Cache     // Cache for most recent internal transactions with block hash at key
 
 	wg            sync.WaitGroup //
 	quit          chan struct{}  // shutdown signal, closed in Stop.
@@ -231,6 +235,8 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 	blockCache, _ := lru.New(blockCacheLimit)
 	txLookupCache, _ := lru.New(txLookupCacheLimit)
 	futureBlocks, _ := lru.New(maxFutureBlocks)
+	dirtyAccountsCache, _ := lru.New(dirtyAccountsCacheLimit)
+	internalTxsCache, _ := lru.New(internalTxsCacheLimit)
 
 	bc := &BlockChain{
 		chainConfig: chainConfig,
@@ -242,17 +248,19 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 			Journal:   cacheConfig.TrieCleanJournal,
 			Preimages: cacheConfig.Preimages,
 		}),
-		quit:           make(chan struct{}),
-		chainmu:        syncx.NewClosableMutex(),
-		shouldPreserve: shouldPreserve,
-		bodyCache:      bodyCache,
-		bodyRLPCache:   bodyRLPCache,
-		receiptsCache:  receiptsCache,
-		blockCache:     blockCache,
-		txLookupCache:  txLookupCache,
-		futureBlocks:   futureBlocks,
-		engine:         engine,
-		vmConfig:       vmConfig,
+		quit:                      make(chan struct{}),
+		chainmu:                   syncx.NewClosableMutex(),
+		shouldPreserve:            shouldPreserve,
+		bodyCache:                 bodyCache,
+		bodyRLPCache:              bodyRLPCache,
+		receiptsCache:             receiptsCache,
+		blockCache:                blockCache,
+		txLookupCache:             txLookupCache,
+		dirtyAccountsCache:        dirtyAccountsCache,
+		internalTransactionsCache: internalTxsCache,
+		futureBlocks:              futureBlocks,
+		engine:                    engine,
+		vmConfig:                  vmConfig,
 	}
 	bc.validator = NewBlockValidator(chainConfig, bc, engine)
 	bc.prefetcher = newStatePrefetcher(chainConfig, bc, engine)
@@ -1669,8 +1677,9 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, er
 			return it.index, err
 		}
 
-		// send internalTxs events
+		// store internal txs to db and send them to internalTxFeed
 		if len(internalTxs) > 0 {
+			bc.WriteInternalTransactions(block.Hash(), internalTxs)
 			bc.internalTxFeed.Send(internalTxs)
 		}
 
@@ -1712,6 +1721,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, er
 
 		if dirtyAccounts != nil {
 			bc.dirtyAccountFeed.Send(dirtyAccounts)
+			bc.dirtyAccountsCache.Add(block.Hash(), dirtyAccounts)
 		}
 
 		// Update the metrics touched during block commit
@@ -1915,10 +1925,10 @@ func (bc *BlockChain) reorg(oldBlock, newBlock *types.Block) error {
 		// collectLogs collects the logs that were generated or removed during
 		// the processing of the block that corresponds with the given hash.
 		// These logs are later announced as deleted or reborn
-		collectLogs = func(hash common.Hash, removed bool) {
+		collectLogs = func(hash common.Hash, removed bool) (types.Receipts, []*types.Log) {
 			number := bc.hc.GetBlockNumber(hash)
 			if number == nil {
-				return
+				return nil, nil
 			}
 			receipts := rawdb.ReadReceipts(bc.db, hash, *number, bc.chainConfig)
 
@@ -1939,6 +1949,7 @@ func (bc *BlockChain) reorg(oldBlock, newBlock *types.Block) error {
 					rebirthLogs = append(rebirthLogs, logs)
 				}
 			}
+			return receipts, logs
 		}
 		// mergeLogs returns a merged log slice with specified sort order.
 		mergeLogs = func(logs [][]*types.Log, reverse bool) []*types.Log {
@@ -2023,7 +2034,16 @@ func (bc *BlockChain) reorg(oldBlock, newBlock *types.Block) error {
 		bc.writeHeadBlock(newChain[i])
 
 		// Collect reborn logs due to chain reorg
-		collectLogs(newChain[i].Hash(), false)
+		receipts, logs := collectLogs(newChain[i].Hash(), false)
+
+		// get dirty accounts
+		dirtyAccounts := bc.ReadDirtyAccounts(newChain[i].Hash())
+
+		// get internal transactions
+		internalTxs := bc.ReadInternalTransactions(newChain[i].Hash())
+
+		log.Info("send new block event due to reorg", "height", newChain[i].NumberU64(), "txs", len(newChain[i].Transactions()), "logs", len(logs))
+		bc.chainFeed.Send(ChainEvent{Block: newChain[i], Hash: newChain[i].Hash(), Logs: logs, InternalTxs: internalTxs, DirtyAccounts: dirtyAccounts, Receipts: receipts})
 
 		// Collect the new added transactions.
 		addedTxs = append(addedTxs, newChain[i].Transactions()...)

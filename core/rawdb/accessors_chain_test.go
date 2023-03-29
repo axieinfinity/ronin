@@ -26,6 +26,7 @@ import (
 	"os"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -882,4 +883,64 @@ func BenchmarkDecodeRLPLogs(b *testing.B) {
 			}
 		}
 	})
+}
+
+func TestReadWriteInternalTransactions(t *testing.T) {
+	db := NewMemoryDatabase()
+	blockTime := time.Now().Unix()
+	blockHash := common.HexToHash("0x3")
+	internalTxs := []*types.InternalTransaction{
+		{
+			Opcode:  "CALL",
+			Type:    "call",
+			Success: true,
+			Error:   "",
+			InternalTransactionBody: &types.InternalTransactionBody{
+				Order:           1,
+				TransactionHash: common.HexToHash("0x4"),
+				Value:           nil,
+				Input:           nil,
+				Output:          nil,
+				From:            common.HexToAddress("0x1"),
+				To:              common.HexToAddress("0x2"),
+				Height:          100,
+				BlockHash:       blockHash,
+				BlockTime:       uint64(blockTime),
+			},
+		},
+		{
+			Opcode:  "CALL",
+			Type:    "call",
+			Success: true,
+			Error:   "",
+			InternalTransactionBody: &types.InternalTransactionBody{
+				Order:           2,
+				TransactionHash: common.HexToHash("0x4"),
+				Value:           nil,
+				Input:           nil,
+				Output:          nil,
+				From:            common.HexToAddress("0x3"),
+				To:              common.HexToAddress("0x4"),
+				Height:          100,
+				BlockHash:       blockHash,
+				BlockTime:       uint64(blockTime),
+			},
+		},
+	}
+	WriteInternalTransactions(db, blockHash, internalTxs)
+	results := ReadInternalTransactions(db, blockHash)
+	if results == nil {
+		t.Fatal("no internal transactions found at hash")
+	}
+	if len(results) != len(internalTxs) {
+		t.Fatalf("mismatched length between input and output internal transactions, expected %d got %d", len(internalTxs), len(results))
+	}
+	for i, tx := range internalTxs {
+		if tx.Hash().Hex() != results[i].Hash().Hex() {
+			t.Fatalf("mismatched hash at index %d, expected %s got %s", i, tx.Hash().Hex(), results[i].Hash().Hex())
+		}
+		if tx.Opcode != results[i].Opcode {
+			t.Fatalf("mismatched Opcode at index %d, expected %s got %s", i, tx.Opcode, results[i].Opcode)
+		}
+	}
 }

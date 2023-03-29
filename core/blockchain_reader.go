@@ -400,6 +400,38 @@ func (bc *BlockChain) SubscribeDirtyAccountEvent(ch chan<- []*types.DirtyStateAc
 	return bc.scope.Track(bc.dirtyAccountFeed.Subscribe(ch))
 }
 
+func (bc *BlockChain) WriteInternalTransactions(hash common.Hash, internalTxs []*types.InternalTransaction) {
+	// cache first
+	bc.internalTransactionsCache.Add(hash, internalTxs)
+
+	// check if store internal transactions is enabled or not
+	if !rawdb.ReadStoreInternalTransactionsEnabled(bc.db) {
+		return
+	}
+	rawdb.WriteInternalTransactions(bc.db, hash, internalTxs)
+}
+
+func (bc *BlockChain) ReadInternalTransactions(hash common.Hash) []*types.InternalTransaction {
+	// get internal txs from cache
+	if internalTxs, exist := bc.internalTransactionsCache.Get(hash); exist {
+		return internalTxs.([]*types.InternalTransaction)
+	}
+	// otherwise get from db
+	internalTxs := rawdb.ReadInternalTransactions(bc.db, hash)
+	if internalTxs == nil {
+		return nil
+	}
+	bc.internalTransactionsCache.Add(hash, internalTxs)
+	return internalTxs
+}
+
+func (bc *BlockChain) ReadDirtyAccounts(hash common.Hash) []*types.DirtyStateAccount {
+	if dirtyAccount, _ := bc.dirtyAccountsCache.Get(hash); dirtyAccount != nil {
+		return dirtyAccount.([]*types.DirtyStateAccount)
+	}
+	return nil
+}
+
 func (bc *BlockChain) OpEvents() []*vm.PublishEvent {
 	return []*vm.PublishEvent{
 		{
@@ -427,20 +459,22 @@ func (tx *InternalTransferOrSmcCallEvent) Publish(
 	err error,
 ) *types.InternalTransaction {
 	internal := &types.InternalTransaction{
-		Opcode:          opcode.String(),
-		Order:           order,
-		TransactionHash: hash,
-		Type:            types.InternalTransactionContractCall,
-		Value:           value,
-		Input:           input,
-		Output:          output,
-		From:            from,
-		To:              to,
-		Success:         err == nil,
-		Error:           "",
-		Height:          blockHeight,
-		BlockHash:       blockHash,
-		BlockTime:       blockTime,
+		Opcode:  opcode.String(),
+		Type:    types.InternalTransactionContractCall,
+		Success: err == nil,
+		Error:   "",
+		InternalTransactionBody: &types.InternalTransactionBody{
+			Order:           order,
+			TransactionHash: hash,
+			Value:           value,
+			Input:           input,
+			Output:          output,
+			From:            from,
+			To:              to,
+			Height:          blockHeight,
+			BlockHash:       blockHash,
+			BlockTime:       blockTime,
+		},
 	}
 	if value != nil && value.Cmp(big.NewInt(0)) > 0 && (input == nil || len(input) == 0) {
 		internal.Type = types.InternalTransactionTransfer
@@ -465,20 +499,22 @@ func (tx *InternalTransactionContractCreation) Publish(
 	err error,
 ) *types.InternalTransaction {
 	internal := &types.InternalTransaction{
-		Opcode:          opcode.String(),
-		Order:           order,
-		TransactionHash: hash,
-		Type:            types.InternalTransactionContractCreation,
-		Value:           value,
-		Input:           input,
-		Output:          output,
-		From:            from,
-		To:              to,
-		Success:         err == nil,
-		Error:           "",
-		Height:          blockHeight,
-		BlockHash:       blockHash,
-		BlockTime:       blockTime,
+		Opcode:  opcode.String(),
+		Type:    types.InternalTransactionContractCreation,
+		Success: err == nil,
+		Error:   "",
+		InternalTransactionBody: &types.InternalTransactionBody{
+			Order:           order,
+			TransactionHash: hash,
+			Value:           value,
+			Input:           input,
+			Output:          output,
+			From:            from,
+			To:              to,
+			Height:          blockHeight,
+			BlockHash:       blockHash,
+			BlockTime:       blockTime,
+		},
 	}
 	if err != nil {
 		internal.Error = err.Error()

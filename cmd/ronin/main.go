@@ -160,6 +160,7 @@ var (
 		configFileFlag,
 		utils.CatalystFlag,
 		utils.MonitorDoubleSign,
+		utils.StoreInternalTransactions,
 	}
 
 	rpcFlags = []cli.Flag{

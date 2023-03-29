@@ -56,6 +56,7 @@ var AppHelpFlagGroups = []flags.FlagGroup{
 			utils.WhitelistFlag,
 			utils.ForceOverrideChainConfigFlag,
 			utils.MonitorDoubleSign,
+			utils.StoreInternalTransactions,
 		},
 	},
 	{

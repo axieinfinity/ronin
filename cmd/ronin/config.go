@@ -20,6 +20,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"github.com/ethereum/go-ethereum/core/rawdb"
 	"math/big"
 	"os"
 	"reflect"
@@ -160,6 +161,9 @@ func makeFullNode(ctx *cli.Context) (*node.Node, ethapi.Backend) {
 		cfg.Eth.OverrideArrowGlacier = new(big.Int).SetUint64(ctx.GlobalUint64(utils.OverrideArrowGlacierFlag.Name))
 	}
 	backend, eth := utils.RegisterEthService(stack, &cfg.Eth)
+
+	// store internal transaction is enabled flag
+	rawdb.WriteStoreInternalTransactionsEnabled(backend.ChainDb(), ctx.GlobalBool(utils.StoreInternalTransactions.Name))
 
 	// Configure catalyst.
 	if ctx.GlobalBool(utils.CatalystFlag.Name) {

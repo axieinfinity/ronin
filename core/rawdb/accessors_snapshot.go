@@ -216,3 +216,20 @@ func DeleteSnapshotSyncStatus(db ethdb.KeyValueWriter) {
 		log.Crit("Failed to remove snapshot sync status", "err", err)
 	}
 }
+
+// ReadStoreInternalTransactionsEnabled retrieves if the store internal transactions option is enabled.
+func ReadStoreInternalTransactionsEnabled(db ethdb.KeyValueReader) bool {
+	disabled, _ := db.Get(storeInternalTxsEnabledKey)
+	return len(disabled) > 0 && string(disabled) == "1"
+}
+
+// WriteStoreInternalTransactionsEnabled stores the store internal transactions enabled flag.
+func WriteStoreInternalTransactionsEnabled(db ethdb.KeyValueWriter, store bool) {
+	v := []byte("0")
+	if store {
+		v = []byte("1")
+	}
+	if err := db.Put(storeInternalTxsEnabledKey, v); err != nil {
+		log.Crit("Failed to store internal transactions enabled flag", "err", err)
+	}
+}

@@ -470,6 +470,32 @@ func DeleteBody(db ethdb.KeyValueWriter, hash common.Hash, number uint64) {
 	}
 }
 
+// ReadInternalTransactions retrieves the internal transactions corresponding to the hash.
+func ReadInternalTransactions(db ethdb.Reader, hash common.Hash) []*types.InternalTransaction {
+	// If not, try reading from leveldb
+	data, _ := db.Get(internalTxsKey(hash))
+	if len(data) == 0 {
+		return nil
+	}
+	var internalTxs []*types.InternalTransaction
+	if err := rlp.Decode(bytes.NewReader(data), &internalTxs); err != nil {
+		log.Error("Invalid internal transactions RLP", "hash", hash, "err", err)
+		return nil
+	}
+	return internalTxs
+}
+
+// WriteInternalTransactions stores internal transactions into the database.
+func WriteInternalTransactions(db ethdb.KeyValueWriter, hash common.Hash, internalTxs []*types.InternalTransaction) {
+	data, err := rlp.EncodeToBytes(internalTxs)
+	if err != nil {
+		log.Crit("Failed to RLP encode internal txs", "err", err)
+	}
+	if err := db.Put(internalTxsKey(hash), data); err != nil {
+		log.Crit("Failed to store internal txs", "err", err)
+	}
+}
+
 // ReadTdRLP retrieves a block's total difficulty corresponding to the hash in RLP encoding.
 func ReadTdRLP(db ethdb.Reader, hash common.Hash, number uint64) rlp.RawValue {
 	var data []byte
