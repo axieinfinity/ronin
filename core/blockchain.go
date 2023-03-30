@@ -219,7 +219,8 @@ type BlockChain struct {
 	processor  Processor // Block transaction processor interface
 	vmConfig   vm.Config
 
-	shouldPreserve func(*types.Block) bool // Function used to determine whether should preserve the given block.
+	shouldPreserve         func(*types.Block) bool // Function used to determine whether should preserve the given block.
+	shouldStoreInternalTxs bool
 }
 
 // NewBlockChain returns a fully initialised block chain using information
@@ -261,6 +262,7 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 		futureBlocks:              futureBlocks,
 		engine:                    engine,
 		vmConfig:                  vmConfig,
+		shouldStoreInternalTxs:    rawdb.ReadStoreInternalTransactionsEnabled(db),
 	}
 	bc.validator = NewBlockValidator(chainConfig, bc, engine)
 	bc.prefetcher = newStatePrefetcher(chainConfig, bc, engine)

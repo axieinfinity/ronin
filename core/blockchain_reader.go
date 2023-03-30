@@ -405,7 +405,7 @@ func (bc *BlockChain) WriteInternalTransactions(hash common.Hash, internalTxs []
 	bc.internalTransactionsCache.Add(hash, internalTxs)
 
 	// check if store internal transactions is enabled or not
-	if !rawdb.ReadStoreInternalTransactionsEnabled(bc.db) {
+	if !bc.shouldStoreInternalTxs {
 		return
 	}
 	rawdb.WriteInternalTransactions(bc.db, hash, internalTxs)
