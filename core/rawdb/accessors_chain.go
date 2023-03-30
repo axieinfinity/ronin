@@ -472,7 +472,6 @@ func DeleteBody(db ethdb.KeyValueWriter, hash common.Hash, number uint64) {
 
 // ReadInternalTransactions retrieves the internal transactions corresponding to the hash.
 func ReadInternalTransactions(db ethdb.Reader, hash common.Hash) []*types.InternalTransaction {
-	// If not, try reading from leveldb
 	data, _ := db.Get(internalTxsKey(hash))
 	if len(data) == 0 {
 		return nil
@@ -992,5 +991,37 @@ func WriteStoreInternalTransactionsEnabled(db ethdb.KeyValueWriter, store bool) 
 	}
 	if err := db.Put(storeInternalTxsEnabledKey, v); err != nil {
 		log.Crit("Failed to store internal transactions enabled flag", "err", err)
+	}
+}
+
+// WriteDirtyAccounts stores the dirty accounts to db.
+func WriteDirtyAccounts(db ethdb.KeyValueWriter, hash common.Hash, dirtyAccounts []*types.DirtyStateAccount) {
+	data, err := rlp.EncodeToBytes(dirtyAccounts)
+	if err != nil {
+		log.Crit("Failed to encode dirty accounts", "err", err, "hash", hash.Hex())
+	}
+	if err := db.Put(dirtyAccountsKey(hash), data); err != nil {
+		log.Crit("Failed to write dirty accounts", "err", err, "hash", hash.Hex())
+	}
+}
+
+// ReadDirtyAccounts get dirty accounts from db
+func ReadDirtyAccounts(db ethdb.KeyValueReader, hash common.Hash) []*types.DirtyStateAccount {
+	data, _ := db.Get(dirtyAccountsKey(hash))
+	if len(data) == 0 {
+		return nil
+	}
+	var dirtyAccounts []*types.DirtyStateAccount
+	if err := rlp.Decode(bytes.NewReader(data), &dirtyAccounts); err != nil {
+		log.Error("Invalid dirty accounts RLP", "hash", hash.Hex(), "err", err)
+		return nil
+	}
+	return dirtyAccounts
+}
+
+// DeleteDirtyAccounts deletes dirty accounts from db
+func DeleteDirtyAccounts(db ethdb.KeyValueWriter, hash common.Hash) {
+	if err := db.Delete(dirtyAccountsKey(hash)); err != nil {
+		log.Crit("Failed to delete dirty accounts", "err", err, "hash", hash.Hex())
 	}
 }

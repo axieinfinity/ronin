@@ -416,7 +416,23 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 			triedb.SaveCachePeriodically(bc.cacheConfig.TrieCleanJournal, bc.cacheConfig.TrieCleanRejournal, bc.quit)
 		}()
 	}
+
+	// load the latest dirty accounts stored from last stop to cache
+	bc.loadLatestDirtyAccounts()
+
 	return bc, nil
+}
+
+func (bc *BlockChain) loadLatestDirtyAccounts() {
+	for i := uint64(dirtyAccountsCacheLimit); i > 0; i-- {
+		hash := rawdb.ReadCanonicalHash(bc.db, bc.CurrentBlock().NumberU64()-i)
+		dirtyAccounts := rawdb.ReadDirtyAccounts(bc.db, hash)
+		if len(dirtyAccounts) > 0 {
+			// add dirty accounts to cache and delete it from db
+			bc.dirtyAccountsCache.Add(hash, dirtyAccounts)
+			rawdb.DeleteDirtyAccounts(bc.db, hash)
+		}
+	}
 }
 
 func (bc *BlockChain) StartDoubleSignMonitor() {
@@ -830,6 +846,12 @@ func (bc *BlockChain) Stop() {
 
 	// Unsubscribe all subscriptions registered from blockchain.
 	bc.scope.Close()
+
+	// store cached dirty accounts to db
+	for _, blockHash := range bc.dirtyAccountsCache.Keys() {
+		dirtyAccounts, _ := bc.dirtyAccountsCache.Get(blockHash)
+		rawdb.WriteDirtyAccounts(bc.db, blockHash.(common.Hash), dirtyAccounts.([]*types.DirtyStateAccount))
+	}
 
 	// Ensure that the entirety of the state snapshot is journalled to disk.
 	var snapBase common.Hash
