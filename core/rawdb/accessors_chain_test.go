@@ -945,54 +945,91 @@ func TestReadWriteInternalTransactions(t *testing.T) {
 	}
 }
 
-func TestReadWriteDeleteDirtyAccounts(t *testing.T) {
+func TestReadWriteDirtyAccounts(t *testing.T) {
 	db := NewMemoryDatabase()
-	blockHash := common.HexToHash("0x3")
-	dirtyAccounts := []*types.DirtyStateAccount{
+	blockHash1, blockHash2 := common.HexToHash("0x3"), common.HexToHash("0x4")
+	dirtyAccounts := []*types.DirtyStateAccountsAndBlock{
 		{
-			Address:     common.HexToAddress("0x1"),
-			Nonce:       1,
-			Balance:     big.NewInt(0),
-			Root:        common.HexToHash("0x123"),
-			CodeHash:    common.HexToHash("0x234"),
-			BlockNumber: 100,
-			BlockHash:   blockHash,
-			Deleted:     false,
-			Suicided:    false,
-			DirtyCode:   false,
+			BlockHash: blockHash1,
+			DirtyAccounts: []*types.DirtyStateAccount{
+				{
+					Address:     common.HexToAddress("0x1"),
+					Nonce:       1,
+					Balance:     big.NewInt(0),
+					Root:        common.HexToHash("0x123"),
+					CodeHash:    common.HexToHash("0x234"),
+					BlockNumber: 100,
+					BlockHash:   blockHash1,
+					Deleted:     false,
+					Suicided:    false,
+					DirtyCode:   false,
+				},
+				{
+					Address:     common.HexToAddress("0x2"),
+					Nonce:       2,
+					Balance:     big.NewInt(0),
+					Root:        common.HexToHash("0x123"),
+					CodeHash:    common.HexToHash("0x234"),
+					BlockNumber: 100,
+					BlockHash:   blockHash1,
+					Deleted:     false,
+					Suicided:    false,
+					DirtyCode:   false,
+				},
+			},
 		},
 		{
-			Address:     common.HexToAddress("0x2"),
-			Nonce:       2,
-			Balance:     big.NewInt(0),
-			Root:        common.HexToHash("0x123"),
-			CodeHash:    common.HexToHash("0x234"),
-			BlockNumber: 100,
-			BlockHash:   blockHash,
-			Deleted:     false,
-			Suicided:    false,
-			DirtyCode:   false,
+			BlockHash: blockHash2,
+			DirtyAccounts: []*types.DirtyStateAccount{
+				{
+					Address:     common.HexToAddress("0x3"),
+					Nonce:       3,
+					Balance:     big.NewInt(0),
+					Root:        common.HexToHash("0x123"),
+					CodeHash:    common.HexToHash("0x234"),
+					BlockNumber: 100,
+					BlockHash:   blockHash2,
+					Deleted:     false,
+					Suicided:    false,
+					DirtyCode:   false,
+				},
+				{
+					Address:     common.HexToAddress("0x4"),
+					Nonce:       4,
+					Balance:     big.NewInt(0),
+					Root:        common.HexToHash("0x123"),
+					CodeHash:    common.HexToHash("0x234"),
+					BlockNumber: 100,
+					BlockHash:   blockHash2,
+					Deleted:     false,
+					Suicided:    false,
+					DirtyCode:   false,
+				},
+			},
 		},
 	}
-	WriteDirtyAccounts(db, blockHash, dirtyAccounts)
-	results := ReadDirtyAccounts(db, blockHash)
+	WriteDirtyAccounts(db, dirtyAccounts)
+	results := ReadDirtyAccounts(db)
 	if results == nil {
 		t.Fatal("no dirty accounts found at hash")
 	}
 	if len(results) != len(dirtyAccounts) {
 		t.Fatalf("mismatched length between input and output dirty accounts, expected %d got %d", len(dirtyAccounts), len(results))
 	}
-	for i, acc := range dirtyAccounts {
-		if acc.Address.Hex() != results[i].Address.Hex() {
-			t.Fatalf("mismatched address at index %d, expected %s got %s", i, acc.Address.Hex(), results[i].Address.Hex())
+	for i, accs := range dirtyAccounts {
+		if accs.BlockHash.Hex() != results[i].BlockHash.Hex() {
+			t.Fatalf("mismatched blockHash at index %d, expected %s got %s", i, accs.BlockHash.Hex(), results[i].BlockHash.Hex())
 		}
-		if acc.Nonce != results[i].Nonce {
-			t.Fatalf("mismatched nonce at index %d, expected %d got %d", i, acc.Nonce, results[i].Nonce)
+		if len(accs.DirtyAccounts) != len(results[i].DirtyAccounts) {
+			t.Fatalf("mismatched length between input and output dirty accounts at index %d, expected %d got %d", i, len(accs.DirtyAccounts), len(results[i].DirtyAccounts))
 		}
-	}
-	DeleteDirtyAccounts(db, blockHash)
-	results = ReadDirtyAccounts(db, blockHash)
-	if len(results) > 0 {
-		t.Fatalf("invalid results, expected len 0 got %d", len(results))
+		for j, acc := range accs.DirtyAccounts {
+			if acc.Address.Hex() != results[i].DirtyAccounts[j].Address.Hex() {
+				t.Fatalf("mismatched address at index %d, expected %s got %s", i, acc.Address.Hex(), results[i].DirtyAccounts[j].Address.Hex())
+			}
+			if acc.Nonce != results[i].DirtyAccounts[j].Nonce {
+				t.Fatalf("mismatched address at index %d, expected %d got %d", i, acc.Nonce, results[i].DirtyAccounts[j].Nonce)
+			}
+		}
 	}
 }

@@ -424,14 +424,9 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 }
 
 func (bc *BlockChain) loadLatestDirtyAccounts() {
-	for i := uint64(dirtyAccountsCacheLimit); i > 0; i-- {
-		hash := rawdb.ReadCanonicalHash(bc.db, bc.CurrentBlock().NumberU64()-i)
-		dirtyAccounts := rawdb.ReadDirtyAccounts(bc.db, hash)
-		if len(dirtyAccounts) > 0 {
-			// add dirty accounts to cache and delete it from db
-			bc.dirtyAccountsCache.Add(hash, dirtyAccounts)
-			rawdb.DeleteDirtyAccounts(bc.db, hash)
-		}
+	dirtyStateAccounts := rawdb.ReadDirtyAccounts(bc.db)
+	for _, data := range dirtyStateAccounts {
+		bc.dirtyAccountsCache.Add(data.BlockHash, data.DirtyAccounts)
 	}
 }
 
@@ -848,9 +843,16 @@ func (bc *BlockChain) Stop() {
 	bc.scope.Close()
 
 	// store cached dirty accounts to db
+	dirtyStateAccounts := make([]*types.DirtyStateAccountsAndBlock, 0)
 	for _, blockHash := range bc.dirtyAccountsCache.Keys() {
 		dirtyAccounts, _ := bc.dirtyAccountsCache.Get(blockHash)
-		rawdb.WriteDirtyAccounts(bc.db, blockHash.(common.Hash), dirtyAccounts.([]*types.DirtyStateAccount))
+		dirtyStateAccounts = append(dirtyStateAccounts, &types.DirtyStateAccountsAndBlock{
+			BlockHash:     blockHash.(common.Hash),
+			DirtyAccounts: dirtyAccounts.([]*types.DirtyStateAccount),
+		})
+	}
+	if len(dirtyStateAccounts) > 0 {
+		rawdb.WriteDirtyAccounts(bc.db, dirtyStateAccounts)
 	}
 
 	// Ensure that the entirety of the state snapshot is journalled to disk.
@@ -1480,7 +1482,7 @@ func (bc *BlockChain) InsertChainWithoutSealVerification(block *types.Block) (in
 		return 0, errChainStopped
 	}
 	defer bc.chainmu.Unlock()
-	return bc.insertChain(types.Blocks([]*types.Block{block}), false)
+	return bc.insertChain([]*types.Block{block}, false)
 }
 
 // insertChain is the internal implementation of InsertChain, which assumes that

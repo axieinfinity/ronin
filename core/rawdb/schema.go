@@ -93,8 +93,8 @@ var (
 	SnapshotStoragePrefix = []byte("o") // SnapshotStoragePrefix + account hash + storage hash -> storage trie value
 	CodePrefix            = []byte("c") // CodePrefix + code hash -> account code
 
-	internalTxsPrefix   = []byte("itxs") // internalTxsPrefix + block hash -> internal transactions
-	dirtyAccountsPrefix = []byte("dacc") // dirtyAccountsPrefix + block hash -> dirty accounts
+	internalTxsPrefix = []byte("itxs") // internalTxsPrefix + block hash -> internal transactions
+	dirtyAccountsKey  = []byte("dacc") // dirtyAccountsPrefix + block hash -> dirty accounts
 
 	PreimagePrefix = []byte("secure-key-")      // PreimagePrefix + hash -> preimage
 	configPrefix   = []byte("ethereum-config-") // config prefix for the db
@@ -186,10 +186,6 @@ func blockReceiptsKey(number uint64, hash common.Hash) []byte {
 // internalTxsKey = internalTxsPrefix + hash
 func internalTxsKey(hash common.Hash) []byte {
 	return append(internalTxsPrefix, hash.Bytes()...)
-}
-
-func dirtyAccountsKey(hash common.Hash) []byte {
-	return append(dirtyAccountsPrefix, hash.Bytes()...)
 }
 
 // txLookupKey = txLookupPrefix + hash

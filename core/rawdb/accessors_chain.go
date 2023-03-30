@@ -995,33 +995,26 @@ func WriteStoreInternalTransactionsEnabled(db ethdb.KeyValueWriter, store bool) 
 }
 
 // WriteDirtyAccounts stores the dirty accounts to db.
-func WriteDirtyAccounts(db ethdb.KeyValueWriter, hash common.Hash, dirtyAccounts []*types.DirtyStateAccount) {
-	data, err := rlp.EncodeToBytes(dirtyAccounts)
+func WriteDirtyAccounts(db ethdb.KeyValueWriter, dirtyStateAccounts []*types.DirtyStateAccountsAndBlock) {
+	data, err := rlp.EncodeToBytes(dirtyStateAccounts)
 	if err != nil {
-		log.Crit("Failed to encode dirty accounts", "err", err, "hash", hash.Hex())
+		log.Crit("Failed to encode dirty accounts", "err", err)
 	}
-	if err := db.Put(dirtyAccountsKey(hash), data); err != nil {
-		log.Crit("Failed to write dirty accounts", "err", err, "hash", hash.Hex())
+	if err := db.Put(dirtyAccountsKey, data); err != nil {
+		log.Crit("Failed to write dirty accounts", "err", err)
 	}
 }
 
 // ReadDirtyAccounts get dirty accounts from db
-func ReadDirtyAccounts(db ethdb.KeyValueReader, hash common.Hash) []*types.DirtyStateAccount {
-	data, _ := db.Get(dirtyAccountsKey(hash))
+func ReadDirtyAccounts(db ethdb.KeyValueReader) []*types.DirtyStateAccountsAndBlock {
+	data, _ := db.Get(dirtyAccountsKey)
 	if len(data) == 0 {
 		return nil
 	}
-	var dirtyAccounts []*types.DirtyStateAccount
-	if err := rlp.Decode(bytes.NewReader(data), &dirtyAccounts); err != nil {
-		log.Error("Invalid dirty accounts RLP", "hash", hash.Hex(), "err", err)
+	var dirtyStateAccounts []*types.DirtyStateAccountsAndBlock
+	if err := rlp.Decode(bytes.NewReader(data), &dirtyStateAccounts); err != nil {
+		log.Error("Invalid dirty accounts RLP", "err", err)
 		return nil
 	}
-	return dirtyAccounts
-}
-
-// DeleteDirtyAccounts deletes dirty accounts from db
-func DeleteDirtyAccounts(db ethdb.KeyValueWriter, hash common.Hash) {
-	if err := db.Delete(dirtyAccountsKey(hash)); err != nil {
-		log.Crit("Failed to delete dirty accounts", "err", err, "hash", hash.Hex())
-	}
+	return dirtyStateAccounts
 }
