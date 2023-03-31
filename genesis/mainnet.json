@@ -15,8 +15,17 @@
     "fenixValidatorContractAddress": "0x7f13232Bdc3a010c3f749a1c25bF99f1C053CE70",
     "consortium": {
       "period": 3,
-      "epoch": 600
-    }
+      "epoch": 600,
+      "epochV2": 200
+    },
+    "consortiumV2Block": 23155200,
+    "consortiumV2Contracts": {
+      "roninValidatorSet": "0x617c5d73662282EA7FfD231E020eCa6D2B0D552f",
+      "slashIndicator": "0xEBFFF2b32fA0dF9C5C8C5d5AAa7e8b51d5207bA3",
+      "stakingContract": "0x545edb750eB8769C868429BE9586F5857A768758"
+    },
+    "puffyBlock": 0,
+    "bubaBlock": 0
   },
   "alloc": {
     "0x0000000000000000000000000000000000000011": {
