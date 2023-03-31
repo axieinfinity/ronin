@@ -18,13 +18,8 @@
 package main
 
 import (
+	"errors"
 	"fmt"
-	"os"
-	"sort"
-	"strconv"
-	"strings"
-	"time"
-
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/cmd/utils"
@@ -39,6 +34,13 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/node"
+	"github.com/pyroscope-io/client/pyroscope"
+	"os"
+	"runtime"
+	"sort"
+	"strconv"
+	"strings"
+	"time"
 
 	// Force-load the tracer engines to trigger registration
 	_ "github.com/ethereum/go-ethereum/eth/tracers/js"
@@ -48,7 +50,9 @@ import (
 )
 
 const (
-	clientIdentifier = "ronin" // Client identifier to advertise over the network
+	clientIdentifier            = "ronin" // Client identifier to advertise over the network
+	defaultMutexProfileFraction = 5
+	defaultBlockProfileRate     = 5
 )
 
 var (
@@ -190,18 +194,6 @@ var (
 		utils.ReadinessEnabledFlag,
 		utils.ReadinessPrometheusEndpointFlag,
 		utils.ReadinessBlockLagFlag,
-		utils.RPCUrlFlag,
-		utils.ArchiveUrlFlag,
-		utils.FreeGasProxyUrlFlag,
-		utils.DBCacheSizeLimitFlag,
-		utils.SafeBlockRangeFlag,
-		utils.ProxyRedisFlag,
-		utils.ProxyRedisAddressFlag,
-		utils.ProxyRedisExpirationFlag,
-		utils.ProxyRedisPoolSizeFlag,
-		utils.ProxyRedisReadTimeoutFlag,
-		utils.ProxyRedisWriteTimeoutFlag,
-		utils.ProxyRedisConnectionTimeoutFlag,
 	}
 
 	metricsFlags = []cli.Flag{
@@ -219,6 +211,14 @@ var (
 		utils.MetricsInfluxDBTokenFlag,
 		utils.MetricsInfluxDBBucketFlag,
 		utils.MetricsInfluxDBOrganizationFlag,
+	}
+
+	pyroscopeFlags = []cli.Flag{
+		utils.PyroscopeEnableFlag,
+		utils.PyroscopeApplicationName,
+		utils.PyroscopeServerAddress,
+		utils.PyroscopeBlockProfileRate,
+		utils.PyroscopeMutexProfileFraction,
 	}
 )
 
@@ -267,6 +267,7 @@ func init() {
 	app.Flags = append(app.Flags, consoleFlags...)
 	app.Flags = append(app.Flags, debug.Flags...)
 	app.Flags = append(app.Flags, metricsFlags...)
+	app.Flags = append(app.Flags, pyroscopeFlags...)
 
 	app.Before = func(ctx *cli.Context) error {
 		return debug.Setup(ctx)
@@ -338,12 +339,66 @@ func geth(ctx *cli.Context) error {
 	if args := ctx.Args(); len(args) > 0 {
 		return fmt.Errorf("invalid command: %q", args[0])
 	}
+	if ctx.GlobalBool(utils.PyroscopeEnableFlag.Name) {
+		profiler, err := setupPyroScopeProfiler(ctx)
+		if err != nil {
+			return err
+		}
+		defer profiler.Stop()
+	}
 	prepare(ctx)
 	stack, backend := makeFullNode(ctx)
 	defer stack.Close()
 	startNode(ctx, stack, backend)
 	stack.Wait()
 	return nil
+}
+
+func setupPyroScopeProfiler(ctx *cli.Context) (*pyroscope.Profiler, error) {
+	var (
+		mutexProfileFraction = defaultMutexProfileFraction
+		blockProfile         = defaultBlockProfileRate
+		serverAddress        = "http://localhost:4040"
+		applicationName      string
+	)
+
+	if ctx.GlobalIsSet(utils.PyroscopeApplicationName.Name) {
+		applicationName = ctx.GlobalString(utils.PyroscopeApplicationName.Name)
+	}
+	if applicationName == "" {
+		return nil, errors.New("applicationName is empty")
+	}
+
+	if ctx.GlobalIsSet(utils.PyroscopeMutexProfileFraction.Name) {
+		mutexProfileFraction = ctx.GlobalInt(utils.PyroscopeMutexProfileFraction.Name)
+	}
+
+	if ctx.GlobalIsSet(utils.PyroscopeBlockProfileRate.Name) {
+		blockProfile = ctx.GlobalInt(utils.PyroscopeBlockProfileRate.Name)
+	}
+
+	if ctx.GlobalIsSet(utils.PyroscopeServerAddress.Name) {
+		serverAddress = ctx.GlobalString(utils.PyroscopeServerAddress.Name)
+	}
+
+	runtime.SetMutexProfileFraction(mutexProfileFraction)
+	runtime.SetBlockProfileRate(blockProfile)
+	return pyroscope.Start(pyroscope.Config{
+		ApplicationName: applicationName,
+		ServerAddress:   serverAddress,
+		ProfileTypes: []pyroscope.ProfileType{
+			pyroscope.ProfileCPU,
+			pyroscope.ProfileAllocObjects,
+			pyroscope.ProfileAllocSpace,
+			pyroscope.ProfileInuseObjects,
+			pyroscope.ProfileInuseSpace,
+			pyroscope.ProfileGoroutines,
+			pyroscope.ProfileMutexCount,
+			pyroscope.ProfileMutexDuration,
+			pyroscope.ProfileBlockCount,
+			pyroscope.ProfileBlockDuration,
+		},
+	})
 }
 
 // startNode boots up the system node and all registered protocols, after which

@@ -820,69 +820,37 @@ var (
 		Usage: "Catalyst mode (eth2 integration testing)",
 	}
 
-	RPCUrlFlag = cli.StringFlag{
-		Name:  "proxy.rpcUrl",
-		Usage: "rpcUrl is used in Proxy mode to forward rpc requests or query for data",
-	}
-
-	ArchiveUrlFlag = cli.StringFlag{
-		Name:  "proxy.archiveUrl",
-		Usage: "archiveUrl is used in Proxy mode to query for data when rpcUrl cannot find data",
-	}
-
-	FreeGasProxyUrlFlag = cli.StringFlag{
-		Name:  "proxy.freeGasProxyUrl",
-		Usage: "freeGasProxyUrl is used in Proxy mode to forward free gas transaction",
-	}
-
-	DBCacheSizeLimitFlag = cli.IntFlag{
-		Name:  "proxy.dbCacheSizeLimit",
-		Usage: "dbCacheSizeLimit is used in Proxy mode to set cache size limit of the database",
-	}
-
-	SafeBlockRangeFlag = cli.UintFlag{
-		Name:  "proxy.safeBlockRange",
-		Usage: "safeBlockRange is used in Proxy mode to set safe range on checking reorg",
-		Value: 10,
-	}
-
-	ProxyRedisFlag = cli.BoolFlag{
-		Name:  "proxy.redis",
-		Usage: "indicate whether redis is used to cache data",
-	}
-
-	ProxyRedisAddressFlag = cli.StringFlag{
-		Name:  "proxy.redis.addresses",
-		Usage: "list of redis addresses separated by comma (,)",
-	}
-
-	ProxyRedisExpirationFlag = cli.DurationFlag{
-		Name:  "proxy.redis.expiration",
-		Usage: "indicate ttl of a cached data",
-	}
-
-	ProxyRedisPoolSizeFlag = cli.IntFlag{
-		Name:  "proxy.redis.poolSize",
-		Usage: "indicate the size of redis pool",
-	}
-
-	ProxyRedisReadTimeoutFlag = cli.DurationFlag{
-		Name:  "proxy.redis.readTimeout",
-		Usage: "Timeout for redis reads. If reached, commands will fail",
-	}
-
-	ProxyRedisWriteTimeoutFlag = cli.DurationFlag{
-		Name:  "proxy.redis.writeTimeout",
-		Usage: "Timeout for redis writes. If reached, commands will fail",
-	}
-
-	ProxyRedisConnectionTimeoutFlag = cli.DurationFlag{
-		Name:  "proxy.redis.connectionTimeout",
-		Usage: "Amount of time client waits for connection",
-	}
 	ForceOverrideChainConfigFlag = cli.BoolFlag{
 		Name:  "overrideChainConfig",
 		Usage: "force override chainconfig",
+	}
+
+	PyroscopeEnableFlag = cli.BoolFlag{
+		Name:  "pyroscope.enabled",
+		Usage: "Enable pyroscope - profiling tool",
+	}
+
+	PyroscopeMutexProfileFraction = cli.IntFlag{
+		Name:  "pyroscope.mutexprofilefraction",
+		Usage: "Get the fraction of mutex contention events",
+		Value: 5,
+	}
+
+	PyroscopeBlockProfileRate = cli.IntFlag{
+		Name:  "pyroscope.blockprofilerate",
+		Usage: "Get the fraction of goroutine blocking events",
+		Value: 5,
+	}
+
+	PyroscopeApplicationName = cli.StringFlag{
+		Name:  "pyroscope.app.name",
+		Usage: "Set application that is displayed in pyroscope UI",
+	}
+
+	PyroscopeServerAddress = cli.StringFlag{
+		Name:  "pyroscope.server",
+		Usage: "Pyroscope server address",
+		Value: "http://localhost:4040",
 	}
 )
 
