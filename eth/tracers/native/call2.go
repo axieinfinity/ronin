@@ -19,7 +19,6 @@ package native
 import (
 	"encoding/json"
 	"errors"
-	"github.com/ethereum/go-ethereum/log"
 	"math/big"
 	"sync/atomic"
 	"time"
@@ -66,7 +65,6 @@ func newCallTracer2() tracers.Tracer {
 // CaptureStart implements the EVMLogger interface to initialize the tracing operation.
 func (t *callTracer2) CaptureStart(env *vm.EVM, from common.Address, to common.Address, create bool, input []byte, gas uint64, value *big.Int) {
 	t.env = env
-	log.Info("CaptureStart", "counter", t.env.Context.Counter)
 	t.callstack[0] = callFrame2{
 		Type:  "CALL",
 		From:  addrToHex(from),
@@ -85,9 +83,7 @@ func (t *callTracer2) CaptureEnd(output []byte, gasUsed uint64, _ time.Duration,
 	t.callstack[0].GasUsed = uintToHex(gasUsed)
 	if err != nil {
 		t.callstack[0].Error = err.Error()
-		if err.Error() == "execution reverted" && len(output) > 0 {
-			t.callstack[0].Output = bytesToHex(output)
-		}
+		t.callstack[0].Output = bytesToHex(output)
 	} else {
 		t.callstack[0].Output = bytesToHex(output)
 	}
@@ -109,7 +105,6 @@ func (t *callTracer2) CaptureEnter(typ vm.OpCode, from common.Address, to common
 		return
 	}
 
-	log.Info("CaptureEnter", "counter", t.env.Context.Counter)
 	call := callFrame2{
 		Type:  typ.String(),
 		Order: t.env.Context.Counter,
@@ -135,9 +130,8 @@ func (t *callTracer2) CaptureExit(output []byte, gasUsed uint64, err error) {
 	size -= 1
 
 	call.GasUsed = uintToHex(gasUsed)
-	if err == nil {
-		call.Output = bytesToHex(output)
-	} else {
+	call.Output = bytesToHex(output)
+	if err != nil {
 		call.Error = err.Error()
 		if call.Type == "CREATE" || call.Type == "CREATE2" {
 			call.To = ""
