@@ -463,6 +463,7 @@ func (tx *InternalTransferOrSmcCallEvent) Publish(
 		Type:    types.InternalTransactionContractCall,
 		Success: err == nil,
 		Error:   "",
+		Output:  output,
 		InternalTransactionBody: &types.InternalTransactionBody{
 			Order:           order,
 			TransactionHash: hash,
@@ -502,6 +503,7 @@ func (tx *InternalTransactionContractCreation) Publish(
 		Type:    types.InternalTransactionContractCreation,
 		Success: err == nil,
 		Error:   "",
+		Output:  output,
 		InternalTransactionBody: &types.InternalTransactionBody{
 			Order:           order,
 			TransactionHash: hash,

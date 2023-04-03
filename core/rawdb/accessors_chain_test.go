@@ -895,6 +895,7 @@ func TestReadWriteInternalTransactions(t *testing.T) {
 			Type:    "call",
 			Success: true,
 			Error:   "",
+			Output:  nil,
 			InternalTransactionBody: &types.InternalTransactionBody{
 				Order:           1,
 				TransactionHash: common.HexToHash("0x4"),
@@ -912,6 +913,7 @@ func TestReadWriteInternalTransactions(t *testing.T) {
 			Type:    "call",
 			Success: true,
 			Error:   "",
+			Output:  nil,
 			InternalTransactionBody: &types.InternalTransactionBody{
 				Order:           2,
 				TransactionHash: common.HexToHash("0x4"),

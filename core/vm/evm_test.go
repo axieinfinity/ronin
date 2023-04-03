@@ -27,6 +27,7 @@ func (tx *TestOpEvent) Publish(
 		Type:    "test",
 		Success: err == nil,
 		Error:   "",
+		Output:  output,
 		InternalTransactionBody: &types.InternalTransactionBody{
 			Order:           order,
 			TransactionHash: hash,
