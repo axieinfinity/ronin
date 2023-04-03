@@ -656,7 +656,6 @@ type InternalTransaction struct {
 	TransactionHash common.Hash
 	Value           *big.Int
 	Input           []byte
-	Output          []byte
 	From            common.Address
 	To              common.Address
 
