@@ -651,6 +651,7 @@ type InternalTransaction struct {
 	Type    string
 	Success bool
 	Error   string
+	Output  []byte
 	*InternalTransactionBody
 }
 
@@ -659,7 +660,6 @@ type InternalTransactionBody struct {
 	TransactionHash common.Hash
 	Value           *big.Int
 	Input           []byte
-	Output          []byte
 	From            common.Address
 	To              common.Address
 
