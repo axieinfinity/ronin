@@ -19,7 +19,7 @@ func (tx *TestOpEvent) Publish(
 	hash common.Hash,
 	from, to common.Address,
 	value *big.Int,
-	input, output []byte,
+	input []byte,
 	err error,
 ) *types.InternalTransaction {
 	return &types.InternalTransaction{
@@ -29,7 +29,6 @@ func (tx *TestOpEvent) Publish(
 		Type:            "test",
 		Value:           value,
 		Input:           input,
-		Output:          output,
 		From:            from,
 		To:              to,
 		Success:         err == nil,
@@ -59,7 +58,7 @@ func TestPublishEvents(t *testing.T) {
 	}
 
 	evm := &EVM{Context: ctx}
-	evm.PublishEvent(CALL, 1, common.Address{}, common.Address{}, big.NewInt(0), []byte(""), []byte(""), nil)
+	evm.PublishEvent(CALL, 1, common.Address{}, common.Address{}, big.NewInt(0), []byte(""), nil)
 	if len(*evm.Context.InternalTransactions) != 1 || (*evm.Context.InternalTransactions)[0].Type != "test" {
 		t.Error("Failed to publish opcode event")
 	}

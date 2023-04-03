@@ -35,7 +35,7 @@ import (
 var emptyCodeHash = crypto.Keccak256Hash(nil)
 
 type OpEvent interface {
-	Publish(op OpCode, order, blockHeight uint64, blockHash common.Hash, timestamp uint64, txHash common.Hash, from, to common.Address, value *big.Int, input, output []byte, err error) *types.InternalTransaction
+	Publish(op OpCode, order, blockHeight uint64, blockHash common.Hash, timestamp uint64, txHash common.Hash, from, to common.Address, value *big.Int, input []byte, err error) *types.InternalTransaction
 }
 
 type (
@@ -580,7 +580,7 @@ func (evm *EVM) PublishEvent(
 	counter uint64,
 	from, to common.Address,
 	value *big.Int,
-	input, output []byte,
+	input []byte,
 	err error,
 ) {
 	context := evm.Context
@@ -605,7 +605,6 @@ func (evm *EVM) PublishEvent(
 				to,
 				value,
 				input,
-				output,
 				err,
 			),
 		)

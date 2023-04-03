@@ -423,7 +423,7 @@ func (tx *InternalTransferOrSmcCallEvent) Publish(
 	hash common.Hash,
 	from, to common.Address,
 	value *big.Int,
-	input, output []byte,
+	input []byte,
 	err error,
 ) *types.InternalTransaction {
 	internal := &types.InternalTransaction{
@@ -433,7 +433,6 @@ func (tx *InternalTransferOrSmcCallEvent) Publish(
 		Type:            types.InternalTransactionContractCall,
 		Value:           value,
 		Input:           input,
-		Output:          output,
 		From:            from,
 		To:              to,
 		Success:         err == nil,
@@ -461,7 +460,7 @@ func (tx *InternalTransactionContractCreation) Publish(
 	hash common.Hash,
 	from, to common.Address,
 	value *big.Int,
-	input, output []byte,
+	input []byte,
 	err error,
 ) *types.InternalTransaction {
 	internal := &types.InternalTransaction{
@@ -471,7 +470,6 @@ func (tx *InternalTransactionContractCreation) Publish(
 		Type:            types.InternalTransactionContractCreation,
 		Value:           value,
 		Input:           input,
-		Output:          output,
 		From:            from,
 		To:              to,
 		Success:         err == nil,
