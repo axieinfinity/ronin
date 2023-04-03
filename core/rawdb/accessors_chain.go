@@ -470,6 +470,31 @@ func DeleteBody(db ethdb.KeyValueWriter, hash common.Hash, number uint64) {
 	}
 }
 
+// ReadInternalTransactions retrieves the internal transactions corresponding to the hash.
+func ReadInternalTransactions(db ethdb.Reader, hash common.Hash) []*types.InternalTransaction {
+	data, _ := db.Get(internalTxsKey(hash))
+	if len(data) == 0 {
+		return nil
+	}
+	var internalTxs []*types.InternalTransaction
+	if err := rlp.Decode(bytes.NewReader(data), &internalTxs); err != nil {
+		log.Error("Invalid internal transactions RLP", "hash", hash, "err", err)
+		return nil
+	}
+	return internalTxs
+}
+
+// WriteInternalTransactions stores internal transactions into the database.
+func WriteInternalTransactions(db ethdb.KeyValueWriter, hash common.Hash, internalTxs []*types.InternalTransaction) {
+	data, err := rlp.EncodeToBytes(internalTxs)
+	if err != nil {
+		log.Crit("Failed to RLP encode internal txs", "err", err)
+	}
+	if err := db.Put(internalTxsKey(hash), data); err != nil {
+		log.Crit("Failed to store internal txs", "err", err)
+	}
+}
+
 // ReadTdRLP retrieves a block's total difficulty corresponding to the hash in RLP encoding.
 func ReadTdRLP(db ethdb.Reader, hash common.Hash, number uint64) rlp.RawValue {
 	var data []byte
@@ -950,4 +975,46 @@ func ReadHeadBlock(db ethdb.Reader) *types.Block {
 		return nil
 	}
 	return ReadBlock(db, headBlockHash, *headBlockNumber)
+}
+
+// ReadStoreInternalTransactionsEnabled retrieves if the store internal transactions option is enabled.
+func ReadStoreInternalTransactionsEnabled(db ethdb.KeyValueReader) bool {
+	disabled, _ := db.Get(storeInternalTxsEnabledKey)
+	return len(disabled) > 0 && string(disabled) == "1"
+}
+
+// WriteStoreInternalTransactionsEnabled stores the store internal transactions enabled flag.
+func WriteStoreInternalTransactionsEnabled(db ethdb.KeyValueWriter, store bool) {
+	v := []byte("0")
+	if store {
+		v = []byte("1")
+	}
+	if err := db.Put(storeInternalTxsEnabledKey, v); err != nil {
+		log.Crit("Failed to store internal transactions enabled flag", "err", err)
+	}
+}
+
+// WriteDirtyAccounts stores the dirty accounts to db.
+func WriteDirtyAccounts(db ethdb.KeyValueWriter, dirtyStateAccounts []*types.DirtyStateAccountsAndBlock) {
+	data, err := rlp.EncodeToBytes(dirtyStateAccounts)
+	if err != nil {
+		log.Crit("Failed to encode dirty accounts", "err", err)
+	}
+	if err := db.Put(dirtyAccountsKey, data); err != nil {
+		log.Crit("Failed to write dirty accounts", "err", err)
+	}
+}
+
+// ReadDirtyAccounts get dirty accounts from db
+func ReadDirtyAccounts(db ethdb.KeyValueReader) []*types.DirtyStateAccountsAndBlock {
+	data, _ := db.Get(dirtyAccountsKey)
+	if len(data) == 0 {
+		return nil
+	}
+	var dirtyStateAccounts []*types.DirtyStateAccountsAndBlock
+	if err := rlp.Decode(bytes.NewReader(data), &dirtyStateAccounts); err != nil {
+		log.Error("Invalid dirty accounts RLP", "err", err)
+		return nil
+	}
+	return dirtyStateAccounts
 }

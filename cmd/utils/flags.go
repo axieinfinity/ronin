@@ -235,6 +235,10 @@ var (
 		Name:  "monitor.doublesign",
 		Usage: "Enable double sign monitoring",
 	}
+	StoreInternalTransactions = cli.BoolFlag{
+		Name:  "internaltxs",
+		Usage: "Enable storing internal transactions to db",
+	}
 	LightKDFFlag = cli.BoolFlag{
 		Name:  "lightkdf",
 		Usage: "Reduce key-derivation RAM & CPU usage at some expense of KDF strength",
