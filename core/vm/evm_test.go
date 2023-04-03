@@ -27,12 +27,12 @@ func (tx *TestOpEvent) Publish(
 		Type:    "test",
 		Success: err == nil,
 		Error:   "",
+		Output:  output,
 		InternalTransactionBody: &types.InternalTransactionBody{
 			Order:           order,
 			TransactionHash: hash,
 			Value:           value,
 			Input:           input,
-			Output:          output,
 			From:            from,
 			To:              to,
 			Height:          blockHeight,
