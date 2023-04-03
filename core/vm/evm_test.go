@@ -32,7 +32,6 @@ func (tx *TestOpEvent) Publish(
 			TransactionHash: hash,
 			Value:           value,
 			Input:           input,
-			Output:          output,
 			From:            from,
 			To:              to,
 			Height:          blockHeight,
