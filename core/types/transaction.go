@@ -647,11 +647,14 @@ const (
 )
 
 type InternalTransaction struct {
-	Opcode  string `rlp:"-"`
-	Type    string `rlp:"-"`
-	Success bool   `rlp:"-"`
-	Error   string `rlp:"-"`
+	Opcode  string
+	Type    string
+	Success bool
+	Error   string
+	*InternalTransactionBody
+}
 
+type InternalTransactionBody struct {
 	Order           uint64
 	TransactionHash common.Hash
 	Value           *big.Int
@@ -667,5 +670,5 @@ type InternalTransaction struct {
 }
 
 func (internal *InternalTransaction) Hash() common.Hash {
-	return rlpHash(internal)
+	return rlpHash(internal.InternalTransactionBody)
 }

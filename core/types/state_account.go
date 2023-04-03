@@ -43,3 +43,8 @@ type DirtyStateAccount struct {
 	Suicided    bool           `json:"suicided"`
 	DirtyCode   bool           `json:"dirtyCode"`
 }
+
+type DirtyStateAccountsAndBlock struct {
+	BlockHash     common.Hash
+	DirtyAccounts []*DirtyStateAccount
+}

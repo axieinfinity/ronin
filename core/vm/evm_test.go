@@ -23,20 +23,22 @@ func (tx *TestOpEvent) Publish(
 	err error,
 ) *types.InternalTransaction {
 	return &types.InternalTransaction{
-		Opcode:          opcode.String(),
-		Order:           order,
-		TransactionHash: hash,
-		Type:            "test",
-		Value:           value,
-		Input:           input,
-		Output:          output,
-		From:            from,
-		To:              to,
-		Success:         err == nil,
-		Error:           "",
-		Height:          blockHeight,
-		BlockHash:       blockHash,
-		BlockTime:       blockTime,
+		Opcode:  opcode.String(),
+		Type:    "test",
+		Success: err == nil,
+		Error:   "",
+		InternalTransactionBody: &types.InternalTransactionBody{
+			Order:           order,
+			TransactionHash: hash,
+			Value:           value,
+			Input:           input,
+			Output:          output,
+			From:            from,
+			To:              to,
+			Height:          blockHeight,
+			BlockHash:       blockHash,
+			BlockTime:       blockTime,
+		},
 	}
 }
 

@@ -26,6 +26,7 @@ import (
 	"os"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -882,4 +883,153 @@ func BenchmarkDecodeRLPLogs(b *testing.B) {
 			}
 		}
 	})
+}
+
+func TestReadWriteInternalTransactions(t *testing.T) {
+	db := NewMemoryDatabase()
+	blockTime := time.Now().Unix()
+	blockHash := common.HexToHash("0x3")
+	internalTxs := []*types.InternalTransaction{
+		{
+			Opcode:  "CALL",
+			Type:    "call",
+			Success: true,
+			Error:   "",
+			InternalTransactionBody: &types.InternalTransactionBody{
+				Order:           1,
+				TransactionHash: common.HexToHash("0x4"),
+				Value:           nil,
+				Input:           nil,
+				Output:          nil,
+				From:            common.HexToAddress("0x1"),
+				To:              common.HexToAddress("0x2"),
+				Height:          100,
+				BlockHash:       blockHash,
+				BlockTime:       uint64(blockTime),
+			},
+		},
+		{
+			Opcode:  "CALL",
+			Type:    "call",
+			Success: true,
+			Error:   "",
+			InternalTransactionBody: &types.InternalTransactionBody{
+				Order:           2,
+				TransactionHash: common.HexToHash("0x4"),
+				Value:           nil,
+				Input:           nil,
+				Output:          nil,
+				From:            common.HexToAddress("0x3"),
+				To:              common.HexToAddress("0x4"),
+				Height:          100,
+				BlockHash:       blockHash,
+				BlockTime:       uint64(blockTime),
+			},
+		},
+	}
+	WriteInternalTransactions(db, blockHash, internalTxs)
+	results := ReadInternalTransactions(db, blockHash)
+	if results == nil {
+		t.Fatal("no internal transactions found at hash")
+	}
+	if len(results) != len(internalTxs) {
+		t.Fatalf("mismatched length between input and output internal transactions, expected %d got %d", len(internalTxs), len(results))
+	}
+	for i, tx := range internalTxs {
+		if tx.Hash().Hex() != results[i].Hash().Hex() {
+			t.Fatalf("mismatched hash at index %d, expected %s got %s", i, tx.Hash().Hex(), results[i].Hash().Hex())
+		}
+		if tx.Opcode != results[i].Opcode {
+			t.Fatalf("mismatched Opcode at index %d, expected %s got %s", i, tx.Opcode, results[i].Opcode)
+		}
+	}
+}
+
+func TestReadWriteDirtyAccounts(t *testing.T) {
+	db := NewMemoryDatabase()
+	blockHash1, blockHash2 := common.HexToHash("0x3"), common.HexToHash("0x4")
+	dirtyAccounts := []*types.DirtyStateAccountsAndBlock{
+		{
+			BlockHash: blockHash1,
+			DirtyAccounts: []*types.DirtyStateAccount{
+				{
+					Address:     common.HexToAddress("0x1"),
+					Nonce:       1,
+					Balance:     big.NewInt(0),
+					Root:        common.HexToHash("0x123"),
+					CodeHash:    common.HexToHash("0x234"),
+					BlockNumber: 100,
+					BlockHash:   blockHash1,
+					Deleted:     false,
+					Suicided:    false,
+					DirtyCode:   false,
+				},
+				{
+					Address:     common.HexToAddress("0x2"),
+					Nonce:       2,
+					Balance:     big.NewInt(0),
+					Root:        common.HexToHash("0x123"),
+					CodeHash:    common.HexToHash("0x234"),
+					BlockNumber: 100,
+					BlockHash:   blockHash1,
+					Deleted:     false,
+					Suicided:    false,
+					DirtyCode:   false,
+				},
+			},
+		},
+		{
+			BlockHash: blockHash2,
+			DirtyAccounts: []*types.DirtyStateAccount{
+				{
+					Address:     common.HexToAddress("0x3"),
+					Nonce:       3,
+					Balance:     big.NewInt(0),
+					Root:        common.HexToHash("0x123"),
+					CodeHash:    common.HexToHash("0x234"),
+					BlockNumber: 100,
+					BlockHash:   blockHash2,
+					Deleted:     false,
+					Suicided:    false,
+					DirtyCode:   false,
+				},
+				{
+					Address:     common.HexToAddress("0x4"),
+					Nonce:       4,
+					Balance:     big.NewInt(0),
+					Root:        common.HexToHash("0x123"),
+					CodeHash:    common.HexToHash("0x234"),
+					BlockNumber: 100,
+					BlockHash:   blockHash2,
+					Deleted:     false,
+					Suicided:    false,
+					DirtyCode:   false,
+				},
+			},
+		},
+	}
+	WriteDirtyAccounts(db, dirtyAccounts)
+	results := ReadDirtyAccounts(db)
+	if results == nil {
+		t.Fatal("no dirty accounts found at hash")
+	}
+	if len(results) != len(dirtyAccounts) {
+		t.Fatalf("mismatched length between input and output dirty accounts, expected %d got %d", len(dirtyAccounts), len(results))
+	}
+	for i, accs := range dirtyAccounts {
+		if accs.BlockHash.Hex() != results[i].BlockHash.Hex() {
+			t.Fatalf("mismatched blockHash at index %d, expected %s got %s", i, accs.BlockHash.Hex(), results[i].BlockHash.Hex())
+		}
+		if len(accs.DirtyAccounts) != len(results[i].DirtyAccounts) {
+			t.Fatalf("mismatched length between input and output dirty accounts at index %d, expected %d got %d", i, len(accs.DirtyAccounts), len(results[i].DirtyAccounts))
+		}
+		for j, acc := range accs.DirtyAccounts {
+			if acc.Address.Hex() != results[i].DirtyAccounts[j].Address.Hex() {
+				t.Fatalf("mismatched address at index %d, expected %s got %s", i, acc.Address.Hex(), results[i].DirtyAccounts[j].Address.Hex())
+			}
+			if acc.Nonce != results[i].DirtyAccounts[j].Nonce {
+				t.Fatalf("mismatched address at index %d, expected %d got %d", i, acc.Nonce, results[i].DirtyAccounts[j].Nonce)
+			}
+		}
+	}
 }
