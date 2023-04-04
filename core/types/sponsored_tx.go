@@ -86,6 +86,10 @@ func (tx *SponsoredTx) nonce() uint64          { return tx.Nonce }
 func (tx *SponsoredTx) to() *common.Address    { return tx.To }
 func (tx *SponsoredTx) expiredTime() uint64    { return tx.ExpiredTime }
 
+func (tx *SponsoredTx) blobGas() uint64           { return 0 }
+func (tx *SponsoredTx) blobGasFeeCap() *big.Int   { return nil }
+func (tx *SponsoredTx) blobHashes() []common.Hash { return nil }
+
 func (tx *SponsoredTx) rawPayerSignatureValues() (v, r, s *big.Int) {
 	return tx.PayerV, tx.PayerR, tx.PayerS
 }

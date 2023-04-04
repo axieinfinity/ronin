@@ -107,6 +107,10 @@ func (tx *AccessListTx) nonce() uint64          { return tx.Nonce }
 func (tx *AccessListTx) to() *common.Address    { return tx.To }
 func (tx *AccessListTx) expiredTime() uint64    { return 0 }
 
+func (tx *AccessListTx) blobGas() uint64           { return 0 }
+func (tx *AccessListTx) blobGasFeeCap() *big.Int   { return nil }
+func (tx *AccessListTx) blobHashes() []common.Hash { return nil }
+
 func (tx *AccessListTx) rawPayerSignatureValues() (v, r, s *big.Int) {
 	return nil, nil, nil
 }
