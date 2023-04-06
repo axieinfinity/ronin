@@ -263,7 +263,7 @@ func ApplyTransaction(msg types.Message, opts *ApplyTransactOpts) (err error) {
 		*receivedTxs = (*receivedTxs)[1:]
 	}
 	opts.State.Prepare(expectedTx.Hash(), len(*txs))
-	gasUsed, err := applyMessage(msg, opts.ApplyMessageOpts)
+	gasUsed, err := applyMessage(opts.ApplyMessageOpts, expectedTx)
 	if err != nil {
 		failed = true
 	} else {
@@ -298,26 +298,27 @@ func ApplyTransaction(msg types.Message, opts *ApplyTransactOpts) (err error) {
 
 // applyMessage creates new evm and applies a transaction to the current state
 func applyMessage(
-	msg types.Message,
 	opts *ApplyMessageOpts,
+	tx *types.Transaction,
 ) (uint64, error) {
 	// Create a new context to be used in the EVM environment
-	opts.EVMContext.CurrentTransaction = types.NewTransaction(msg.Nonce(), *msg.To(), msg.Value(), msg.Gas(), msg.GasPrice(), msg.Data())
+	opts.EVMContext.CurrentTransaction = tx
+	from, _ := types.Sender(types.MakeSigner(opts.ChainConfig, opts.Header.Number), tx)
 	// Create a new environment which holds all relevant information
 	// about the transaction and calling mechanisms.
-	vmenv := vm.NewEVM(*opts.EVMContext, vm.TxContext{Origin: msg.From(), GasPrice: big.NewInt(0)}, opts.State, opts.ChainConfig, vm.Config{})
+	vmenv := vm.NewEVM(*opts.EVMContext, vm.TxContext{Origin: from, GasPrice: big.NewInt(0)}, opts.State, opts.ChainConfig, vm.Config{})
 	// Apply the transaction to the current State (included in the env)
 	ret, returnGas, err := vmenv.Call(
-		vm.AccountRef(msg.From()),
-		*msg.To(),
-		msg.Data(),
-		msg.Gas(),
-		msg.Value(),
+		vm.AccountRef(from),
+		*tx.To(),
+		tx.Data(),
+		tx.Gas(),
+		tx.Value(),
 	)
 	if err != nil {
-		log.Error("Apply message failed", "message", string(ret), "error", err, "to", msg.To(), "value", msg.Value())
+		log.Error("Apply message failed", "message", string(ret), "error", err, "to", tx.To(), "value", tx.Value())
 	}
-	return msg.Gas() - returnGas, err
+	return tx.Gas() - returnGas, err
 }
 
 // ConsortiumBackend is a custom backend that supports call smart contract by using *ethapi.PublicBlockChainAPI
