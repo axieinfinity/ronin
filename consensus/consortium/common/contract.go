@@ -138,7 +138,7 @@ func (c *ContractIntegrator) SubmitBlockReward(opts *ApplyTransactOpts) error {
 	if err != nil {
 		return err
 	}
-	log.Info("Submitted block reward", "block", opts.Header.Number, "amount", balance.Uint64())
+	log.Debug("Submitted block reward", "block", opts.Header.Number, "amount", balance.Uint64())
 
 	msg := types.NewMessage(
 		opts.Header.Coinbase,
