@@ -70,7 +70,7 @@ if [[ ! -f $PASSWORD_FILE ]]; then
     echo "$PASSWORD" > $PASSWORD_FILE
   else
     echo "No password set (or empty), generating a new one"
-    $(< /dev/urandom tr -dc _A-Z-a-z-0-9 | head -c${1:-32} > $PASSWORD_FILE)
+    $(< /dev/urandom tr -dc _A-Z-a-z-0-9 | head -c 32 > $PASSWORD_FILE)
   fi
 fi
 
