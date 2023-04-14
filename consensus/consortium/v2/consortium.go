@@ -143,29 +143,25 @@ func New(
 	return &consortium
 }
 
-// IsSystemTransaction implements consensus.PoSA, checking whether a transaction is a system
+// IsSystemMessage implements consensus.PoSA, checking whether a transaction is a system
 // transaction or not.
 // A system transaction is a transaction that has the recipient of the contract address
 // is defined in params.ConsortiumV2Contracts
-func (c *Consortium) IsSystemTransaction(tx *types.Transaction, header *types.Header) (bool, error) {
+func (c *Consortium) IsSystemMessage(msg core.Message, header *types.Header) bool {
 	// deploy a contract
-	if tx.To() == nil {
-		return false, nil
-	}
-	sender, err := types.Sender(c.signer, tx)
-	if err != nil {
-		return false, errors.New("UnAuthorized transaction")
+	if msg.To() == nil {
+		return false
 	}
 	if c.chainConfig.IsBuba(header.Number) {
-		if sender == header.Coinbase && c.IsSystemContract(tx.To()) {
-			return true, nil
+		if msg.From() == header.Coinbase && c.IsSystemContract(msg.To()) {
+			return true
 		}
 	} else {
-		if sender == header.Coinbase && c.IsSystemContract(tx.To()) && tx.GasPrice().Cmp(big.NewInt(0)) == 0 {
-			return true, nil
+		if msg.From() == header.Coinbase && c.IsSystemContract(msg.To()) && msg.GasPrice().Cmp(big.NewInt(0)) == 0 {
+			return true
 		}
 	}
-	return false, nil
+	return false
 }
 
 // IsSystemContract implements consensus.PoSA, checking whether a contract is a system

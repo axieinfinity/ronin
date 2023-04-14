@@ -1,18 +1,20 @@
 package consortium
 
 import (
+	"math/big"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	consortiumCommon "github.com/ethereum/go-ethereum/consensus/consortium/common"
 	v1 "github.com/ethereum/go-ethereum/consensus/consortium/v1"
 	v2 "github.com/ethereum/go-ethereum/consensus/consortium/v2"
+	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
-	"math/big"
 )
 
 // Consortium is a proxy that decides the consensus version will be called
@@ -184,10 +186,34 @@ func (c *Consortium) SetGetFenixValidators(fn func() ([]common.Address, error)) 
 
 // IsSystemTransaction implements consensus.PoSA. It is only available on v2 since v1 doesn't have system contract
 func (c *Consortium) IsSystemTransaction(tx *types.Transaction, header *types.Header) (bool, error) {
-	return c.v2.IsSystemTransaction(tx, header)
+	msg, err := tx.AsMessage(types.MakeSigner(c.chainConfig, header.Number), header.BaseFee)
+	if err != nil {
+		return false, err
+	}
+	return c.v2.IsSystemMessage(msg, header), nil
 }
 
 // IsSystemContract implements consensus.PoSA. It is only available on v2 since v1 doesn't have system contract
 func (c *Consortium) IsSystemContract(to *common.Address) bool {
 	return c.v2.IsSystemContract(to)
+}
+
+// HandleSubmitBlockReward determines if the transaction is submitBlockReward
+// transaction with non-zero msg.value and fixes up the statedb.
+// This function bases on the fact that submitBlockReward is the only system
+// transaction that may have non-zero msg.value
+func HandleSubmitBlockReward(engine consensus.Engine, statedb *state.StateDB, msg core.Message, block *types.Block) {
+	consortium, ok := engine.(*Consortium)
+	if !ok {
+		return
+	}
+
+	if consortium.chainConfig.IsConsortiumV2(new(big.Int).Add(block.Number(), common.Big1)) {
+		isSystemMsg := consortium.v2.IsSystemMessage(msg, block.Header())
+		if isSystemMsg && msg.Value().Cmp(common.Big0) > 0 {
+			balance := statedb.GetBalance(consensus.SystemAddress)
+			statedb.SetBalance(consensus.SystemAddress, big.NewInt(0))
+			statedb.SetBalance(block.Coinbase(), balance)
+		}
+	}
 }
