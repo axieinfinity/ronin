@@ -2,7 +2,7 @@ name: master release
 on:
   push:
     branches:
-      - main
+      - master
 
 env:
   REGISTRY: ghcr.io
@@ -45,5 +45,5 @@ jobs:
           context: .
           file: ${{ env.DOCKER_FILE }}
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
+          tags: "nightly"
           labels: ${{ steps.meta.outputs.labels }}
