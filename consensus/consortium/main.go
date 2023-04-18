@@ -213,7 +213,7 @@ func HandleSubmitBlockReward(engine consensus.Engine, statedb *state.StateDB, ms
 		if isSystemMsg && msg.Value().Cmp(common.Big0) > 0 {
 			balance := statedb.GetBalance(consensus.SystemAddress)
 			statedb.SetBalance(consensus.SystemAddress, big.NewInt(0))
-			statedb.SetBalance(block.Coinbase(), balance)
+			statedb.AddBalance(block.Coinbase(), balance)
 		}
 	}
 }
