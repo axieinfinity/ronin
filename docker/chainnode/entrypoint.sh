@@ -91,16 +91,17 @@ if [[ $accountsCount -le 0 ]]; then
       --keystore $KEYSTORE_DIR \
       --password $PASSWORD_FILE
     rm ./private_key
-  else
-    echo "Creating new account"
-    ronin account new \
-      --datadir $datadir \
-      --keystore $KEYSTORE_DIR \
-      --password $PASSWORD_FILE
+    unset PRIVATE_KEY
   fi
 fi
 
-if [[ ! -z $KEYSTORE_DIR ]]; then
+accountsCount=$(
+  ronin account list --datadir $datadir  --keystore $KEYSTORE_DIR \
+  2> /dev/null \
+  | wc -l
+)
+
+if [[ $accountsCount -gt 0 ]]; then
   account=$(
     ronin account list --datadir $datadir  --keystore $KEYSTORE_DIR \
     2> /dev/null \
