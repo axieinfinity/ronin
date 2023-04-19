@@ -35,7 +35,7 @@ var (
 		ArgsUsage: "",
 		Category:  "ACCOUNT COMMANDS",
 		Description: `
-    geth wallet import /path/to/my/presale.wallet
+    ronin wallet import /path/to/my/presale.wallet
 
 will prompt for your password and imports your ether presale account.
 It can be used non-interactively with the --password option taking a
@@ -55,7 +55,7 @@ passwordfile as argument containing the wallet password in plaintext.`,
 					utils.LightKDFFlag,
 				},
 				Description: `
-	geth wallet [options] /path/to/my/presale.wallet
+	ronin wallet [options] /path/to/my/presale.wallet
 
 will prompt for your password and imports your ether presale account.
 It can be used non-interactively with the --password option taking a
@@ -111,7 +111,7 @@ Print a short summary of all accounts`,
 					utils.LightKDFFlag,
 				},
 				Description: `
-    geth account new
+    ronin account new
 
 Creates a new account and prints the address.
 
@@ -136,7 +136,7 @@ password to file or expose in any other way.
 					utils.LightKDFFlag,
 				},
 				Description: `
-    geth account update <address>
+    ronin account update <address>
 
 Update an existing account.
 
@@ -148,7 +148,7 @@ format to the newest format or change the password for an account.
 
 For non-interactive use the password can be specified with the --password flag:
 
-    geth account update [options] <address>
+    ronin account update [options] <address>
 
 Since only one password can be given, only format update can be performed,
 changing your password is only possible interactively.
@@ -166,7 +166,7 @@ changing your password is only possible interactively.
 				},
 				ArgsUsage: "<keyFile>",
 				Description: `
-    geth account import <keyfile>
+    ronin account import <keyfile>
 
 Imports an unencrypted private key from <keyfile> and creates a new account.
 Prints the address.
@@ -179,12 +179,29 @@ You must remember this password to unlock your account in the future.
 
 For non-interactive use the password can be specified with the -password flag:
 
-    geth account import [options] <keyfile>
+    ronin account import [options] <keyfile>
 
 Note:
 As you can directly copy your encrypted accounts to another ethereum instance,
 this import mechanism is not needed when you transfer an account between
 nodes.
+`,
+			},
+			{
+				Name:   "check",
+				Usage:  "Check if the account corresponding to private key exists",
+				Action: utils.MigrateFlags(accountCheck),
+				Flags: []cli.Flag{
+					utils.DataDirFlag,
+					utils.KeyStoreDirFlag,
+				},
+				ArgsUsage: "<keyFile>",
+				Description: `
+    ronin account check <keyfile>
+
+Check if the account corresponding to the private key exists in keystore.
+
+The keyfile is assumed to contain an unencrypted private key in hexadecimal format.
 `,
 			},
 		},
@@ -355,5 +372,29 @@ func accountImport(ctx *cli.Context) error {
 		utils.Fatalf("Could not create the account: %v", err)
 	}
 	fmt.Printf("Address: {%x}\n", acct.Address)
+	return nil
+}
+
+func accountCheck(ctx *cli.Context) error {
+	keyfile := ctx.Args().First()
+	if len(keyfile) == 0 {
+		utils.Fatalf("keyfile must be given as argument")
+	}
+	key, err := crypto.LoadECDSA(keyfile)
+	if err != nil {
+		utils.Fatalf("Failed to load the private key: %v", err)
+	}
+	address := crypto.PubkeyToAddress(key.PublicKey)
+
+	stack, _ := makeConfigNode(ctx)
+	for _, wallet := range stack.AccountManager().Wallets() {
+		for _, account := range wallet.Accounts() {
+			if account.Address == address {
+				fmt.Printf("Found account %x\n", address)
+				return nil
+			}
+		}
+	}
+	utils.Fatalf("Account %x not found", address)
 	return nil
 }
