@@ -124,7 +124,7 @@ var (
 	DBEngineFlag = cli.StringFlag{
 		Name:  "db.engine",
 		Usage: "Backing database implementation to use ('leveldb' or 'pebble')",
-		Value: "leveldb",
+		Value: node.DefaultConfig.DBEngine,
 	}
 	KeyStoreDirFlag = DirectoryFlag{
 		Name:  "keystore",
