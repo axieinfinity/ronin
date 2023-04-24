@@ -198,6 +198,10 @@ func (c *Consortium) IsSystemContract(to *common.Address) bool {
 	return c.v2.IsSystemContract(to)
 }
 
+func (c *Consortium) GetBestParentBlock(chain *core.BlockChain) (*types.Block, bool) {
+	return c.v2.GetBestParentBlock(chain)
+}
+
 // HandleSubmitBlockReward determines if the transaction is submitBlockReward
 // transaction with non-zero msg.value and fixes up the statedb.
 // This function bases on the fact that submitBlockReward is the only system
