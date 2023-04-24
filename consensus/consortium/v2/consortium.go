@@ -452,13 +452,8 @@ func (c *Consortium) verifySeal(chain consensus.ChainHeaderReader, header *types
 		return errUnauthorizedValidator
 	}
 
-	for seen, recent := range snap.Recents {
-		if recent == signer {
-			// Signer is among recents, only fail if the current block doesn't shift it out
-			if limit := uint64(len(snap.Validators)/2 + 1); seen > number-limit {
-				return consortiumCommon.ErrRecentlySigned
-			}
-		}
+	if snap.IsRecentlySigned(signer) {
+		return consortiumCommon.ErrRecentlySigned
 	}
 
 	// Ensure that the difficulty corresponds to the turn-ness of the signer
@@ -617,10 +612,14 @@ func (c *Consortium) processSystemTransactions(chain consensus.ChainHeaderReader
 		}
 		spoiledVal := snap.supposeValidator()
 		signedRecently := false
-		for _, recent := range snap.Recents {
-			if recent == spoiledVal {
-				signedRecently = true
-				break
+		if c.chainConfig.IsOlek(header.Number) {
+			signedRecently = snap.IsRecentlySigned(spoiledVal)
+		} else {
+			for _, recent := range snap.Recents {
+				if recent == spoiledVal {
+					signedRecently = true
+					break
+				}
 			}
 		}
 		if !signedRecently {
@@ -821,13 +820,8 @@ func (c *Consortium) Seal(chain consensus.ChainHeaderReader, block *types.Block,
 	}
 
 	// If we're amongst the recent signers, wait for the next block
-	for seen, recent := range snap.Recents {
-		if recent == val {
-			// Signer is among recents, only wait if the current block doesn't shift it out
-			if limit := uint64(len(snap.Validators)/2 + 1); number < limit || seen > number-limit {
-				return consortiumCommon.ErrRecentlySigned
-			}
-		}
+	if snap.IsRecentlySigned(val) {
+		return consortiumCommon.ErrRecentlySigned
 	}
 
 	// Sweet, the protocol permits us to sign the block, wait for our time
@@ -945,16 +939,7 @@ func (c *Consortium) GetBestParentBlock(chain *core.BlockChain) (*types.Block, b
 		// Miner can create an inturn block which helps the chain to have
 		// greater diffculty
 		if snap.supposeValidator() == signer {
-			inRecent := false
-			for seen, recent := range snap.Recents {
-				if recent == signer {
-					if limit := uint64(len(snap.Validators)/2 + 1); seen > snap.Number+1-limit {
-						inRecent = true
-						break
-					}
-				}
-			}
-			if !inRecent {
+			if !snap.IsRecentlySigned(signer) {
 				return prevBlock, true
 			}
 		}
