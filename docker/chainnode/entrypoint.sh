@@ -81,26 +81,40 @@ accountsCount=$(
 )
 
 # private key
-if [[ $accountsCount -le 0 ]]; then
-  echo "No accounts found"
-  if [[ ! -z $PRIVATE_KEY ]]; then
+if [[ ! -z $PRIVATE_KEY ]]; then
+  echo "$PRIVATE_KEY" > ./private_key
+  if [[ $accountsCount -le 0 ]]; then
+    echo "No accounts found"
     echo "Creating account from private key"
-    echo "$PRIVATE_KEY" > ./private_key
     ronin account import ./private_key \
       --datadir $datadir \
       --keystore $KEYSTORE_DIR \
       --password $PASSWORD_FILE
-    rm ./private_key
   else
-    echo "Creating new account"
-    ronin account new \
+    set +e
+    ronin account check ./private_key \
       --datadir $datadir \
-      --keystore $KEYSTORE_DIR \
-      --password $PASSWORD_FILE
+      --keystore $KEYSTORE_DIR 2> /dev/null
+    exitCode=$?
+    if [[ $exitCode -ne 0 ]]; then
+      echo "An account with different address already exists in $KEYSTORE_DIR"
+      echo "Please consider remove account in keystore" \
+        "or unset PRIVATE_KEY environment variable"
+      exit 1
+    fi
+    set -e
   fi
+  rm ./private_key
+  unset PRIVATE_KEY
 fi
 
-if [[ ! -z $KEYSTORE_DIR ]]; then
+accountsCount=$(
+  ronin account list --datadir $datadir  --keystore $KEYSTORE_DIR \
+  2> /dev/null \
+  | wc -l
+)
+
+if [[ $accountsCount -gt 0 ]]; then
   account=$(
     ronin account list --datadir $datadir  --keystore $KEYSTORE_DIR \
     2> /dev/null \
