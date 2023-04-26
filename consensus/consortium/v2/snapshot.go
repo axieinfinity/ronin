@@ -228,16 +228,7 @@ func (s *Snapshot) sealableValidators(validator common.Address) (position, numOf
 	validators := s.validators()
 	sealable := make([]common.Address, 0, len(validators))
 	for _, val := range validators {
-		allowToSeal := true
-		for seen, recent := range s.Recents {
-			if recent == val {
-				if limit := uint64(len(validators)/2 + 1); seen > s.Number+1-limit {
-					allowToSeal = false
-					break
-				}
-			}
-		}
-		if allowToSeal {
+		if !s.IsRecentlySigned(val) {
 			sealable = append(sealable, val)
 		}
 	}
@@ -257,6 +248,17 @@ func (s *Snapshot) supposeValidator() common.Address {
 	validators := s.validators()
 	index := (s.Number + 1) % uint64(len(validators))
 	return validators[index]
+}
+
+func (s *Snapshot) IsRecentlySigned(validator common.Address) bool {
+	for seen, recent := range s.Recents {
+		if recent == validator {
+			if limit := uint64(len(s.Validators)/2 + 1); seen > s.Number+1-limit {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // ParseValidators retrieves the list of validators
