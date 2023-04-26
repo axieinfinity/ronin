@@ -249,7 +249,7 @@ func (s *Snapshot) sealableValidators(validator common.Address) (position, numOf
 		}
 	}
 
-	return -1, numOfSealableValidators
+	return unSealableValidator, numOfSealableValidators
 }
 
 // supposeValidator returns the in-turn validator at a given block height
