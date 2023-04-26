@@ -912,6 +912,47 @@ func (c *Consortium) readSigner() (common.Address, consortiumCommon.SignerFn, co
 	return c.val, c.signFn, c.signTxFn
 }
 
+// GetBestParentBlock goes backward in the canonical chain to find if the miner can
+// create a chain which has more difficulty than current chain. In case the miner
+// cannot create a better chain, this function returns the head block of current
+// canonical chain.
+func (c *Consortium) GetBestParentBlock(chain *core.BlockChain) (*types.Block, bool) {
+	signer, _, _ := c.readSigner()
+
+	currentBlock := chain.CurrentBlock()
+	block := currentBlock
+	prevBlock := chain.GetBlockByHash(block.ParentHash())
+	diffculty := block.Difficulty().Int64()
+	for diffculty < diffInTurn.Int64() {
+		snap, err := c.snapshot(chain, block.NumberU64()-1, block.ParentHash(), nil)
+		if err != nil {
+			return currentBlock, false
+		}
+		// Miner can create an inturn block which helps the chain to have
+		// greater diffculty
+		if snap.supposeValidator() == signer {
+			inRecent := false
+			for seen, recent := range snap.Recents {
+				if recent == signer {
+					if limit := uint64(len(snap.Validators)/2 + 1); seen > snap.Number+1-limit {
+						inRecent = true
+						break
+					}
+				}
+			}
+			if !inRecent {
+				return prevBlock, true
+			}
+		}
+
+		block = prevBlock
+		prevBlock = chain.GetBlockByHash(block.ParentHash())
+		diffculty += block.Difficulty().Int64()
+	}
+
+	return currentBlock, false
+}
+
 // ecrecover extracts the Ronin account address from a signed header.
 func ecrecover(header *types.Header, sigcache *lru.ARCCache, chainId *big.Int) (common.Address, error) {
 	// If the signature's already cached, return that
