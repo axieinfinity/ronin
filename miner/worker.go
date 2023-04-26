@@ -27,6 +27,7 @@ import (
 	mapset "github.com/deckarep/golang-set"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
+	"github.com/ethereum/go-ethereum/consensus/consortium"
 	"github.com/ethereum/go-ethereum/consensus/misc"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
@@ -1013,7 +1014,16 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 	defer w.mu.RUnlock()
 
 	tstart := time.Now()
-	parent := w.chain.CurrentBlock()
+
+	var (
+		parent     *types.Block
+		fastCommit bool
+	)
+	if consortiumEngine, ok := w.engine.(*consortium.Consortium); ok {
+		parent, fastCommit = consortiumEngine.GetBestParentBlock(w.chain)
+	} else {
+		parent = w.chain.CurrentBlock()
+	}
 
 	if parent.Time() >= uint64(timestamp) {
 		timestamp = int64(parent.Time() + 1)
@@ -1095,6 +1105,14 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 	// Prefer to locally generated uncle
 	commitUncles(w.localUncles)
 	commitUncles(w.remoteUncles)
+
+	// Fast commit an empty block which has block number smaller
+	// than current block in canonical chain but have greater
+	// difficulty
+	if fastCommit {
+		w.commit(uncles, nil, true, tstart)
+		return
+	}
 
 	// Create an empty block based on temporary copied state for
 	// sealing in advance without waiting block execution finished.
