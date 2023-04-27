@@ -26,6 +26,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/eth/tracers/logger"
 	"io/ioutil"
+	"math"
 	"os"
 	"runtime"
 	"sync"
@@ -773,11 +774,12 @@ func (api *API) traceInternalsAndAccounts(ctx context.Context, block *types.Bloc
 	}
 	defer release()
 
-	// Native tracers have low overhead
 	// Execute all the transaction contained within the block concurrently
 	var (
 		signer    = types.MakeSigner(api.backend.ChainConfig(), block.Number())
 		txs       = block.Transactions()
+		threads   = int(math.Min(float64(runtime.NumCPU()), float64(len(txs))))
+		jobs      = make(chan *txTraceTask, threads)
 		blockHash = block.Hash()
 		is158     = api.backend.ChainConfig().IsEIP158(block.Number())
 		blockCtx  = core.NewEVMBlockContext(block.Header(), api.chainContext(ctx), nil)
@@ -785,32 +787,68 @@ func (api *API) traceInternalsAndAccounts(ctx context.Context, block *types.Bloc
 			InternalTxs:   make([]*txTraceResult, len(txs)),
 			DirtyAccounts: make([]*dirtyAccount, 0),
 		}
+		pend   sync.WaitGroup
+		failed error
 	)
+
+	for th := 0; th < threads; th++ {
+		pend.Add(1)
+		go func() {
+			defer pend.Done()
+			// Fetch and execute the next transaction trace tasks
+			for task := range jobs {
+				msg, _ := txs[task.index].AsMessage(signer, block.BaseFee())
+				txctx := &Context{
+					BlockHash:   blockHash,
+					BlockNumber: block.Number(),
+					TxIndex:     task.index,
+					TxHash:      txs[task.index].Hash(),
+				}
+				res, err := api.traceTx(ctx, msg, txctx, blockCtx, task.statedb, config, block)
+				if err != nil {
+					results.InternalTxs[task.index] = &txTraceResult{TransactionHash: txs[task.index].Hash(), Error: err.Error()}
+					continue
+				}
+				results.InternalTxs[task.index] = &txTraceResult{TransactionHash: txs[task.index].Hash(), Result: res}
+			}
+		}()
+	}
+txloop:
 	for i, tx := range txs {
+		// Send the trace task over for execution
+		task := &txTraceTask{statedb: statedb.Copy(), index: i}
+		select {
+		case <-ctx.Done():
+			failed = ctx.Err()
+			break txloop
+		case jobs <- task:
+		}
+
 		// Generate the next state snapshot fast without tracing
 		msg, _ := tx.AsMessage(signer, block.BaseFee())
-		txctx := &Context{
-			BlockHash:   blockHash,
-			BlockNumber: block.Number(),
-			TxIndex:     i,
-			TxHash:      tx.Hash(),
-		}
-		res, err := api.traceTx(ctx, msg, txctx, blockCtx, statedb, config, block)
-		if err != nil {
-			results.InternalTxs[i] = &txTraceResult{
-				TransactionHash: tx.Hash(),
-				Error:           err.Error(),
-			}
-			continue
-		}
-		results.InternalTxs[i] = &txTraceResult{
-			TransactionHash: tx.Hash(),
-			Result:          res,
+		statedb.Prepare(tx.Hash(), i)
+		consortium.HandleSubmitBlockReward(api.backend.Engine(), statedb, msg, block)
+		vmenv := vm.NewEVM(blockCtx, core.NewEVMTxContext(msg), statedb, api.backend.ChainConfig(), vm.Config{})
+		if _, err := core.ApplyMessage(vmenv, msg, new(core.GasPool).AddGas(msg.Gas())); err != nil {
+			failed = err
+			break txloop
 		}
 		// Finalize the state so any modifications are written to the trie
 		// Only delete empty objects if EIP158/161 (a.k.a Spurious Dragon) is in effect
 		statedb.Finalise(is158)
 	}
+
+	close(jobs)
+	pend.Wait()
+
+	// If execution failed in between, abort
+	if failed != nil {
+		return nil, failed
+	}
+
+	// Computes the current root hash of the state trie
+	statedb.IntermediateRoot(is158)
+
 	// Convert balance from big.Int into hex
 	dirtyAccounts := statedb.DirtyAccounts(blockHash, block.NumberU64())
 	for _, acc := range dirtyAccounts {
