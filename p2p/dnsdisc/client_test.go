@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/ecdsa"
 	"errors"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"math/rand"
 	"reflect"
 	"testing"
@@ -39,6 +40,8 @@ const (
 	nodesSeed1     = 0x2945237
 	nodesSeed2     = 0x4567299
 )
+
+var signingKeyForTesting, _ = crypto.ToECDSA(hexutil.MustDecode("0xdc599867fc513f8f5e2c2c9c489cde5e71362d1d9ec6e693e0de063236ed1240"))
 
 func TestClientSyncTree(t *testing.T) {
 	nodes := []string{
