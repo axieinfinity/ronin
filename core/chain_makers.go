@@ -18,6 +18,7 @@ package core
 
 import (
 	"fmt"
+	"github.com/ethereum/go-ethereum/core/rawdb"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -205,6 +206,18 @@ func GenerateChain(config *params.ChainConfig, parent *types.Block, engine conse
 		b := &BlockGen{i: i, chain: blocks, parent: parent, statedb: statedb, config: config, engine: engine}
 		b.header = makeHeader(chainreader, parent, statedb, b.engine)
 
+		// Set the difficulty for clique block. The chain maker doesn't have access
+		// to a chain, so the difficulty will be left unset (nil). Set it here to the
+		// correct value.
+		if b.header.Difficulty == nil {
+			if config.TerminalTotalDifficulty == nil {
+				// Clique chain
+				b.header.Difficulty = big.NewInt(2)
+			} else {
+				// Post-merge chain
+				b.header.Difficulty = big.NewInt(0)
+			}
+		}
 		// Mutate the state and block according to any hard-fork specs
 		if daoBlock := config.DAOForkBlock; daoBlock != nil {
 			limit := new(big.Int).Add(daoBlock, params.DAOForkExtraRange)
@@ -228,8 +241,11 @@ func GenerateChain(config *params.ChainConfig, parent *types.Block, engine conse
 					receipt.Bloom = types.CreateBloom(types.Receipts{receipt})
 				}
 			}
-			// Finalize and seal the block
-			block, receipts, _ := b.engine.FinalizeAndAssemble(chainreader, b.header, statedb, b.txs, b.uncles, b.receipts)
+
+			block, receipts, err := b.engine.FinalizeAndAssemble(chainreader, b.header, statedb, b.txs, b.uncles, b.receipts)
+			if err != nil {
+				panic(err)
+			}
 
 			// Write state changes to db
 			root, err := statedb.Commit(config.IsEIP158(b.header.Number))
@@ -254,6 +270,19 @@ func GenerateChain(config *params.ChainConfig, parent *types.Block, engine conse
 		parent = block
 	}
 	return blocks, receipts
+}
+
+// GenerateChainWithGenesis is a wrapper of GenerateChain which will initialize
+// genesis block to database first according to the provided genesis specification
+// then generate chain on top.
+func GenerateChainWithGenesis(genesis *Genesis, engine consensus.Engine, n int, gen func(int, *BlockGen)) (ethdb.Database, []*types.Block, []types.Receipts) {
+	db := rawdb.NewMemoryDatabase()
+	_, err := genesis.Commit(db)
+	if err != nil {
+		panic(err)
+	}
+	blocks, receipts := GenerateChain(genesis.Config, genesis.ToBlock(db), engine, db, n, gen)
+	return db, blocks, receipts
 }
 
 func makeHeader(chain consensus.ChainReader, parent *types.Block, state *state.StateDB, engine consensus.Engine) *types.Header {

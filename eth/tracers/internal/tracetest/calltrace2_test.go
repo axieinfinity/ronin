@@ -107,10 +107,11 @@ type callTrace2 struct {
 
 // callTracer2Test defines a single test to check the call tracer against.
 type callTracer2Test struct {
-	Genesis *core.Genesis `json:"genesis"`
-	Context *callContext  `json:"context"`
-	Input   string        `json:"input"`
-	Result  *callTrace2   `json:"result"`
+	Genesis      *core.Genesis   `json:"genesis"`
+	Context      *callContext    `json:"context"`
+	Input        string          `json:"input"`
+	TracerConfig json.RawMessage `json:"tracerConfig"`
+	Result       *callTrace2     `json:"result"`
 }
 
 func TestCallTracer2Native(t *testing.T) {
@@ -156,13 +157,13 @@ func testCallTracer2(tracerName string, dirPath string, t *testing.T) {
 					Transfer:    core.Transfer,
 					Coinbase:    test.Context.Miner,
 					BlockNumber: new(big.Int).SetUint64(uint64(test.Context.Number)),
-					Time:        new(big.Int).SetUint64(uint64(test.Context.Time)),
+					Time:        uint64(test.Context.Time),
 					Difficulty:  (*big.Int)(test.Context.Difficulty),
 					GasLimit:    uint64(test.Context.GasLimit),
 				}
 				_, statedb = tests.MakePreState(rawdb.NewMemoryDatabase(), test.Genesis.Alloc, false)
 			)
-			tracer, err := tracers.New(tracerName, new(tracers.Context))
+			tracer, err := tracers.DefaultDirectory.New(tracerName, new(tracers.Context), test.TracerConfig)
 			if err != nil {
 				t.Fatalf("failed to create call tracer: %v", err)
 			}
@@ -259,7 +260,7 @@ func benchTracer2(tracerName string, test *callTracer2Test, b *testing.B) {
 		Transfer:    core.Transfer,
 		Coinbase:    test.Context.Miner,
 		BlockNumber: new(big.Int).SetUint64(uint64(test.Context.Number)),
-		Time:        new(big.Int).SetUint64(uint64(test.Context.Time)),
+		Time:        uint64(test.Context.Time),
 		Difficulty:  (*big.Int)(test.Context.Difficulty),
 		GasLimit:    uint64(test.Context.GasLimit),
 	}
@@ -268,7 +269,7 @@ func benchTracer2(tracerName string, test *callTracer2Test, b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		tracer, err := tracers.New(tracerName, new(tracers.Context))
+		tracer, err := tracers.DefaultDirectory.New(tracerName, new(tracers.Context), test.TracerConfig)
 		if err != nil {
 			b.Fatalf("failed to create call tracer: %v", err)
 		}
@@ -313,7 +314,7 @@ func TestZeroValueToNotExitCall2(t *testing.T) {
 		Transfer:    core.Transfer,
 		Coinbase:    common.Address{},
 		BlockNumber: new(big.Int).SetUint64(8000000),
-		Time:        new(big.Int).SetUint64(5),
+		Time:        5,
 		Difficulty:  big.NewInt(0x30000),
 		GasLimit:    uint64(6000000),
 	}
@@ -334,7 +335,7 @@ func TestZeroValueToNotExitCall2(t *testing.T) {
 	}
 	_, statedb := tests.MakePreState(rawdb.NewMemoryDatabase(), alloc, false)
 	// Create the tracer, the EVM environment and run it
-	tracer, err := tracers.New("callTracer2", nil)
+	tracer, err := tracers.DefaultDirectory.New("callTracer2", new(tracers.Context), nil)
 	if err != nil {
 		t.Fatalf("failed to create call tracer: %v", err)
 	}

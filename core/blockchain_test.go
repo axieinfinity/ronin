@@ -19,6 +19,7 @@ package core
 import (
 	"errors"
 	"fmt"
+	"github.com/ethereum/go-ethereum/eth/tracers/logger"
 	"io/ioutil"
 	"math/big"
 	"math/rand"
@@ -2690,7 +2691,7 @@ func TestDeleteRecreateSlots(t *testing.T) {
 	gspec.MustCommit(diskdb)
 	chain, err := NewBlockChain(diskdb, nil, params.TestChainConfig, engine, vm.Config{
 		Debug:  true,
-		Tracer: vm.NewJSONLogger(nil, os.Stdout),
+		Tracer: logger.NewJSONLogger(nil, os.Stdout),
 	}, nil, nil)
 	if err != nil {
 		t.Fatalf("failed to create tester chain: %v", err)
@@ -2770,7 +2771,7 @@ func TestDeleteRecreateAccount(t *testing.T) {
 	gspec.MustCommit(diskdb)
 	chain, err := NewBlockChain(diskdb, nil, params.TestChainConfig, engine, vm.Config{
 		Debug:  true,
-		Tracer: vm.NewJSONLogger(nil, os.Stdout),
+		Tracer: logger.NewJSONLogger(nil, os.Stdout),
 	}, nil, nil)
 	if err != nil {
 		t.Fatalf("failed to create tester chain: %v", err)
