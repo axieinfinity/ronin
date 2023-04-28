@@ -1,5 +1,5 @@
 # Build Geth in a stock Go builder container
-FROM golang:1.17.0-alpine3.13 as builder
+FROM golang:1.20.0-alpine3.17 as builder
 
 RUN apk add --no-cache make gcc musl-dev linux-headers git
 
