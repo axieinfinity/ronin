@@ -56,7 +56,7 @@ func TestPublishEvents(t *testing.T) {
 			Data:     []byte(""),
 		}),
 		BlockNumber:          common.Big0,
-		Time:                 common.Big0,
+		Time:                 0,
 		InternalTransactions: &[]*types.InternalTransaction{},
 	}
 

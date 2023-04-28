@@ -1,6 +1,6 @@
 module github.com/ethereum/go-ethereum
 
-go 1.17
+go 1.20
 
 require (
 	github.com/Azure/azure-pipeline-go v0.2.2 // indirect

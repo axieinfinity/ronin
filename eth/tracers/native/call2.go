@@ -19,17 +19,17 @@ package native
 import (
 	"encoding/json"
 	"errors"
-	"math/big"
-	"sync/atomic"
-	"time"
-
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/eth/tracers"
+	"math/big"
+	"strconv"
+	"strings"
+	"sync/atomic"
 )
 
 func init() {
-	register("callTracer2", newCallTracer2)
+	tracers.DefaultDirectory.Register("callTracer2", newCallTracer2, false)
 }
 
 type callFrame2 struct {
@@ -47,6 +47,7 @@ type callFrame2 struct {
 }
 
 type callTracer2 struct {
+	noopTracer
 	env       *vm.EVM
 	callstack []callFrame2
 	interrupt uint32 // Atomic flag to signal execution interruption
@@ -55,11 +56,11 @@ type callTracer2 struct {
 
 // newCallTracer2 returns a native go tracer which tracks
 // call frames of a tx, and implements vm.EVMLogger.
-func newCallTracer2() tracers.Tracer {
+func newCallTracer2(ctx *tracers.Context, cfg json.RawMessage) (tracers.Tracer, error) {
 	// First callframe contains tx context info
 	// and is populated on start and end.
 	t := &callTracer2{callstack: make([]callFrame2, 1)}
-	return t
+	return t, nil
 }
 
 // CaptureStart implements the EVMLogger interface to initialize the tracing operation.
@@ -79,7 +80,7 @@ func (t *callTracer2) CaptureStart(env *vm.EVM, from common.Address, to common.A
 }
 
 // CaptureEnd is called after the call finishes to finalize the tracing.
-func (t *callTracer2) CaptureEnd(output []byte, gasUsed uint64, _ time.Duration, err error) {
+func (t *callTracer2) CaptureEnd(output []byte, gasUsed uint64, err error) {
 	t.callstack[0].GasUsed = uintToHex(gasUsed)
 	if err != nil {
 		t.callstack[0].Error = err.Error()
@@ -157,4 +158,19 @@ func (t *callTracer2) GetResult() (json.RawMessage, error) {
 func (t *callTracer2) Stop(err error) {
 	t.reason = err
 	atomic.StoreUint32(&t.interrupt, 1)
+}
+
+func bigToHex(n *big.Int) string {
+	if n == nil {
+		return ""
+	}
+	return "0x" + n.Text(16)
+}
+
+func uintToHex(n uint64) string {
+	return "0x" + strconv.FormatUint(n, 16)
+}
+
+func addrToHex(a common.Address) string {
+	return strings.ToLower(a.Hex())
 }
