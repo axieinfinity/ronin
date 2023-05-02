@@ -437,7 +437,7 @@ func (b *ConsortiumBackend) CallContract(ctx context.Context, call ethereum.Call
 		Gas:  &gas,
 		To:   call.To,
 		Data: &data,
-	}, block, nil)
+	}, block, nil, nil)
 	if err != nil {
 		return nil, err
 	}
