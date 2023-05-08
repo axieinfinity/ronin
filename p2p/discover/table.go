@@ -82,6 +82,7 @@ type Table struct {
 
 	nodeAddedHook   func(*bucket, *node)
 	nodeRemovedHook func(*bucket, *node)
+	enrFilter       NodeFilterFunc
 }
 
 // transport is implemented by the UDP transports.
@@ -102,7 +103,7 @@ type bucket struct {
 	index        int
 }
 
-func newTable(t transport, db *enode.DB, bootnodes []*enode.Node, log log.Logger) (*Table, error) {
+func newTable(t transport, db *enode.DB, bootnodes []*enode.Node, log log.Logger, filter NodeFilterFunc) (*Table, error) {
 	tab := &Table{
 		net:        t,
 		db:         db,
@@ -113,6 +114,7 @@ func newTable(t transport, db *enode.DB, bootnodes []*enode.Node, log log.Logger
 		rand:       mrand.New(mrand.NewSource(0)),
 		ips:        netutil.DistinctNetSet{Subnet: tableSubnet, Limit: tableIPLimit},
 		log:        log,
+		enrFilter:  filter,
 	}
 	if err := tab.setFallbackNodes(bootnodes); err != nil {
 		return nil, err
@@ -129,8 +131,8 @@ func newTable(t transport, db *enode.DB, bootnodes []*enode.Node, log log.Logger
 	return tab, nil
 }
 
-func newMeteredTable(t transport, db *enode.DB, bootnodes []*enode.Node, log log.Logger) (*Table, error) {
-	tab, err := newTable(t, db, bootnodes, log)
+func newMeteredTable(t transport, db *enode.DB, bootnodes []*enode.Node, log log.Logger, filter NodeFilterFunc) (*Table, error) {
+	tab, err := newTable(t, db, bootnodes, log, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -347,10 +349,16 @@ func (tab *Table) doRevalidate(done chan<- struct{}) {
 
 	// Also fetch record if the node replied and returned a higher sequence number.
 	if last.Seq() < remoteSeq {
-		n, err := tab.net.RequestENR(unwrapNode(last))
-		if err != nil {
-			tab.log.Debug("ENR request failed", "id", last.ID(), "addr", last.addr(), "err", err)
+		n, enrErr := tab.net.RequestENR(unwrapNode(last))
+		if enrErr != nil {
+			tab.log.Debug("ENR request failed", "id", last.ID(), "addr", last.addr(), "err", enrErr)
 		} else {
+			if tab.enrFilter != nil {
+				if !tab.enrFilter(n.Record()) {
+					tab.log.Trace("ENR record filter out", "id", last.ID(), "addr", last.addr())
+					err = fmt.Errorf("filtered node")
+				}
+			}
 			last = &node{Node: *n, addedAt: last.addedAt, livenessChecks: last.livenessChecks}
 		}
 	}
@@ -481,7 +489,15 @@ func (tab *Table) bucketAtDistance(d int) *bucket {
 //
 // The caller must not hold tab.mutex.
 func (tab *Table) addSeenNode(n *node) {
+	go tab.addSeenNodeSync(n)
+}
+
+func (tab *Table) addSeenNodeSync(n *node) {
 	if n.ID() == tab.self().ID() {
+		return
+	}
+
+	if tab.filterNode(n) {
 		return
 	}
 
@@ -510,6 +526,20 @@ func (tab *Table) addSeenNode(n *node) {
 	}
 }
 
+func (tab *Table) filterNode(n *node) bool {
+	if tab.enrFilter == nil {
+		return false
+	}
+	if node, err := tab.net.RequestENR(unwrapNode(n)); err != nil {
+		tab.log.Debug("ENR request failed", "id", n.ID(), "addr", n.addr(), "err", err)
+		return false
+	} else if !tab.enrFilter(node.Record()) {
+		tab.log.Trace("ENR record filter out", "id", n.ID(), "addr", n.addr())
+		return true
+	}
+	return false
+}
+
 // addVerifiedNode adds a node whose existence has been verified recently to the front of a
 // bucket. If the node is already in the bucket, it is moved to the front. If the bucket
 // has no space, the node is added to the replacements list.
@@ -519,14 +549,21 @@ func (tab *Table) addSeenNode(n *node) {
 // ping repeatedly.
 //
 // The caller must not hold tab.mutex.
+
 func (tab *Table) addVerifiedNode(n *node) {
+	go tab.addVerifiedNodeSync(n)
+}
+
+func (tab *Table) addVerifiedNodeSync(n *node) {
 	if !tab.isInitDone() {
 		return
 	}
 	if n.ID() == tab.self().ID() {
 		return
 	}
-
+	if tab.filterNode(n) {
+		return
+	}
 	tab.mutex.Lock()
 	defer tab.mutex.Unlock()
 	b := tab.bucket(n.ID())
