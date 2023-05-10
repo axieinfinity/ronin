@@ -80,7 +80,14 @@ accountsCount=$(
   | wc -l
 )
 
-# private key
+if [[ ! -z $MINE ]]; then
+  mine="$MINE"
+fi
+
+# If there is no imported account and private key environment is provided,
+# import the new account. In case there is an imported account, we check
+# whether the private key environment provided has the same address, if not
+# we abort with an error.
 if [[ ! -z $PRIVATE_KEY ]]; then
   echo "$PRIVATE_KEY" > ./private_key
   if [[ $accountsCount -le 0 ]]; then
@@ -99,13 +106,15 @@ if [[ ! -z $PRIVATE_KEY ]]; then
     if [[ $exitCode -ne 0 ]]; then
       echo "An account with different address already exists in $KEYSTORE_DIR"
       echo "Please consider remove account in keystore" \
-        "or unset PRIVATE_KEY environment variable"
+        "or unset the private key environment variable"
       exit 1
     fi
     set -e
   fi
   rm ./private_key
   unset PRIVATE_KEY
+elif [[ "$mine" = "true" ]]; then
+  echo "Warning: A mining node is started without private key environment provided"
 fi
 
 accountsCount=$(
@@ -202,10 +211,6 @@ fi
 
 if [[ ! -z $PASSWORD_FILE ]]; then
   params="$params --password $PASSWORD_FILE"
-fi
-
-if [[ ! -z $MINE ]]; then
-  mine="$MINE"
 fi
 
 if [[ "$mine" = "true" ]]; then
