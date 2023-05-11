@@ -1019,10 +1019,12 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 		parent     *types.Block
 		fastCommit bool
 	)
+
+	parent = w.chain.CurrentBlock()
 	if consortiumEngine, ok := w.engine.(*consortium.Consortium); ok {
-		parent, fastCommit = consortiumEngine.GetBestParentBlock(w.chain)
-	} else {
-		parent = w.chain.CurrentBlock()
+		if w.chainConfig.IsOlek(parent.Number()) {
+			parent, fastCommit = consortiumEngine.GetBestParentBlock(w.chain)
+		}
 	}
 
 	if parent.Time() >= uint64(timestamp) {
