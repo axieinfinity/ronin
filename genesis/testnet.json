@@ -25,7 +25,8 @@
       "stakingContract": "0x9C245671791834daf3885533D24dce516B763B28"
     },
     "puffyBlock": 12254000,
-    "bubaBlock": 14260600
+    "bubaBlock": 14260600,
+    "olekBlock": 16849000
   },
   "alloc": {
     "0x0000000000000000000000000000000000000011": {
