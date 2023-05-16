@@ -136,6 +136,7 @@ var (
 		utils.MinerRecommitIntervalFlag,
 		utils.MinerNoVerifyFlag,
 		utils.MinerBlockProduceLeftoverFlag,
+		utils.MinerBlockSizeReserveFlag,
 		utils.NATFlag,
 		utils.NoDiscoverFlag,
 		utils.DiscoveryV5Flag,
