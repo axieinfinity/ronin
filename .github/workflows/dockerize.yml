@@ -12,6 +12,5 @@ jobs:
   docker:
     uses: axieinfinity/workflows-samples/.github/workflows/docker-build-submodule.yml@main
     with:
-      checkout_submodules: true
       image_repository: us-docker.pkg.dev/axs-infra-ops-8686/skymavis/ronin
     secrets: inherit
