@@ -202,22 +202,26 @@ func (c *Consortium) GetBestParentBlock(chain *core.BlockChain) (*types.Block, b
 	return c.v2.GetBestParentBlock(chain)
 }
 
-// HandleSubmitBlockReward determines if the transaction is submitBlockReward
-// transaction with non-zero msg.value and fixes up the statedb.
-// This function bases on the fact that submitBlockReward is the only system
-// transaction that may have non-zero msg.value
-func HandleSubmitBlockReward(engine consensus.Engine, statedb *state.StateDB, msg core.Message, block *types.Block) {
+// HandleSystemTransaction fixes up the statedb when system transaction
+// goes through ApplyMessage when tracing/debugging
+func HandleSystemTransaction(engine consensus.Engine, statedb *state.StateDB, msg core.Message, block *types.Block) bool {
 	consortium, ok := engine.(*Consortium)
 	if !ok {
-		return
+		return false
 	}
 
 	if consortium.chainConfig.IsConsortiumV2(new(big.Int).Add(block.Number(), common.Big1)) {
 		isSystemMsg := consortium.v2.IsSystemMessage(msg, block.Header())
-		if isSystemMsg && msg.Value().Cmp(common.Big0) > 0 {
-			balance := statedb.GetBalance(consensus.SystemAddress)
-			statedb.SetBalance(consensus.SystemAddress, big.NewInt(0))
-			statedb.AddBalance(block.Coinbase(), balance)
+		if isSystemMsg {
+			if msg.Value().Cmp(common.Big0) > 0 {
+				balance := statedb.GetBalance(consensus.SystemAddress)
+				statedb.SetBalance(consensus.SystemAddress, big.NewInt(0))
+				statedb.AddBalance(block.Coinbase(), balance)
+			}
+
+			return true
 		}
 	}
+
+	return false
 }
