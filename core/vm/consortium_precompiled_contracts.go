@@ -146,7 +146,7 @@ func (c *consortiumPickValidatorSet) Run(input []byte) ([]byte, error) {
 	candidateMap := createCandidateMap(candidates, trustedWeights)
 
 	// Sort candidates in place
-	candidates, weights = sortValidators(candidates, weights)
+	sortValidators(candidates, weights)
 
 	updateIsTrustedOrganizations(candidates, trustedWeights, candidateMap)
 
@@ -245,7 +245,7 @@ func (c *consortiumValidatorSorting) Run(input []byte) ([]byte, error) {
 	if len(validators) != len(weights) {
 		return nil, errors.New("balances and validators length mismatched")
 	}
-	validators, weights = sortValidators(validators, weights)
+	sortValidators(validators, weights)
 
 	log.Debug("Precompiled sorting", "validators", validators, "weights", weights)
 
@@ -272,14 +272,14 @@ func (s *SortableValidators) Swap(i, j int) {
 	s.weights[i], s.weights[j] = s.weights[j], s.weights[i]
 }
 
-func sortValidators(validators []common.Address, weights []*big.Int) ([]common.Address, []*big.Int) {
+func sortValidators(validators []common.Address, weights []*big.Int) {
 	if len(validators) < 2 {
-		return validators, weights
+		return
 	}
 	// start sorting validators
 	vals := &SortableValidators{validators: validators, weights: weights}
 	sort.Sort(vals)
-	return vals.validators, vals.weights
+	return
 }
 
 type SmartContractCaller struct {

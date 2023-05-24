@@ -571,7 +571,7 @@ func TestSort(t *testing.T) {
 		big.NewInt(1),
 	}
 
-	addrs, totalBalances = sortValidators(addrs, totalBalances)
+	sortValidators(addrs, totalBalances)
 	for i, val := range addrs {
 		if expectedBalances[i].Cmp(totalBalances[i]) != 0 {
 			t.Fatal(fmt.Sprintf("mismatched balance at %d, expected:%s got:%s", i, expectedBalances[i].String(), totalBalances[i].String()))
@@ -876,7 +876,7 @@ func TestArrangeValidatorCandidates(t *testing.T) {
 	maxPrioritizedValidatorNumber := big.NewInt(11)
 
 	candidateMap := createCandidateMap(candidates, isTrustedOrganizations)
-	candidates, weights = sortValidators(candidates, weights)
+	sortValidators(candidates, weights)
 	updateIsTrustedOrganizations(candidates, isTrustedOrganizations, candidateMap)
 	arrangeValidatorCandidates(candidates, newValidatorCount, isTrustedOrganizations, maxPrioritizedValidatorNumber)
 
@@ -923,7 +923,7 @@ func TestArrangeValidatorCandidates_RandomTrustedOrganizations(t *testing.T) {
 	maxPrioritizedValidatorNumber := big.NewInt(11)
 
 	candidateMap := createCandidateMap(candidates, isTrustedOrganizations)
-	candidates, weights = sortValidators(candidates, weights)
+	sortValidators(candidates, weights)
 
 	updateIsTrustedOrganizations(candidates, isTrustedOrganizations, candidateMap)
 	arrangeValidatorCandidates(candidates, newValidatorCount, isTrustedOrganizations, maxPrioritizedValidatorNumber)
@@ -972,7 +972,7 @@ func TestArrangeValidatorCandidates_Max5Prioritized(t *testing.T) {
 	maxPrioritizedValidatorNumber := big.NewInt(11)
 
 	candidateMap := createCandidateMap(candidates, isTrustedOrganizations)
-	candidates, weights = sortValidators(candidates, weights)
+	sortValidators(candidates, weights)
 	updateIsTrustedOrganizations(candidates, isTrustedOrganizations, candidateMap)
 	arrangeValidatorCandidates(candidates, newValidatorCount, isTrustedOrganizations, maxPrioritizedValidatorNumber)
 
@@ -1019,7 +1019,7 @@ func TestArrangeValidatorCandidates_Miss5Nodes(t *testing.T) {
 	maxPrioritizedValidatorNumber := big.NewInt(11)
 
 	candidateMap := createCandidateMap(candidates, isTrustedOrganizations)
-	candidates, weights = sortValidators(candidates, weights)
+	sortValidators(candidates, weights)
 	updateIsTrustedOrganizations(candidates, isTrustedOrganizations, candidateMap)
 	arrangeValidatorCandidates(candidates, newValidatorCount, isTrustedOrganizations, maxPrioritizedValidatorNumber)
 
@@ -1084,7 +1084,7 @@ func TestArrangeValidatorCandidates_Has15TrustedNodes(t *testing.T) {
 	maxPrioritizedValidatorNumber := big.NewInt(11)
 
 	candidateMap := createCandidateMap(candidates, isTrustedOrganizations)
-	candidates, weights = sortValidators(candidates, weights)
+	sortValidators(candidates, weights)
 	updateIsTrustedOrganizations(candidates, isTrustedOrganizations, candidateMap)
 	arrangeValidatorCandidates(candidates, newValidatorCount, isTrustedOrganizations, maxPrioritizedValidatorNumber)
 
@@ -1154,7 +1154,7 @@ func TestArrangeValidatorCandidates_TrustedNodesAtBeginningArray(t *testing.T) {
 	maxPrioritizedValidatorNumber := big.NewInt(11)
 
 	candidateMap := createCandidateMap(candidates, isTrustedOrganizations)
-	candidates, weights = sortValidators(candidates, weights)
+	sortValidators(candidates, weights)
 	updateIsTrustedOrganizations(candidates, isTrustedOrganizations, candidateMap)
 	arrangeValidatorCandidates(candidates, newValidatorCount, isTrustedOrganizations, maxPrioritizedValidatorNumber)
 
