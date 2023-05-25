@@ -80,6 +80,9 @@ var (
 	blockPrefetchExecuteTimer   = metrics.NewRegisteredTimer("chain/prefetch/executes", nil)
 	blockPrefetchInterruptMeter = metrics.NewRegisteredMeter("chain/prefetch/interrupts", nil)
 
+	blockTxsGauge     = metrics.NewRegisteredGauge("chain/block/txs", nil)
+	blockGasUsedGauge = metrics.NewRegisteredGauge("chain/block/gasUsed", nil)
+
 	errInsertionInterrupted = errors.New("insertion is interrupted")
 	errChainStopped         = errors.New("blockchain is stopped")
 )
@@ -1757,6 +1760,8 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, er
 
 		blockWriteTimer.Update(time.Since(substart) - statedb.AccountCommits - statedb.StorageCommits - statedb.SnapshotCommits)
 		blockInsertTimer.UpdateSince(start)
+		blockTxsGauge.Update(int64(len(block.Transactions())))
+		blockGasUsedGauge.Update(int64(block.GasUsed()))
 
 		switch status {
 		case CanonStatTy:
