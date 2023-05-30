@@ -490,6 +490,11 @@ var (
 		Usage: "The interval block with transactions needs committing before empty block is produced",
 		Value: ethconfig.Defaults.Miner.BlockProduceLeftOver,
 	}
+	MinerBlockSizeReserveFlag = cli.Uint64Flag{
+		Name:  "miner.blocksizereserve",
+		Usage: "Reserved block size when committing transactions to block",
+		Value: ethconfig.Defaults.Miner.BlockSizeReserve,
+	}
 	// Account settings
 	UnlockedAccountFlag = cli.StringFlag{
 		Name:  "unlock",
@@ -1474,6 +1479,7 @@ func setMiner(ctx *cli.Context, cfg *miner.Config) {
 	if ctx.GlobalIsSet(MinerBlockProduceLeftoverFlag.Name) {
 		cfg.BlockProduceLeftOver = ctx.GlobalDuration(MinerBlockProduceLeftoverFlag.Name)
 	}
+	cfg.BlockSizeReserve = ctx.GlobalUint64(MinerBlockSizeReserveFlag.Name)
 	if ctx.GlobalIsSet(LegacyMinerGasTargetFlag.Name) {
 		log.Warn("The generic --miner.gastarget flag is deprecated and will be removed in the future!")
 	}

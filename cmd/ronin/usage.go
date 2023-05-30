@@ -195,6 +195,7 @@ var AppHelpFlagGroups = []flags.FlagGroup{
 			utils.MinerRecommitIntervalFlag,
 			utils.MinerNoVerifyFlag,
 			utils.MinerBlockProduceLeftoverFlag,
+			utils.MinerBlockSizeReserveFlag,
 		},
 	},
 	{
