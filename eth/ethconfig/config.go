@@ -90,6 +90,7 @@ var Defaults = Config{
 		GasPrice:             big.NewInt(params.GWei),
 		Recommit:             3 * time.Second,
 		BlockProduceLeftOver: 200 * time.Millisecond,
+		BlockSizeReserve:     500000,
 	},
 	TxPool:        core.DefaultTxPoolConfig,
 	RPCGasCap:     50000000,

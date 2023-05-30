@@ -54,6 +54,7 @@ type Config struct {
 	Recommit             time.Duration  // The time interval for miner to re-create mining work.
 	Noverify             bool           // Disable remote mining solution verification(only useful in ethash).
 	BlockProduceLeftOver time.Duration
+	BlockSizeReserve     uint64
 }
 
 // Miner creates blocks and searches for proof-of-work values.
@@ -225,6 +226,10 @@ func (miner *Miner) SetGasReserve(reserve uint64) {
 
 func (miner *Miner) SetBlockProducerLeftover(interval time.Duration) {
 	miner.worker.setBlockProducerLeftover(interval)
+}
+
+func (miner *Miner) SetBlockSizeReserve(size uint64) {
+	miner.worker.setBlockSizeReserve(size)
 }
 
 // EnablePreseal turns on the preseal mining feature. It's enabled by default.

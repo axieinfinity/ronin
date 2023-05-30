@@ -81,18 +81,23 @@ const (
 	// recentMinedCacheLimit is the maximum blocks stored in recentMinedBlocks for avoiding
 	// double sign a block
 	recentMinedCacheLimit = 20
+
+	// maxBlockSize is the maximum size of block, this is used to abort transaction commit
+	// to block when the estimated block size is larger than this threshold
+	maxBlockSize = 10 * 1024 * 1024 // 10MB
 )
 
 // environment is the worker's current environment and holds all of the current state information.
 type environment struct {
 	signer types.Signer
 
-	state     *state.StateDB // apply state changes here
-	ancestors mapset.Set     // ancestor set (used for checking uncle parent validity)
-	family    mapset.Set     // family set (used for checking uncle invalidity)
-	uncles    mapset.Set     // uncle set
-	tcount    int            // tx count in cycle
-	gasPool   *core.GasPool  // available gas used to pack transactions
+	state              *state.StateDB // apply state changes here
+	ancestors          mapset.Set     // ancestor set (used for checking uncle parent validity)
+	family             mapset.Set     // family set (used for checking uncle invalidity)
+	uncles             mapset.Set     // uncle set
+	tcount             int            // tx count in cycle
+	gasPool            *core.GasPool  // available gas used to pack transactions
+	estimatedBlockSize uint64
 
 	header   *types.Header
 	txs      []*types.Transaction
@@ -307,6 +312,12 @@ func (w *worker) setBlockProducerLeftover(interval time.Duration) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.config.BlockProduceLeftOver = interval
+}
+
+func (w *worker) setBlockSizeReserve(size uint64) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.config.BlockSizeReserve = size
 }
 
 // disablePreseal disables pre-sealing mining feature
@@ -755,12 +766,13 @@ func (w *worker) makeCurrent(parent *types.Block, header *types.Header) error {
 	state.StartPrefetcher("miner")
 
 	env := &environment{
-		signer:    types.MakeSigner(w.chainConfig, header.Number),
-		state:     state,
-		ancestors: mapset.NewSet(),
-		family:    mapset.NewSet(),
-		uncles:    mapset.NewSet(),
-		header:    header,
+		signer:             types.MakeSigner(w.chainConfig, header.Number),
+		state:              state,
+		ancestors:          mapset.NewSet(),
+		family:             mapset.NewSet(),
+		uncles:             mapset.NewSet(),
+		header:             header,
+		estimatedBlockSize: 0,
 	}
 	// when 08 is processed ancestors contain 07 (quick block)
 	for _, ancestor := range w.chain.GetBlocksFromHash(parent.Hash(), 7) {
@@ -928,6 +940,12 @@ Loop:
 			log.Trace("Not enough gas for further transactions", "have", w.current.gasPool, "want", params.TxGas)
 			break
 		}
+
+		if w.current.estimatedBlockSize+w.config.BlockSizeReserve > maxBlockSize {
+			log.Debug("Estimated block size is too big", "estimated size", w.current.estimatedBlockSize)
+			break
+		}
+
 		// Retrieve the next transaction and abort if all done
 		tx := txs.Peek()
 		if tx == nil {
@@ -970,6 +988,7 @@ Loop:
 			// Everything ok, collect the logs and shift in the next transaction from the same account
 			coalescedLogs = append(coalescedLogs, logs...)
 			w.current.tcount++
+			w.current.estimatedBlockSize += uint64(tx.Size())
 			txs.Shift()
 
 		case errors.Is(err, core.ErrTxTypeNotSupported):
