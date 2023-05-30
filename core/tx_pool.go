@@ -376,12 +376,17 @@ func (pool *TxPool) loop() {
 		// Handle stats reporting ticks
 		case <-report.C:
 			pool.mu.RLock()
-			pending, queued := pool.stats()
+			pending, queued, pendingSlots, queuedSlots := pool.stats()
 			pool.mu.RUnlock()
 			stales := int(atomic.LoadInt64(&pool.priced.stales))
 
 			if pending != prevPending || queued != prevQueued || stales != prevStales {
-				log.Debug("Transaction pool status report", "executable", pending, "queued", queued, "stales", stales)
+				log.Debug(
+					"Transaction pool status report",
+					"executable", pending, "executable slots", pendingSlots,
+					"queued", queued, "queued slots", queuedSlots,
+					"stales", stales,
+				)
 				prevPending, prevQueued, prevStales = pending, queued, stales
 			}
 
@@ -476,27 +481,35 @@ func (pool *TxPool) Nonce(addr common.Address) uint64 {
 	return pool.pendingNonces.get(addr)
 }
 
-// Stats retrieves the current pool stats, namely the number of pending and the
-// number of queued (non-executable) transactions.
-func (pool *TxPool) Stats() (int, int) {
+// Stats retrieves the current pool stats, namely the number of pending transations,
+// slots, and the number of queued (non-executable) transactions, slots.
+func (pool *TxPool) Stats() (int, int, int, int) {
 	pool.mu.RLock()
 	defer pool.mu.RUnlock()
 
 	return pool.stats()
 }
 
-// stats retrieves the current pool stats, namely the number of pending and the
-// number of queued (non-executable) transactions.
-func (pool *TxPool) stats() (int, int) {
+// stats retrieves the current pool stats, namely the number of pending transactions,
+// slots and the number of queued (non-executable) transactions, slots.
+func (pool *TxPool) stats() (int, int, int, int) {
 	pending := 0
 	for _, list := range pool.pending {
 		pending += list.Len()
+	}
+	pendingSlots := 0
+	for _, list := range pool.pending {
+		pendingSlots += list.TotalSlots()
 	}
 	queued := 0
 	for _, list := range pool.queue {
 		queued += list.Len()
 	}
-	return pending, queued
+	queuedSlots := 0
+	for _, list := range pool.queue {
+		queuedSlots += list.TotalSlots()
+	}
+	return pending, queued, pendingSlots, queuedSlots
 }
 
 // Content retrieves the data content of the transaction pool, returning all the

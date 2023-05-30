@@ -20,10 +20,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/ethereum/go-ethereum/eth/tracers/logger"
 	"math/big"
 	"strings"
 	"time"
+
+	"github.com/ethereum/go-ethereum/eth/tracers/logger"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/ethereum/go-ethereum/accounts"
@@ -203,10 +204,12 @@ func (s *PublicTxPoolAPI) ContentFrom(addr common.Address) map[string]map[string
 
 // Status returns the number of pending and queued transaction in the pool.
 func (s *PublicTxPoolAPI) Status() map[string]hexutil.Uint {
-	pending, queue := s.b.Stats()
+	pending, queue, pendingSlots, queuedSlots := s.b.Stats()
 	return map[string]hexutil.Uint{
-		"pending": hexutil.Uint(pending),
-		"queued":  hexutil.Uint(queue),
+		"pending":       hexutil.Uint(pending),
+		"queued":        hexutil.Uint(queue),
+		"pending slots": hexutil.Uint(pendingSlots),
+		"queued slots":  hexutil.Uint(queuedSlots),
 	}
 }
 
