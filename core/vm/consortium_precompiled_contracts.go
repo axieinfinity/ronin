@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"io"
 	"math/big"
-	"math/rand"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -252,34 +252,33 @@ func (c *consortiumValidatorSorting) Run(input []byte) ([]byte, error) {
 	return method.Outputs.Pack(validators)
 }
 
+type SortableValidators struct {
+	validators []common.Address
+	weights    []*big.Int
+}
+
+func (s *SortableValidators) Len() int {
+	return len(s.validators)
+}
+
+func (s *SortableValidators) Less(i, j int) bool {
+	cmp := s.weights[i].Cmp(s.weights[j])
+	addrsCmp := big.NewInt(0).SetBytes(s.validators[i].Bytes()).Cmp(big.NewInt(0).SetBytes(s.validators[j].Bytes())) > 0
+	return cmp > 0 || (cmp == 0 && addrsCmp)
+}
+
+func (s *SortableValidators) Swap(i, j int) {
+	s.validators[i], s.validators[j] = s.validators[j], s.validators[i]
+	s.weights[i], s.weights[j] = s.weights[j], s.weights[i]
+}
+
 func sortValidators(validators []common.Address, weights []*big.Int) {
 	if len(validators) < 2 {
 		return
 	}
-
-	left, right := 0, len(validators)-1
-
-	pivot := rand.Int() % len(validators)
-
-	validators[pivot], validators[right] = validators[right], validators[pivot]
-	weights[pivot], weights[right] = weights[right], weights[pivot]
-
-	for i := range validators {
-		cmp := weights[i].Cmp(weights[right])
-		addrsCmp := big.NewInt(0).SetBytes(validators[i].Bytes()).Cmp(big.NewInt(0).SetBytes(validators[right].Bytes())) > 0
-		if cmp > 0 || (cmp == 0 && addrsCmp) {
-			validators[left], validators[i] = validators[i], validators[left]
-			weights[left], weights[i] = weights[i], weights[left]
-			left++
-		}
-	}
-
-	validators[left], validators[right] = validators[right], validators[left]
-	weights[left], weights[right] = weights[right], weights[left]
-
-	sortValidators(validators[:left], weights[:left])
-	sortValidators(validators[left+1:], weights[left+1:])
-
+	// start sorting validators
+	vals := &SortableValidators{validators: validators, weights: weights}
+	sort.Sort(vals)
 	return
 }
 
