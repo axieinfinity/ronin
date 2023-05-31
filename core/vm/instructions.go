@@ -22,7 +22,6 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/holiman/uint256"
 	"golang.org/x/crypto/sha3"
-	"math/big"
 )
 
 func opAdd(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
@@ -750,7 +749,7 @@ func opDelegateCall(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext
 	}
 	scope.Contract.Gas += returnGas
 	// call publish event to publish CALL event
-	interpreter.evm.PublishEvent(DELEGATECALL, counter, scope.Contract.Address(), toAddr, big.NewInt(0), cpyArgs, ret, err)
+	interpreter.evm.PublishEvent(DELEGATECALL, counter, scope.Contract.Address(), toAddr, scope.Contract.Value(), cpyArgs, ret, err)
 
 	return ret, nil
 }
