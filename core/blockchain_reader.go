@@ -435,19 +435,20 @@ func (bc *BlockChain) ReadDirtyAccounts(hash common.Hash) []*types.DirtyStateAcc
 func (bc *BlockChain) OpEvents() []*vm.PublishEvent {
 	return []*vm.PublishEvent{
 		{
-			OpCodes: []vm.OpCode{vm.CALL, vm.DELEGATECALL},
-			Event:   &InternalTransferOrSmcCallEvent{},
-		},
-		{
-			OpCodes: []vm.OpCode{vm.CREATE, vm.CREATE2},
-			Event:   &InternalTransactionContractCreation{},
+			OpCodes: []vm.OpCode{
+				vm.CALL,
+				vm.DELEGATECALL,
+				vm.CREATE,
+				vm.CREATE2,
+			},
+			Event: &InternalTransactionEvent{},
 		},
 	}
 }
 
-type InternalTransferOrSmcCallEvent struct{}
+type InternalTransactionEvent struct{}
 
-func (tx *InternalTransferOrSmcCallEvent) Publish(
+func (tx *InternalTransactionEvent) Publish(
 	opcode vm.OpCode,
 	order, blockHeight uint64,
 	blockHash common.Hash,
@@ -458,49 +459,16 @@ func (tx *InternalTransferOrSmcCallEvent) Publish(
 	input, output []byte,
 	err error,
 ) *types.InternalTransaction {
+	var msgType string
+	if opcode == vm.CALL || opcode == vm.DELEGATECALL {
+		msgType = types.InternalTransactionContractCall
+	} else {
+		msgType = types.InternalTransactionContractCreation
+	}
+
 	internal := &types.InternalTransaction{
 		Opcode:  opcode.String(),
-		Type:    types.InternalTransactionContractCall,
-		Success: err == nil,
-		Error:   "",
-		Output:  output,
-		InternalTransactionBody: &types.InternalTransactionBody{
-			Order:           order,
-			TransactionHash: hash,
-			Value:           value,
-			Input:           input,
-			From:            from,
-			To:              to,
-			Height:          blockHeight,
-			BlockHash:       blockHash,
-			BlockTime:       blockTime,
-		},
-	}
-	if value != nil && value.Cmp(big.NewInt(0)) > 0 && (input == nil || len(input) == 0) {
-		internal.Type = types.InternalTransactionTransfer
-	}
-	if err != nil {
-		internal.Error = err.Error()
-	}
-	return internal
-}
-
-type InternalTransactionContractCreation struct{}
-
-func (tx *InternalTransactionContractCreation) Publish(
-	opcode vm.OpCode,
-	order, blockHeight uint64,
-	blockHash common.Hash,
-	blockTime uint64,
-	hash common.Hash,
-	from, to common.Address,
-	value *big.Int,
-	input, output []byte,
-	err error,
-) *types.InternalTransaction {
-	internal := &types.InternalTransaction{
-		Opcode:  opcode.String(),
-		Type:    types.InternalTransactionContractCreation,
+		Type:    msgType,
 		Success: err == nil,
 		Error:   "",
 		Output:  output,
