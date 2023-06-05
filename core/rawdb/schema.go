@@ -96,6 +96,8 @@ var (
 	internalTxsPrefix = []byte("itxs") // internalTxsPrefix + block hash -> internal transactions
 	dirtyAccountsKey  = []byte("dacc") // dirtyAccountsPrefix + block hash -> dirty accounts
 
+	trieSnapshotPrefix = []byte("S") // trieSnapshotPrefix + block number (uint64 big endian) -> trie snapshot list
+
 	PreimagePrefix = []byte("secure-key-")      // PreimagePrefix + hash -> preimage
 	configPrefix   = []byte("ethereum-config-") // config prefix for the db
 
@@ -240,4 +242,8 @@ func IsCodeKey(key []byte) (bool, []byte) {
 // configKey = configPrefix + hash
 func configKey(hash common.Hash) []byte {
 	return append(configPrefix, hash.Bytes()...)
+}
+
+func trieSnapshotKey(blockNumber uint64) []byte {
+	return binary.BigEndian.AppendUint64(trieSnapshotPrefix, blockNumber)
 }

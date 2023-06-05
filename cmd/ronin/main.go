@@ -167,6 +167,9 @@ var (
 		utils.CatalystFlag,
 		utils.MonitorDoubleSign,
 		utils.StoreInternalTransactions,
+		utils.TrieSnapshotGasUsed,
+		utils.TrieSnapshotCheckpoint,
+		utils.TrieSnapshotBlockRange,
 	}
 
 	rpcFlags = []cli.Flag{
