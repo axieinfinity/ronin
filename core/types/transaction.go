@@ -641,7 +641,6 @@ func copyAddressPtr(a *common.Address) *common.Address {
 }
 
 const (
-	InternalTransactionTransfer         = "transfer"
 	InternalTransactionContractCall     = "call"
 	InternalTransactionContractCreation = "create"
 )
