@@ -212,6 +212,12 @@ type Config struct {
 
 	// Enable double sign monitoring
 	EnableMonitorDoubleSign bool
+
+	// Optimized GC mode flags
+	OptimizedMode          bool
+	TrieSnapshotGasUsed    uint64 // The accumulated gas used threshold before creating a new snapshot
+	TrieSnapshotCheckpoint uint64 // The checkpoint block interval that stores the list of snapshot
+	TrieSnapshotBlockRange uint64 // The maximum blocks before next trie snapshot
 }
 
 // CreateConsensusEngine creates a consensus engine for the given chain configuration.

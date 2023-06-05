@@ -20,6 +20,13 @@ package main
 import (
 	"errors"
 	"fmt"
+	"os"
+	"runtime"
+	"sort"
+	"strconv"
+	"strings"
+	"time"
+
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/cmd/utils"
@@ -35,12 +42,6 @@ import (
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/node"
 	"github.com/pyroscope-io/client/pyroscope"
-	"os"
-	"runtime"
-	"sort"
-	"strconv"
-	"strings"
-	"time"
 
 	// Force-load the tracer engines to trigger registration
 	_ "github.com/ethereum/go-ethereum/eth/tracers/js"
@@ -166,6 +167,9 @@ var (
 		utils.CatalystFlag,
 		utils.MonitorDoubleSign,
 		utils.StoreInternalTransactions,
+		utils.TrieSnapshotGasUsed,
+		utils.TrieSnapshotCheckpoint,
+		utils.TrieSnapshotBlockRange,
 	}
 
 	rpcFlags = []cli.Flag{

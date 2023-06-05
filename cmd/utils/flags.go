@@ -219,8 +219,23 @@ var (
 	}
 	GCModeFlag = cli.StringFlag{
 		Name:  "gcmode",
-		Usage: `Blockchain garbage collection mode ("full", "archive")`,
+		Usage: `Blockchain garbage collection mode ("full", "archive", "optimized")`,
 		Value: "full",
+	}
+	TrieSnapshotGasUsed = cli.Uint64Flag{
+		Name:  "triesnapshot.gasused",
+		Usage: "The accumulated gas used threshold before creating a new snapshot",
+		Value: 150000000,
+	}
+	TrieSnapshotCheckpoint = cli.Uint64Flag{
+		Name:  "triesnapshot.checkpoint",
+		Usage: "The checkpoint block interval that stores the list of snapshot",
+		Value: 300,
+	}
+	TrieSnapshotBlockRange = cli.Uint64Flag{
+		Name:  "triesnapshot.blockrange",
+		Usage: "The maximum blocks before next trie snapshot",
+		Value: 20000,
 	}
 	SnapshotFlag = cli.BoolTFlag{
 		Name:  "snapshot",
@@ -1608,11 +1623,17 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 		cfg.DatabaseFreezer = ctx.GlobalString(AncientFlag.Name)
 	}
 
-	if gcmode := ctx.GlobalString(GCModeFlag.Name); gcmode != "full" && gcmode != "archive" {
-		Fatalf("--%s must be either 'full' or 'archive'", GCModeFlag.Name)
+	if gcmode := ctx.GlobalString(GCModeFlag.Name); gcmode != "full" && gcmode != "archive" && gcmode != "optimized" {
+		Fatalf("--%s must be either 'full' or 'archive' or 'optimized'", GCModeFlag.Name)
 	}
 	if ctx.GlobalIsSet(GCModeFlag.Name) {
 		cfg.NoPruning = ctx.GlobalString(GCModeFlag.Name) == "archive"
+		cfg.OptimizedMode = ctx.GlobalString(GCModeFlag.Name) == "optimized"
+	}
+	if cfg.OptimizedMode {
+		cfg.TrieSnapshotGasUsed = ctx.GlobalUint64(TrieSnapshotGasUsed.Name)
+		cfg.TrieSnapshotCheckpoint = ctx.GlobalUint64(TrieSnapshotCheckpoint.Name)
+		cfg.TrieSnapshotBlockRange = ctx.GlobalUint64(TrieSnapshotBlockRange.Name)
 	}
 	if ctx.GlobalIsSet(CacheNoPrefetchFlag.Name) {
 		cfg.NoPrefetch = ctx.GlobalBool(CacheNoPrefetchFlag.Name)

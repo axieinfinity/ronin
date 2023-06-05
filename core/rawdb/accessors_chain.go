@@ -1018,3 +1018,32 @@ func ReadDirtyAccounts(db ethdb.KeyValueReader) []*types.DirtyStateAccountsAndBl
 	}
 	return dirtyStateAccounts
 }
+
+func WriteTrieSnapshotList(db ethdb.KeyValueWriter, blockNumber uint64, unsavedTrieSnapshot []uint64) {
+	data, err := rlp.EncodeToBytes(unsavedTrieSnapshot)
+	if err != nil {
+		log.Crit("Failed to encode trie snapshot list", "err", err)
+	}
+	if err = db.Put(trieSnapshotKey(blockNumber), data); err != nil {
+		log.Crit("Failed to write trie snapshot list", "err", err)
+	}
+}
+
+func DeleteTrieSnapshotList(db ethdb.KeyValueWriter, blockNumber uint64) {
+	if err := db.Delete(trieSnapshotKey(blockNumber)); err != nil {
+		log.Crit("Failed to delete trie snapshot list", "err", err)
+	}
+}
+
+func ReadTrieSnapshotList(db ethdb.KeyValueReader, blockNumber uint64) []uint64 {
+	data, _ := db.Get(trieSnapshotKey(blockNumber))
+	if len(data) == 0 {
+		return []uint64{}
+	}
+
+	var trieSnapshot []uint64
+	if err := rlp.Decode(bytes.NewReader(data), &trieSnapshot); err != nil {
+		log.Crit("Failed to decode trie snapshot list", "err", err)
+	}
+	return trieSnapshot
+}

@@ -138,6 +138,11 @@ type CacheConfig struct {
 	Preimages           bool          // Whether to store preimage of trie key to the disk
 
 	SnapshotWait bool // Wait for snapshot construction on startup. TODO(karalabe): This is a dirty hack for testing, nuke it
+
+	OptimizedMode          bool
+	TrieSnapshotGasUsed    uint64 // The accumulated gas used threshold before creating a new snapshot
+	TrieSnapshotCheckpoint uint64 // The checkpoint block interval that stores the list of snapshot
+	TrieSnapshotBlockRange uint64 // The maximum blocks before next trie snapshot
 }
 
 // defaultCacheConfig are the default caching values if none are specified by the
@@ -224,6 +229,10 @@ type BlockChain struct {
 
 	shouldPreserve         func(*types.Block) bool // Function used to determine whether should preserve the given block.
 	shouldStoreInternalTxs bool
+
+	unsavedTrieSnapshot     []uint64
+	accumulatedGasUsed      uint64
+	blocksSinceLastSnapshot uint64
 }
 
 // NewBlockChain returns a fully initialised block chain using information
@@ -422,6 +431,10 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 
 	// load the latest dirty accounts stored from last stop to cache
 	bc.loadLatestDirtyAccounts()
+
+	if bc.cacheConfig.OptimizedMode {
+		bc.unsavedTrieSnapshot = bc.loadTrieSnapshotList(bc.CurrentBlock().NumberU64())
+	}
 
 	return bc, nil
 }
@@ -882,6 +895,12 @@ func (bc *BlockChain) Stop() {
 				log.Info("Writing cached state to disk", "block", recent.Number(), "hash", recent.Hash(), "root", recent.Root())
 				if err := triedb.Commit(recent.Root(), true, nil); err != nil {
 					log.Error("Failed to commit recent state trie", "err", err)
+					if bc.cacheConfig.OptimizedMode && offset == TriesInMemory-1 {
+						_, err := triedb.Node(recent.Root())
+						if err == nil {
+							bc.unsavedTrieSnapshot = append(bc.unsavedTrieSnapshot, recent.NumberU64())
+						}
+					}
 				}
 			}
 		}
@@ -904,6 +923,10 @@ func (bc *BlockChain) Stop() {
 		triedb := bc.stateCache.TrieDB()
 		triedb.SaveCache(bc.cacheConfig.TrieCleanJournal)
 	}
+	if bc.cacheConfig.OptimizedMode {
+		bc.saveTrieSnapshotList(bc.CurrentBlock().NumberU64())
+	}
+
 	log.Info("Blockchain stopped")
 }
 
@@ -1279,6 +1302,49 @@ func (bc *BlockChain) WriteBlockWithState(block *types.Block, receipts []*types.
 	return bc.writeBlockWithState(block, receipts, logs, internalTxs, state, emitHeadEvent)
 }
 
+func (bc *BlockChain) loadTrieSnapshotList(blockNumber uint64) []uint64 {
+	unsavedTrieSnapshot := rawdb.ReadTrieSnapshotList(bc.db, blockNumber)
+	if blockNumber%bc.cacheConfig.TrieSnapshotCheckpoint != 0 {
+		rawdb.DeleteTrieSnapshotList(bc.db, blockNumber)
+	}
+
+	return unsavedTrieSnapshot
+}
+
+func (bc *BlockChain) saveTrieSnapshotList(blockNumber uint64) {
+	// If trie snapshot list has been saved before, possibly reorg happens,
+	// don't try to save trie snapshot list in that case.
+	if len(rawdb.ReadTrieSnapshotList(bc.db, blockNumber)) == 0 {
+		rawdb.WriteTrieSnapshotList(bc.db, blockNumber, bc.unsavedTrieSnapshot)
+		bc.unsavedTrieSnapshot = make([]uint64, 0)
+	}
+}
+
+func (bc *BlockChain) createTrieSnapshot(triedb *trie.Database, chosen uint64) {
+	header := bc.GetHeaderByNumber(chosen)
+
+	bc.blocksSinceLastSnapshot++
+	bc.accumulatedGasUsed += header.GasUsed
+	if bc.accumulatedGasUsed > bc.cacheConfig.TrieSnapshotGasUsed || bc.blocksSinceLastSnapshot > bc.cacheConfig.TrieSnapshotBlockRange {
+		// This trie is no longer available maybe due to the
+		// previous node stop. So don't record this as a trie
+		// snapshot
+		_, err := triedb.Node(header.Root)
+		if err != nil {
+			return
+		}
+		err = triedb.Commit(header.Root, false, nil)
+		if err != nil {
+			log.Error("Failed to flush checkpoint trie into disk", "error", err)
+			return
+		}
+		bc.unsavedTrieSnapshot = append(bc.unsavedTrieSnapshot, header.Number.Uint64())
+		bc.accumulatedGasUsed = 0
+		bc.blocksSinceLastSnapshot = 0
+		log.Debug("Persistent trie to disk", "number", header.Number, "root", header.Root)
+	}
+}
+
 // writeBlockWithState writes the block and all associated state to the database,
 // but is expects the chain mutex to be held.
 func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.Receipt, logs []*types.Log, internalTxs []*types.InternalTransaction, state *state.StateDB, emitHeadEvent bool) (status WriteStatus, dirtyAccounts []*types.DirtyStateAccount, err error) {
@@ -1332,29 +1398,37 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 				nodes, imgs = triedb.Size()
 				limit       = common.StorageSize(bc.cacheConfig.TrieDirtyLimit) * 1024 * 1024
 			)
-			if nodes > limit || imgs > 4*1024*1024 {
-				triedb.Cap(limit - ethdb.IdealBatchSize)
-			}
 			// Find the next state trie we need to commit
 			chosen := current - TriesInMemory
 
-			// If we exceeded out time allowance, flush an entire trie to disk
-			if bc.gcproc > bc.cacheConfig.TrieTimeLimit {
-				// If the header is missing (canonical chain behind), we're reorging a low
-				// diff sidechain. Suspend committing until this operation is completed.
-				header := bc.GetHeaderByNumber(chosen)
-				if header == nil {
-					log.Warn("Reorg in progress, trie commit postponed", "number", chosen)
-				} else {
-					// If we're exceeding limits but haven't reached a large enough memory gap,
-					// warn the user that the system is becoming unstable.
-					if chosen < lastWrite+TriesInMemory && bc.gcproc >= 2*bc.cacheConfig.TrieTimeLimit {
-						log.Info("State in memory for too long, committing", "time", bc.gcproc, "allowance", bc.cacheConfig.TrieTimeLimit, "optimum", float64(chosen-lastWrite)/TriesInMemory)
+			if bc.cacheConfig.OptimizedMode {
+				bc.createTrieSnapshot(triedb, chosen)
+				if chosen%bc.cacheConfig.TrieSnapshotCheckpoint == 0 {
+					bc.saveTrieSnapshotList(chosen)
+				}
+			} else {
+				if nodes > limit || imgs > 4*1024*1024 {
+					triedb.Cap(limit - ethdb.IdealBatchSize)
+				}
+
+				// If we exceeded out time allowance, flush an entire trie to disk
+				if bc.gcproc > bc.cacheConfig.TrieTimeLimit {
+					// If the header is missing (canonical chain behind), we're reorging a low
+					// diff sidechain. Suspend committing until this operation is completed.
+					header := bc.GetHeaderByNumber(chosen)
+					if header == nil {
+						log.Warn("Reorg in progress, trie commit postponed", "number", chosen)
+					} else {
+						// If we're exceeding limits but haven't reached a large enough memory gap,
+						// warn the user that the system is becoming unstable.
+						if chosen < lastWrite+TriesInMemory && bc.gcproc >= 2*bc.cacheConfig.TrieTimeLimit {
+							log.Info("State in memory for too long, committing", "time", bc.gcproc, "allowance", bc.cacheConfig.TrieTimeLimit, "optimum", float64(chosen-lastWrite)/TriesInMemory)
+						}
+						// Flush an entire trie and restart the counters
+						triedb.Commit(header.Root, true, nil)
+						lastWrite = chosen
+						bc.gcproc = 0
 					}
-					// Flush an entire trie and restart the counters
-					triedb.Commit(header.Root, true, nil)
-					lastWrite = chosen
-					bc.gcproc = 0
 				}
 			}
 			// Garbage collect anything below our required write retention
