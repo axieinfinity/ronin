@@ -83,6 +83,8 @@ var (
 	blockTxsGauge     = metrics.NewRegisteredGauge("chain/block/txs", nil)
 	blockGasUsedGauge = metrics.NewRegisteredGauge("chain/block/gasUsed", nil)
 
+	stateByHeaderTimer = metrics.NewRegisteredTimer("chain/reader/stateByHeader", nil)
+
 	errInsertionInterrupted = errors.New("insertion is interrupted")
 	errChainStopped         = errors.New("blockchain is stopped")
 )
@@ -437,6 +439,10 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 	}
 
 	return bc, nil
+}
+
+func (bc *BlockChain) IsOptimizedMode() bool {
+	return bc.cacheConfig.OptimizedMode
 }
 
 func (bc *BlockChain) loadLatestDirtyAccounts() {

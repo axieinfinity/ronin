@@ -18,6 +18,7 @@ package core
 
 import (
 	"math/big"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -27,8 +28,10 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/event"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/ethereum/go-ethereum/trie"
 )
 
 // CurrentHeader retrieves the current head header of the canonical chain. The
@@ -300,6 +303,97 @@ func (bc *BlockChain) State() (*state.StateDB, error) {
 // StateAt returns a new mutable state based on a particular point in time.
 func (bc *BlockChain) StateAt(root common.Hash) (*state.StateDB, error) {
 	return state.New(root, bc.stateCache, bc.snaps)
+}
+
+// findNearestSnapshot returns the nearest snapshot before requested block
+func (bc *BlockChain) findNearestSnapshot(blockNumber uint64) uint64 {
+	if blockNumber == 0 {
+		return 0
+	}
+
+	snapshotInterval := bc.cacheConfig.TrieSnapshotCheckpoint
+	nextCheckpoint := (blockNumber + snapshotInterval - 1) / snapshotInterval * snapshotInterval
+	snapshot := rawdb.ReadTrieSnapshotList(bc.db, nextCheckpoint)
+	if len(snapshot) != 0 {
+		for i := len(snapshot) - 1; i >= 0; i-- {
+			if snapshot[i] < blockNumber {
+				return snapshot[i]
+			}
+		}
+	}
+
+	for nextCheckpoint -= snapshotInterval; nextCheckpoint != 0; nextCheckpoint = nextCheckpoint - snapshotInterval {
+		snapshot = rawdb.ReadTrieSnapshotList(bc.db, nextCheckpoint)
+		if len(snapshot) != 0 {
+			return snapshot[len(snapshot)-1]
+		}
+	}
+
+	return 0
+}
+
+// StateByHeader tries to read state from blockchain's database and returns if available.
+// In case it is not available, create a ephemeral database, find the nearest snapshot
+// before the requested block and re-execute those blocks between snapshot and requested
+// block to re-generate the state at the requested block.
+func (bc *BlockChain) StateByHeader(header *types.Header) (*state.StateDB, error) {
+	start := time.Now()
+	defer stateByHeaderTimer.Update(time.Since(start))
+
+	statedb, err := bc.StateAt(header.Root)
+	if err == nil {
+		return statedb, err
+	}
+
+	if !bc.cacheConfig.OptimizedMode {
+		return statedb, err
+	}
+
+	nearestCheckpoint := bc.findNearestSnapshot(header.Number.Uint64())
+	checkpointBlock := bc.GetBlockByNumber(nearestCheckpoint)
+
+	database := state.NewDatabaseWithConfig(bc.db, &trie.Config{Cache: 16})
+	statedb, err = state.New(checkpointBlock.Root(), database, nil)
+	if err != nil {
+		log.Error("Failed to get statedb of checkpoint block", "number", checkpointBlock.Number(), "hash", checkpointBlock.Hash())
+		return nil, err
+	}
+
+	var parent *types.Block
+	for current := checkpointBlock.NumberU64() + 1; current <= header.Number.Uint64(); current++ {
+		block := bc.GetBlockByNumber(current)
+
+		_, _, _, _, err := bc.Processor().Process(block, statedb, vm.Config{})
+		if err != nil {
+			log.Error("Failed to re-execute block", "err", err, "number", current, "hash", block.Hash())
+			return nil, err
+		}
+		root, err := statedb.Commit(bc.Config().IsEIP158(big.NewInt(int64(current))))
+		if err != nil {
+			log.Error("Failed to state commit", "err", err, "number", current, "hash", block.Hash())
+			return nil, err
+		}
+		statedb, err = state.New(root, database, nil)
+		if err != nil {
+			log.Error("Failed to get the trie from trie database", "err", err, "number", current, "hash", block.Hash())
+			return nil, err
+		}
+
+		database.TrieDB().Reference(root, common.Hash{})
+		if parent != nil {
+			database.TrieDB().Dereference(parent.Root())
+		}
+		parent = block
+	}
+
+	// Here we don't return the release function to dereference the header's root
+	// node. The reason is that we use the ephemeral trie database, the lifetime of
+	// the database is equal to the lifetime of returned state as the returned state
+	// is the only reference to database. When the state is garbage collected,
+	// the whole database is cleaned too. So we don't need to dereference to clean
+	// the header's root trie in the database.
+
+	return statedb, nil
 }
 
 // Config retrieves the chain's fork configuration.

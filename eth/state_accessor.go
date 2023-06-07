@@ -20,8 +20,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/ethereum/go-ethereum/eth/tracers"
 	"time"
+
+	"github.com/ethereum/go-ethereum/eth/tracers"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/consortium"
@@ -72,6 +73,12 @@ func (eth *Ethereum) StateAtBlock(ctx context.Context, block *types.Block, reexe
 			}, nil
 		}
 	}
+
+	if eth.blockchain.IsOptimizedMode() {
+		statedb, err := eth.blockchain.StateByHeader(block.Header())
+		return statedb, noopReleaser, err
+	}
+
 	// The state is both for reading and writing, or it's unavailable in disk,
 	// try to construct/recover the state over an ephemeral trie.Database for
 	// isolating the live one.
