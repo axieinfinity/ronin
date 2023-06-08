@@ -140,7 +140,7 @@ func (tc *testChain) generate(n int, seed byte, parent *types.Block, heavy bool)
 				Number:     big.NewInt(block.Number().Int64() - 1),
 			})
 		}
-	})
+	}, true)
 
 	// Convert the block-chain into a hash-chain and header/block maps
 	td := new(big.Int).Set(tc.td(parent.Hash()))
