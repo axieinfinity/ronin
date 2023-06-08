@@ -422,7 +422,7 @@ func TestClique(t *testing.T) {
 				copy(nonce[:], nonceAuthVote)
 				gen.SetNonce(nonce)
 			}
-		})
+		}, true)
 		// Iterate through the blocks and seal them individually
 		for j, block := range blocks {
 			// Get the header and prepare it for signing

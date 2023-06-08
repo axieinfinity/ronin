@@ -54,7 +54,7 @@ func makeChain(n int, seed byte, parent *types.Block, empty bool) ([]*types.Bloc
 			}
 			block.AddTx(tx)
 		}
-	})
+	}, true)
 	return blocks, receipts
 }
 

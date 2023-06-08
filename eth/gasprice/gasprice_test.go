@@ -140,7 +140,7 @@ func newTestBackend(t *testing.T, londonBlock *big.Int, pending bool) *testBacke
 			}
 		}
 		b.AddTx(types.MustSignNewTx(key, signer, txdata))
-	})
+	}, true)
 	// Construct testing chain
 	diskdb := rawdb.NewMemoryDatabase()
 	gspec.Commit(diskdb)

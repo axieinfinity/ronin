@@ -72,7 +72,7 @@ func TestReimportMirroredState(t *testing.T) {
 			}
 			block.AddTxWithChain(chain, tx)
 		}
-	})
+	}, true)
 	for i, block := range blocks {
 		header := block.Header()
 		if i > 0 {
