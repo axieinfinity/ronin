@@ -17,16 +17,21 @@
 package core
 
 import (
+	"bytes"
+	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/ethereum/go-ethereum/eth/tracers/logger"
 	"io/ioutil"
 	"math/big"
 	"math/rand"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/eth/tracers/logger"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -3335,5 +3340,295 @@ func TestEIP1559Transition(t *testing.T) {
 	expected = new(big.Int).SetUint64(block.GasUsed() * (effectiveTip + block.BaseFee().Uint64()))
 	if actual.Cmp(expected) != 0 {
 		t.Fatalf("sender balance incorrect: expected %d, got %d", expected, actual)
+	}
+}
+
+func TestTrieSnapshotSave(t *testing.T) {
+	// Configure and generate a sample block chain
+	var (
+		gendb   = rawdb.NewMemoryDatabase()
+		key, _  = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
+		address = crypto.PubkeyToAddress(key.PublicKey)
+		funds   = big.NewInt(100000000000000000)
+		gspec   = &Genesis{Config: params.TestChainConfig, Alloc: GenesisAlloc{address: {Balance: funds}}}
+		genesis = gspec.MustCommit(gendb)
+		signer  = types.LatestSigner(gspec.Config)
+	)
+	blocks, _ := GenerateChain(gspec.Config, genesis, ethash.NewFaker(), gendb, 50+128, func(i int, block *BlockGen) {
+		tx, err := types.SignTx(
+			types.NewTransaction(block.TxNonce(address), common.Address{0x01}, big.NewInt(1000), params.TxGas, block.header.BaseFee, nil),
+			signer,
+			key,
+		)
+		if err != nil {
+			panic(err)
+		}
+
+		blockNumber := i + 1
+		if blockNumber == 7 {
+			// Insert 1 transaction in the second snapshot interval
+			block.AddTx(tx)
+		} else if blockNumber == 15 {
+			// Insert 1 transaction in the third snapshot interval
+			block.AddTx(tx)
+		} else if blockNumber == 18 || blockNumber == 19 {
+			// Insert 2 transactions in the fourth snapshot interval
+			block.AddTx(tx)
+		} else if blockNumber == 21 || blockNumber == 22 || blockNumber == 23 || blockNumber == 24 {
+			// Insert 4 transactions in the fifth snapshot interval
+			block.AddTx(tx)
+		}
+	}, false)
+
+	cacheConfig := *defaultCacheConfig
+	cacheConfig.OptimizedMode = true
+	cacheConfig.TrieSnapshotGasUsed = 40000
+	cacheConfig.TrieSnapshotCheckpoint = 5
+	cacheConfig.TrieSnapshotBlockRange = 20
+	blockchain, err := NewBlockChain(gendb, &cacheConfig, gspec.Config, ethash.NewFaker(), vm.Config{}, nil, nil)
+	if err != nil {
+		panic(err)
+	}
+	defer blockchain.Stop()
+
+	if _, err := blockchain.InsertChain(blocks); err != nil {
+		t.Fatal(err)
+	}
+
+	if snapshotLen := len(rawdb.ReadTrieSnapshotList(gendb, 5)); snapshotLen != 0 {
+		t.Fatalf("First interval is expected to have %d, found %d snapshots", 0, snapshotLen)
+	}
+
+	if snapshotLen := len(rawdb.ReadTrieSnapshotList(gendb, 10)); snapshotLen != 0 {
+		t.Fatalf("Second interval is expected to have %d, found %d snapshots", 0, snapshotLen)
+	}
+
+	if snapshotLen := len(rawdb.ReadTrieSnapshotList(gendb, 15)); snapshotLen != 1 {
+		t.Fatalf("Third interval is expected to have %d, found %d snapshots", 1, snapshotLen)
+	}
+
+	if snapshotLen := len(rawdb.ReadTrieSnapshotList(gendb, 20)); snapshotLen != 1 {
+		t.Fatalf("Fourth interval is expected to have %d, found %d snapshots", 1, snapshotLen)
+	}
+
+	if snapshotLen := len(rawdb.ReadTrieSnapshotList(gendb, 19)); snapshotLen != 0 {
+		t.Fatalf("Non chekpoint block is expected to have %d, found %d snapshots", 0, snapshotLen)
+	}
+
+	if snapshotLen := len(rawdb.ReadTrieSnapshotList(gendb, 25)); snapshotLen != 2 {
+		t.Fatalf("Fifth interval is expected to have %d, found %d snapshots", 2, snapshotLen)
+	}
+
+	if number := blockchain.findNearestSnapshot(0); number != 0 {
+		t.Fatalf("Nearest snapshot of %d is %d, found %d", 0, 0, number)
+	}
+
+	if number := blockchain.findNearestSnapshot(7); number != 0 {
+		t.Fatalf("Nearest snapshot of %d is %d, found %d", 7, 0, number)
+	}
+
+	if number := blockchain.findNearestSnapshot(18); number != 15 {
+		t.Fatalf("Nearest snapshot of %d is %d, found %d", 18, 15, number)
+	}
+
+	if number := blockchain.findNearestSnapshot(20); number != 19 {
+		t.Fatalf("Nearest snapshot of %d is %d, found %d", 20, 19, number)
+	}
+
+	if number := blockchain.findNearestSnapshot(28); number != 24 {
+		t.Fatalf("Nearest snapshot of %d is %d, found %d", 28, 24, number)
+	}
+
+	if number := blockchain.findNearestSnapshot(50); number != 45 {
+		t.Fatalf("Nearest snapshot of %d is %d, found %d", 50, 45, number)
+	}
+
+	header := blockchain.GetHeaderByNumber(4)
+	_, err = blockchain.StateAt(header.Root)
+	if err == nil {
+		t.Fatalf("Expect state at block %d to be garbage collected", 4)
+	}
+
+	statedb, err := blockchain.StateByHeader(header)
+	if err != nil {
+		t.Fatalf("Failed to get state at block %d, err: %s", 4, err)
+	}
+	balance := statedb.GetBalance(common.Address{0x01})
+	if balance.Cmp(common.Big0) != 0 {
+		t.Fatalf("Balance of address %s is %d, expect: %d", common.Address{0x01}, balance.Uint64(), 0)
+	}
+
+	header = blockchain.GetHeaderByNumber(12)
+	statedb, err = blockchain.StateByHeader(header)
+	if err != nil {
+		t.Fatalf("Failed to get state at block %d, err: %s", 12, err)
+	}
+	balance = statedb.GetBalance(common.Address{0x01})
+	if balance.Cmp(big.NewInt(1000)) != 0 {
+		t.Fatalf("Balance of address %s is %d, expect: %d", common.Address{0x01}, balance.Uint64(), 1000)
+	}
+
+	header = blockchain.GetHeaderByNumber(21)
+	statedb, err = blockchain.StateByHeader(header)
+	if err != nil {
+		t.Fatalf("Failed to get state at block %d, err: %s", 21, err)
+	}
+	balance = statedb.GetBalance(common.Address{0x01})
+	if balance.Cmp(big.NewInt(5000)) != 0 {
+		t.Fatalf("Balance of address %s is %d, expect: %d", common.Address{0x01}, balance.Uint64(), 5000)
+	}
+
+	header = blockchain.GetHeaderByNumber(25)
+	statedb, err = blockchain.StateByHeader(header)
+	if err != nil {
+		t.Fatalf("Failed to get state at block %d, err: %s", 25, err)
+	}
+	balance = statedb.GetBalance(common.Address{0x01})
+	if balance.Cmp(big.NewInt(8000)) != 0 {
+		t.Fatalf("Balance of address %s is %d, expect: %d", common.Address{0x01}, balance.Uint64(), 8000)
+	}
+}
+
+func TestOptimizedModeAccessStorageTrie(t *testing.T) {
+	// Configure and generate a sample block chain
+	var (
+		gendb   = rawdb.NewMemoryDatabase()
+		key, _  = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
+		address = crypto.PubkeyToAddress(key.PublicKey)
+		funds   = big.NewInt(100000000000000000)
+		gspec   = &Genesis{Config: params.TestChainConfig, Alloc: GenesisAlloc{address: {Balance: funds}}}
+		genesis = gspec.MustCommit(gendb)
+		signer  = types.LatestSigner(gspec.Config)
+	)
+
+	/*
+		// SPDX-License-Identifier: GPL-3.0
+
+		pragma solidity >=0.7.0 <0.9.0;
+
+		contract Contract {
+			uint256 public number;
+
+			function setNumber(uint256 num) public {
+				number = num;
+			}
+		}
+	*/
+	contractBytecode, _ := hex.DecodeString("608060405234801561001057600080fd5b50610133806100206000396000f3fe6080604052348015600f57600080fd5b506004361060325760003560e01c80633fb5c1cb1460375780638381f58a14604f575b600080fd5b604d60048036038101906049919060af565b6069565b005b60556073565b6040516060919060e4565b60405180910390f35b8060008190555050565b60005481565b600080fd5b6000819050919050565b608f81607e565b8114609957600080fd5b50565b60008135905060a9816088565b92915050565b60006020828403121560c25760c16079565b5b600060ce84828501609c565b91505092915050565b60de81607e565b82525050565b600060208201905060f7600083018460d7565b9291505056fea26469706673582212204e4a4bfb6fdec0309f3a115a8dd9014a9a7cfcac3ef78e2cd42d2f485837541964736f6c63430008120033")
+	contractABI, _ := abi.JSON(strings.NewReader(`[{"inputs":[],"name":"number","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint256","name":"num","type":"uint256"}],"name":"setNumber","outputs":[],"stateMutability":"nonpayable","type":"function"}]`))
+	contractAddr := common.HexToAddress("0x3A220f351252089D385b29beca14e27F204c296A")
+
+	var blockRange int = 128
+	blocks, _ := GenerateChain(gspec.Config, genesis, ethash.NewFaker(), gendb, 15+blockRange, func(i int, block *BlockGen) {
+		blockNumber := i + 1
+		if blockNumber == 3 {
+			// Deploy contract in the first snapshot interval
+			tx, err := types.SignTx(
+				types.NewTx(&types.LegacyTx{Nonce: block.TxNonce(address), To: nil, Gas: 1000000, GasPrice: block.header.BaseFee, Data: contractBytecode}),
+				signer,
+				key,
+			)
+			if err != nil {
+				panic(err)
+			}
+
+			block.AddTx(tx)
+		} else if blockNumber == 7 {
+			// Insert 1 transaction in the third snapshot interval
+			input, _ := contractABI.Pack("setNumber", big.NewInt(100))
+			tx, err := types.SignTx(
+				types.NewTx(&types.LegacyTx{Nonce: block.TxNonce(address), To: &contractAddr, Gas: 1000000, GasPrice: block.header.BaseFee, Data: input}),
+				signer,
+				key,
+			)
+			if err != nil {
+				panic(err)
+			}
+
+			block.AddTx(tx)
+		} else if blockNumber == 9 {
+			// Insert 2 transactions in the fourth snapshot interval
+			input, _ := contractABI.Pack("setNumber", big.NewInt(200))
+			tx, err := types.SignTx(
+				types.NewTx(&types.LegacyTx{Nonce: block.TxNonce(address), To: &contractAddr, Gas: 1000000, GasPrice: block.header.BaseFee, Data: input}),
+				signer,
+				key,
+			)
+			if err != nil {
+				panic(err)
+			}
+			block.AddTx(tx)
+
+			input, _ = contractABI.Pack("setNumber", big.NewInt(300))
+			tx, err = types.SignTx(
+				types.NewTx(&types.LegacyTx{Nonce: block.TxNonce(address), To: &contractAddr, Gas: 1000000, GasPrice: block.header.BaseFee, Data: input}),
+				signer,
+				key,
+			)
+			if err != nil {
+				panic(err)
+			}
+
+			block.AddTx(tx)
+		}
+	}, false)
+
+	cacheConfig := *defaultCacheConfig
+	cacheConfig.OptimizedMode = true
+	cacheConfig.TrieSnapshotGasUsed = 40000
+	cacheConfig.TrieSnapshotCheckpoint = 5
+	cacheConfig.TrieSnapshotBlockRange = 1000
+	blockchain, err := NewBlockChain(gendb, &cacheConfig, gspec.Config, ethash.NewFaker(), vm.Config{}, nil, nil)
+	if err != nil {
+		panic(err)
+	}
+	defer blockchain.Stop()
+
+	if _, err := blockchain.InsertChain(blocks); err != nil {
+		t.Fatal(err)
+	}
+
+	header := blockchain.GetHeaderByNumber(2)
+	statedb, err := blockchain.StateByHeader(header)
+	if err != nil {
+		t.Fatalf("Failed to get state at block %d, err: %s", 2, err)
+	}
+	code := statedb.GetCode(contractAddr)
+	if len(code) != 0 {
+		t.Fatalf("Expect address %s to have empty code, found: %d code length", contractAddr, len(code))
+	}
+
+	header = blockchain.GetHeaderByNumber(5)
+	statedb, err = blockchain.StateByHeader(header)
+	if err != nil {
+		t.Fatalf("Failed to get state at block %d, err: %s", 5, err)
+	}
+	code = statedb.GetCode(contractAddr)
+	if bytes.Equal(code, contractBytecode) {
+		t.Fatalf("Mismatch code of contract address %s", contractAddr)
+	}
+	number := statedb.GetState(contractAddr, common.HexToHash("0x00")).Big().Uint64()
+	if number != 0 {
+		t.Fatalf("Expect number at block %d to be %d, found %d", 5, 0, number)
+	}
+
+	header = blockchain.GetHeaderByNumber(8)
+	statedb, err = blockchain.StateByHeader(header)
+	if err != nil {
+		t.Fatalf("Failed to get state at block %d, err: %s", 8, err)
+	}
+	number = statedb.GetState(contractAddr, common.HexToHash("0x00")).Big().Uint64()
+	if number != 100 {
+		t.Fatalf("Expect number at block %d to be %d, found %d", 8, 100, number)
+	}
+
+	header = blockchain.GetHeaderByNumber(12)
+	statedb, err = blockchain.StateByHeader(header)
+	if err != nil {
+		t.Fatalf("Failed to get state at block %d, err: %s", 12, err)
+	}
+	number = statedb.GetState(contractAddr, common.HexToHash("0x00")).Big().Uint64()
+	if number != 300 {
+		t.Fatalf("Expect number at block %d to be %d, found %d", 12, 300, number)
 	}
 }
