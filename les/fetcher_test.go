@@ -141,7 +141,7 @@ func testGappedAnnouncements(t *testing.T, protocol int) {
 	blocks, _ := core.GenerateChain(rawdb.ReadChainConfig(s.db, s.backend.Blockchain().Genesis().Hash()), s.backend.Blockchain().GetBlockByNumber(3),
 		ethash.NewFaker(), s.db, 2, func(i int, gen *core.BlockGen) {
 			gen.OffsetTime(-9) // higher block difficulty
-		})
+		}, true)
 	s.backend.Blockchain().InsertChain(blocks)
 
 	<-done // Wait syncing

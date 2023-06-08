@@ -76,7 +76,7 @@ func ExampleGenerateChain() {
 			b3.Extra = []byte("foo")
 			gen.AddUncle(b3)
 		}
-	})
+	}, true)
 
 	// Import the chain. This runs all block validation rules.
 	blockchain, _ := NewBlockChain(db, nil, gspec.Config, ethash.NewFaker(), vm.Config{}, nil, nil)

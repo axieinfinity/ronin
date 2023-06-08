@@ -18,8 +18,9 @@ package core
 
 import (
 	"fmt"
-	"github.com/ethereum/go-ethereum/core/rawdb"
 	"math/big"
+
+	"github.com/ethereum/go-ethereum/core/rawdb"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -196,7 +197,15 @@ func (b *BlockGen) OffsetTime(seconds int64) {
 // Blocks created by GenerateChain do not contain valid proof of work
 // values. Inserting them into BlockChain requires use of FakePow or
 // a similar non-validating proof of work implementation.
-func GenerateChain(config *params.ChainConfig, parent *types.Block, engine consensus.Engine, db ethdb.Database, n int, gen func(int, *BlockGen)) ([]*types.Block, []types.Receipts) {
+func GenerateChain(
+	config *params.ChainConfig,
+	parent *types.Block,
+	engine consensus.Engine,
+	db ethdb.Database,
+	n int,
+	gen func(int, *BlockGen),
+	flushDisk bool,
+) ([]*types.Block, []types.Receipts) {
 	if config == nil {
 		config = params.TestChainConfig
 	}
@@ -252,15 +261,19 @@ func GenerateChain(config *params.ChainConfig, parent *types.Block, engine conse
 			if err != nil {
 				panic(fmt.Sprintf("state write error: %v", err))
 			}
-			if err := statedb.Database().TrieDB().Commit(root, false, nil); err != nil {
-				panic(fmt.Sprintf("trie write error: %v", err))
+			if flushDisk {
+				if err := statedb.Database().TrieDB().Commit(root, false, nil); err != nil {
+					panic(fmt.Sprintf("trie write error: %v", err))
+				}
 			}
 			return block, receipts
 		}
 		return nil, nil
 	}
+	// Create an ephemeral database
+	database := state.NewDatabase(db)
 	for i := 0; i < n; i++ {
-		statedb, err := state.New(parent.Root(), state.NewDatabase(db), nil)
+		statedb, err := state.New(parent.Root(), database, nil)
 		if err != nil {
 			panic(err)
 		}
@@ -281,7 +294,7 @@ func GenerateChainWithGenesis(genesis *Genesis, engine consensus.Engine, n int, 
 	if err != nil {
 		panic(err)
 	}
-	blocks, receipts := GenerateChain(genesis.Config, genesis.ToBlock(db), engine, db, n, gen)
+	blocks, receipts := GenerateChain(genesis.Config, genesis.ToBlock(db), engine, db, n, gen, true)
 	return db, blocks, receipts
 }
 
@@ -330,7 +343,7 @@ func makeHeaderChain(parent *types.Header, n int, engine consensus.Engine, db et
 func makeBlockChain(parent *types.Block, n int, engine consensus.Engine, db ethdb.Database, seed int) []*types.Block {
 	blocks, _ := GenerateChain(params.TestChainConfig, parent, engine, db, n, func(i int, b *BlockGen) {
 		b.SetCoinbase(common.Address{0: byte(seed), 19: byte(i)})
-	})
+	}, true)
 	return blocks
 }
 

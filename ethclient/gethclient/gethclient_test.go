@@ -83,7 +83,7 @@ func generateTestChain() (*core.Genesis, []*types.Block) {
 	}
 	gblock := genesis.ToBlock(db)
 	engine := ethash.NewFaker()
-	blocks, _ := core.GenerateChain(config, gblock, engine, db, 1, generate)
+	blocks, _ := core.GenerateChain(config, gblock, engine, db, 1, generate, true)
 	blocks = append([]*types.Block{gblock}, blocks...)
 	return genesis, blocks
 }
