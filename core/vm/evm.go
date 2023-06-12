@@ -209,7 +209,7 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 	debug := evm.Config.Tracer != nil
 
 	if evm.Config.NoRecursion && evm.depth > 0 {
-		if debug && evm.Config.EmitTraceError {
+		if debug && evm.Config.FullCallTracing {
 			evm.Config.Tracer.CaptureStart(evm, caller.Address(), addr, false, input, gas, value)
 			evm.Config.Tracer.CaptureEnd(ret, 0, nil)
 		}
@@ -217,7 +217,7 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 	}
 	// Fail if we're trying to execute above the call depth limit
 	if evm.depth > int(params.CallCreateDepth) {
-		if debug && evm.Config.EmitTraceError {
+		if debug && evm.Config.FullCallTracing {
 			evm.Config.Tracer.CaptureStart(evm, caller.Address(), addr, false, input, gas, value)
 			evm.Config.Tracer.CaptureEnd(ret, 0, ErrDepth)
 		}
@@ -225,7 +225,7 @@ func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas 
 	}
 	// Fail if we're trying to transfer more than the available balance
 	if value.Sign() != 0 && !evm.Context.CanTransfer(evm.StateDB, caller.Address(), value) {
-		if debug && evm.Config.EmitTraceError {
+		if debug && evm.Config.FullCallTracing {
 			evm.Config.Tracer.CaptureStart(evm, caller.Address(), addr, false, input, gas, value)
 			evm.Config.Tracer.CaptureEnd(ret, 0, ErrInsufficientBalance)
 		}

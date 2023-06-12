@@ -181,9 +181,9 @@ func (api *API) blockByNumberAndHash(ctx context.Context, number rpc.BlockNumber
 // TraceConfig holds extra parameters to trace functions.
 type TraceConfig struct {
 	*logger.Config
-	Tracer         *string
-	EmitTraceError bool
-	Timeout        *string
+	Tracer          *string
+	FullCallTracing bool
+	Timeout         *string
 	Reexec         *uint64
 	// Config specific to given tracer. Note struct logger
 	// config are historically embedded in main object.
@@ -1121,7 +1121,7 @@ func (api *API) traceTx(
 	}
 
 	// Run the transaction with tracing enabled.
-	vmenv := vm.NewEVM(vmctx, txContext, statedb, api.backend.ChainConfig(), vm.Config{Tracer: tracer, NoBaseFee: true, EmitTraceError: config.EmitTraceError})
+	vmenv := vm.NewEVM(vmctx, txContext, statedb, api.backend.ChainConfig(), vm.Config{Tracer: tracer, NoBaseFee: true, FullCallTracing: config.FullCallTracing})
 
 	// Define a meaningful timeout of a single transaction trace
 	if config.Timeout != nil {
