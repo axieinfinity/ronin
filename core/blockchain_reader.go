@@ -349,8 +349,19 @@ func (bc *BlockChain) StateByHeader(header *types.Header) (*state.StateDB, error
 		return statedb, err
 	}
 
+	// Handle StateByHeader re-entrance when processing block at the end of epoch
+	// on Consortium version 2. This looks for the previous generated state from
+	// ephemeral database before re-generating state.
+	if database := bc.ephemeralMap.load(header.Number.Uint64()); database != nil {
+		statedb, err = state.New(header.Root, database, nil)
+		if err == nil {
+			return statedb, err
+		}
+	}
+
 	nearestCheckpoint := bc.findNearestSnapshot(header.Number.Uint64())
 	checkpointBlock := bc.GetBlockByNumber(nearestCheckpoint)
+	log.Debug("Re-generate state", "requested", header.Number, "nearest checkpoint", nearestCheckpoint)
 
 	database := state.NewDatabaseWithConfig(bc.db, &trie.Config{Cache: 16})
 	statedb, err = state.New(checkpointBlock.Root(), database, nil)
@@ -379,12 +390,16 @@ func (bc *BlockChain) StateByHeader(header *types.Header) (*state.StateDB, error
 			return nil, err
 		}
 
-		database.TrieDB().Reference(root, common.Hash{})
+		bc.ephemeralMap.reference(current, database, root)
 		if parent != nil {
-			database.TrieDB().Dereference(parent.Root())
+			bc.ephemeralMap.dereference(parent.NumberU64(), true)
 		}
 		parent = block
 	}
+
+	// Remove the database reference from ephemeralMap to make
+	// returned statedb the only reference to database.
+	bc.ephemeralMap.dereference(header.Number.Uint64(), false)
 
 	// Here we don't return the release function to dereference the header's root
 	// node. The reason is that we use the ephemeral trie database, the lifetime of

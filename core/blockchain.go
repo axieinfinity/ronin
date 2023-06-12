@@ -235,6 +235,64 @@ type BlockChain struct {
 	unsavedTrieSnapshot     []uint64
 	accumulatedGasUsed      uint64
 	blocksSinceLastSnapshot uint64
+
+	ephemeralMap ephemeralStateDatabase
+}
+
+type stateDatabaseRefcount struct {
+	database state.Database
+	refcount uint64
+	root     common.Hash
+}
+
+type ephemeralStateDatabase struct {
+	lock        sync.RWMutex
+	databaseMap map[uint64]*stateDatabaseRefcount
+}
+
+func (ephemeralDB *ephemeralStateDatabase) reference(blockNumber uint64, database state.Database, root common.Hash) {
+	ephemeralDB.lock.Lock()
+	defer ephemeralDB.lock.Unlock()
+
+	if value, ok := ephemeralDB.databaseMap[blockNumber]; !ok {
+		ephemeralDB.databaseMap[blockNumber] = &stateDatabaseRefcount{
+			database: database,
+			refcount: 1,
+			root:     root,
+		}
+	} else {
+		value.refcount++
+		ephemeralDB.databaseMap[blockNumber] = value
+	}
+	database.TrieDB().Reference(root, common.Hash{})
+}
+
+func (ephemeralDB *ephemeralStateDatabase) dereference(blockNumber uint64, triedbDeref bool) {
+	ephemeralDB.lock.Lock()
+	defer ephemeralDB.lock.Unlock()
+
+	if value, ok := ephemeralDB.databaseMap[blockNumber]; ok {
+		value.refcount--
+		if value.refcount == 0 {
+			delete(ephemeralDB.databaseMap, blockNumber)
+		} else {
+			ephemeralDB.databaseMap[blockNumber] = value
+		}
+		if triedbDeref {
+			value.database.TrieDB().Dereference(value.root)
+		}
+	}
+}
+
+func (ephemeralDB *ephemeralStateDatabase) load(blockNumber uint64) state.Database {
+	ephemeralDB.lock.RLock()
+	defer ephemeralDB.lock.RUnlock()
+
+	if value, ok := ephemeralDB.databaseMap[blockNumber]; !ok {
+		return nil
+	} else {
+		return value.database
+	}
 }
 
 // NewBlockChain returns a fully initialised block chain using information
@@ -436,6 +494,7 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 
 	if bc.cacheConfig.OptimizedMode {
 		bc.unsavedTrieSnapshot = bc.loadTrieSnapshotList(bc.CurrentBlock().NumberU64())
+		bc.ephemeralMap.databaseMap = make(map[uint64]*stateDatabaseRefcount)
 	}
 
 	return bc, nil
