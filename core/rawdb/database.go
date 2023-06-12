@@ -467,3 +467,30 @@ func InspectDatabase(db ethdb.Database, keyPrefix, keyStart []byte) error {
 
 	return nil
 }
+
+func GetTrieSnapshot(db ethdb.Database, interval uint64) ([]uint64, error) {
+	head := ReadHeadBlockHash(db)
+	currentNumber := ReadHeaderNumber(db, head)
+	if currentNumber == nil {
+		return nil, errors.New("current header number not found")
+	}
+
+	var (
+		i                uint64
+		trieSnapshotMap  = make(map[uint64]struct{})
+		trieSnapshotList []uint64
+	)
+
+	for i = 0; i < *currentNumber; i += interval {
+		snapshots := ReadTrieSnapshotList(db, i)
+		for _, snapshot := range snapshots {
+			trieSnapshotMap[snapshot] = struct{}{}
+		}
+	}
+
+	for snapshot := range trieSnapshotMap {
+		trieSnapshotList = append(trieSnapshotList, snapshot)
+	}
+
+	return trieSnapshotList, nil
+}
