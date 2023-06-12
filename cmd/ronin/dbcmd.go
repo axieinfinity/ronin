@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -69,6 +70,7 @@ Remove blockchain and state databases`,
 			dbDumpFreezerIndex,
 			dbImportCmd,
 			dbExportCmd,
+			dbGetTrieSnapshotCmd,
 		},
 	}
 	dbInspectCmd = cli.Command{
@@ -232,6 +234,22 @@ WARNING: This is a low-level operation which may cause database corruption!`,
 			utils.GoerliFlag,
 		},
 		Description: "Exports the specified chain data to an RLP encoded stream, optionally gzip-compressed.",
+	}
+	dbGetTrieSnapshotCmd = cli.Command{
+		Action:    utils.MigrateFlags(dbGetTrieSnapshot),
+		Name:      "triesnapshot",
+		Usage:     "Show the list of all trie snapshots",
+		ArgsUsage: "<dumpfile (optional)>",
+		Flags: []cli.Flag{
+			utils.DataDirFlag,
+			utils.SyncModeFlag,
+			utils.MainnetFlag,
+			utils.RopstenFlag,
+			utils.RinkebyFlag,
+			utils.GoerliFlag,
+			utils.TrieSnapshotCheckpoint,
+		},
+		Description: "This command displays the information about trie snapshot",
 	}
 )
 
@@ -684,4 +702,33 @@ func exportChaindata(ctx *cli.Context) error {
 	}()
 	db := utils.MakeChainDatabase(ctx, stack, true)
 	return utils.ExportChaindata(ctx.Args().Get(1), kind, exporter(db), stop)
+}
+
+func dbGetTrieSnapshot(ctx *cli.Context) error {
+	var writer io.Writer = os.Stdout
+	if ctx.NArg() > 1 {
+		fileName := ctx.Args().Get(0)
+		file, err := os.OpenFile(fileName, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.ModePerm)
+		if err != nil {
+			return err
+		}
+		writer = file
+	}
+
+	stack, _ := makeConfigNode(ctx)
+	defer stack.Close()
+
+	db := utils.MakeChainDatabase(ctx, stack, true)
+	defer db.Close()
+
+	interval := ctx.GlobalUint64(utils.TrieSnapshotCheckpoint.Name)
+	snapshots, err := rawdb.GetTrieSnapshot(db, interval)
+	if err != nil {
+		return err
+	}
+
+	for _, snapshot := range snapshots {
+		fmt.Fprintln(writer, snapshot)
+	}
+	return nil
 }
