@@ -206,20 +206,33 @@ func (evm *EVM) Interpreter() *EVMInterpreter {
 // the necessary steps to create accounts and reverses the state in case of an
 // execution error or failed value transfer.
 func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, leftOverGas uint64, err error) {
+	debug := evm.Config.Tracer != nil
+
 	if evm.Config.NoRecursion && evm.depth > 0 {
+		if debug && evm.Config.FullCallTracing {
+			evm.Config.Tracer.CaptureStart(evm, caller.Address(), addr, false, input, gas, value)
+			evm.Config.Tracer.CaptureEnd(ret, 0, nil)
+		}
 		return nil, gas, nil
 	}
 	// Fail if we're trying to execute above the call depth limit
 	if evm.depth > int(params.CallCreateDepth) {
+		if debug && evm.Config.FullCallTracing {
+			evm.Config.Tracer.CaptureStart(evm, caller.Address(), addr, false, input, gas, value)
+			evm.Config.Tracer.CaptureEnd(ret, 0, ErrDepth)
+		}
 		return nil, gas, ErrDepth
 	}
 	// Fail if we're trying to transfer more than the available balance
 	if value.Sign() != 0 && !evm.Context.CanTransfer(evm.StateDB, caller.Address(), value) {
+		if debug && evm.Config.FullCallTracing {
+			evm.Config.Tracer.CaptureStart(evm, caller.Address(), addr, false, input, gas, value)
+			evm.Config.Tracer.CaptureEnd(ret, 0, ErrInsufficientBalance)
+		}
 		return nil, gas, ErrInsufficientBalance
 	}
 	snapshot := evm.StateDB.Snapshot()
 	p, isPrecompile := evm.precompile(caller, addr)
-	debug := evm.Config.Tracer != nil
 
 	if !evm.StateDB.Exist(addr) {
 		if !isPrecompile && evm.chainRules.IsEIP158 && value.Sign() == 0 {
