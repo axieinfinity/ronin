@@ -207,30 +207,30 @@ func (evm *EVM) Interpreter() *EVMInterpreter {
 // execution error or failed value transfer.
 func (evm *EVM) Call(caller ContractRef, addr common.Address, input []byte, gas uint64, value *big.Int) (ret []byte, leftOverGas uint64, err error) {
 	debug := evm.Config.Tracer != nil
-	tracerCapture := func(gasUsed uint64, err error) {
+	captureTraceEarly := func(err error) {
 		if debug && evm.Config.FullCallTracing {
 			if evm.depth == 0 {
 				evm.Config.Tracer.CaptureStart(evm, caller.Address(), addr, false, input, gas, value)
-				evm.Config.Tracer.CaptureEnd(ret, gasUsed, err)
+				evm.Config.Tracer.CaptureEnd(ret, 0, err)
 			} else {
 				evm.Config.Tracer.CaptureEnter(CALL, caller.Address(), addr, input, gas, value)
-				evm.Config.Tracer.CaptureExit(ret, gasUsed, err)
+				evm.Config.Tracer.CaptureExit(ret, 0, err)
 			}
 		}
 	}
 
 	if evm.Config.NoRecursion && evm.depth > 0 {
-		tracerCapture(0, nil)
+		captureTraceEarly(nil)
 		return nil, gas, nil
 	}
 	// Fail if we're trying to execute above the call depth limit
 	if evm.depth > int(params.CallCreateDepth) {
-		tracerCapture(0, ErrDepth)
+		captureTraceEarly(ErrDepth)
 		return nil, gas, ErrDepth
 	}
 	// Fail if we're trying to transfer more than the available balance
 	if value.Sign() != 0 && !evm.Context.CanTransfer(evm.StateDB, caller.Address(), value) {
-		tracerCapture(0, ErrInsufficientBalance)
+		captureTraceEarly(ErrInsufficientBalance)
 		return nil, gas, ErrInsufficientBalance
 	}
 	snapshot := evm.StateDB.Snapshot()
@@ -362,11 +362,22 @@ func (evm *EVM) CallCode(caller ContractRef, addr common.Address, input []byte, 
 // DelegateCall differs from CallCode in the sense that it executes the given address'
 // code with the caller as context and the caller is set to the caller of the caller.
 func (evm *EVM) DelegateCall(caller ContractRef, addr common.Address, input []byte, gas uint64) (ret []byte, leftOverGas uint64, err error) {
+	debug := evm.Config.Tracer != nil
+	captureTraceEarly := func(err error) {
+		if debug && evm.Config.FullCallTracing {
+			parent := caller.(*Contract)
+			evm.Config.Tracer.CaptureEnter(DELEGATECALL, caller.Address(), addr, input, gas, parent.value)
+			evm.Config.Tracer.CaptureExit(ret, 0, err)
+		}
+	}
+
 	if evm.Config.NoRecursion && evm.depth > 0 {
+		captureTraceEarly(nil)
 		return nil, gas, nil
 	}
 	// Fail if we're trying to execute above the call depth limit
 	if evm.depth > int(params.CallCreateDepth) {
+		captureTraceEarly(ErrDepth)
 		return nil, gas, ErrDepth
 	}
 	var snapshot = evm.StateDB.Snapshot()
@@ -478,36 +489,36 @@ func (c *codeAndHash) Hash() common.Hash {
 func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64, value *big.Int, address common.Address, typ OpCode) ([]byte, common.Address, uint64, error) {
 	debug := evm.Config.Tracer != nil
 
-	tracerCapture := func(gasOut uint64, err error) {
+	captureTraceEarly := func(err error) {
 		if debug && evm.Config.FullCallTracing {
 			if evm.depth == 0 {
 				evm.Config.Tracer.CaptureStart(evm, caller.Address(), address, true, codeAndHash.code, gas, value)
-				evm.Config.Tracer.CaptureEnd(nil, gasOut, err)
+				evm.Config.Tracer.CaptureEnd(nil, 0, err)
 			} else {
 				evm.Config.Tracer.CaptureEnter(typ, caller.Address(), address, codeAndHash.code, gas, value)
-				evm.Config.Tracer.CaptureExit(nil, gasOut, err)
+				evm.Config.Tracer.CaptureExit(nil, 0, err)
 			}
 		}
 	}
 
 	if evm.chainRules.IsOdysseusFork && !evm.StateDB.ValidDeployer(caller.Address()) {
-		tracerCapture(0, ErrExecutionReverted)
+		captureTraceEarly(ErrExecutionReverted)
 		return nil, common.Address{}, gas, ErrExecutionReverted
 	}
 
 	// Depth check execution. Fail if we're trying to execute above the
 	// limit.
 	if evm.depth > int(params.CallCreateDepth) {
-		tracerCapture(0, ErrDepth)
+		captureTraceEarly(ErrDepth)
 		return nil, common.Address{}, gas, ErrDepth
 	}
 	if !evm.Context.CanTransfer(evm.StateDB, caller.Address(), value) {
-		tracerCapture(0, ErrInsufficientBalance)
+		captureTraceEarly(ErrInsufficientBalance)
 		return nil, common.Address{}, gas, ErrInsufficientBalance
 	}
 	nonce := evm.StateDB.GetNonce(caller.Address())
 	if nonce+1 < nonce {
-		tracerCapture(0, ErrNonceUintOverflow)
+		captureTraceEarly(ErrNonceUintOverflow)
 		return nil, common.Address{}, gas, ErrNonceUintOverflow
 	}
 	evm.StateDB.SetNonce(caller.Address(), nonce+1)
@@ -519,7 +530,7 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 	// Ensure there's no existing contract already at the designated address
 	contractHash := evm.StateDB.GetCodeHash(address)
 	if evm.StateDB.GetNonce(address) != 0 || (contractHash != (common.Hash{}) && contractHash != emptyCodeHash) {
-		tracerCapture(0, ErrContractAddressCollision)
+		captureTraceEarly(ErrContractAddressCollision)
 		return nil, common.Address{}, 0, ErrContractAddressCollision
 	}
 	// Create a new account on the state
@@ -536,7 +547,7 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 	contract.SetCodeOptionalHash(&address, codeAndHash)
 
 	if evm.Config.NoRecursion && evm.depth > 0 {
-		tracerCapture(0, nil)
+		captureTraceEarly(nil)
 		return nil, address, gas, nil
 	}
 
