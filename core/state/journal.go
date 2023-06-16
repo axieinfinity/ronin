@@ -199,6 +199,10 @@ func (chStore createObjectChangeStore) apply(s *StateDB) {
 	s.journal.dirty(*chStore.Account)
 }
 
+func (chStore createObjectChangeStore) String() string {
+	return fmt.Sprintf("CreateObjectChange{Account: %s}", chStore.Account)
+}
+
 func (ch resetObjectChange) revert(s *StateDB) {
 	s.setStateObject(ch.prev)
 	if !ch.prevdestruct && s.snap != nil {
@@ -244,6 +248,10 @@ func (chStore suicideChangeStore) apply(s *StateDB) {
 	s.journal.dirty(*chStore.Account)
 }
 
+func (chStore suicideChangeStore) String() string {
+	return fmt.Sprintf("SuicideChange{Account: %s}", chStore.Account)
+}
+
 var ripemd = common.HexToAddress("0000000000000000000000000000000000000003")
 
 func (ch touchChange) revert(s *StateDB) {
@@ -275,6 +283,9 @@ func (chStore touchChangeStore) apply(s *StateDB) {
 	s.getStateObject(*chStore.Account)
 	s.journal.dirty(*chStore.Account)
 }
+func (chStore touchChangeStore) String() string {
+	return fmt.Sprintf("TouchChange{Account: %s}", chStore.Account)
+}
 
 func (ch balanceChange) revert(s *StateDB) {
 	s.getStateObject(*ch.store.Account).setBalance(ch.prev)
@@ -295,6 +306,10 @@ func (chStore balanceChangeStore) apply(s *StateDB) {
 	}
 	stateObject.setBalance(chStore.Current)
 	s.journal.dirty(*chStore.Account)
+}
+
+func (chStore balanceChangeStore) String() string {
+	return fmt.Sprintf("BalanceChange{Account: %s, Current: %d}", chStore.Account, chStore.Current)
 }
 
 func (ch nonceChange) revert(s *StateDB) {
@@ -318,6 +333,10 @@ func (chStore nonceChangeStore) apply(s *StateDB) {
 	s.journal.dirty(*chStore.Account)
 }
 
+func (chStore nonceChangeStore) String() string {
+	return fmt.Sprintf("NonceChange{Account: %s, Current: %d}", chStore.Account, chStore.Current)
+}
+
 func (ch codeChange) revert(s *StateDB) {
 	s.getStateObject(*ch.store.Account).setCode(common.BytesToHash(ch.prevhash), ch.prevcode)
 }
@@ -337,6 +356,15 @@ func (chStore codeChangeStore) apply(s *StateDB) {
 	}
 	stateObject.setCode(common.BytesToHash(chStore.CurrentHash), chStore.CurrentCode)
 	s.journal.dirty(*chStore.Account)
+}
+
+func (chStore codeChangeStore) String() string {
+	return fmt.Sprintf(
+		"CodeChange{Account: %s, CurrentCode: %s, CurrentHash: %s}",
+		chStore.Account,
+		common.Bytes2Hex(chStore.CurrentCode),
+		common.Bytes2Hex(chStore.CurrentHash),
+	)
 }
 
 func (ch storageChange) revert(s *StateDB) {
@@ -364,6 +392,15 @@ func (chStore storageChangeStore) apply(s *StateDB) {
 	stateObject.GetState(s.db, chStore.Key)
 	s.getStateObject(*chStore.Account).setState(chStore.Key, chStore.CurrentValue)
 	s.journal.dirty(*chStore.Account)
+}
+
+func (chStore storageChangeStore) String() string {
+	return fmt.Sprintf(
+		"StorageChange{Account: %s, Key: %s, CurrentValue: %s}",
+		chStore.Account,
+		chStore.Key.Hex(),
+		chStore.CurrentValue.Hex(),
+	)
 }
 
 func (ch refundChange) revert(s *StateDB) {
