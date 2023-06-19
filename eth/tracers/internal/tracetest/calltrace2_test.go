@@ -18,6 +18,13 @@ package tracetest
 
 import (
 	"encoding/json"
+	"io/ioutil"
+	"math/big"
+	"path/filepath"
+	"reflect"
+	"strings"
+	"testing"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
@@ -29,12 +36,6 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/tests"
-	"io/ioutil"
-	"math/big"
-	"path/filepath"
-	"reflect"
-	"strings"
-	"testing"
 
 	// Force-load native and js packages, to trigger registration
 	_ "github.com/ethereum/go-ethereum/eth/tracers/native"
@@ -325,8 +326,9 @@ func TestZeroValueToNotExitCall2(t *testing.T) {
 	}
 	var alloc = core.GenesisAlloc{
 		to: core.GenesisAccount{
-			Nonce: 1,
-			Code:  code,
+			Nonce:   1,
+			Code:    code,
+			Balance: big.NewInt(0),
 		},
 		origin: core.GenesisAccount{
 			Nonce:   0,
