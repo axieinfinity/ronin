@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"math/big"
 	"sort"
+	"sync/atomic"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -122,6 +123,9 @@ type StateDB struct {
 	StorageUpdated int
 	AccountDeleted int
 	StorageDeleted int
+
+	OptimizedMode bool
+	blockJournal  []journalEntry
 }
 
 // New creates a new state from a given trie.
@@ -438,7 +442,9 @@ func (s *StateDB) Suicide(addr common.Address) bool {
 		return false
 	}
 	s.journal.append(suicideChange{
-		account:     &addr,
+		store: &suicideChangeStore{
+			Account: &addr,
+		},
 		prev:        stateObject.suicided,
 		prevbalance: new(big.Int).Set(stateObject.Balance()),
 	})
@@ -585,7 +591,7 @@ func (s *StateDB) createObject(addr common.Address) (newobj, prev *stateObject) 
 	}
 	newobj = newObject(s, addr, types.StateAccount{})
 	if prev == nil {
-		s.journal.append(createObjectChange{account: &addr})
+		s.journal.append(createObjectChange{store: &createObjectChangeStore{Account: &addr}})
 	} else {
 		s.journal.append(resetObjectChange{prev: prev, prevdestruct: prevdestruct})
 	}
@@ -747,6 +753,7 @@ func (s *StateDB) Copy() *StateDB {
 			state.snapStorage[k] = temp
 		}
 	}
+	copy(state.blockJournal, s.blockJournal)
 	return state
 }
 
@@ -821,6 +828,11 @@ func (s *StateDB) Finalise(deleteEmptyObjects bool) {
 	if s.prefetcher != nil && len(addressesToPrefetch) > 0 {
 		s.prefetcher.prefetch(s.originalRoot, addressesToPrefetch)
 	}
+
+	if s.OptimizedMode {
+		s.blockJournal = append(s.blockJournal, s.journal.entries...)
+	}
+
 	// Invalidate journal because reverting across transactions is not allowed.
 	s.clearJournalAndRefund()
 }
@@ -902,6 +914,28 @@ func (s *StateDB) clearJournalAndRefund() {
 		s.refund = 0
 	}
 	s.validRevisions = s.validRevisions[:0] // Snapshots can be created without journal entires
+}
+
+func (s *StateDB) ApplyJournal(journal []StoredJournal, interrupt *uint64) {
+	for _, entry := range journal {
+		if interrupt != nil && atomic.LoadUint64(interrupt) == 1 {
+			return
+		}
+		entry.apply(s)
+	}
+}
+
+func (s *StateDB) CommitJournal(blockHash common.Hash) {
+	rawBytes, err := EncodeBlockJournal(s.blockJournal)
+	if err != nil {
+		log.Error("Failed to encode journal", "err", err)
+		return
+	}
+	if len(rawBytes) == 0 {
+		return
+	}
+	rawdb.WriteStoredJournal(s.db.TrieDB().DiskDB(), blockHash, rawBytes)
+	s.blockJournal = make([]journalEntry, 0)
 }
 
 // Commit writes the state to the underlying in-memory trie database.

@@ -439,6 +439,10 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 	return bc, nil
 }
 
+func (bc *BlockChain) IsOptimizedMode() bool {
+	return bc.cacheConfig.OptimizedMode
+}
+
 func (bc *BlockChain) loadLatestDirtyAccounts() {
 	dirtyStateAccounts := rawdb.ReadDirtyAccounts(bc.db)
 	for _, data := range dirtyStateAccounts {
@@ -1380,6 +1384,7 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 	if err != nil {
 		return NonStatTy, nil, err
 	}
+	state.CommitJournal(block.Hash())
 	triedb := bc.stateCache.TrieDB()
 
 	// If we're running an archive node, always flush
@@ -1770,6 +1775,8 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, er
 				}(time.Now(), followup, throwaway, &followupInterrupt)
 			}
 		}
+
+		statedb.OptimizedMode = bc.IsOptimizedMode()
 
 		// Process block using the parent state as reference point
 		substart := time.Now()

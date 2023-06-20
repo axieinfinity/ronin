@@ -94,3 +94,20 @@ func DeleteTrieNode(db ethdb.KeyValueWriter, hash common.Hash) {
 		log.Crit("Failed to delete trie node", "err", err)
 	}
 }
+
+func ReadStoredJournal(db ethdb.KeyValueReader, hash common.Hash) []byte {
+	data, _ := db.Get(journalKey(hash))
+	return data
+}
+
+func WriteStoredJournal(db ethdb.KeyValueWriter, hash common.Hash, storedJournal []byte) {
+	if err := db.Put(journalKey(hash), storedJournal); err != nil {
+		log.Crit("Failed to store state journal", "err", err)
+	}
+}
+
+func DeleteStoredJournal(db ethdb.KeyValueWriter, hash common.Hash) {
+	if err := db.Delete(journalKey(hash)); err != nil {
+		log.Crit("Failed to delete state journal", "err", err)
+	}
+}

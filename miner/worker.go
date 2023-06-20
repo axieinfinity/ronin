@@ -763,6 +763,7 @@ func (w *worker) makeCurrent(parent *types.Block, header *types.Header) error {
 	if err != nil {
 		return err
 	}
+	state.OptimizedMode = w.chain.IsOptimizedMode()
 	state.StartPrefetcher("miner")
 
 	env := &environment{

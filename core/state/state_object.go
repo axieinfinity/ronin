@@ -138,7 +138,9 @@ func (s *stateObject) markSuicided() {
 
 func (s *stateObject) touch() {
 	s.db.journal.append(touchChange{
-		account: &s.address,
+		store: &touchChangeStore{
+			Account: &s.address,
+		},
 	})
 	if s.address == ripemd {
 		// Explicitly put it in the dirty-cache, which is otherwise generated from
@@ -270,8 +272,11 @@ func (s *stateObject) SetState(db Database, key, value common.Hash) {
 	}
 	// New value is different, update and journal the change
 	s.db.journal.append(storageChange{
-		account:  &s.address,
-		key:      key,
+		store: &storageChangeStore{
+			Account:      &s.address,
+			Key:          key,
+			CurrentValue: value,
+		},
 		prevalue: prev,
 	})
 	s.setState(key, value)
@@ -434,8 +439,11 @@ func (s *stateObject) SubBalance(amount *big.Int) {
 
 func (s *stateObject) SetBalance(amount *big.Int) {
 	s.db.journal.append(balanceChange{
-		account: &s.address,
-		prev:    new(big.Int).Set(s.data.Balance),
+		store: &balanceChangeStore{
+			Account: &s.address,
+			Current: new(big.Int).Set(amount),
+		},
+		prev: new(big.Int).Set(s.data.Balance),
 	})
 	s.setBalance(amount)
 }
@@ -504,7 +512,11 @@ func (s *stateObject) CodeSize(db Database) int {
 func (s *stateObject) SetCode(codeHash common.Hash, code []byte) {
 	prevcode := s.Code(s.db.db)
 	s.db.journal.append(codeChange{
-		account:  &s.address,
+		store: &codeChangeStore{
+			Account:     &s.address,
+			CurrentHash: codeHash[:],
+			CurrentCode: code,
+		},
 		prevhash: s.CodeHash(),
 		prevcode: prevcode,
 	})
@@ -519,8 +531,11 @@ func (s *stateObject) setCode(codeHash common.Hash, code []byte) {
 
 func (s *stateObject) SetNonce(nonce uint64) {
 	s.db.journal.append(nonceChange{
-		account: &s.address,
-		prev:    s.data.Nonce,
+		store: &nonceChangeStore{
+			Account: &s.address,
+			Current: nonce,
+		},
+		prev: s.data.Nonce,
 	})
 	s.setNonce(nonce)
 }

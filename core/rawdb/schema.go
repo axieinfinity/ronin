@@ -97,6 +97,7 @@ var (
 	dirtyAccountsKey  = []byte("dacc") // dirtyAccountsPrefix + block hash -> dirty accounts
 
 	trieSnapshotPrefix = []byte("S") // trieSnapshotPrefix + block number (uint64 big endian) -> trie snapshot list
+	journalPrefix      = []byte("j") // journalPrefix + block hash -> journal entries
 
 	PreimagePrefix = []byte("secure-key-")      // PreimagePrefix + hash -> preimage
 	configPrefix   = []byte("ethereum-config-") // config prefix for the db
@@ -246,4 +247,8 @@ func configKey(hash common.Hash) []byte {
 
 func trieSnapshotKey(blockNumber uint64) []byte {
 	return binary.BigEndian.AppendUint64(trieSnapshotPrefix, blockNumber)
+}
+
+func journalKey(blockHash common.Hash) []byte {
+	return append(journalPrefix, blockHash.Bytes()...)
 }

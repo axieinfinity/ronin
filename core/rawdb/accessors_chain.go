@@ -817,6 +817,7 @@ func DeleteBlock(db ethdb.KeyValueWriter, hash common.Hash, number uint64) {
 	DeleteHeader(db, hash, number)
 	DeleteBody(db, hash, number)
 	DeleteTd(db, hash, number)
+	DeleteStoredJournal(db, hash)
 }
 
 // DeleteBlockWithoutNumber removes all block data associated with a hash, except
