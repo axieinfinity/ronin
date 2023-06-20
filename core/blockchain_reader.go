@@ -18,7 +18,12 @@ package core
 
 import (
 	"bytes"
+	"errors"
+	"fmt"
 	"math/big"
+	"runtime"
+	"sync/atomic"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -28,8 +33,10 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/event"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/ethereum/go-ethereum/trie"
 )
 
 // CurrentHeader retrieves the current head header of the canonical chain. The
@@ -309,6 +316,155 @@ func (bc *BlockChain) loadJournal(header *types.Header) ([]state.StoredJournal, 
 		return nil, nil
 	}
 	return state.DecodeBlockJournal(bytes.NewReader(rawBytes))
+}
+
+// findNearestSnapshot returns the nearest snapshot before requested block
+func (bc *BlockChain) findNearestSnapshot(blockNumber uint64) uint64 {
+	if blockNumber == 0 {
+		return 0
+	}
+
+	checkpointInterval := bc.cacheConfig.TrieSnapshotCheckpoint
+	nextCheckpoint := (blockNumber + checkpointInterval - 1) / checkpointInterval * checkpointInterval
+	snapshot := rawdb.ReadTrieSnapshotList(bc.db, nextCheckpoint)
+	if len(snapshot) != 0 {
+		for i := len(snapshot) - 1; i >= 0; i-- {
+			if snapshot[i] < blockNumber {
+				return snapshot[i]
+			}
+		}
+	}
+
+	for nextCheckpoint -= checkpointInterval; nextCheckpoint != 0; nextCheckpoint = nextCheckpoint - checkpointInterval {
+		snapshot = rawdb.ReadTrieSnapshotList(bc.db, nextCheckpoint)
+		if len(snapshot) != 0 {
+			return snapshot[len(snapshot)-1]
+		}
+	}
+
+	return 0
+}
+
+// StateByHeader tries to read state from blockchain's database and returns if available.
+// In case it is not available, create a ephemeral database, find the nearest snapshot
+// before the requested block and re-execute those blocks between snapshot and requested
+// block to re-generate the state at the requested block.
+func (bc *BlockChain) StateByHeader(header *types.Header) (*state.StateDB, error) {
+	var (
+		accumulatedGasUsed        uint64
+		accumulatedJournalEntries uint64
+		nearestSnapshot           uint64
+	)
+
+	start := time.Now()
+	defer func() {
+		log.Debug(
+			"StateByHeader",
+			"latency", time.Since(start),
+			"blockRange", header.Number.Uint64()-nearestSnapshot,
+			"gasUsed", accumulatedGasUsed,
+			"journalEntries", accumulatedJournalEntries,
+		)
+		stateByHeaderTimer.Update(time.Since(start))
+	}()
+
+	statedb, err := bc.StateAt(header.Root)
+	if err == nil {
+		return statedb, err
+	}
+
+	if !bc.cacheConfig.OptimizedMode {
+		return statedb, err
+	}
+
+	nearestSnapshot = bc.findNearestSnapshot(header.Number.Uint64())
+	snapshotHeader := bc.GetHeaderByNumber(nearestSnapshot)
+
+	database := state.NewDatabaseWithConfig(bc.db, &trie.Config{Cache: 16})
+	statedb, err = state.New(snapshotHeader.Root, database, nil)
+	if err != nil {
+		log.Error("Failed to get statedb of checkpoint block", "number", snapshotHeader.Number, "hash", snapshotHeader.Hash())
+		return nil, err
+	}
+
+	var prevStateRoot common.Hash
+	for current := snapshotHeader.Number.Uint64() + 1; current <= header.Number.Uint64(); current++ {
+		currentHeader := bc.GetHeaderByNumber(current)
+		accumulatedGasUsed += currentHeader.GasUsed
+
+		// There is no change to state trie, continue to next block
+		if currentHeader.Root == prevStateRoot {
+			continue
+		}
+
+		var interrupt uint64
+		// Pre-apply the next journal to load data from disk
+		// before the main flow for reducing read time
+		stateCpy := statedb.Copy()
+		go func() {
+			defer func() {
+				if err := recover(); err != nil {
+					const size = 64 << 10
+					buf := make([]byte, size)
+					buf = buf[:runtime.Stack(buf, false)]
+					log.Error("Pre-apply journal crashed: " + fmt.Sprintf("%v\n%s", err, buf))
+				}
+			}()
+
+			next := current + 1
+			if next > header.Number.Uint64() {
+				return
+			}
+
+			nextHeader := bc.GetHeaderByNumber(next)
+			journal, err := bc.loadJournal(nextHeader)
+			if err != nil {
+				log.Error("Fail to load journal on pre-apply", "err", err)
+				return
+			}
+			stateCpy.ApplyJournal(journal, &interrupt)
+			if bc.chainConfig.IsByzantium(nextHeader.Number) {
+				stateCpy.IntermediateRoot(true)
+			}
+		}()
+		journal, err := bc.loadJournal(currentHeader)
+		if err != nil {
+			log.Error("Failed to load journal", "err", err, "number", current, "hash", currentHeader.Hash())
+			return nil, err
+		}
+		accumulatedJournalEntries += uint64(len(journal))
+		statedb.ApplyJournal(journal, nil)
+
+		root, err := statedb.Commit(bc.Config().IsEIP158(big.NewInt(int64(current))))
+		if err != nil {
+			atomic.StoreUint64(&interrupt, 1)
+			log.Error("Failed to state commit", "err", err, "number", current, "hash", currentHeader.Hash())
+			return nil, err
+		}
+		if root != currentHeader.Root {
+			atomic.StoreUint64(&interrupt, 1)
+			log.Error("State root mismatches after applying journal", "number", current, "expected", currentHeader.Root, "have", root)
+			return nil, errors.New("mismatch state root")
+		}
+
+		atomic.StoreUint64(&interrupt, 1)
+		statedb, err = state.New(root, database, nil)
+		if err != nil {
+			log.Error("Failed to get the trie from trie database", "err", err, "number", current, "hash", currentHeader.Hash())
+			return nil, err
+		}
+
+		// Here we don't reference/dereference the header's trie root. The reason is that
+		// we use the ephemeral trie database, the lifetime of the database is equal to
+		// the lifetime of returned state as the returned state is the only reference to
+		// database. When the state is garbage collected, the whole database is cleaned
+		// too. This can result in temporary high memory usage when serving request but
+		// help to reduce the computation time.
+
+		prevStateRoot = currentHeader.Root
+	}
+
+	return statedb, nil
 }
 
 // Config retrieves the chain's fork configuration.
