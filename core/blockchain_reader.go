@@ -310,12 +310,19 @@ func (bc *BlockChain) StateAt(root common.Hash) (*state.StateDB, error) {
 	return state.New(root, bc.stateCache, bc.snaps)
 }
 
-func (bc *BlockChain) loadJournal(header *types.Header) ([]state.StoredJournal, error) {
-	rawBytes := rawdb.ReadStoredJournal(bc.db, header.Hash())
-	if len(rawBytes) == 0 {
-		return nil, nil
+func (bc *BlockChain) loadJournal(header *types.Header, cache *journalCache) ([]state.StoredJournal, error) {
+	section, _, _ := bc.journalIndexer.Sections()
+	if header.Number.Uint64() < section*JournalSectionSize {
+		// indexed journal
+		return cache.loadFromBatchJournal(header.Number.Uint64())
+	} else {
+		// unindexed journal
+		rawBytes := rawdb.ReadStoredJournal(bc.db, header.Hash())
+		if len(rawBytes) == 0 {
+			return nil, nil
+		}
+		return state.DecodeBlockJournal(bytes.NewReader(rawBytes))
 	}
-	return state.DecodeBlockJournal(bytes.NewReader(rawBytes))
 }
 
 // findNearestSnapshot returns the nearest snapshot before requested block
@@ -387,6 +394,8 @@ func (bc *BlockChain) StateByHeader(header *types.Header) (*state.StateDB, error
 		return nil, err
 	}
 
+	cache := newJournalCache(bc.db)
+
 	var prevStateRoot common.Hash
 	for current := snapshotHeader.Number.Uint64() + 1; current <= header.Number.Uint64(); current++ {
 		currentHeader := bc.GetHeaderByNumber(current)
@@ -417,7 +426,7 @@ func (bc *BlockChain) StateByHeader(header *types.Header) (*state.StateDB, error
 			}
 
 			nextHeader := bc.GetHeaderByNumber(next)
-			journal, err := bc.loadJournal(nextHeader)
+			journal, err := bc.loadJournal(nextHeader, cache)
 			if err != nil {
 				log.Error("Fail to load journal on pre-apply", "err", err)
 				return
@@ -427,7 +436,7 @@ func (bc *BlockChain) StateByHeader(header *types.Header) (*state.StateDB, error
 				stateCpy.IntermediateRoot(true)
 			}
 		}()
-		journal, err := bc.loadJournal(currentHeader)
+		journal, err := bc.loadJournal(currentHeader, cache)
 		if err != nil {
 			log.Error("Failed to load journal", "err", err, "number", current, "hash", currentHeader.Hash())
 			return nil, err

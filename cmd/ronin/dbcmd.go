@@ -34,6 +34,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/console/prompt"
+	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/ethdb"
@@ -766,11 +767,25 @@ func dbGetJournal(ctx *cli.Context) error {
 		return err
 	}
 
-	hash := rawdb.ReadCanonicalHash(db, blockNumber)
-	rawBytes := rawdb.ReadStoredJournal(db, hash)
-	journal, err := state.DecodeBlockJournal(bytes.NewReader(rawBytes))
-	if err != nil {
-		return err
+	indexer := core.NewJournalIndexer(db)
+	section, _, _ := indexer.Sections()
+
+	var journal []state.StoredJournal
+	if blockNumber < section*core.JournalSectionSize {
+		// indexed journal
+		batch, err := state.LoadBatchJournal(db, blockNumber/core.JournalSectionSize)
+		if err != nil {
+			return err
+		}
+		journal = state.GetBlockJournalFromBatch(batch, blockNumber%core.JournalSectionSize, core.JournalSectionSize)
+	} else {
+		// unindexed journal
+		hash := rawdb.ReadCanonicalHash(db, blockNumber)
+		rawBytes := rawdb.ReadStoredJournal(db, hash)
+		journal, err = state.DecodeBlockJournal(bytes.NewReader(rawBytes))
+		if err != nil {
+			return err
+		}
 	}
 
 	for _, entry := range journal {

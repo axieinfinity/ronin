@@ -24,7 +24,9 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
@@ -692,4 +694,48 @@ func DecodeBlockJournal(reader *bytes.Reader) ([]StoredJournal, error) {
 	}
 
 	return journal, nil
+}
+
+type BatchJournalRLP struct {
+	Metadata []uint64
+	Data     []byte
+}
+
+type BatchJournal struct {
+	Metadata []uint64
+	Data     []StoredJournal
+}
+
+func LoadBatchJournal(db ethdb.Database, section uint64) (*BatchJournal, error) {
+	rawBatchJournal := rawdb.ReadBatchJournal(db, section)
+	if len(rawBatchJournal) == 0 {
+		return nil, nil
+	}
+
+	var storedBatchJournal BatchJournalRLP
+	if err := rlp.Decode(bytes.NewReader(rawBatchJournal), &storedBatchJournal); err != nil {
+		return nil, err
+	}
+
+	storedJournal, err := DecodeJournalWithoutSize(bytes.NewReader(storedBatchJournal.Data))
+	if err != nil {
+		return nil, err
+	}
+
+	return &BatchJournal{
+		Metadata: storedBatchJournal.Metadata,
+		Data:     storedJournal,
+	}, nil
+}
+
+func GetBlockJournalFromBatch(batch *BatchJournal, index uint64, sectionSize uint64) []StoredJournal {
+	var start, end uint64
+
+	start = batch.Metadata[index]
+	if index == sectionSize-1 {
+		end = uint64(len(batch.Data))
+	} else {
+		end = batch.Metadata[index+1]
+	}
+	return batch.Data[start:end]
 }

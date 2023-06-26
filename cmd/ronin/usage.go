@@ -60,6 +60,7 @@ var AppHelpFlagGroups = []flags.FlagGroup{
 			utils.TrieSnapshotGasUsed,
 			utils.TrieSnapshotCheckpoint,
 			utils.TrieSnapshotBlockRange,
+			utils.BatchJournal,
 		},
 	},
 	{

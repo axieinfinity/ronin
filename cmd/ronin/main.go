@@ -170,6 +170,7 @@ var (
 		utils.TrieSnapshotGasUsed,
 		utils.TrieSnapshotCheckpoint,
 		utils.TrieSnapshotBlockRange,
+		utils.BatchJournal,
 	}
 
 	rpcFlags = []cli.Flag{

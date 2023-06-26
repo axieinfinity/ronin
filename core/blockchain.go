@@ -145,6 +145,7 @@ type CacheConfig struct {
 	TrieSnapshotGasUsed    uint64 // The accumulated gas used threshold before creating a new snapshot
 	TrieSnapshotCheckpoint uint64 // The checkpoint block interval that stores the list of snapshot
 	TrieSnapshotBlockRange uint64 // The maximum blocks before next trie snapshot
+	BatchJournal           bool   // Use the journal indexer to batch the block journal
 }
 
 // defaultCacheConfig are the default caching values if none are specified by the
@@ -235,6 +236,8 @@ type BlockChain struct {
 	unsavedTrieSnapshot     []uint64
 	accumulatedGasUsed      uint64
 	blocksSinceLastSnapshot uint64
+
+	journalIndexer *ChainIndexer
 }
 
 // NewBlockChain returns a fully initialised block chain using information
@@ -436,6 +439,10 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 
 	if bc.cacheConfig.OptimizedMode {
 		bc.unsavedTrieSnapshot = bc.loadTrieSnapshotList(bc.CurrentBlock().NumberU64())
+		bc.journalIndexer = NewJournalIndexer(db)
+		if bc.cacheConfig.BatchJournal {
+			bc.journalIndexer.Start(bc)
+		}
 	}
 
 	return bc, nil
@@ -931,6 +938,7 @@ func (bc *BlockChain) Stop() {
 	}
 	if bc.cacheConfig.OptimizedMode {
 		bc.saveTrieSnapshotList(bc.CurrentBlock().NumberU64())
+		bc.journalIndexer.Close()
 	}
 
 	log.Info("Blockchain stopped")

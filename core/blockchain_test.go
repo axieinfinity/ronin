@@ -3490,6 +3490,14 @@ func TestTrieSnapshotSave(t *testing.T) {
 }
 
 func TestOptimizedModeAccessStorageTrie(t *testing.T) {
+	testOptimizedModeAccessStorageTrie(t, false)
+}
+
+func TestOptimizedModeAccessStorageTrieBatchJournal(t *testing.T) {
+	testOptimizedModeAccessStorageTrie(t, true)
+}
+
+func testOptimizedModeAccessStorageTrie(t *testing.T, batchJournal bool) {
 	// Configure and generate a sample block chain
 	var (
 		gendb   = rawdb.NewMemoryDatabase()
@@ -3518,7 +3526,12 @@ func TestOptimizedModeAccessStorageTrie(t *testing.T) {
 	contractABI, _ := abi.JSON(strings.NewReader(`[{"inputs":[],"name":"number","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint256","name":"num","type":"uint256"}],"name":"setNumber","outputs":[],"stateMutability":"nonpayable","type":"function"}]`))
 	contractAddr := common.HexToAddress("0x3A220f351252089D385b29beca14e27F204c296A")
 
-	var blockRange int = 128
+	var blockRange int
+	if batchJournal {
+		blockRange = 1500
+	} else {
+		blockRange = 128
+	}
 	blocks, _ := GenerateChain(gspec.Config, genesis, ethash.NewFaker(), gendb, 15+blockRange, func(i int, block *BlockGen) {
 		blockNumber := i + 1
 		if blockNumber == 3 {
@@ -3586,6 +3599,10 @@ func TestOptimizedModeAccessStorageTrie(t *testing.T) {
 
 	if _, err := blockchain.InsertChain(blocks); err != nil {
 		t.Fatal(err)
+	}
+
+	if batchJournal {
+		time.Sleep(time.Second)
 	}
 
 	header := blockchain.GetHeaderByNumber(2)

@@ -111,3 +111,14 @@ func DeleteStoredJournal(db ethdb.KeyValueWriter, hash common.Hash) {
 		log.Crit("Failed to delete state journal", "err", err)
 	}
 }
+
+func ReadBatchJournal(db ethdb.KeyValueReader, section uint64) []byte {
+	data, _ := db.Get(batchJournalKey(section))
+	return data
+}
+
+func WriteBatchJournal(db ethdb.KeyValueWriter, section uint64, batchJournal []byte) {
+	if err := db.Put(batchJournalKey(section), batchJournal); err != nil {
+		log.Crit("Failed to store batch journal", "err", err)
+	}
+}

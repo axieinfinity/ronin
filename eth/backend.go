@@ -198,6 +198,7 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 			TrieSnapshotGasUsed:    config.TrieSnapshotGasUsed,
 			TrieSnapshotCheckpoint: config.TrieSnapshotCheckpoint,
 			TrieSnapshotBlockRange: config.TrieSnapshotBlockRange,
+			BatchJournal:           config.BatchJournal,
 		}
 	)
 	eth.blockchain, err = core.NewBlockChain(chainDb, cacheConfig, chainConfig, eth.engine, vmConfig, eth.shouldPreserve, &config.TxLookupLimit)

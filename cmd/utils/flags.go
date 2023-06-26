@@ -237,6 +237,10 @@ var (
 		Usage: "The maximum blocks before next trie snapshot",
 		Value: 20000,
 	}
+	BatchJournal = cli.BoolFlag{
+		Name:  "batchjournal",
+		Usage: "Run the batch journal indexer to merge block journal",
+	}
 	SnapshotFlag = cli.BoolTFlag{
 		Name:  "snapshot",
 		Usage: `Enables snapshot-database mode (default = enable)`,
@@ -1648,6 +1652,7 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 		cfg.TrieSnapshotGasUsed = ctx.GlobalUint64(TrieSnapshotGasUsed.Name)
 		cfg.TrieSnapshotCheckpoint = ctx.GlobalUint64(TrieSnapshotCheckpoint.Name)
 		cfg.TrieSnapshotBlockRange = ctx.GlobalUint64(TrieSnapshotBlockRange.Name)
+		cfg.BatchJournal = ctx.GlobalBool(BatchJournal.Name)
 	}
 	if ctx.GlobalIsSet(CacheNoPrefetchFlag.Name) {
 		cfg.NoPrefetch = ctx.GlobalBool(CacheNoPrefetchFlag.Name)

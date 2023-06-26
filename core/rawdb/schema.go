@@ -98,12 +98,14 @@ var (
 
 	trieSnapshotPrefix = []byte("S") // trieSnapshotPrefix + block number (uint64 big endian) -> trie snapshot list
 	journalPrefix      = []byte("j") // journalPrefix + block hash -> journal entries
+	batchJournalPrefix = []byte("J") // batchJournalPrefix + section number (uint64 big endian) -> batch journal
 
 	PreimagePrefix = []byte("secure-key-")      // PreimagePrefix + hash -> preimage
 	configPrefix   = []byte("ethereum-config-") // config prefix for the db
 
 	// Chain index prefixes (use `i` + single byte to avoid mixing data types).
 	BloomBitsIndexPrefix = []byte("iB") // BloomBitsIndexPrefix is the data table of a chain indexer to track its progress
+	JournalIndexPrefix   = []byte("iJ") // JournalIndexPrefix is the data table of a journal indexer to track its progress
 
 	preimageCounter    = metrics.NewRegisteredCounter("db/preimage/total", nil)
 	preimageHitCounter = metrics.NewRegisteredCounter("db/preimage/hits", nil)
@@ -251,4 +253,8 @@ func trieSnapshotKey(blockNumber uint64) []byte {
 
 func journalKey(blockHash common.Hash) []byte {
 	return append(journalPrefix, blockHash.Bytes()...)
+}
+
+func batchJournalKey(section uint64) []byte {
+	return binary.BigEndian.AppendUint64(batchJournalPrefix, section)
 }

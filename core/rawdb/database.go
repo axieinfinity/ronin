@@ -324,6 +324,8 @@ func InspectDatabase(db ethdb.Database, keyPrefix, keyStart []byte) error {
 		cliqueSnaps      stat
 		trieSnapshotList stat
 		journal          stat
+		batchJournal     stat
+		journalIndexer   stat
 
 		// Ancient store statistics
 		ancientHeadersSize  common.StorageSize
@@ -395,6 +397,10 @@ func InspectDatabase(db ethdb.Database, keyPrefix, keyStart []byte) error {
 			bloomTrieNodes.Add(size)
 		case bytes.HasPrefix(key, journalPrefix) && len(key) == (len(journalPrefix)+common.HashLength):
 			journal.Add(size)
+		case bytes.HasPrefix(key, batchJournalPrefix) && len(key) == (len(batchJournalPrefix)+8):
+			batchJournal.Add(size)
+		case bytes.HasPrefix(key, JournalIndexPrefix):
+			journalIndexer.Add(size)
 		default:
 			var accounted bool
 			for _, meta := range [][]byte{
@@ -450,6 +456,8 @@ func InspectDatabase(db ethdb.Database, keyPrefix, keyStart []byte) error {
 		{"Key-Value store", "Clique snapshots", cliqueSnaps.Size(), cliqueSnaps.Count()},
 		{"Key-Value store", "Trie snapshots list", trieSnapshotList.Size(), trieSnapshotList.Count()},
 		{"Key-Value store", "Journal", journal.Size(), journal.Count()},
+		{"Key-Value store", "Batch journal", batchJournal.Size(), batchJournal.Count()},
+		{"Key-Value store", "Journal indexer", journalIndexer.Size(), journalIndexer.Count()},
 		{"Key-Value store", "Singleton metadata", metadata.Size(), metadata.Count()},
 		{"Ancient store", "Headers", ancientHeadersSize.String(), ancients.String()},
 		{"Ancient store", "Bodies", ancientBodiesSize.String(), ancients.String()},
