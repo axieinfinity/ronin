@@ -20,7 +20,6 @@ import (
 	"compress/gzip"
 	"context"
 	"fmt"
-	"github.com/klauspost/compress/gzhttp"
 	"io"
 	"io/ioutil"
 	"net"
@@ -29,6 +28,8 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+
+	"github.com/klauspost/compress/gzhttp"
 
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -45,9 +46,11 @@ type httpConfig struct {
 
 // wsConfig is the JSON-RPC/Websocket configuration
 type wsConfig struct {
-	Origins []string
-	Modules []string
-	prefix  string // path prefix on which to mount ws handler
+	Origins       []string
+	Modules       []string
+	prefix        string // path prefix on which to mount ws handler
+	wsreadbuffer  int
+	wswritebuffer int
 }
 
 type rpcHandler struct {
@@ -318,7 +321,7 @@ func (h *httpServer) enableWS(apis []rpc.API, config wsConfig) error {
 	}
 	h.wsConfig = config
 	h.wsHandler.Store(&rpcHandler{
-		Handler: srv.WebsocketHandler(config.Origins),
+		Handler: srv.WebsocketHandler(config.Origins, config.wsreadbuffer, config.wswritebuffer),
 		server:  srv,
 	})
 	return nil

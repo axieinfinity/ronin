@@ -47,10 +47,10 @@ var wsBufferPool = new(sync.Pool)
 //
 // allowedOrigins should be a comma-separated list of allowed origin URLs.
 // To allow connections with any origin, pass "*".
-func (s *Server) WebsocketHandler(allowedOrigins []string) http.Handler {
+func (s *Server) WebsocketHandler(allowedOrigins []string, wsReadBufferCfg int, wsWriteBufferCfg int) http.Handler {
 	var upgrader = websocket.Upgrader{
-		ReadBufferSize:  wsReadBuffer,
-		WriteBufferSize: wsWriteBuffer,
+		ReadBufferSize:  wsReadBufferCfg,
+		WriteBufferSize: wsWriteBufferCfg,
 		WriteBufferPool: wsBufferPool,
 		CheckOrigin:     wsHandshakeValidator(allowedOrigins),
 	}

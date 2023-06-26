@@ -170,6 +170,12 @@ type Config struct {
 	// private APIs to untrusted users is a major security risk.
 	WSExposeAll bool `toml:",omitempty"`
 
+	// WSReadBuffer is the size of read buffer when starting the WS. Default value is 1024 bytes.
+	WSReadBuffer int `toml:",omitempty"`
+
+	// WSWriteBuffer is the size of write buffer when starting the WS. Default value is 1024 bytes.
+	WSWriteBuffer int `toml:",omitempty"`
+
 	// GraphQLCors is the Cross-Origin Resource Sharing header to send to requesting
 	// clients. Please be aware that CORS is a browser enforced security, it's fully
 	// useless for custom HTTP clients.

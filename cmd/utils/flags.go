@@ -637,6 +637,16 @@ var (
 		Usage: "HTTP path prefix on which JSON-RPC is served. Use '/' to serve on all paths.",
 		Value: "",
 	}
+	WSReadBufferFlag = cli.IntFlag{
+		Name:  "ws.readbuffer",
+		Usage: "ReadBuffer for Websocket Server default 1024 bytes",
+		Value: 1024,
+	}
+	WSWriteBufferFlag = cli.IntFlag{
+		Name:  "ws.writebuffer",
+		Usage: "WriteBuffer for Websocket Server default 1024 bytes",
+		Value: 1024,
+	}
 	ExecFlag = cli.StringFlag{
 		Name:  "exec",
 		Usage: "Execute JavaScript statement",
@@ -1077,6 +1087,10 @@ func setWS(ctx *cli.Context, cfg *node.Config) {
 	if ctx.GlobalIsSet(WSPathPrefixFlag.Name) {
 		cfg.WSPathPrefix = ctx.GlobalString(WSPathPrefixFlag.Name)
 	}
+
+	cfg.WSReadBuffer = ctx.GlobalInt(WSReadBufferFlag.Name)
+	cfg.WSWriteBuffer = ctx.GlobalInt(WSWriteBufferFlag.Name)
+
 }
 
 // setIPC creates an IPC path configuration from the set command line flags,
