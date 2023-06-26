@@ -379,9 +379,11 @@ func (n *Node) startRPC() error {
 	if n.config.WSHost != "" {
 		server := n.wsServerForPort(n.config.WSPort)
 		config := wsConfig{
-			Modules: n.config.WSModules,
-			Origins: n.config.WSOrigins,
-			prefix:  n.config.WSPathPrefix,
+			Modules:       n.config.WSModules,
+			Origins:       n.config.WSOrigins,
+			prefix:        n.config.WSPathPrefix,
+			wsreadbuffer:  n.config.WSReadBuffer,
+			wswritebuffer: n.config.WSWriteBuffer,
 		}
 		if err := server.setListenAddr(n.config.WSHost, n.config.WSPort); err != nil {
 			return err
