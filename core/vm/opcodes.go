@@ -122,6 +122,8 @@ const (
 	MSIZE    OpCode = 0x59
 	GAS      OpCode = 0x5a
 	JUMPDEST OpCode = 0x5b
+	TLOAD    OpCode = 0x5c
+	TSTORE   OpCode = 0x5d
 	PUSH0    OpCode = 0x5f
 )
 
@@ -232,12 +234,6 @@ const (
 	SELFDESTRUCT OpCode = 0xff
 )
 
-// 0xb0 range.
-const (
-	TLOAD  OpCode = 0xb3
-	TSTORE OpCode = 0xb4
-)
-
 // Since the opcodes aren't all in order we can't use a regular slice.
 var opCodeToString = map[OpCode]string{
 	// 0x0 range - arithmetic ops.
@@ -319,6 +315,8 @@ var opCodeToString = map[OpCode]string{
 	MSIZE:    "MSIZE",
 	GAS:      "GAS",
 	JUMPDEST: "JUMPDEST",
+	TLOAD:    "TLOAD",
+	TSTORE:   "TSTORE",
 	PUSH0:    "PUSH0",
 
 	// 0x60 range - push.
@@ -394,11 +392,7 @@ var opCodeToString = map[OpCode]string{
 	LOG3:   "LOG3",
 	LOG4:   "LOG4",
 
-	// 0xb0 range.
-	TLOAD:  "TLOAD",
-	TSTORE: "TSTORE",
-
-	// 0xf0 range.
+	// 0xf0 range - closures.
 	CREATE:       "CREATE",
 	CALL:         "CALL",
 	RETURN:       "RETURN",
@@ -493,9 +487,9 @@ var stringToOp = map[string]OpCode{
 	"MSIZE":          MSIZE,
 	"GAS":            GAS,
 	"JUMPDEST":       JUMPDEST,
-	"PUSH0":          PUSH0,
 	"TLOAD":          TLOAD,
 	"TSTORE":         TSTORE,
+	"PUSH0":          PUSH0,
 	"PUSH1":          PUSH1,
 	"PUSH2":          PUSH2,
 	"PUSH3":          PUSH3,
