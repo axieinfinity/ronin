@@ -4,9 +4,11 @@ on:
   push:
     branches:
       - master
+      - feat/optimistic_fast_finality
   pull_request:
     branches:
       - master
+      - feat/optimistic_fast_finality
 
 concurrency:
   group: ${{ github.head_ref || github.run_id }}
