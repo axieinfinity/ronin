@@ -9,8 +9,8 @@ import (
 	"sync"
 
 	"github.com/ethereum/go-ethereum/crypto/bls/common"
+	"github.com/ethereum/go-ethereum/crypto/rand"
 	"github.com/pkg/errors"
-	"github.com/prysmaticlabs/prysm/v4/crypto/rand"
 	blst "github.com/supranational/blst/bindings/go"
 )
 
