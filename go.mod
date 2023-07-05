@@ -77,6 +77,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/pyroscope-io/client v0.7.0
 	github.com/supranational/blst v0.3.10
+	github.com/wealdtech/go-eth2-wallet-encryptor-keystorev4 v1.3.1
 )
 
 require (
@@ -94,7 +95,7 @@ require (
 	github.com/google/pprof v0.0.0-20230405160723-4a4c7d95572b // indirect
 	github.com/mattn/go-ieproxy v0.0.0-20190702010315-6dee0af9227d // indirect
 	github.com/mattn/go-runewidth v0.0.14 // indirect
-	github.com/mitchellh/mapstructure v1.4.1 // indirect
+	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/mitchellh/pointerstructure v1.2.0 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
