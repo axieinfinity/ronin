@@ -30,7 +30,7 @@ func (w *Wallet) SaveWallet() error {
 }
 
 func (w *Wallet) ReadFile(ctx context.Context, filename string) ([]byte, error) {
-	existDir, err := hasDir(w.walletDir)
+	existDir, err := HasDir(w.walletDir)
 	if err != nil {
 		return nil, err
 	}
@@ -55,7 +55,7 @@ func (w *Wallet) ReadFile(ctx context.Context, filename string) ([]byte, error) 
 }
 
 func (w *Wallet) WriteFile(ctx context.Context, filename string, data []byte) error {
-	existDir, err := hasDir(w.walletDir)
+	existDir, err := HasDir(w.walletDir)
 	if err != nil {
 		return err
 	}
@@ -72,7 +72,7 @@ func (w *Wallet) WriteFile(ctx context.Context, filename string, data []byte) er
 	return nil
 }
 
-func hasDir(path string) (bool, error) {
+func HasDir(path string) (bool, error) {
 	info, err := os.Stat(path)
 	if os.IsNotExist(err) {
 		return false, nil

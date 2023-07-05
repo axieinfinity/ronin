@@ -8,16 +8,26 @@ import (
 	keystorev4 "github.com/wealdtech/go-eth2-wallet-encryptor-keystorev4"
 )
 
+// Keystore json file representation as a Go struct.
+type Keystore struct {
+	Crypto  map[string]interface{} `json:"crypto"`
+	ID      string                 `json:"uuid"`
+	Pubkey  string                 `json:"pubkey"`
+	Version uint                   `json:"version"`
+	Name    string                 `json:"name"`
+	Path    string                 `json:"path"`
+}
+
 // Defines a struct containing 1-to-1 corresponding
 // private keys and public keys for Ethereum validators.
-type accountStore struct {
+type AccountStore struct {
 	PrivateKeys [][]byte `json:"private_keys"`
 	PublicKeys  [][]byte `json:"public_keys"`
 }
 
 // Copy creates a deep copy of accountStore
-func (a *accountStore) Copy() *accountStore {
-	storeCopy := &accountStore{}
+func (a *AccountStore) Copy() *AccountStore {
+	storeCopy := &AccountStore{}
 	storeCopy.PrivateKeys = common.Copy2dBytes(a.PrivateKeys)
 	storeCopy.PublicKeys = common.Copy2dBytes(a.PublicKeys)
 	return storeCopy
@@ -34,7 +44,7 @@ type AccountsKeystoreRepresentation struct {
 
 // CreateAccountsKeystoreRepresentation is a pure function that takes an accountStore and wallet password and returns the encrypted formatted json version for local writing.
 func CreateAccountsKeystoreRepresentation(
-	store *accountStore,
+	store *AccountStore,
 	walletPW string,
 ) (*AccountsKeystoreRepresentation, error) {
 	encryptor := keystorev4.New()
