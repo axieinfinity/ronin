@@ -26,6 +26,12 @@ import (
 	"golang.org/x/crypto/sha3"
 )
 
+const (
+	BLSSignatureLength = 96 // BLSSignatureLength defines the byte length of a BLSSignature.
+	BLSSecretKeyLength = 32
+	BLSPubkeyLength    = 48 // BLSPubkeyLength defines the byte length of a BLSSignature.
+)
+
 // Genesis hashes to enforce below configs on.
 var (
 	MainnetGenesisHash      = common.HexToHash("0xd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3")
