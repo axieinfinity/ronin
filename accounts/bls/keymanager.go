@@ -12,7 +12,6 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
-	"github.com/prysmaticlabs/prysm/v4/validator/keymanager"
 	keystorev4 "github.com/wealdtech/go-eth2-wallet-encryptor-keystorev4"
 	"strings"
 	"sync"
@@ -300,14 +299,14 @@ func (_ *KeyManager) attemptDecryptKeystore(
 	var privKeyBytes []byte
 	var err error
 	privKeyBytes, err = enc.Decrypt(keystore.Crypto, password)
-	doesNotDecrypt := err != nil && strings.Contains(err.Error(), keymanager.IncorrectPasswordErrMsg)
+	doesNotDecrypt := err != nil && strings.Contains(err.Error(), IncorrectPasswordErrMsg)
 	if doesNotDecrypt {
 		return nil, nil, "", fmt.Errorf(
 			"incorrect password for key 0x%s",
 			keystore.Pubkey,
 		)
 	}
-	if err != nil && !strings.Contains(err.Error(), keymanager.IncorrectPasswordErrMsg) {
+	if err != nil && !strings.Contains(err.Error(), IncorrectPasswordErrMsg) {
 		return nil, nil, "", errors.Wrap(err, "could not decrypt keystore")
 	}
 	var pubKeyBytes []byte
