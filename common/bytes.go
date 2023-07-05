@@ -116,6 +116,15 @@ func LeftPadBytes(slice []byte, l int) []byte {
 	return padded
 }
 
+// PadTo pads a byte slice to the given size. If the byte slice is larger than the given size, the
+// original slice is returned.
+func PadTo(b []byte, size int) []byte {
+	if len(b) >= size {
+		return b
+	}
+	return append(b, make([]byte, size-len(b))...)
+}
+
 // TrimLeftZeroes returns a subslice of s without leading zeroes
 func TrimLeftZeroes(s []byte) []byte {
 	idx := 0
@@ -136,4 +145,16 @@ func TrimRightZeroes(s []byte) []byte {
 		}
 	}
 	return s[:idx]
+}
+
+// Copy2dBytes will copy and return a non-nil 2d byte slice, otherwise it returns nil.
+func Copy2dBytes(ary [][]byte) [][]byte {
+	if ary != nil {
+		copied := make([][]byte, len(ary))
+		for i, a := range ary {
+			copied[i] = CopyBytes(a)
+		}
+		return copied
+	}
+	return nil
 }
