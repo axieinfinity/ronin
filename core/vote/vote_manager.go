@@ -1,9 +1,6 @@
 package vote
 
 import (
-	"fmt"
-
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -139,16 +136,8 @@ func (voteManager *VoteManager) loop() {
 			}
 
 			// Put Vote into journal and VotesPool if we are active validator and allow to sign it.
-			if ok, sourceNumber, sourceHash := voteManager.UnderRules(curHead); ok {
+			if ok := voteManager.UnderRules(curHead); ok {
 				log.Debug("curHead is underRules for voting")
-				if sourceHash == (common.Hash{}) {
-					log.Debug("sourceHash is empty")
-					continue
-				}
-
-				voteMessage.Data.SourceNumber = sourceNumber
-				voteMessage.Data.SourceHash = sourceHash
-
 				if err := voteManager.signer.SignVote(voteMessage); err != nil {
 					log.Error("Failed to sign vote", "err", err, "votedBlockNumber", voteMessage.Data.TargetNumber, "votedBlockHash", voteMessage.Data.TargetHash, "voteMessageHash", voteMessage.Hash())
 					votesSigningErrorCounter.Inc(1)
@@ -173,60 +162,18 @@ func (voteManager *VoteManager) loop() {
 
 // UnderRules checks if the produced header under the following rules:
 // A validator must not publish two distinct votes for the same height. (Rule 1)
-// A validator must not vote within the span of its other votes . (Rule 2)
-// Validators always vote for their canonical chain’s latest block. (Rule 3)
-func (voteManager *VoteManager) UnderRules(header *types.Header) (bool, uint64, common.Hash) {
-	sourceNumber, sourceHash, err := voteManager.engine.GetJustifiedNumberAndHash(voteManager.chain, header)
-	if err != nil {
-		log.Error("failed to get the highest justified number and hash at cur header", "curHeader's BlockNumber", header.Number, "curHeader's BlockHash", header.Hash())
-		return false, 0, common.Hash{}
-	}
-
+// Validators always vote for their canonical chain’s latest block. (Rule 2)
+func (voteManager *VoteManager) UnderRules(header *types.Header) bool {
 	targetNumber := header.Number.Uint64()
-
 	voteDataBuffer := voteManager.journal.voteDataBuffer
 	//Rule 1:  A validator must not publish two distinct votes for the same height.
 	if voteDataBuffer.Contains(targetNumber) {
 		log.Debug("err: A validator must not publish two distinct votes for the same height.")
-		return false, 0, common.Hash{}
+		return false
 	}
 
-	//Rule 2: A validator must not vote within the span of its other votes.
-	blockNumber := sourceNumber + 1
-	if blockNumber+maliciousVoteSlashScope < targetNumber {
-		blockNumber = targetNumber - maliciousVoteSlashScope
-	}
-	for ; blockNumber < targetNumber; blockNumber++ {
-		if voteDataBuffer.Contains(blockNumber) {
-			voteData, ok := voteDataBuffer.Get(blockNumber)
-			if !ok {
-				log.Error("Failed to get voteData info from LRU cache.")
-				continue
-			}
-			if voteData.(*types.VoteData).SourceNumber > sourceNumber {
-				log.Debug(fmt.Sprintf("error: cur vote %d-->%d is across the span of other votes %d-->%d",
-					sourceNumber, targetNumber, voteData.(*types.VoteData).SourceNumber, voteData.(*types.VoteData).TargetNumber))
-				return false, 0, common.Hash{}
-			}
-		}
-	}
-	for blockNumber := targetNumber + 1; blockNumber <= targetNumber+upperLimitOfVoteBlockNumber; blockNumber++ {
-		if voteDataBuffer.Contains(blockNumber) {
-			voteData, ok := voteDataBuffer.Get(blockNumber)
-			if !ok {
-				log.Error("Failed to get voteData info from LRU cache.")
-				continue
-			}
-			if voteData.(*types.VoteData).SourceNumber < sourceNumber {
-				log.Debug(fmt.Sprintf("error: cur vote %d-->%d is within the span of other votes %d-->%d",
-					sourceNumber, targetNumber, voteData.(*types.VoteData).SourceNumber, voteData.(*types.VoteData).TargetNumber))
-				return false, 0, common.Hash{}
-			}
-		}
-	}
-
-	// Rule 3: Validators always vote for their canonical chain’s latest block.
+	// Rule 2: Validators always vote for their canonical chain’s latest block.
 	// Since the header subscribed to is the canonical chain, so this rule is satisfied by default.
-	log.Debug("All three rules check passed")
-	return true, sourceNumber, sourceHash
+	log.Debug("All rules check passed")
+	return true
 }
