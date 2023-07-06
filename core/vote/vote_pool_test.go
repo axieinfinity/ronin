@@ -20,6 +20,7 @@ import (
 	"container/heap"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"math/big"
@@ -62,10 +63,6 @@ type mockPOSA struct {
 	consensus.FastFinalityPoSA
 }
 
-type mockInvalidPOSA struct {
-	consensus.FastFinalityPoSA
-}
-
 // testBackend is a mock implementation of the live Ethereum message handler.
 type testBackend struct {
 	eventMux *event.TypeMux
@@ -85,23 +82,11 @@ func (p *mockPOSA) GetJustifiedNumberAndHash(chain consensus.ChainHeaderReader, 
 	return parentHeader.Number.Uint64(), parentHeader.Hash(), nil
 }
 
-func (p *mockInvalidPOSA) GetJustifiedNumberAndHash(chain consensus.ChainHeaderReader, header *types.Header) (uint64, common.Hash, error) {
-	return 0, common.Hash{}, fmt.Errorf("not supported")
-}
-
 func (m *mockPOSA) VerifyVote(chain consensus.ChainHeaderReader, vote *types.VoteEnvelope) error {
 	return nil
 }
 
-func (m *mockInvalidPOSA) VerifyVote(chain consensus.ChainHeaderReader, vote *types.VoteEnvelope) error {
-	return nil
-}
-
 func (m *mockPOSA) IsActiveValidatorAt(chain consensus.ChainHeaderReader, header *types.Header) bool {
-	return true
-}
-
-func (m *mockInvalidPOSA) IsActiveValidatorAt(chain consensus.ChainHeaderReader, header *types.Header) bool {
 	return true
 }
 
@@ -144,21 +129,15 @@ func testVotePool(t *testing.T, isValidRules bool) {
 
 	// Create a database pre-initialize with a genesis block
 	db := rawdb.NewMemoryDatabase()
-	(&core.Genesis{
-		Config: params.TestChainConfig,
-		Alloc:  core.GenesisAlloc{testAddr: {Balance: big.NewInt(1000000)}},
+	genesis := (&core.Genesis{
+		Config:  params.TestChainConfig,
+		Alloc:   core.GenesisAlloc{testAddr: {Balance: big.NewInt(1000000)}},
+		BaseFee: big.NewInt(params.InitialBaseFee),
 	}).MustCommit(db)
-
 	chain, _ := core.NewBlockChain(db, nil, params.TestChainConfig, ethash.NewFullFaker(), vm.Config{}, nil, nil)
 
 	mux := new(event.TypeMux)
-
-	var mockEngine consensus.FastFinalityPoSA
-	if isValidRules {
-		mockEngine = &mockPOSA{}
-	} else {
-		mockEngine = &mockInvalidPOSA{}
-	}
+	mockEngine := &mockPOSA{}
 
 	// Create vote pool
 	votePool := NewVotePool(params.TestChainConfig, chain, mockEngine)
@@ -176,7 +155,17 @@ func testVotePool(t *testing.T, isValidRules bool) {
 	file.Close()
 	os.Remove(journal)
 
-	voteManager, err := NewVoteManager(newTestBackend(), params.TestChainConfig, chain, votePool, journal, walletPasswordDir, walletDir, mockEngine)
+	var (
+		voteManager *VoteManager
+	)
+	if isValidRules {
+		voteManager, err = NewVoteManager(newTestBackend(), params.TestChainConfig, chain, votePool, journal, walletPasswordDir, walletDir, mockEngine, nil)
+	} else {
+		voteManager, err = NewVoteManager(newTestBackend(), params.TestChainConfig, chain, votePool, journal, walletPasswordDir, walletDir, mockEngine, &Debug{ValidateRule: func(header *types.Header) error {
+			return errors.New("mock error")
+		}})
+	}
+
 	if err != nil {
 		t.Fatalf("failed to create vote managers")
 	}
@@ -187,12 +176,12 @@ func testVotePool(t *testing.T, isValidRules bool) {
 	time.Sleep(10 * time.Millisecond)
 	mux.Post(downloader.DoneEvent{})
 
-	bs, _ := core.GenerateChain(params.TestChainConfig, chain.Genesis(), ethash.NewFaker(), db, 1, nil, false)
+	bs, _ := core.GenerateChain(params.TestChainConfig, genesis, ethash.NewFaker(), db, 1, nil, true)
 	if _, err := chain.InsertChain(bs); err != nil {
 		panic(err)
 	}
 	for i := 0; i < 10; i++ {
-		bs, _ = core.GenerateChain(params.TestChainConfig, bs[len(bs)-1], ethash.NewFaker(), db, 1, nil, false)
+		bs, _ = core.GenerateChain(params.TestChainConfig, bs[len(bs)-1], ethash.NewFaker(), db, 1, nil, true)
 		if _, err := chain.InsertChain(bs); err != nil {
 			panic(err)
 		}
@@ -230,7 +219,7 @@ func testVotePool(t *testing.T, isValidRules bool) {
 		t.Fatalf("journal failed")
 	}
 
-	bs, _ = core.GenerateChain(params.TestChainConfig, bs[len(bs)-1], ethash.NewFaker(), db, 1, nil, false)
+	bs, _ = core.GenerateChain(params.TestChainConfig, bs[len(bs)-1], ethash.NewFaker(), db, 1, nil, true)
 	if _, err := chain.InsertChain(bs); err != nil {
 		panic(err)
 	}
@@ -245,7 +234,7 @@ func testVotePool(t *testing.T, isValidRules bool) {
 	}
 
 	for i := 0; i < 256; i++ {
-		bs, _ = core.GenerateChain(params.TestChainConfig, bs[len(bs)-1], ethash.NewFaker(), db, 1, nil, false)
+		bs, _ = core.GenerateChain(params.TestChainConfig, bs[len(bs)-1], ethash.NewFaker(), db, 1, nil, true)
 		if _, err := chain.InsertChain(bs); err != nil {
 			panic(err)
 		}
@@ -340,7 +329,7 @@ func testVotePool(t *testing.T, isValidRules bool) {
 	curNumber := 268
 	var futureBlockHash common.Hash
 	for i := 0; i < 20; i++ {
-		bs, _ = core.GenerateChain(params.TestChainConfig, bs[len(bs)-1], ethash.NewFaker(), db, 1, nil, false)
+		bs, _ = core.GenerateChain(params.TestChainConfig, bs[len(bs)-1], ethash.NewFaker(), db, 1, nil, true)
 		curNumber += 1
 		if curNumber == 279 {
 			futureBlockHash = bs[0].Hash()
@@ -378,7 +367,7 @@ func testVotePool(t *testing.T, isValidRules bool) {
 	}
 
 	for i := 0; i < 224; i++ {
-		bs, _ = core.GenerateChain(params.TestChainConfig, bs[len(bs)-1], ethash.NewFaker(), db, 1, nil, false)
+		bs, _ = core.GenerateChain(params.TestChainConfig, bs[len(bs)-1], ethash.NewFaker(), db, 1, nil, true)
 		if _, err := chain.InsertChain(bs); err != nil {
 			panic(err)
 		}
@@ -389,7 +378,7 @@ func testVotePool(t *testing.T, isValidRules bool) {
 		t.Fatalf("journal failed")
 	}
 
-	bs, _ = core.GenerateChain(params.TestChainConfig, bs[len(bs)-1], ethash.NewFaker(), db, 1, nil, false)
+	bs, _ = core.GenerateChain(params.TestChainConfig, bs[len(bs)-1], ethash.NewFaker(), db, 1, nil, true)
 	if _, err := chain.InsertChain(bs); err != nil {
 		panic(err)
 	}

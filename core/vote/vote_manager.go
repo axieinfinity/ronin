@@ -19,6 +19,10 @@ type Backend interface {
 	EventMux() *event.TypeMux
 }
 
+type Debug struct {
+	ValidateRule func(header *types.Header) error
+}
+
 // VoteManager will handle the vote produced by self.
 type VoteManager struct {
 	eth Backend
@@ -34,9 +38,12 @@ type VoteManager struct {
 	journal *VoteJournal
 
 	engine consensus.FastFinalityPoSA
+
+	// debug is a set of function which are used to debug any function called in VoteManager
+	debug *Debug
 }
 
-func NewVoteManager(eth Backend, chainconfig *params.ChainConfig, chain *core.BlockChain, pool *VotePool, journalPath, blsPasswordPath, blsWalletPath string, engine consensus.FastFinalityPoSA) (*VoteManager, error) {
+func NewVoteManager(eth Backend, chainconfig *params.ChainConfig, chain *core.BlockChain, pool *VotePool, journalPath, blsPasswordPath, blsWalletPath string, engine consensus.FastFinalityPoSA, debug *Debug) (*VoteManager, error) {
 	voteManager := &VoteManager{
 		eth: eth,
 
@@ -46,6 +53,7 @@ func NewVoteManager(eth Backend, chainconfig *params.ChainConfig, chain *core.Bl
 
 		pool:   pool,
 		engine: engine,
+		debug:  debug,
 	}
 
 	// Create voteSigner.
@@ -164,6 +172,13 @@ func (voteManager *VoteManager) loop() {
 // A validator must not publish two distinct votes for the same height. (Rule 1)
 // Validators always vote for their canonical chain’s latest block. (Rule 2)
 func (voteManager *VoteManager) UnderRules(header *types.Header) bool {
+	// call debug method
+	if voteManager.debug != nil && voteManager.debug.ValidateRule != nil {
+		if err := voteManager.debug.ValidateRule(header); err != nil {
+			log.Debug("error while call debug.ValidateRule", "err", err)
+			return false
+		}
+	}
 	targetNumber := header.Number.Uint64()
 	voteDataBuffer := voteManager.journal.voteDataBuffer
 	//Rule 1:  A validator must not publish two distinct votes for the same height.
