@@ -1,6 +1,7 @@
 package types
 
 import (
+	"github.com/ethereum/go-ethereum/params"
 	"sync/atomic"
 
 	"github.com/ethereum/go-ethereum/crypto/bls"
@@ -9,13 +10,8 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
-const (
-	BLSPublicKeyLength = 48
-	BLSSignatureLength = 96
-)
-
-type BLSPublicKey [BLSPublicKeyLength]byte
-type BLSSignature [BLSSignatureLength]byte
+type BLSPublicKey [params.BLSPubkeyLength]byte
+type BLSSignature [params.BLSSignatureLength]byte
 type ValidatorsBitSet uint64
 
 // VoteData represents the vote range that validator voted for fast finality.
