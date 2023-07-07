@@ -25,9 +25,9 @@ func (d *VoteData) Hash() common.Hash { return rlpHash(d) }
 
 // VoteEnvelope represents the vote of a single validator.
 type VoteEnvelope struct {
-	VoteAddress BLSPublicKey // The BLS public key of the validator.
-	Signature   BLSSignature // Validator's signature for the vote data.
-	Data        *VoteData    // The vote data for fast finality.
+	PublicKey BLSPublicKey // The BLS public key of the validator.
+	Signature BLSSignature // Validator's signature for the vote data.
+	Data      *VoteData    // The vote data for fast finality.
 
 	// caches
 	hash atomic.Value
@@ -46,10 +46,10 @@ func (v *VoteEnvelope) Hash() common.Hash {
 
 func (v *VoteEnvelope) calcVoteHash() common.Hash {
 	vote := struct {
-		VoteAddress BLSPublicKey
-		Signature   BLSSignature
-		Data        *VoteData
-	}{v.VoteAddress, v.Signature, v.Data}
+		PublicKey BLSPublicKey
+		Signature BLSSignature
+		Data      *VoteData
+	}{v.PublicKey, v.Signature, v.Data}
 	return rlpHash(vote)
 }
 
@@ -57,7 +57,7 @@ func (b BLSPublicKey) Bytes() []byte { return b[:] }
 
 // Verify vote using BLS.
 func (vote *VoteEnvelope) Verify() error {
-	blsPubKey, err := bls.PublicKeyFromBytes(vote.VoteAddress[:])
+	blsPubKey, err := bls.PublicKeyFromBytes(vote.PublicKey[:])
 	if err != nil {
 		return errors.Wrap(err, "convert public key from bytes to bls failed")
 	}

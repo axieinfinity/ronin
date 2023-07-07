@@ -87,7 +87,7 @@ func (signer *VoteSigner) SignVote(vote *types.VoteEnvelope) error {
 		return err
 	}
 
-	copy(vote.VoteAddress[:], blsPubKey.Marshal()[:])
+	copy(vote.PublicKey[:], blsPubKey.Marshal()[:])
 	copy(vote.Signature[:], signature.Marshal()[:])
 	return nil
 }
