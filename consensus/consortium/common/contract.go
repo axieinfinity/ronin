@@ -192,6 +192,35 @@ func (c *ContractIntegrator) Slash(opts *ApplyTransactOpts, spoiledValidator com
 	return nil
 }
 
+func (c *ContractIntegrator) FinalityReward(opts *ApplyTransactOpts, votedValidators []common.Address) error {
+	nonce := opts.State.GetNonce(c.coinbase)
+	// FIXME: Change this
+	tx, err := c.slashIndicatorSC.SlashUnavailability(getTransactionOpts(c.coinbase, nonce, c.chainId, c.signTxFn), common.Address{})
+	if err != nil {
+		return err
+	}
+
+	msg := types.NewMessage(
+		opts.Header.Coinbase,
+		tx.To(),
+		opts.State.GetNonce(opts.Header.Coinbase),
+		tx.Value(),
+		tx.Gas(),
+		big.NewInt(0),
+		big.NewInt(0),
+		big.NewInt(0),
+		tx.Data(),
+		tx.AccessList(),
+		false,
+	)
+
+	if err = ApplyTransaction(msg, opts); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // ApplyMessageOpts is the collection of options to fine tune a contract call request.
 type ApplyMessageOpts struct {
 	State       *state.StateDB

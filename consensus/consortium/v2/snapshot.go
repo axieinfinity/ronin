@@ -3,14 +3,15 @@ package v2
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"math/big"
 	"sort"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	v1 "github.com/ethereum/go-ethereum/consensus/consortium/v1"
+	"github.com/ethereum/go-ethereum/consensus/consortium/v2/finality"
 	"github.com/ethereum/go-ethereum/core/types"
+	blsCommon "github.com/ethereum/go-ethereum/crypto/bls/common"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"github.com/ethereum/go-ethereum/params"
@@ -24,10 +25,15 @@ type Snapshot struct {
 	ethAPI      *ethapi.PublicBlockChainAPI
 	sigCache    *lru.ARCCache // Cache of recent block signatures to speed up ecrecover
 
-	Number     uint64                      `json:"number"`     // Block number where the snapshot was created
-	Hash       common.Hash                 `json:"hash"`       // Block hash where the snapshot was created
-	Validators map[common.Address]struct{} `json:"validators"` // Set of authorized validators at this moment
-	Recents    map[uint64]common.Address   `json:"recents"`    // Set of recent validators for spam protections
+	Number     uint64                      `json:"number"`               // Block number where the snapshot was created
+	Hash       common.Hash                 `json:"hash"`                 // Block hash where the snapshot was created
+	Validators map[common.Address]struct{} `json:"validators,omitempty"` // Set of authorized validators at this moment before Shillin
+	Recents    map[uint64]common.Address   `json:"recents"`              // Set of recent validators for spam protections
+
+	// Finality additional fields
+	ValidatorsWithBlsPub []finality.ValidatorWithBlsPub `json:"validatorWithBlsPub,omitempty"`  // Array of sorted authorized validators and BLS public keys after Shillin
+	JustifiedBlockNumber uint64                         `json:"justifiedBlockNumber,omitempty"` // The justified block number
+	JustifiedBlockHash   common.Hash                    `json:"justifiedBlockHash,omitempty"`   // The justified block hash
 }
 
 // validatorsAscending implements the sort interface to allow sorting a list of addresses
@@ -40,7 +46,16 @@ func (s validatorsAscending) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 // newSnapshot creates a new snapshot with the specified startup parameters. This
 // method does not initialize the set of recent validators, so only ever use if for
 // the genesis block
-func newSnapshot(chainConfig *params.ChainConfig, config *params.ConsortiumConfig, sigcache *lru.ARCCache, number uint64, hash common.Hash, validators []common.Address, ethAPI *ethapi.PublicBlockChainAPI) *Snapshot {
+func newSnapshot(
+	chainConfig *params.ChainConfig,
+	config *params.ConsortiumConfig,
+	sigcache *lru.ARCCache,
+	number uint64,
+	hash common.Hash,
+	validators []common.Address,
+	valWithBlsPub []finality.ValidatorWithBlsPub,
+	ethAPI *ethapi.PublicBlockChainAPI,
+) *Snapshot {
 	snap := &Snapshot{
 		chainConfig: chainConfig,
 		config:      config,
@@ -51,8 +66,13 @@ func newSnapshot(chainConfig *params.ChainConfig, config *params.ConsortiumConfi
 		Recents:     make(map[uint64]common.Address),
 		Validators:  make(map[common.Address]struct{}),
 	}
+
 	for _, v := range validators {
 		snap.Validators[v] = struct{}{}
+	}
+
+	if valWithBlsPub != nil {
+		snap.ValidatorsWithBlsPub = valWithBlsPub
 	}
 	return snap
 }
@@ -100,13 +120,21 @@ func (s *Snapshot) copy() *Snapshot {
 		sigCache:    s.sigCache,
 		Number:      s.Number,
 		Hash:        s.Hash,
-		Validators:  make(map[common.Address]struct{}),
 		Recents:     make(map[uint64]common.Address),
 	}
 
-	for v := range s.Validators {
-		cpy.Validators[v] = struct{}{}
+	if s.Validators != nil {
+		cpy.Validators = make(map[common.Address]struct{})
+		for v := range s.Validators {
+			cpy.Validators[v] = struct{}{}
+		}
 	}
+
+	if s.ValidatorsWithBlsPub != nil {
+		cpy.ValidatorsWithBlsPub = make([]finality.ValidatorWithBlsPub, len(s.ValidatorsWithBlsPub))
+		copy(cpy.ValidatorsWithBlsPub, s.ValidatorsWithBlsPub)
+	}
+
 	for block, v := range s.Recents {
 		cpy.Recents[block] = v
 	}
@@ -143,7 +171,7 @@ func (s *Snapshot) apply(headers []*types.Header, chain consensus.ChainHeaderRea
 	for _, header := range headers {
 		number := header.Number.Uint64()
 		// Delete the oldest validators from the recent list to allow it signing again
-		if limit := uint64(len(snap.Validators)/2 + 1); number >= limit {
+		if limit := uint64(len(snap.validators())/2 + 1); number >= limit {
 			delete(snap.Recents, number-limit)
 		}
 		// Resolve the authorization key and check against signers
@@ -161,7 +189,7 @@ func (s *Snapshot) apply(headers []*types.Header, chain consensus.ChainHeaderRea
 		if err != nil {
 			return nil, err
 		}
-		if _, ok := snap.Validators[validator]; !ok {
+		if !snap.inInValidatorSet(validator) {
 			return nil, errUnauthorizedValidator
 		}
 		for _, recent := range snap.Recents {
@@ -170,32 +198,61 @@ func (s *Snapshot) apply(headers []*types.Header, chain consensus.ChainHeaderRea
 			}
 		}
 		snap.Recents[number] = validator
+
+		if chain.Config().IsShillin(header.Number) {
+			extraData, err := finality.DecodeExtra(header.Extra, true)
+			if err != nil {
+				return nil, err
+			}
+			// When getting here, the header may not go through the verification yet,
+			// so the finality votes may not be verified. Later, when the header
+			// verification happens, this header may be rejected, the only impact is
+			// if the snapshot is at checkpoint, the garbage snapshot is stored to
+			// disk. Because we already check whether the sealer is in validator set
+			// already and the impact is not high, we simply trust the finality vote
+			// here without verification.
+			if extraData.HasFinalityVote == 1 {
+				s.JustifiedBlockNumber = header.Number.Uint64() - 1
+				s.JustifiedBlockHash = header.ParentHash
+			}
+		}
+
 		// Change the validator set base on the size of the validators set
-		if number > 0 && number%s.config.EpochV2 == uint64(len(snap.Validators)/2) {
+		if number > 0 && number%s.config.EpochV2 == uint64(len(snap.validators())/2) {
 			// Get the most recent checkpoint header
-			checkpointHeader := FindAncientHeader(header, uint64(len(snap.Validators)/2), chain, parents)
+			checkpointHeader := FindAncientHeader(header, uint64(len(snap.validators())/2), chain, parents)
 			if checkpointHeader == nil {
 				return nil, consensus.ErrUnknownAncestor
 			}
 
-			validatorBytes := checkpointHeader.Extra[extraVanity : len(checkpointHeader.Extra)-extraSeal]
+			isShillin := chain.Config().IsShillin(checkpointHeader.Number)
 			// Get validator set from headers and use that for new validator set
-			newValArr, err := ParseValidators(validatorBytes)
+			extraData, err := finality.DecodeExtra(checkpointHeader.Extra, isShillin)
 			if err != nil {
 				return nil, err
 			}
-			newVals := make(map[common.Address]struct{}, len(newValArr))
-			for _, val := range newValArr {
-				newVals[val] = struct{}{}
-			}
-			oldLimit := len(snap.Validators)/2 + 1
-			newLimit := len(newVals)/2 + 1
+
+			oldLimit := len(snap.validators())/2 + 1
+			newLimit := len(extraData.CheckpointValidators)/2 + 1
 			if newLimit < oldLimit {
 				for i := 0; i < oldLimit-newLimit; i++ {
 					delete(snap.Recents, number-uint64(newLimit)-uint64(i))
 				}
 			}
-			snap.Validators = newVals
+
+			if isShillin {
+				// The validator information in checkpoint header is already sorted,
+				// we don't need to sort here
+				snap.ValidatorsWithBlsPub = make([]finality.ValidatorWithBlsPub, len(extraData.CheckpointValidators))
+				copy(snap.ValidatorsWithBlsPub, extraData.CheckpointValidators)
+				snap.Validators = nil
+			} else {
+				snap.Validators = make(map[common.Address]struct{})
+				for _, validator := range extraData.CheckpointValidators {
+					snap.Validators[validator.Address] = struct{}{}
+				}
+				snap.ValidatorsWithBlsPub = nil
+			}
 		}
 	}
 	snap.Number += uint64(len(headers))
@@ -205,12 +262,42 @@ func (s *Snapshot) apply(headers []*types.Header, chain consensus.ChainHeaderRea
 
 // validators retrieves the list of validators in ascending order.
 func (s *Snapshot) validators() []common.Address {
-	validators := make([]common.Address, 0, len(s.Validators))
-	for v := range s.Validators {
-		validators = append(validators, v)
+	if s.Validators != nil {
+		validators := make([]common.Address, 0, len(s.Validators))
+		for v := range s.Validators {
+			validators = append(validators, v)
+		}
+		sort.Sort(validatorsAscending(validators))
+		return validators
+	} else {
+		// After the Shillin the array of validators in snapshot is
+		// guaranteed to be sorted so we don't need to sort here
+		addresses := make([]common.Address, len(s.ValidatorsWithBlsPub))
+		for i, validator := range s.ValidatorsWithBlsPub {
+			addresses[i] = validator.Address
+		}
+		return addresses
 	}
-	sort.Sort(validatorsAscending(validators))
-	return validators
+}
+
+func (s *Snapshot) inInValidatorSet(address common.Address) bool {
+	validatorSet := s.validators()
+	for _, validator := range validatorSet {
+		if validator == address {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *Snapshot) inBlsPublicKeySet(publicKey blsCommon.PublicKey) bool {
+	for _, validator := range s.ValidatorsWithBlsPub {
+		if validator.BlsPublicKey.Equals(publicKey) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // inturn returns if a validator at a given block height is in-turn or not.
@@ -253,27 +340,12 @@ func (s *Snapshot) supposeValidator() common.Address {
 func (s *Snapshot) IsRecentlySigned(validator common.Address) bool {
 	for seen, recent := range s.Recents {
 		if recent == validator {
-			if limit := uint64(len(s.Validators)/2 + 1); seen > s.Number+1-limit {
+			if limit := uint64(len(s.validators())/2 + 1); seen > s.Number+1-limit {
 				return true
 			}
 		}
 	}
 	return false
-}
-
-// ParseValidators retrieves the list of validators
-func ParseValidators(validatorsBytes []byte) ([]common.Address, error) {
-	if len(validatorsBytes)%validatorBytesLength != 0 {
-		return nil, errors.New("invalid validators bytes")
-	}
-	n := len(validatorsBytes) / validatorBytesLength
-	result := make([]common.Address, n)
-	for i := 0; i < n; i++ {
-		address := make([]byte, validatorBytesLength)
-		copy(address, validatorsBytes[i*validatorBytesLength:(i+1)*validatorBytesLength])
-		result[i] = common.BytesToAddress(address)
-	}
-	return result, nil
 }
 
 // FindAncientHeader finds the most recent checkpoint header
