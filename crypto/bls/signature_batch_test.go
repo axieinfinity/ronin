@@ -3,11 +3,12 @@ package bls
 import (
 	"bytes"
 	"fmt"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"reflect"
 	"sort"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/ethereum/go-ethereum/crypto/bls/common"
 )
@@ -737,6 +738,7 @@ func (s sorter) Swap(i, j int) {
 	s.set.Signatures[i], s.set.Signatures[j] = s.set.Signatures[j], s.set.Signatures[i]
 	s.set.PublicKeys[i], s.set.PublicKeys[j] = s.set.PublicKeys[j], s.set.PublicKeys[i]
 	s.set.Messages[i], s.set.Messages[j] = s.set.Messages[j], s.set.Messages[i]
+	s.set.Descriptions[i], s.set.Descriptions[j] = s.set.Descriptions[j], s.set.Descriptions[i]
 }
 
 func (s sorter) Less(i, j int) bool {
