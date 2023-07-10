@@ -1,19 +1,3 @@
-// Copyright 2014 The go-ethereum Authors
-// This file is part of the go-ethereum library.
-//
-// The go-ethereum library is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Lesser General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// The go-ethereum library is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-// GNU Lesser General Public License for more details.
-//
-// You should have received a copy of the GNU Lesser General Public License
-// along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
-
 package vote
 
 import (
@@ -100,22 +84,6 @@ func (pool *VotePool) verifyStructureSizeOfVotePool(receivedVotes, curVotes, fut
 	return false
 }
 
-func (journal *VoteJournal) verifyJournal(size, lastLatestVoteNumber int) bool {
-	for i := 0; i < timeThreshold; i++ {
-		time.Sleep(1 * time.Second)
-		lastIndex, _ := journal.walLog.LastIndex()
-		firstIndex, _ := journal.walLog.FirstIndex()
-		if int(lastIndex)-int(firstIndex)+1 == size {
-			return true
-		}
-		lastVote, _ := journal.ReadVote(lastIndex)
-		if lastVote != nil && lastVote.Data.TargetNumber == uint64(lastLatestVoteNumber) {
-			return true
-		}
-	}
-	return false
-}
-
 func TestValidVotePool(t *testing.T) {
 	testVotePool(t, true)
 }
@@ -159,9 +127,9 @@ func testVotePool(t *testing.T, isValidRules bool) {
 		voteManager *VoteManager
 	)
 	if isValidRules {
-		voteManager, err = NewVoteManager(newTestBackend(), params.TestChainConfig, chain, votePool, journal, walletPasswordDir, walletDir, mockEngine, nil)
+		voteManager, err = NewVoteManager(newTestBackend(), db, params.TestChainConfig, chain, votePool, walletPasswordDir, walletDir, mockEngine, nil)
 	} else {
-		voteManager, err = NewVoteManager(newTestBackend(), params.TestChainConfig, chain, votePool, journal, walletPasswordDir, walletDir, mockEngine, &Debug{ValidateRule: func(header *types.Header) error {
+		voteManager, err = NewVoteManager(newTestBackend(), db, params.TestChainConfig, chain, votePool, walletPasswordDir, walletDir, mockEngine, &Debug{ValidateRule: func(header *types.Header) error {
 			return errors.New("mock error")
 		}})
 	}
@@ -169,8 +137,6 @@ func testVotePool(t *testing.T, isValidRules bool) {
 	if err != nil {
 		t.Fatalf("failed to create vote managers")
 	}
-
-	voteJournal := voteManager.journal
 
 	// Send the done event of downloader
 	time.Sleep(10 * time.Millisecond)
@@ -214,11 +180,6 @@ func testVotePool(t *testing.T, isValidRules bool) {
 		heap.Push(votesPq, voteData)
 	}
 
-	// Verify journal
-	if !voteJournal.verifyJournal(11, 11) {
-		t.Fatalf("journal failed")
-	}
-
 	bs, _ = core.GenerateChain(params.TestChainConfig, bs[len(bs)-1], ethash.NewFaker(), db, 1, nil, true)
 	if _, err := chain.InsertChain(bs); err != nil {
 		panic(err)
@@ -228,21 +189,11 @@ func testVotePool(t *testing.T, isValidRules bool) {
 		t.Fatalf("put vote failed")
 	}
 
-	// Verify journal
-	if !voteJournal.verifyJournal(12, 12) {
-		t.Fatalf("journal failed")
-	}
-
 	for i := 0; i < 256; i++ {
 		bs, _ = core.GenerateChain(params.TestChainConfig, bs[len(bs)-1], ethash.NewFaker(), db, 1, nil, true)
 		if _, err := chain.InsertChain(bs); err != nil {
 			panic(err)
 		}
-	}
-
-	// Verify journal
-	if !voteJournal.verifyJournal(268, 268) {
-		t.Fatalf("journal failed")
 	}
 
 	// currently chain size is 268, and votePool should be pruned, so vote pool size should be 256!
@@ -267,11 +218,6 @@ func testVotePool(t *testing.T, isValidRules bool) {
 		t.Fatalf("get votes failed")
 	}
 
-	// Verify journal
-	if !voteJournal.verifyJournal(268, 268) {
-		t.Fatalf("journal failed")
-	}
-
 	// Test future votes scenario: votes number within latestBlockHeader ~ latestBlockHeader + 13
 	futureVote := &types.VoteEnvelope{
 		Data: &types.VoteData{
@@ -287,11 +233,6 @@ func testVotePool(t *testing.T, isValidRules bool) {
 		t.Fatalf("put vote failed")
 	}
 
-	// Verify journal
-	if !voteJournal.verifyJournal(268, 268) {
-		t.Fatalf("journal failed")
-	}
-
 	// Test duplicate vote case, shouldn'd be put into vote pool
 	duplicateVote := &types.VoteEnvelope{
 		Data: &types.VoteData{
@@ -305,11 +246,6 @@ func testVotePool(t *testing.T, isValidRules bool) {
 
 	if !votePool.verifyStructureSizeOfVotePool(257, 256, 1, 256, 1) {
 		t.Fatalf("put vote failed")
-	}
-
-	// Verify journal
-	if !voteJournal.verifyJournal(268, 268) {
-		t.Fatalf("journal failed")
 	}
 
 	// Test future votes larger than latestBlockNumber + 13 should be rejected
@@ -361,11 +297,6 @@ func testVotePool(t *testing.T, isValidRules bool) {
 		t.Fatalf("put vote failed")
 	}
 
-	// Verify journal
-	if !voteJournal.verifyJournal(288, 288) {
-		t.Fatalf("journal failed")
-	}
-
 	for i := 0; i < 224; i++ {
 		bs, _ = core.GenerateChain(params.TestChainConfig, bs[len(bs)-1], ethash.NewFaker(), db, 1, nil, true)
 		if _, err := chain.InsertChain(bs); err != nil {
@@ -373,19 +304,9 @@ func testVotePool(t *testing.T, isValidRules bool) {
 		}
 	}
 
-	// Verify journal
-	if !voteJournal.verifyJournal(512, 512) {
-		t.Fatalf("journal failed")
-	}
-
 	bs, _ = core.GenerateChain(params.TestChainConfig, bs[len(bs)-1], ethash.NewFaker(), db, 1, nil, true)
 	if _, err := chain.InsertChain(bs); err != nil {
 		panic(err)
-	}
-
-	// Verify if journal no longer than 512
-	if !voteJournal.verifyJournal(512, 513) {
-		t.Fatalf("journal failed")
 	}
 }
 

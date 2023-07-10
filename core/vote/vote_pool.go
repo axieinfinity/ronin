@@ -343,6 +343,7 @@ func (pool *VotePool) basicVerify(vote *types.VoteEnvelope, headNumber uint64, m
 		return false
 	}
 
+	// TODO: Find a better solution to prevent DOS
 	// To prevent DOS attacks, make sure no more than 21 votes per blockHash if not futureVotes
 	// and no more than 50 votes per blockHash if futureVotes.
 	maxVoteAmountPerBlock := maxCurVoteAmountPerBlock

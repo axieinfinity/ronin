@@ -77,7 +77,6 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/pyroscope-io/client v0.7.0
 	github.com/supranational/blst v0.3.10
-	github.com/tidwall/wal v1.1.7
 	github.com/wealdtech/go-eth2-wallet-encryptor-keystorev4 v1.3.1
 )
 
@@ -104,10 +103,6 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/pyroscope-io/godeltaprof v0.1.0 // indirect
 	github.com/rivo/uniseg v0.4.3 // indirect
-	github.com/tidwall/gjson v1.10.2 // indirect
-	github.com/tidwall/match v1.1.1 // indirect
-	github.com/tidwall/pretty v1.2.0 // indirect
-	github.com/tidwall/tinylru v1.1.0 // indirect
 	github.com/tklauser/numcpus v0.6.0 // indirect
 	github.com/yusufpapurcu/wmi v1.2.2 // indirect
 	golang.org/x/net v0.9.0 // indirect

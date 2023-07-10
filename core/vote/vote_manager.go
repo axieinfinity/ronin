@@ -3,8 +3,10 @@ package vote
 import (
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/eth/downloader"
+	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/metrics"
@@ -26,6 +28,7 @@ type Debug struct {
 // VoteManager will handle the vote produced by self.
 type VoteManager struct {
 	eth Backend
+	db  ethdb.Database
 
 	chain       *core.BlockChain
 	chainconfig *params.ChainConfig
@@ -33,9 +36,8 @@ type VoteManager struct {
 	chainHeadCh  chan core.ChainHeadEvent
 	chainHeadSub event.Subscription
 
-	pool    *VotePool
-	signer  *VoteSigner
-	journal *VoteJournal
+	pool   *VotePool
+	signer *VoteSigner
 
 	engine consensus.FastFinalityPoSA
 
@@ -43,9 +45,19 @@ type VoteManager struct {
 	debug *Debug
 }
 
-func NewVoteManager(eth Backend, chainconfig *params.ChainConfig, chain *core.BlockChain, pool *VotePool, journalPath, blsPasswordPath, blsWalletPath string, engine consensus.FastFinalityPoSA, debug *Debug) (*VoteManager, error) {
+func NewVoteManager(
+	eth Backend,
+	db ethdb.Database,
+	chainconfig *params.ChainConfig,
+	chain *core.BlockChain,
+	pool *VotePool,
+	blsPasswordPath, blsWalletPath string,
+	engine consensus.FastFinalityPoSA,
+	debug *Debug,
+) (*VoteManager, error) {
 	voteManager := &VoteManager{
 		eth: eth,
+		db:  db,
 
 		chain:       chain,
 		chainconfig: chainconfig,
@@ -63,14 +75,6 @@ func NewVoteManager(eth Backend, chainconfig *params.ChainConfig, chain *core.Bl
 	}
 	log.Info("Create voteSigner successfully")
 	voteManager.signer = voteSigner
-
-	// Create voteJournal
-	voteJournal, err := NewVoteJournal(journalPath)
-	if err != nil {
-		return nil, err
-	}
-	log.Info("Create voteJournal successfully")
-	voteManager.journal = voteJournal
 
 	// Subscribe to chain head event.
 	voteManager.chainHeadSub = voteManager.chain.SubscribeChainHeadEvent(voteManager.chainHeadCh)
@@ -151,11 +155,7 @@ func (voteManager *VoteManager) loop() {
 					votesSigningErrorCounter.Inc(1)
 					continue
 				}
-				if err := voteManager.journal.WriteVote(voteMessage); err != nil {
-					log.Error("Failed to write vote into journal", "err", err)
-					voteJournalErrorCounter.Inc(1)
-					continue
-				}
+				rawdb.WriteHighestFinalityVote(voteManager.db, curHead.Number.Uint64())
 
 				log.Debug("vote manager produced vote", "votedBlockNumber", voteMessage.Data.TargetNumber, "votedBlockHash", voteMessage.Data.TargetHash, "voteMessageHash", voteMessage.Hash())
 				voteManager.pool.PutVote(voteMessage)
@@ -179,15 +179,18 @@ func (voteManager *VoteManager) UnderRules(header *types.Header) bool {
 			return false
 		}
 	}
+
+	highestFinalityVote := rawdb.ReadHighestFinalityVote(voteManager.db)
+
+	// Rule: A validator only votes for the block with a bigger block height than its previous vote
+	// This rule implies rule: A validator must not publish two distinct votes for the same height
 	targetNumber := header.Number.Uint64()
-	voteDataBuffer := voteManager.journal.voteDataBuffer
-	//Rule 1:  A validator must not publish two distinct votes for the same height.
-	if voteDataBuffer.Contains(targetNumber) {
+	if highestFinalityVote != nil && targetNumber <= *highestFinalityVote {
 		log.Debug("err: A validator must not publish two distinct votes for the same height.")
 		return false
 	}
 
-	// Rule 2: Validators always vote for their canonical chain’s latest block.
+	// Rule: Validators always vote for their canonical chain’s latest block.
 	// Since the header subscribed to is the canonical chain, so this rule is satisfied by default.
 	log.Debug("All rules check passed")
 	return true
