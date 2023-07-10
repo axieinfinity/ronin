@@ -108,7 +108,7 @@ func testVotePool(t *testing.T, isValidRules bool) {
 	mockEngine := &mockPOSA{}
 
 	// Create vote pool
-	votePool := NewVotePool(params.TestChainConfig, chain, mockEngine)
+	votePool := NewVotePool(params.TestChainConfig, chain, mockEngine, 22)
 
 	// Create vote manager
 	// Create a temporary file for the votes journal

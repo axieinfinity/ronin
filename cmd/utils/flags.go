@@ -871,6 +871,29 @@ var (
 		Usage: "Pyroscope server address",
 		Value: "http://localhost:4040",
 	}
+
+	MaxCurVoteAmountPerBlock = cli.IntFlag{
+		Name:  "votepool.maxcurvoteperblock",
+		Usage: "The maximum finality vote per current block",
+		Value: 22,
+	}
+
+	EnableFastFinality = cli.BoolFlag{
+		Name:  "finality.enable",
+		Usage: "Enable fast finality vote",
+	}
+
+	BlsPasswordPath = cli.StringFlag{
+		Name:  "finality.blspasswordpath",
+		Usage: "The path to bls wallet password file",
+		Value: "bls_password",
+	}
+
+	BlsWalletPath = cli.StringFlag{
+		Name:  "finality.blswalletpath",
+		Usage: "The path to bls wallet secret key",
+		Value: "bls_key",
+	}
 )
 
 // MakeDataDir retrieves the currently requested data directory, terminating
@@ -1302,6 +1325,7 @@ func SetNodeConfig(ctx *cli.Context, cfg *node.Config) {
 	setNodeUserIdent(ctx, cfg)
 	setDataDir(ctx, cfg)
 	setSmartCard(ctx, cfg)
+	setFastFinality(ctx, cfg)
 
 	if ctx.GlobalIsSet(ExternalSignerFlag.Name) {
 		cfg.ExternalSigner = ctx.GlobalString(ExternalSignerFlag.Name)
@@ -1328,6 +1352,13 @@ func SetNodeConfig(ctx *cli.Context, cfg *node.Config) {
 	if ctx.GlobalIsSet(EnableSigningMethodsFlag.Name) {
 		cfg.EnableSigningMethods = ctx.GlobalBool(EnableSigningMethodsFlag.Name)
 	}
+}
+
+func setFastFinality(ctx *cli.Context, cfg *node.Config) {
+	cfg.MaxCurVoteAmountPerBlock = ctx.GlobalInt(MaxCurVoteAmountPerBlock.Name)
+	cfg.EnableFastFinality = ctx.GlobalBool(EnableFastFinality.Name)
+	cfg.BlsPasswordPath = ctx.GlobalString(BlsPasswordPath.Name)
+	cfg.BlsWalletPath = ctx.GlobalString(BlsWalletPath.Name)
 }
 
 func setSmartCard(ctx *cli.Context, cfg *node.Config) {

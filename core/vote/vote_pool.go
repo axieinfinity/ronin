@@ -17,7 +17,6 @@ import (
 )
 
 const (
-	maxCurVoteAmountPerBlock    = 21
 	maxFutureVoteAmountPerBlock = 50
 
 	voteBufferForPut = 256
@@ -64,23 +63,30 @@ type VotePool struct {
 
 	votesCh chan *types.VoteEnvelope
 
-	engine consensus.FastFinalityPoSA
+	engine                   consensus.FastFinalityPoSA
+	maxCurVoteAmountPerBlock int
 }
 
 type votesPriorityQueue []*types.VoteData
 
-func NewVotePool(chainconfig *params.ChainConfig, chain *core.BlockChain, engine consensus.FastFinalityPoSA) *VotePool {
+func NewVotePool(
+	chainconfig *params.ChainConfig,
+	chain *core.BlockChain,
+	engine consensus.FastFinalityPoSA,
+	maxCurVoteAmountPerBlock int,
+) *VotePool {
 	votePool := &VotePool{
-		chain:         chain,
-		chainconfig:   chainconfig,
-		receivedVotes: mapset.NewSet(),
-		curVotes:      make(map[common.Hash]*VoteBox),
-		futureVotes:   make(map[common.Hash]*VoteBox),
-		curVotesPq:    &votesPriorityQueue{},
-		futureVotesPq: &votesPriorityQueue{},
-		chainHeadCh:   make(chan core.ChainHeadEvent, chainHeadChanSize),
-		votesCh:       make(chan *types.VoteEnvelope, voteBufferForPut),
-		engine:        engine,
+		chain:                    chain,
+		chainconfig:              chainconfig,
+		receivedVotes:            mapset.NewSet(),
+		curVotes:                 make(map[common.Hash]*VoteBox),
+		futureVotes:              make(map[common.Hash]*VoteBox),
+		curVotesPq:               &votesPriorityQueue{},
+		futureVotesPq:            &votesPriorityQueue{},
+		chainHeadCh:              make(chan core.ChainHeadEvent, chainHeadChanSize),
+		votesCh:                  make(chan *types.VoteEnvelope, voteBufferForPut),
+		engine:                   engine,
+		maxCurVoteAmountPerBlock: maxCurVoteAmountPerBlock,
 	}
 
 	// Subscribe events from blockchain and start the main event loop.
@@ -346,7 +352,7 @@ func (pool *VotePool) basicVerify(vote *types.VoteEnvelope, headNumber uint64, m
 	// TODO: Find a better solution to prevent DOS
 	// To prevent DOS attacks, make sure no more than 21 votes per blockHash if not futureVotes
 	// and no more than 50 votes per blockHash if futureVotes.
-	maxVoteAmountPerBlock := maxCurVoteAmountPerBlock
+	maxVoteAmountPerBlock := pool.maxCurVoteAmountPerBlock
 	if isFutureVote {
 		maxVoteAmountPerBlock = maxFutureVoteAmountPerBlock
 	}
