@@ -138,3 +138,29 @@ func PopUncleanShutdownMarker(db ethdb.KeyValueStore) {
 		log.Warn("Failed to clear unclean-shutdown marker", "err", err)
 	}
 }
+
+// ReadHighestFinalityVote read the highest finality vote height
+func ReadHighestFinalityVote(db ethdb.KeyValueReader) *uint64 {
+	var highestFinalityVote uint64
+
+	enc, _ := db.Get(highestFinalityVoteKey)
+	if len(enc) == 0 {
+		return nil
+	}
+
+	if err := rlp.DecodeBytes(enc, &highestFinalityVote); err != nil {
+		return nil
+	}
+	return &highestFinalityVote
+}
+
+// WriteHighestFinalityVote write the highest finality vote height
+func WriteHighestFinalityVote(db ethdb.KeyValueStore, highestFinalityVote uint64) {
+	enc, err := rlp.EncodeToBytes(highestFinalityVote)
+	if err != nil {
+		log.Crit("Failed to encode highest finality vote", "err", err)
+	}
+	if err = db.Put(highestFinalityVoteKey, enc); err != nil {
+		log.Crit("Failed to store highest finality vote", "err", err)
+	}
+}

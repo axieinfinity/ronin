@@ -251,6 +251,15 @@ var AppHelpFlagGroups = []flags.FlagGroup{
 			utils.CatalystFlag,
 		},
 	},
+	{
+		Name: "FAST FINALITY",
+		Flags: []cli.Flag{
+			utils.MaxCurVoteAmountPerBlock,
+			utils.EnableFastFinality,
+			utils.BlsPasswordPath,
+			utils.BlsWalletPath,
+		},
+	},
 }
 
 func init() {
