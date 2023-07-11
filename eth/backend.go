@@ -28,6 +28,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/consensus/consortium"
 	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/core/vote"
 
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
@@ -289,6 +290,28 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 
 	// Start the RPC service
 	eth.netRPCService = ethapi.NewPublicNetAPI(eth.p2pServer, config.NetworkId)
+
+	nodeConfig := stack.Config()
+	if nodeConfig.EnableFastFinality {
+		finalityEngine, ok := eth.engine.(consensus.FastFinalityPoSA)
+		if !ok {
+			return nil, errors.New("consensus engine does not support fast finality")
+		}
+		votePool := vote.NewVotePool(chainConfig, eth.blockchain, finalityEngine, nodeConfig.MaxCurVoteAmountPerBlock)
+		if _, err := vote.NewVoteManager(
+			eth,
+			chainDb,
+			chainConfig,
+			eth.blockchain,
+			votePool,
+			nodeConfig.BlsPasswordPath,
+			nodeConfig.BlsWalletPath,
+			finalityEngine,
+			nil,
+		); err != nil {
+			return nil, err
+		}
+	}
 
 	// Register the backend on the node
 	stack.RegisterAPIs(eth.APIs())
