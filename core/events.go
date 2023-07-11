@@ -30,6 +30,9 @@ type NewMinedBlockEvent struct{ Block *types.Block }
 // RemovedLogsEvent is posted when a reorg happens
 type RemovedLogsEvent struct{ Logs []*types.Log }
 
+// NewVoteEvent is posted when a batch of votes enters the vote pool.
+type NewVoteEvent struct{ Vote *types.VoteEnvelope }
+
 type ChainEvent struct {
 	Block         *types.Block
 	Hash          common.Hash
