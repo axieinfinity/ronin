@@ -69,6 +69,7 @@ func newCancunInstructionSet() JumpTable {
 	instructionSet := newShanghaiInstructionSet()
 	enable4844(&instructionSet) // EIP-4844 (BLOBHASH opcode)
 	enable7516(&instructionSet) // EIP-7516 (BLOBBASEFEE opcode)
+	enable5656(&instructionSet) // EIP-5656 (MCOPY opcode)
 	return instructionSet
 }
 
