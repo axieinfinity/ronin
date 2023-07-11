@@ -212,6 +212,9 @@ type Config struct {
 
 	// Enable double sign monitoring
 	EnableMonitorDoubleSign bool
+
+	// Disable ronin p2p protocol
+	DisableRoninProtocol bool
 }
 
 // CreateConsensusEngine creates a consensus engine for the given chain configuration.

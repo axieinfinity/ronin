@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/eth/protocols/eth"
+	"github.com/ethereum/go-ethereum/eth/protocols/ronin"
 	"github.com/ethereum/go-ethereum/eth/protocols/snap"
 )
 
@@ -36,7 +37,8 @@ type ethPeerInfo struct {
 // ethPeer is a wrapper around eth.Peer to maintain a few extra metadata.
 type ethPeer struct {
 	*eth.Peer
-	snapExt *snapPeer // Satellite `snap` connection
+	snapExt  *snapPeer   // Satellite `snap` connection
+	roninExt *ronin.Peer // Satellite `ronin` connection
 
 	syncDrop *time.Timer   // Connection dropper if `eth` sync progress isn't validated in time
 	snapWait chan struct{} // Notification channel for snap connections
