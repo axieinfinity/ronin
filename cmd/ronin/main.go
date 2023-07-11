@@ -167,6 +167,10 @@ var (
 		utils.CatalystFlag,
 		utils.MonitorDoubleSign,
 		utils.StoreInternalTransactions,
+		utils.MaxCurVoteAmountPerBlock,
+		utils.EnableFastFinality,
+		utils.BlsPasswordPath,
+		utils.BlsWalletPath,
 	}
 
 	rpcFlags = []cli.Flag{
