@@ -2,10 +2,11 @@ package vote
 
 import (
 	"context"
-	"fmt"
-	wallet "github.com/ethereum/go-ethereum/accounts/bls"
 	"io/ioutil"
 	"time"
+
+	wallet "github.com/ethereum/go-ethereum/accounts/bls"
+	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/pkg/errors"
 
@@ -23,7 +24,7 @@ var votesSigningErrorCounter = metrics.NewRegisteredCounter("votesSigner/error",
 
 type VoteSigner struct {
 	km     *wallet.KeyManager
-	pubKey [48]byte
+	pubKey [params.BLSPubkeyLength]byte
 }
 
 func NewVoteSigner(blsPasswordPath, blsWalletPath string) (*VoteSigner, error) {
@@ -34,7 +35,7 @@ func NewVoteSigner(blsPasswordPath, blsWalletPath string) (*VoteSigner, error) {
 	}
 	if !dirExists {
 		log.Error("BLS wallet did not exists.")
-		return nil, fmt.Errorf("BLS wallet did not exists.")
+		return nil, errors.New("bls wallet did not exists.")
 	}
 
 	walletPassword, err := ioutil.ReadFile(blsPasswordPath)
