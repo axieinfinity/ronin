@@ -1,8 +1,9 @@
 package types
 
 import (
-	"github.com/ethereum/go-ethereum/params"
 	"sync/atomic"
+
+	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/pkg/errors"
@@ -23,14 +24,23 @@ type VoteData struct {
 // Hash returns the hash of the vote data.
 func (d *VoteData) Hash() common.Hash { return rlpHash(d) }
 
-// VoteEnvelope represents the vote of a single validator.
-type VoteEnvelope struct {
+// RawVoteEnvelope is VoteEnvelop without cached hash
+type RawVoteEnvelope struct {
 	PublicKey BLSPublicKey // The BLS public key of the validator.
 	Signature BLSSignature // Validator's signature for the vote data.
 	Data      *VoteData    // The vote data for fast finality.
+}
+
+// VoteEnvelope represents the vote of a single validator.
+type VoteEnvelope struct {
+	RawVoteEnvelope
 
 	// caches
 	hash atomic.Value
+}
+
+func (v *VoteEnvelope) Raw() *RawVoteEnvelope {
+	return &v.RawVoteEnvelope
 }
 
 // Hash returns the vote's hash.
