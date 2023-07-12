@@ -144,7 +144,9 @@ func (voteManager *VoteManager) loop() {
 				TargetHash:   curHead.Hash(),
 			}
 			voteMessage := &types.VoteEnvelope{
-				Data: vote,
+				RawVoteEnvelope: types.RawVoteEnvelope{
+					Data: vote,
+				},
 			}
 
 			// Put Vote into journal and VotesPool if we are active validator and allow to sign it.
