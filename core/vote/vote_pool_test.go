@@ -203,8 +203,10 @@ func testVotePool(t *testing.T, isValidRules bool) {
 
 	// Test invalid vote whose number larger than latestHeader + 13
 	invalidVote := &types.VoteEnvelope{
-		Data: &types.VoteData{
-			TargetNumber: 1000,
+		RawVoteEnvelope: types.RawVoteEnvelope{
+			Data: &types.VoteData{
+				TargetNumber: 1000,
+			},
 		},
 	}
 	voteManager.pool.PutVote(invalidVote)
@@ -220,8 +222,10 @@ func testVotePool(t *testing.T, isValidRules bool) {
 
 	// Test future votes scenario: votes number within latestBlockHeader ~ latestBlockHeader + 13
 	futureVote := &types.VoteEnvelope{
-		Data: &types.VoteData{
-			TargetNumber: 279,
+		RawVoteEnvelope: types.RawVoteEnvelope{
+			Data: &types.VoteData{
+				TargetNumber: 279,
+			},
 		},
 	}
 	if err := voteManager.signer.SignVote(futureVote); err != nil {
@@ -235,8 +239,10 @@ func testVotePool(t *testing.T, isValidRules bool) {
 
 	// Test duplicate vote case, shouldn'd be put into vote pool
 	duplicateVote := &types.VoteEnvelope{
-		Data: &types.VoteData{
-			TargetNumber: 279,
+		RawVoteEnvelope: types.RawVoteEnvelope{
+			Data: &types.VoteData{
+				TargetNumber: 279,
+			},
 		},
 	}
 	if err := voteManager.signer.SignVote(duplicateVote); err != nil {
@@ -250,9 +256,11 @@ func testVotePool(t *testing.T, isValidRules bool) {
 
 	// Test future votes larger than latestBlockNumber + 13 should be rejected
 	futureVote = &types.VoteEnvelope{
-		Data: &types.VoteData{
-			TargetNumber: 282,
-			TargetHash:   common.Hash{},
+		RawVoteEnvelope: types.RawVoteEnvelope{
+			Data: &types.VoteData{
+				TargetNumber: 282,
+				TargetHash:   common.Hash{},
+			},
 		},
 	}
 	voteManager.pool.PutVote(futureVote)
