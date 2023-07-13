@@ -26,6 +26,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
+	blsCommon "github.com/ethereum/go-ethereum/crypto/bls/common"
 	"github.com/ethereum/go-ethereum/eth/downloader"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/params"
@@ -74,10 +75,10 @@ func (m *mockPOSA) IsActiveValidatorAt(chain consensus.ChainHeaderReader, header
 	return true
 }
 
-func (pool *VotePool) verifyStructureSizeOfVotePool(receivedVotes, curVotes, futureVotes, curVotesPq, futureVotesPq int) bool {
+func (pool *VotePool) verifyStructureSizeOfVotePool(curVotes, futureVotes, curVotesPq, futureVotesPq int) bool {
 	for i := 0; i < timeThreshold; i++ {
 		time.Sleep(1 * time.Second)
-		if pool.receivedVotes.Cardinality() == receivedVotes && len(pool.curVotes) == curVotes && len(pool.futureVotes) == futureVotes && pool.curVotesPq.Len() == curVotesPq && pool.futureVotesPq.Len() == futureVotesPq {
+		if len(pool.curVotes) == curVotes && len(pool.futureVotes) == futureVotes && pool.curVotesPq.Len() == curVotesPq && pool.futureVotesPq.Len() == futureVotesPq {
 			return true
 		}
 	}
@@ -108,7 +109,7 @@ func testVotePool(t *testing.T, isValidRules bool) {
 	mockEngine := &mockPOSA{}
 
 	// Create vote pool
-	votePool := NewVotePool(params.TestChainConfig, chain, mockEngine, 22)
+	votePool := NewVotePool(chain, mockEngine, 22)
 
 	// Create vote manager
 	// Create a temporary file for the votes journal
@@ -154,13 +155,13 @@ func testVotePool(t *testing.T, isValidRules bool) {
 	}
 
 	if !isValidRules {
-		if votePool.verifyStructureSizeOfVotePool(11, 11, 0, 11, 0) {
+		if votePool.verifyStructureSizeOfVotePool(11, 0, 11, 0) {
 			t.Fatalf("put vote failed")
 		}
 		return
 	}
 
-	if !votePool.verifyStructureSizeOfVotePool(11, 11, 0, 11, 0) {
+	if !votePool.verifyStructureSizeOfVotePool(11, 0, 11, 0) {
 		t.Fatalf("put vote failed")
 	}
 
@@ -185,7 +186,7 @@ func testVotePool(t *testing.T, isValidRules bool) {
 		panic(err)
 	}
 
-	if !votePool.verifyStructureSizeOfVotePool(12, 12, 0, 12, 0) {
+	if !votePool.verifyStructureSizeOfVotePool(12, 0, 12, 0) {
 		t.Fatalf("put vote failed")
 	}
 
@@ -197,7 +198,7 @@ func testVotePool(t *testing.T, isValidRules bool) {
 	}
 
 	// currently chain size is 268, and votePool should be pruned, so vote pool size should be 256!
-	if !votePool.verifyStructureSizeOfVotePool(256, 256, 0, 256, 0) {
+	if !votePool.verifyStructureSizeOfVotePool(256, 0, 256, 0) {
 		t.Fatalf("put vote failed")
 	}
 
@@ -209,9 +210,9 @@ func testVotePool(t *testing.T, isValidRules bool) {
 			},
 		},
 	}
-	voteManager.pool.PutVote(invalidVote)
+	voteManager.pool.PutVote("", invalidVote)
 
-	if !votePool.verifyStructureSizeOfVotePool(256, 256, 0, 256, 0) {
+	if !votePool.verifyStructureSizeOfVotePool(256, 0, 256, 0) {
 		t.Fatalf("put vote failed")
 	}
 
@@ -231,9 +232,9 @@ func testVotePool(t *testing.T, isValidRules bool) {
 	if err := voteManager.signer.SignVote(futureVote); err != nil {
 		t.Fatalf("sign vote failed")
 	}
-	voteManager.pool.PutVote(futureVote)
+	voteManager.pool.PutVote("", futureVote)
 
-	if !votePool.verifyStructureSizeOfVotePool(257, 256, 1, 256, 1) {
+	if !votePool.verifyStructureSizeOfVotePool(256, 1, 256, 1) {
 		t.Fatalf("put vote failed")
 	}
 
@@ -248,9 +249,9 @@ func testVotePool(t *testing.T, isValidRules bool) {
 	if err := voteManager.signer.SignVote(duplicateVote); err != nil {
 		t.Fatalf("sign vote failed")
 	}
-	voteManager.pool.PutVote(duplicateVote)
+	voteManager.pool.PutVote("", duplicateVote)
 
-	if !votePool.verifyStructureSizeOfVotePool(257, 256, 1, 256, 1) {
+	if !votePool.verifyStructureSizeOfVotePool(256, 1, 256, 1) {
 		t.Fatalf("put vote failed")
 	}
 
@@ -263,8 +264,8 @@ func testVotePool(t *testing.T, isValidRules bool) {
 			},
 		},
 	}
-	voteManager.pool.PutVote(futureVote)
-	if !votePool.verifyStructureSizeOfVotePool(257, 256, 1, 256, 1) {
+	voteManager.pool.PutVote("", futureVote)
+	if !votePool.verifyStructureSizeOfVotePool(256, 1, 256, 1) {
 		t.Fatalf("put vote failed")
 	}
 
@@ -301,7 +302,7 @@ func testVotePool(t *testing.T, isValidRules bool) {
 	}
 
 	// Pruner will keep the size of votePool as latestBlockHeader-255~latestBlockHeader, then final result should be 256!
-	if !votePool.verifyStructureSizeOfVotePool(257, 256, 0, 256, 0) {
+	if !votePool.verifyStructureSizeOfVotePool(256, 0, 256, 0) {
 		t.Fatalf("put vote failed")
 	}
 
@@ -356,4 +357,113 @@ func setUpKeyManager(t *testing.T) (string, string) {
 	keystoreFile.Write(encodedFile)
 	km.ImportKeystores(context.Background(), []*wallet.Keystore{keystore}, []string{password})
 	return walletPasswordDir, walletDir
+}
+
+func generateVote(
+	blockNumber int,
+	blockHash common.Hash,
+	secretKey blsCommon.SecretKey,
+) *types.VoteEnvelope {
+	voteData := types.VoteData{
+		TargetNumber: 1,
+		TargetHash:   blockHash,
+	}
+	digest := voteData.Hash()
+	signature := secretKey.Sign(digest[:])
+
+	vote := &types.VoteEnvelope{
+		RawVoteEnvelope: types.RawVoteEnvelope{
+			PublicKey: types.BLSPublicKey(secretKey.PublicKey().Marshal()),
+			Signature: types.BLSSignature(signature.Marshal()),
+			Data:      &voteData,
+		},
+	}
+
+	return vote
+}
+
+func TestVotePoolDosProtection(t *testing.T) {
+	secretKey, err := bls.RandKey()
+	if err != nil {
+		t.Fatalf("Failed to create secret key, err %s", err)
+	}
+
+	// Create a database pre-initialize with a genesis block
+	db := rawdb.NewMemoryDatabase()
+	genesis := (&core.Genesis{
+		Config:  params.TestChainConfig,
+		Alloc:   core.GenesisAlloc{testAddr: {Balance: big.NewInt(1000000)}},
+		BaseFee: big.NewInt(params.InitialBaseFee),
+	}).MustCommit(db)
+	chain, _ := core.NewBlockChain(db, nil, params.TestChainConfig, ethash.NewFullFaker(), vm.Config{}, nil, nil)
+
+	bs, _ := core.GenerateChain(params.TestChainConfig, genesis, ethash.NewFaker(), db, 25, nil, true)
+	if _, err := chain.InsertChain(bs[:1]); err != nil {
+		panic(err)
+	}
+	mockEngine := &mockPOSA{}
+
+	// Create vote pool
+	votePool := NewVotePool(chain, mockEngine, 22)
+
+	for i := 0; i < maxFutureVotePerPeer; i++ {
+		vote := generateVote(1, common.BigToHash(big.NewInt(int64(i+1))), secretKey)
+		votePool.PutVote("AAAA", vote)
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	if len(*votePool.futureVotesPq) != maxFutureVotePerPeer {
+		t.Fatalf("Future vote pool length, expect %d have %d", maxFutureVotePerPeer, len(*votePool.futureVotesPq))
+	}
+	if votePool.numFutureVotePerPeer["AAAA"] != maxFutureVotePerPeer {
+		t.Fatalf("Number of future vote per peer, expect %d have %d", maxFutureVotePerPeer, votePool.numFutureVotePerPeer["AAAA"])
+	}
+
+	// This vote is dropped due to DOS protection
+	vote := generateVote(1, common.BigToHash(big.NewInt(int64(maxFutureVoteAmountPerBlock+1))), secretKey)
+	votePool.PutVote("AAAA", vote)
+	time.Sleep(100 * time.Millisecond)
+	if len(*votePool.futureVotesPq) != maxFutureVotePerPeer {
+		t.Fatalf("Future vote pool length, expect %d have %d", maxFutureVotePerPeer, len(*votePool.futureVotesPq))
+	}
+	if votePool.numFutureVotePerPeer["AAAA"] != maxFutureVotePerPeer {
+		t.Fatalf("Number of future vote per peer, expect %d have %d", maxFutureVotePerPeer, votePool.numFutureVotePerPeer["AAAA"])
+	}
+
+	// Vote from different peer must be accepted
+	vote = generateVote(1, common.BigToHash(big.NewInt(int64(maxFutureVoteAmountPerBlock+2))), secretKey)
+	votePool.PutVote("BBBB", vote)
+	time.Sleep(100 * time.Millisecond)
+	if len(*votePool.futureVotesPq) != maxFutureVotePerPeer+1 {
+		t.Fatalf("Future vote pool length, expect %d have %d", maxFutureVotePerPeer, len(*votePool.futureVotesPq))
+	}
+	if votePool.numFutureVotePerPeer["AAAA"] != maxFutureVotePerPeer {
+		t.Fatalf("Number of future vote per peer, expect %d have %d", maxFutureVotePerPeer, votePool.numFutureVotePerPeer["AAAA"])
+	}
+	if votePool.numFutureVotePerPeer["BBBB"] != 1 {
+		t.Fatalf("Number of future vote per peer, expect %d have %d", 1, votePool.numFutureVotePerPeer["BBBB"])
+	}
+
+	// One vote is not queued twice
+	votePool.PutVote("CCCC", vote)
+	time.Sleep(100 * time.Millisecond)
+	if len(*votePool.futureVotesPq) != maxFutureVotePerPeer+1 {
+		t.Fatalf("Future vote pool length, expect %d have %d", maxFutureVotePerPeer, len(*votePool.futureVotesPq))
+	}
+	if votePool.numFutureVotePerPeer["CCCC"] != 0 {
+		t.Fatalf("Number of future vote per peer, expect %d have %d", 0, votePool.numFutureVotePerPeer["CCCC"])
+	}
+
+	if _, err := chain.InsertChain(bs[1:]); err != nil {
+		panic(err)
+	}
+	time.Sleep(100 * time.Millisecond)
+	// Future vote must be transferred to current and failed the verification,
+	// numFutureVotePerPeer decreases
+	if len(*votePool.futureVotesPq) != 0 {
+		t.Fatalf("Future vote pool length, expect %d have %d", 0, len(*votePool.futureVotesPq))
+	}
+	if votePool.numFutureVotePerPeer["AAAA"] != 0 {
+		t.Fatalf("Number of future vote per peer, expect %d have %d", 0, votePool.numFutureVotePerPeer["AAAA"])
+	}
 }
