@@ -297,7 +297,7 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 		if !ok {
 			return nil, errors.New("consensus engine does not support fast finality")
 		}
-		votePool := vote.NewVotePool(chainConfig, eth.blockchain, finalityEngine, nodeConfig.MaxCurVoteAmountPerBlock)
+		votePool := vote.NewVotePool(eth.blockchain, finalityEngine, nodeConfig.MaxCurVoteAmountPerBlock)
 		if _, err := vote.NewVoteManager(
 			eth,
 			chainDb,
