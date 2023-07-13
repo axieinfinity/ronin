@@ -160,7 +160,8 @@ func (voteManager *VoteManager) loop() {
 				rawdb.WriteHighestFinalityVote(voteManager.db, curHead.Number.Uint64())
 
 				log.Debug("vote manager produced vote", "votedBlockNumber", voteMessage.Data.TargetNumber, "votedBlockHash", voteMessage.Data.TargetHash, "voteMessageHash", voteMessage.Hash())
-				voteManager.pool.PutVote(voteMessage)
+				// This is a local vote so just pass the dummy peer information
+				voteManager.pool.PutVote("", voteMessage)
 				votesManagerCounter.Inc(1)
 			}
 		case <-voteManager.chainHeadSub.Err():
