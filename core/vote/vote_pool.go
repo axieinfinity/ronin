@@ -3,6 +3,7 @@ package vote
 import (
 	"container/heap"
 	"sync"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -23,6 +24,9 @@ const (
 	upperLimitOfVoteBlockNumber = 11 // refer to fetcher.maxUncleDist
 
 	chainHeadChanSize = 10 // chainHeadChanSize is the size of channel listening to ChainHeadEvent.
+
+	fetchCheckFrequency = 1 * time.Millisecond
+	fetchRetry          = 500
 )
 
 var (
@@ -343,13 +347,35 @@ func (pool *VotePool) GetVotes() []*types.VoteEnvelope {
 	return votesRes
 }
 
+// FetchVoteByBlockHash reads the finality votes for the provided block hash, the concurrent
+// writers may block this function from acquiring the read lock. This function does not sleep
+// and wait for acquiring the lock but keep polling the lock fetchRetry times and returns nil
+// if it still cannot acquire the lock. This mechanism helps to make this function safer
+// because we cannot control the writers and we don't want this function to block the caller.
 func (pool *VotePool) FetchVoteByBlockHash(blockHash common.Hash) []*types.VoteEnvelope {
-	pool.mu.RLock()
+	var retry int
+	for retry = 0; retry < fetchRetry; retry++ {
+		if !pool.mu.TryRLock() {
+			time.Sleep(fetchCheckFrequency)
+		} else {
+			break
+		}
+	}
+
+	// We try to acquire read lock fetchRetry times
+	// but can not do it, so just return nil here
+	if retry == fetchRetry {
+		return nil
+	}
+
+	// We successfully acquire the read lock, read
+	// the vote and remember to release the lock
 	defer pool.mu.RUnlock()
 	if _, ok := pool.curVotes[blockHash]; ok {
 		return pool.curVotes[blockHash].voteMessages
+	} else {
+		return nil
 	}
-	return nil
 }
 
 func (pool *VotePool) basicVerify(vote *types.VoteEnvelope, headNumber uint64, m map[common.Hash]*VoteBox, isFutureVote bool, voteHash common.Hash) bool {
