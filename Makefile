@@ -27,7 +27,7 @@ generate-contract:
 	abigen --abi $(RONIN_CONTRACTS_OUTPUT_PATH)/slashing/SlashIndicator.abi --bin $(RONIN_CONTRACTS_OUTPUT_PATH)/slashing/SlashIndicator.bin --pkg slashIndicator --out $(GEN_CONTRACTS_OUTPUT_PATH)/slash_indicator/slash_indicator.go
 
 ronin:
-	$(GORUN) build/ci.go install ./cmd/ronin
+	CGO_CFLAGS="-O -D__BLST_PORTABLE__" $(GORUN) build/ci.go install ./cmd/ronin
 	@echo "Done building."
 	@echo "Run \"$(GOBIN)/ronin\" to launch ronin."
 
