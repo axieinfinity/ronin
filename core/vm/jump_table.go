@@ -70,6 +70,7 @@ func newCancunInstructionSet() JumpTable {
 	enable4844(&instructionSet) // EIP-4844 (BLOBHASH opcode)
 	enable7516(&instructionSet) // EIP-7516 (BLOBBASEFEE opcode)
 	enable5656(&instructionSet) // EIP-5656 (MCOPY opcode)
+	enable6780(&instructionSet) // EIP-6780 SELFDESTRUCT only in same transaction
 	return instructionSet
 }
 
