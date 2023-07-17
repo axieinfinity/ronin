@@ -54,6 +54,8 @@ type StateDB interface {
 	Suicide(common.Address) bool
 	HasSuicided(common.Address) bool
 
+	Suicide6780(common.Address)
+
 	// Exist reports whether the given account exists in state.
 	// Notably this should also return true for suicided accounts.
 	Exist(common.Address) bool
