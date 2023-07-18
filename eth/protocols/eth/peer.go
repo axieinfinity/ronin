@@ -21,9 +21,9 @@ import (
 	"math/rand"
 	"sync"
 
-	mapset "github.com/deckarep/golang-set"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/eth/protocols"
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/rlp"
 )
@@ -56,14 +56,6 @@ const (
 	maxQueuedBlockAnns = 4
 )
 
-// max is a helper function which returns the larger of the two given integers.
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
-
 // Peer is a collection of relevant information we have about a `eth` peer.
 type Peer struct {
 	id string // Unique ID for the peer, cached
@@ -75,14 +67,14 @@ type Peer struct {
 	head common.Hash // Latest advertised head block hash
 	td   *big.Int    // Latest advertised head block total difficulty
 
-	knownBlocks     *knownCache            // Set of block hashes known to be known by this peer
+	knownBlocks     *protocols.KnownCache  // Set of block hashes known to be known by this peer
 	queuedBlocks    chan *blockPropagation // Queue of blocks to broadcast to the peer
 	queuedBlockAnns chan *types.Block      // Queue of blocks to announce to the peer
 
-	txpool      TxPool             // Transaction pool used by the broadcasters for liveness checks
-	knownTxs    *knownCache        // Set of transaction hashes known to be known by this peer
-	txBroadcast chan []common.Hash // Channel used to queue transaction propagation requests
-	txAnnounce  chan []common.Hash // Channel used to queue transaction announcement requests
+	txpool      TxPool                // Transaction pool used by the broadcasters for liveness checks
+	knownTxs    *protocols.KnownCache // Set of transaction hashes known to be known by this peer
+	txBroadcast chan []common.Hash    // Channel used to queue transaction propagation requests
+	txAnnounce  chan []common.Hash    // Channel used to queue transaction announcement requests
 
 	term chan struct{} // Termination channel to stop the broadcasters
 	lock sync.RWMutex  // Mutex protecting the internal fields
@@ -96,8 +88,8 @@ func NewPeer(version uint, p *p2p.Peer, rw p2p.MsgReadWriter, txpool TxPool) *Pe
 		Peer:            p,
 		rw:              rw,
 		version:         version,
-		knownTxs:        newKnownCache(maxKnownTxs),
-		knownBlocks:     newKnownCache(maxKnownBlocks),
+		knownTxs:        protocols.NewKnownCache(maxKnownTxs),
+		knownBlocks:     protocols.NewKnownCache(maxKnownBlocks),
 		queuedBlocks:    make(chan *blockPropagation, maxQueuedBlocks),
 		queuedBlockAnns: make(chan *types.Block, maxQueuedBlockAnns),
 		txBroadcast:     make(chan []common.Hash),
@@ -423,38 +415,4 @@ func (p *Peer) RequestTxs(hashes []common.Hash) error {
 		RequestId:                   id,
 		GetPooledTransactionsPacket: hashes,
 	})
-}
-
-// knownCache is a cache for known hashes.
-type knownCache struct {
-	hashes mapset.Set
-	max    int
-}
-
-// newKnownCache creates a new knownCache with a max capacity.
-func newKnownCache(max int) *knownCache {
-	return &knownCache{
-		max:    max,
-		hashes: mapset.NewSet(),
-	}
-}
-
-// Add adds a list of elements to the set.
-func (k *knownCache) Add(hashes ...common.Hash) {
-	for k.hashes.Cardinality() > max(0, k.max-len(hashes)) {
-		k.hashes.Pop()
-	}
-	for _, hash := range hashes {
-		k.hashes.Add(hash)
-	}
-}
-
-// Contains returns whether the given item is in the set.
-func (k *knownCache) Contains(hash common.Hash) bool {
-	return k.hashes.Contains(hash)
-}
-
-// Cardinality returns the number of elements in the set.
-func (k *knownCache) Cardinality() int {
-	return k.hashes.Cardinality()
 }

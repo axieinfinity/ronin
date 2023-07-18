@@ -574,7 +574,7 @@ func (h *handler) txBroadcastLoop() {
 }
 
 func (h *handler) broadcastVote(voteEnvelop *types.VoteEnvelope) {
-	roninPeers := h.peers.peerWithRonin()
+	roninPeers := h.peers.roninPeerWithoutVote(voteEnvelop.Hash())
 	for _, peer := range roninPeers {
 		peer.AsyncSendNewVote(voteEnvelop)
 	}

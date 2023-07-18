@@ -3,7 +3,9 @@ package ronin
 import (
 	"time"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/eth/protocols"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p"
 )
@@ -11,6 +13,7 @@ import (
 const (
 	voteChannelSize = 50
 	batchInterval   = 100 * time.Millisecond
+	maxKnownVote    = 8192
 )
 
 // Peer is a collection of relevant information we have about a `ronin` peer.
@@ -24,6 +27,8 @@ type Peer struct {
 	voteCh    chan *types.VoteEnvelope // Put vote into pool for batching
 
 	logger log.Logger // Contextual logger with the peer id injected
+
+	knownFinalityVote *protocols.KnownCache // Set of finality vote hashes knowed to be known by this peer
 }
 
 // NewPeer create a wrapper for a network connection and negotiated  protocol
@@ -31,13 +36,14 @@ type Peer struct {
 func NewPeer(version uint, p *p2p.Peer, rw p2p.MsgReadWriter) *Peer {
 	id := p.ID().String()
 	peer := &Peer{
-		id:      id,
-		Peer:    p,
-		rw:      rw,
-		version: version,
-		voteCh:  make(chan *types.VoteEnvelope, voteChannelSize),
-		term:    make(chan struct{}),
-		logger:  log.New("peer", id[:8]),
+		id:                id,
+		Peer:              p,
+		rw:                rw,
+		version:           version,
+		voteCh:            make(chan *types.VoteEnvelope, voteChannelSize),
+		term:              make(chan struct{}),
+		logger:            log.New("peer", id[:8]),
+		knownFinalityVote: protocols.NewKnownCache(maxKnownVote),
 	}
 	go peer.batchVote()
 
@@ -77,6 +83,12 @@ func (p *Peer) sendNewVote(votes []*types.VoteEnvelope) error {
 
 // AsyncSendNewVote puts the vote into the batch vote goroutine.
 func (p *Peer) AsyncSendNewVote(vote *types.VoteEnvelope) {
+	select {
+	case p.voteCh <- vote:
+		p.markFinalityVote(vote.Hash())
+	default:
+		p.Log().Debug("Dropping vote announcement", "hash", vote.Hash())
+	}
 	p.voteCh <- vote
 }
 
@@ -102,4 +114,16 @@ func (p *Peer) batchVote() {
 			return
 		}
 	}
+}
+
+// KnownFinalityVote returns whether peer is known to already have a vote.
+func (p *Peer) KnownFinalityVote(hash common.Hash) bool {
+	return p.knownFinalityVote.Contains(hash)
+}
+
+// markFinalityVote marks a vote as known for the peer, ensuring that it
+// will never be propagated to this particular peer.
+func (p *Peer) markFinalityVote(hash common.Hash) {
+	// If we reached the memory allowance, drop a previously known transaction hash
+	p.knownFinalityVote.Add(hash)
 }

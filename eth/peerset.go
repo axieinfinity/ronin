@@ -317,13 +317,13 @@ func (ps *peerSet) peerWithHighestTD() *eth.Peer {
 	return bestPeer
 }
 
-func (ps *peerSet) peerWithRonin() []*ronin.Peer {
+func (ps *peerSet) roninPeerWithoutVote(hash common.Hash) []*ronin.Peer {
 	ps.lock.RLock()
 	defer ps.lock.RUnlock()
 
 	var roninPeers []*ronin.Peer
 	for _, peer := range ps.peers {
-		if peer.roninExt != nil {
+		if peer.roninExt != nil && !peer.roninExt.KnownFinalityVote(hash) {
 			roninPeers = append(roninPeers, peer.roninExt)
 		}
 	}

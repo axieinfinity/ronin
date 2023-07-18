@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
@@ -102,6 +103,14 @@ func handleMessage(backend Backend, peer *Peer) error {
 		if err := msg.Decode(&votePacket); err != nil {
 			return fmt.Errorf("%w: message %v: %v", errDecode, msg, err)
 		}
+		for _, packet := range votePacket.Vote {
+			vote := types.VoteEnvelope{
+				RawVoteEnvelope: *packet,
+			}
+
+			peer.markFinalityVote(vote.Hash())
+		}
+
 		return backend.Handle(peer, &votePacket)
 	default:
 		return fmt.Errorf("%w: %v", errInvalidMsgCode, msg.Code)
