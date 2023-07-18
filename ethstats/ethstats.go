@@ -87,9 +87,10 @@ type Service struct {
 	backend backend
 	engine  consensus.Engine // Consensus engine to retrieve variadic block fields
 
-	node string // Name of the node to display on the monitoring page
-	pass string // Password to authorize access to the monitoring page
-	host string // Remote address of the monitoring service
+	coinbase string
+	node     string // Name of the node to display on the monitoring page
+	pass     string // Password to authorize access to the monitoring page
+	host     string // Remote address of the monitoring service
 
 	pongCh chan struct{} // Pong notifications are fed into this channel
 	histCh chan []uint64 // History request block numbers are fed into this channel
@@ -168,20 +169,21 @@ func parseEthstatsURL(url string) (parts []string, err error) {
 }
 
 // New returns a monitoring service ready for stats reporting.
-func New(node *node.Node, backend backend, engine consensus.Engine, url string) error {
+func New(node *node.Node, backend backend, engine consensus.Engine, url string, coinbase common.Address) error {
 	parts, err := parseEthstatsURL(url)
 	if err != nil {
 		return err
 	}
 	ethstats := &Service{
-		backend: backend,
-		engine:  engine,
-		server:  node.Server(),
-		node:    parts[0],
-		pass:    parts[1],
-		host:    parts[2],
-		pongCh:  make(chan struct{}),
-		histCh:  make(chan []uint64, 1),
+		backend:  backend,
+		engine:   engine,
+		server:   node.Server(),
+		node:     parts[0],
+		pass:     parts[1],
+		host:     parts[2],
+		pongCh:   make(chan struct{}),
+		histCh:   make(chan []uint64, 1),
+		coinbase: coinbase.Hex(),
 	}
 
 	node.RegisterLifecycle(ethstats)
@@ -441,6 +443,7 @@ func (s *Service) readLoop(conn *connWrapper) {
 // nodeInfo is the collection of meta information about a node that is displayed
 // on the monitoring page.
 type nodeInfo struct {
+	Coinbase string `json:"coinbase"`
 	Name     string `json:"name"`
 	Node     string `json:"node"`
 	Port     int    `json:"port"`
@@ -478,6 +481,7 @@ func (s *Service) login(conn *connWrapper) error {
 	auth := &authMsg{
 		ID: s.node,
 		Info: nodeInfo{
+			Coinbase: s.coinbase,
 			Name:     s.node,
 			Node:     infos.Name,
 			Port:     infos.Ports.Listener,
