@@ -20,6 +20,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"math/big"
 	"os"
@@ -186,7 +187,13 @@ func makeFullNode(ctx *cli.Context) (*node.Node, ethapi.Backend) {
 	}
 	// Add the Ethereum Stats daemon if requested.
 	if cfg.Ethstats.URL != "" {
-		utils.RegisterEthStatsService(stack, backend, cfg.Ethstats.URL)
+		coinbase, err := eth.Etherbase()
+		if err != nil {
+			log.Warn("Failed to get etherbase", "err", err)
+			utils.RegisterEthStatsService(stack, backend, cfg.Ethstats.URL, common.Address{})
+		} else {
+			utils.RegisterEthStatsService(stack, backend, cfg.Ethstats.URL, coinbase)
+		}
 	}
 	return stack, backend
 }

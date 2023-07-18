@@ -1832,8 +1832,8 @@ func RegisterEthService(stack *node.Node, cfg *ethconfig.Config) (ethapi.Backend
 
 // RegisterEthStatsService configures the Ethereum Stats daemon and adds it to
 // the given node.
-func RegisterEthStatsService(stack *node.Node, backend ethapi.Backend, url string) {
-	if err := ethstats.New(stack, backend, backend.Engine(), url); err != nil {
+func RegisterEthStatsService(stack *node.Node, backend ethapi.Backend, url string, coinbase common.Address) {
+	if err := ethstats.New(stack, backend, backend.Engine(), url, coinbase); err != nil {
 		Fatalf("Failed to register the Ethereum Stats service: %v", err)
 	}
 }
