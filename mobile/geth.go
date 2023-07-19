@@ -22,6 +22,7 @@ package geth
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/ethereum/go-ethereum/common"
 	"path/filepath"
 
 	"github.com/ethereum/go-ethereum/core"
@@ -200,7 +201,7 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 		}
 		// If netstats reporting is requested, do it
 		if config.EthereumNetStats != "" {
-			if err := ethstats.New(rawStack, lesBackend.ApiBackend, lesBackend.Engine(), config.EthereumNetStats); err != nil {
+			if err := ethstats.New(rawStack, lesBackend.ApiBackend, lesBackend.Engine(), config.EthereumNetStats, common.Address{}); err != nil {
 				return nil, fmt.Errorf("netstats init: %v", err)
 			}
 		}
