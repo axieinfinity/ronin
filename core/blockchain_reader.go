@@ -49,6 +49,18 @@ func (bc *BlockChain) CurrentFastBlock() *types.Block {
 	return bc.currentFastBlock.Load().(*types.Block)
 }
 
+func (bc *BlockChain) FinalizedBlock() *types.Block {
+	if consensusEngine, ok := bc.engine.(consensus.FastFinalityPoSA); ok {
+		currentBlock := bc.CurrentBlock()
+		finalizedNumber, finalizedHash := consensusEngine.GetFinalizedBlock(bc, currentBlock.NumberU64(), currentBlock.Hash())
+		if finalizedNumber == 0 {
+			return nil
+		}
+		return rawdb.ReadBlock(bc.db, finalizedHash, finalizedNumber)
+	}
+	return nil
+}
+
 // HasHeader checks if a block header is present in the database or not, caching
 // it if present.
 func (bc *BlockChain) HasHeader(hash common.Hash, number uint64) bool {
