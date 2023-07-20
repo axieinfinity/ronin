@@ -161,6 +161,8 @@ type FastFinalityPoSA interface {
 	// VerifyVote check if the finality voter is in the validator set, it assumes the signature is
 	// already verified
 	VerifyVote(chain ChainHeaderReader, vote *types.VoteEnvelope) error
+
+	SetVotePool(votePool VotePool)
 }
 
 type VotePool interface {

@@ -1,6 +1,8 @@
 package v2
 
 import (
+	"bytes"
+	"encoding/binary"
 	"errors"
 	"math/big"
 	"testing"
@@ -8,8 +10,13 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
+	consortiumCommon "github.com/ethereum/go-ethereum/consensus/consortium/common"
+	"github.com/ethereum/go-ethereum/consensus/consortium/v2/finality"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto/bls/blst"
+	blsCommon "github.com/ethereum/go-ethereum/crypto/bls/common"
 	"github.com/ethereum/go-ethereum/params"
+	lru "github.com/hashicorp/golang-lru"
 )
 
 func TestSealableValidators(t *testing.T) {
@@ -20,7 +27,7 @@ func TestSealableValidators(t *testing.T) {
 		validators = append(validators, common.BigToAddress(big.NewInt(int64(i))))
 	}
 
-	snap := newSnapshot(nil, nil, nil, 10, common.Hash{}, validators, nil)
+	snap := newSnapshot(nil, nil, nil, 10, common.Hash{}, validators, nil, nil)
 	for i := 0; i <= 10; i++ {
 		snap.Recents[uint64(i)] = common.BigToAddress(big.NewInt(int64(i)))
 	}
@@ -67,7 +74,7 @@ func TestBackoffTime(t *testing.T) {
 		validators = append(validators, common.BigToAddress(big.NewInt(int64(i))))
 	}
 
-	snap := newSnapshot(nil, nil, nil, 10, common.Hash{}, validators, nil)
+	snap := newSnapshot(nil, nil, nil, 10, common.Hash{}, validators, nil, nil)
 	for i := 0; i <= 10; i++ {
 		snap.Recents[uint64(i)] = common.BigToAddress(big.NewInt(int64(i)))
 	}
@@ -121,7 +128,7 @@ func TestBackoffTimeOlek(t *testing.T) {
 		validators = append(validators, common.BigToAddress(big.NewInt(int64(i))))
 	}
 
-	snap := newSnapshot(nil, nil, nil, 10, common.Hash{}, validators, nil)
+	snap := newSnapshot(nil, nil, nil, 10, common.Hash{}, validators, nil, nil)
 	for i := 0; i <= 10; i++ {
 		snap.Recents[uint64(i)] = common.BigToAddress(big.NewInt(int64(i)))
 	}
@@ -173,7 +180,7 @@ func TestBackoffTimeInturnValidatorInRecentList(t *testing.T) {
 		validators = append(validators, common.BigToAddress(big.NewInt(int64(i))))
 	}
 
-	snap := newSnapshot(nil, nil, nil, 10, common.Hash{}, validators, nil)
+	snap := newSnapshot(nil, nil, nil, 10, common.Hash{}, validators, nil, nil)
 	for i := 0; i <= 9; i++ {
 		snap.Recents[uint64(i)] = common.BigToAddress(big.NewInt(int64(i)))
 	}
@@ -230,7 +237,7 @@ func TestVerifyBlockHeaderTime(t *testing.T) {
 		validators = append(validators, common.BigToAddress(big.NewInt(int64(i))))
 	}
 
-	snap := newSnapshot(nil, nil, nil, 10, common.Hash{}, validators, nil)
+	snap := newSnapshot(nil, nil, nil, 10, common.Hash{}, validators, nil, nil)
 	for i := 0; i <= 10; i++ {
 		snap.Recents[uint64(i)] = common.BigToAddress(big.NewInt(int64(i)))
 	}
@@ -272,5 +279,360 @@ func TestVerifyBlockHeaderTime(t *testing.T) {
 	header.Time = parentHeader.Time + BLOCK_PERIOD + backOffTime(header, snap, c.chainConfig)
 	if err := c.verifyHeaderTime(header, parentHeader, snap); err != nil {
 		t.Errorf("Expect successful verification, got %s", err)
+	}
+}
+
+func TestExtraDataEncode(t *testing.T) {
+	extraData := finality.HeaderExtraData{}
+	data := extraData.Encode(false)
+	expectedLen := consortiumCommon.ExtraSeal + consortiumCommon.ExtraVanity
+	if len(data) != expectedLen {
+		t.Errorf(
+			"Mismatch header extra data length before hardfork, have %v expect %v",
+			len(data), expectedLen,
+		)
+	}
+
+	extraData = finality.HeaderExtraData{
+		CheckpointValidators: []finality.ValidatorWithBlsPub{
+			{
+				Address: common.Address{0x1},
+			},
+			{
+				Address: common.Address{0x2},
+			},
+		},
+	}
+	expectedLen = consortiumCommon.ExtraSeal + consortiumCommon.ExtraVanity + common.AddressLength*2
+	data = extraData.Encode(false)
+	if len(data) != expectedLen {
+		t.Errorf(
+			"Mismatch header extra data length before hardfork, have %v expect %v",
+			len(data), expectedLen,
+		)
+	}
+
+	expectedLen = consortiumCommon.ExtraSeal + consortiumCommon.ExtraVanity + 1
+	extraData = finality.HeaderExtraData{}
+	data = extraData.Encode(true)
+	if len(data) != expectedLen {
+		t.Errorf(
+			"Mismatch header extra data length before hardfork, have %v expect %v",
+			len(data), expectedLen,
+		)
+	}
+
+	secretKey, err := blst.RandKey()
+	if err != nil {
+		t.Fatalf("Failed to generate secret key, err %s", err)
+	}
+	dummyDigest := [32]byte{}
+	signature := secretKey.Sign(dummyDigest[:])
+
+	extraData = finality.HeaderExtraData{
+		HasFinalityVote:         1,
+		AggregatedFinalityVotes: signature,
+	}
+	expectedLen = consortiumCommon.ExtraSeal + consortiumCommon.ExtraVanity + 1 + 8 + params.BLSSignatureLength
+	data = extraData.Encode(true)
+	if len(data) != expectedLen {
+		t.Errorf(
+			"Mismatch header extra data length after hardfork, have %v expect %v",
+			len(data), expectedLen,
+		)
+	}
+
+	extraData = finality.HeaderExtraData{
+		HasFinalityVote:         1,
+		AggregatedFinalityVotes: signature,
+		CheckpointValidators: []finality.ValidatorWithBlsPub{
+			{
+				Address:      common.Address{0x1},
+				BlsPublicKey: secretKey.PublicKey(),
+			},
+			{
+				Address:      common.Address{0x2},
+				BlsPublicKey: secretKey.PublicKey(),
+			},
+		},
+	}
+	expectedLen = consortiumCommon.ExtraSeal + consortiumCommon.ExtraVanity + 1 + 8 + params.BLSSignatureLength + 2*(common.AddressLength+params.BLSPubkeyLength)
+	data = extraData.Encode(true)
+	if len(data) != expectedLen {
+		t.Errorf(
+			"Mismatch header extra data length after hardfork, have %v expect %v",
+			len(data), expectedLen,
+		)
+	}
+}
+
+func TestExtraDataDecode(t *testing.T) {
+	secretKey, err := blst.RandKey()
+	if err != nil {
+		t.Fatalf("Failed to generate secret key, err %s", err)
+	}
+	dummyDigest := [32]byte{}
+	signature := secretKey.Sign(dummyDigest[:])
+
+	rawBytes := []byte{'t', 'e', 's', 't'}
+	_, err = finality.DecodeExtra(rawBytes, false)
+	if !errors.Is(err, finality.ErrMissingVanity) {
+		t.Errorf("Expect error %v have %v", finality.ErrMissingVanity, err)
+	}
+
+	rawBytes = []byte{}
+	rawBytes = append(rawBytes, bytes.Repeat([]byte{0x00}, consortiumCommon.ExtraVanity)...)
+	_, err = finality.DecodeExtra(rawBytes, false)
+	if !errors.Is(err, finality.ErrMissingSignature) {
+		t.Errorf("Expect error %v have %v", finality.ErrMissingSignature, err)
+	}
+
+	rawBytes = append(rawBytes, byte(12))
+	rawBytes = append(rawBytes, bytes.Repeat([]byte{0x00}, consortiumCommon.ExtraSeal)...)
+	_, err = finality.DecodeExtra(rawBytes, false)
+	if !errors.Is(err, finality.ErrInvalidSpanValidators) {
+		t.Errorf("Expect error %v have %v", finality.ErrInvalidSpanValidators, err)
+	}
+
+	rawBytes = []byte{}
+	rawBytes = append(rawBytes, bytes.Repeat([]byte{0x00}, consortiumCommon.ExtraVanity)...)
+	_, err = finality.DecodeExtra(rawBytes, true)
+	if !errors.Is(err, finality.ErrMissingHasFinalityVote) {
+		t.Errorf("Expect error %v have %v", finality.ErrMissingHasFinalityVote, err)
+	}
+
+	rawBytes = []byte{}
+	rawBytes = append(rawBytes, bytes.Repeat([]byte{0x00}, consortiumCommon.ExtraVanity)...)
+	rawBytes = append(rawBytes, byte(0x00))
+	rawBytes = append(rawBytes, bytes.Repeat([]byte{0x00}, consortiumCommon.ExtraSeal)...)
+	_, err = finality.DecodeExtra(rawBytes, true)
+	if err != nil {
+		t.Errorf("Expect successful decode have %v", err)
+	}
+
+	rawBytes = []byte{}
+	rawBytes = append(rawBytes, bytes.Repeat([]byte{0x00}, consortiumCommon.ExtraVanity)...)
+	rawBytes = append(rawBytes, byte(0x01))
+	_, err = finality.DecodeExtra(rawBytes, true)
+	if !errors.Is(err, finality.ErrMissingFinalityVoteBitSet) {
+		t.Errorf("Expect error %v have %v", finality.ErrMissingFinalityVoteBitSet, err)
+	}
+
+	rawBytes = []byte{}
+	rawBytes = append(rawBytes, bytes.Repeat([]byte{0x00}, consortiumCommon.ExtraVanity)...)
+	rawBytes = append(rawBytes, byte(0x01))
+	rawBytes = binary.LittleEndian.AppendUint64(rawBytes, 0)
+	_, err = finality.DecodeExtra(rawBytes, true)
+	if !errors.Is(err, finality.ErrMissingFinalitySignature) {
+		t.Errorf("Expect error %v have %v", finality.ErrMissingFinalitySignature, err)
+	}
+
+	rawBytes = []byte{}
+	rawBytes = append(rawBytes, bytes.Repeat([]byte{0x00}, consortiumCommon.ExtraVanity)...)
+	rawBytes = append(rawBytes, byte(0x01))
+	rawBytes = binary.LittleEndian.AppendUint64(rawBytes, 0)
+	rawBytes = append(rawBytes, signature.Marshal()...)
+	_, err = finality.DecodeExtra(rawBytes, true)
+	if !errors.Is(err, finality.ErrMissingSignature) {
+		t.Errorf("Expect error %v have %v", finality.ErrMissingSignature, err)
+	}
+
+	rawBytes = []byte{}
+	rawBytes = append(rawBytes, bytes.Repeat([]byte{0x00}, consortiumCommon.ExtraVanity)...)
+	rawBytes = append(rawBytes, byte(0x01))
+	rawBytes = binary.LittleEndian.AppendUint64(rawBytes, 0)
+	rawBytes = append(rawBytes, signature.Marshal()...)
+	rawBytes = append(rawBytes, bytes.Repeat([]byte{0x00}, consortiumCommon.ExtraSeal)...)
+	_, err = finality.DecodeExtra(rawBytes, true)
+	if err != nil {
+		t.Errorf("Expect successful decode have %v", err)
+	}
+
+	rawBytes = []byte{}
+	rawBytes = append(rawBytes, bytes.Repeat([]byte{0x00}, consortiumCommon.ExtraVanity)...)
+	rawBytes = append(rawBytes, byte(0x01))
+	rawBytes = binary.LittleEndian.AppendUint64(rawBytes, 0)
+	rawBytes = append(rawBytes, signature.Marshal()...)
+	rawBytes = append(rawBytes, common.Address{0x1}.Bytes()...)
+	rawBytes = append(rawBytes, bytes.Repeat([]byte{0x00}, consortiumCommon.ExtraSeal)...)
+	_, err = finality.DecodeExtra(rawBytes, true)
+	if !errors.Is(err, finality.ErrInvalidSpanValidators) {
+		t.Errorf("Expect error %v have %v", finality.ErrInvalidSpanValidators, err)
+	}
+
+	rawBytes = []byte{}
+	rawBytes = append(rawBytes, bytes.Repeat([]byte{0x00}, consortiumCommon.ExtraVanity)...)
+	rawBytes = append(rawBytes, byte(0x02))
+	rawBytes = binary.LittleEndian.AppendUint64(rawBytes, 0)
+	rawBytes = append(rawBytes, signature.Marshal()...)
+	rawBytes = append(rawBytes, common.Address{0x1}.Bytes()...)
+	rawBytes = append(rawBytes, secretKey.PublicKey().Marshal()...)
+	rawBytes = append(rawBytes, bytes.Repeat([]byte{0x00}, consortiumCommon.ExtraSeal)...)
+	_, err = finality.DecodeExtra(rawBytes, true)
+	if !errors.Is(err, finality.ErrInvalidHasFinalityVote) {
+		t.Errorf("Expect error %v have %v", finality.ErrInvalidHasFinalityVote, err)
+	}
+
+	rawBytes = []byte{}
+	rawBytes = append(rawBytes, bytes.Repeat([]byte{0x00}, consortiumCommon.ExtraVanity)...)
+	rawBytes = append(rawBytes, byte(0x01))
+	rawBytes = binary.LittleEndian.AppendUint64(rawBytes, 0)
+	rawBytes = append(rawBytes, signature.Marshal()...)
+	rawBytes = append(rawBytes, common.Address{0x1}.Bytes()...)
+	rawBytes = append(rawBytes, secretKey.PublicKey().Marshal()...)
+	rawBytes = append(rawBytes, bytes.Repeat([]byte{0x00}, consortiumCommon.ExtraSeal)...)
+	_, err = finality.DecodeExtra(rawBytes, true)
+	if err != nil {
+		t.Errorf("Expect successful decode have %v", err)
+	}
+
+	extraData := finality.HeaderExtraData{
+		HasFinalityVote:         1,
+		AggregatedFinalityVotes: signature,
+		CheckpointValidators: []finality.ValidatorWithBlsPub{
+			{
+				Address:      common.Address{0x1},
+				BlsPublicKey: secretKey.PublicKey(),
+			},
+			{
+				Address:      common.Address{0x2},
+				BlsPublicKey: secretKey.PublicKey(),
+			},
+		},
+	}
+	data := extraData.Encode(true)
+	decodedData, err := finality.DecodeExtra(data, true)
+	if err != nil {
+		t.Errorf("Expect successful decode have %v", err)
+	}
+
+	// Do some sanity checks
+	if !bytes.Equal(
+		decodedData.AggregatedFinalityVotes.Marshal(),
+		extraData.AggregatedFinalityVotes.Marshal(),
+	) {
+		t.Errorf("Mismatch decoded data")
+	}
+
+	if decodedData.CheckpointValidators[0].Address != extraData.CheckpointValidators[0].Address {
+		t.Errorf("Mismatch decoded data")
+	}
+
+	if !decodedData.CheckpointValidators[0].BlsPublicKey.Equals(extraData.CheckpointValidators[0].BlsPublicKey) {
+		t.Errorf("Mismatch decoded data")
+	}
+}
+
+func TestVerifyFinalitySignature(t *testing.T) {
+	const numValidator = 4
+	var err error
+
+	secretKey := make([]blsCommon.SecretKey, numValidator+1)
+	for i := 0; i < len(secretKey); i++ {
+		secretKey[i], err = blst.RandKey()
+		if err != nil {
+			t.Fatalf("Failed to generate secret key, err %s", err)
+		}
+	}
+
+	valWithBlsPub := make([]finality.ValidatorWithBlsPub, numValidator)
+	for i := 0; i < len(valWithBlsPub); i++ {
+		valWithBlsPub[i] = finality.ValidatorWithBlsPub{
+			common.BigToAddress(big.NewInt(int64(i))),
+			secretKey[i].PublicKey(),
+		}
+	}
+
+	blockNumber := uint64(0)
+	blockHash := common.Hash{0x1}
+	vote := types.VoteData{
+		TargetNumber: blockNumber,
+		TargetHash:   blockHash,
+	}
+
+	digest := vote.Hash()
+	signature := make([]blsCommon.Signature, numValidator+1)
+	for i := 0; i < len(signature); i++ {
+		signature[i] = secretKey[i].Sign(digest[:])
+	}
+
+	snap := newSnapshot(nil, nil, nil, 10, common.Hash{}, nil, valWithBlsPub, nil)
+	recents, _ := lru.NewARC(inmemorySnapshots)
+	c := Consortium{
+		chainConfig: &params.ChainConfig{
+			ShillinBlock: big.NewInt(0),
+		},
+		config: &params.ConsortiumConfig{
+			EpochV2: 300,
+		},
+		recents: recents,
+	}
+	snap.Hash = blockHash
+	c.recents.Add(snap.Hash, snap)
+
+	var votedBitSet finality.FinalityVoteBitSet
+	votedBitSet.SetBit(0)
+	err = c.verifyFinalitySignatures(nil, votedBitSet, nil, blockNumber, blockHash, nil)
+	if !errors.Is(err, finality.ErrNotEnoughFinalityVote) {
+		t.Errorf("Expect error %v have %v", finality.ErrNotEnoughFinalityVote, err)
+	}
+
+	votedBitSet = finality.FinalityVoteBitSet(0)
+	votedBitSet.SetBit(0)
+	votedBitSet.SetBit(1)
+	votedBitSet.SetBit(2)
+	votedBitSet.SetBit(4)
+	err = c.verifyFinalitySignatures(nil, votedBitSet, nil, 0, snap.Hash, nil)
+	if !errors.Is(err, finality.ErrInvalidFinalityVotedBitSet) {
+		t.Errorf("Expect error %v have %v", finality.ErrInvalidFinalityVotedBitSet, err)
+	}
+
+	votedBitSet = finality.FinalityVoteBitSet(0)
+	votedBitSet.SetBit(0)
+	votedBitSet.SetBit(1)
+	votedBitSet.SetBit(2)
+	votedBitSet.SetBit(3)
+	aggregatedSignature := blst.AggregateSignatures([]blsCommon.Signature{
+		signature[0],
+		signature[1],
+		signature[2],
+		signature[4],
+	})
+	err = c.verifyFinalitySignatures(nil, votedBitSet, aggregatedSignature, 0, snap.Hash, nil)
+	if !errors.Is(err, finality.ErrFinalitySignatureVerificationFailed) {
+		t.Errorf("Expect error %v have %v", finality.ErrFinalitySignatureVerificationFailed, err)
+	}
+
+	votedBitSet = finality.FinalityVoteBitSet(0)
+	votedBitSet.SetBit(0)
+	votedBitSet.SetBit(1)
+	votedBitSet.SetBit(2)
+	votedBitSet.SetBit(3)
+	aggregatedSignature = blst.AggregateSignatures([]blsCommon.Signature{
+		signature[0],
+		signature[1],
+		signature[2],
+		signature[3],
+		signature[4],
+	})
+	err = c.verifyFinalitySignatures(nil, votedBitSet, aggregatedSignature, 0, snap.Hash, nil)
+	if !errors.Is(err, finality.ErrFinalitySignatureVerificationFailed) {
+		t.Errorf("Expect error %v have %v", finality.ErrFinalitySignatureVerificationFailed, err)
+	}
+
+	votedBitSet = finality.FinalityVoteBitSet(0)
+	votedBitSet.SetBit(0)
+	votedBitSet.SetBit(1)
+	votedBitSet.SetBit(2)
+	votedBitSet.SetBit(3)
+	aggregatedSignature = blst.AggregateSignatures([]blsCommon.Signature{
+		signature[0],
+		signature[1],
+		signature[2],
+		signature[3],
+	})
+	err = c.verifyFinalitySignatures(nil, votedBitSet, aggregatedSignature, 0, snap.Hash, nil)
+	if err != nil {
+		t.Errorf("Expect successful verification have %v", err)
 	}
 }

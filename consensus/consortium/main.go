@@ -202,6 +202,41 @@ func (c *Consortium) GetBestParentBlock(chain *core.BlockChain) (*types.Block, b
 	return c.v2.GetBestParentBlock(chain)
 }
 
+func (c *Consortium) GetJustifiedBlock(
+	chain consensus.ChainHeaderReader,
+	blockNumber uint64,
+	blockHash common.Hash,
+) (uint64, common.Hash) {
+	if c.chainConfig.IsShillin(new(big.Int).SetUint64(blockNumber)) {
+		return c.v2.GetJustifiedBlock(chain, blockNumber, blockHash)
+	}
+	return 0, common.Hash{}
+}
+
+func (c *Consortium) GetFinalizedBlock(
+	chain consensus.ChainHeaderReader,
+	headNumber uint64,
+	headHash common.Hash,
+) (uint64, common.Hash) {
+	if c.chainConfig.IsShillin(new(big.Int).SetUint64(headNumber)) {
+		return c.v2.GetFinalizedBlock(chain, headNumber, headHash)
+	}
+	return 0, common.Hash{}
+}
+
+func (c *Consortium) SetVotePool(votePool consensus.VotePool) {
+	c.v2.SetVotePool(votePool)
+}
+
+// IsActiveValidatorAt always returns false before Shillin
+func (c *Consortium) IsActiveValidatorAt(chain consensus.ChainHeaderReader, header *types.Header) bool {
+	if c.chainConfig.IsShillin(header.Number) {
+		return c.v2.IsActiveValidatorAt(chain, header)
+	}
+
+	return false
+}
+
 // HandleSystemTransaction fixes up the statedb when system transaction
 // goes through ApplyMessage when tracing/debugging
 func HandleSystemTransaction(engine consensus.Engine, statedb *state.StateDB, msg core.Message, block *types.Block) bool {
