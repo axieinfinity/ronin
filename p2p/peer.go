@@ -129,11 +129,30 @@ func NewPeer(id enode.ID, name string, caps []Cap) *Peer {
 	return peer
 }
 
+// NewPeerWithProtocol returns a peer for testing purposes.
+func NewPeerWithProtocol(id enode.ID, name string, caps []Cap, protocols []Protocol) *Peer {
+	pipe, _ := net.Pipe()
+	node := enode.SignNull(new(enr.Record), id)
+	conn := &conn{fd: pipe, transport: nil, node: node, caps: caps, name: name}
+	peer := newPeer(log.Root(), conn, protocols)
+	close(peer.closed) // ensures Disconnect doesn't block
+	return peer
+}
+
 // NewPeerPipe creates a peer for testing purposes.
 // The message pipe given as the last parameter is closed when
 // Disconnect is called on the peer.
 func NewPeerPipe(id enode.ID, name string, caps []Cap, pipe *MsgPipeRW) *Peer {
 	p := NewPeer(id, name, caps)
+	p.testPipe = pipe
+	return p
+}
+
+// NewPeerPipeWithProtocol creates a peer for testing purposes.
+// The message pipe given as the last parameter is closed when
+// Disconnect is called on the peer.
+func NewPeerPipeWithProtocol(id enode.ID, name string, caps []Cap, pipe *MsgPipeRW, protocols []Protocol) *Peer {
+	p := NewPeerWithProtocol(id, name, caps, protocols)
 	p.testPipe = pipe
 	return p
 }

@@ -23,6 +23,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/eth/protocols/eth"
+	"github.com/ethereum/go-ethereum/eth/protocols/ronin"
 	"github.com/ethereum/go-ethereum/eth/protocols/snap"
 	"github.com/ethereum/go-ethereum/p2p"
 )
@@ -43,6 +44,10 @@ var (
 	// errSnapWithoutEth is returned if a peer attempts to connect only on the
 	// snap protocol without advertizing the eth main protocol.
 	errSnapWithoutEth = errors.New("peer connected on snap without compatible eth support")
+
+	// errRoninWithoutEth is returned if a peer attempts to connect only on the
+	// ronin protocol without advertizing the eth main protocol.
+	errRoninWithoutEth = errors.New("peer connected on ronin without compatible eth support")
 )
 
 // peerSet represents the collection of active peers currently participating in
@@ -54,6 +59,9 @@ type peerSet struct {
 	snapWait map[string]chan *snap.Peer // Peers connected on `eth` waiting for their snap extension
 	snapPend map[string]*snap.Peer      // Peers connected on the `snap` protocol, but not yet on `eth`
 
+	roninWait map[string]chan *ronin.Peer // Peers connected on `eth` waiting for their ronin extension
+	roninPend map[string]*ronin.Peer      // Peers connected on the `ronin` protocol, but not yet on `eth`
+
 	lock   sync.RWMutex
 	closed bool
 }
@@ -61,9 +69,11 @@ type peerSet struct {
 // newPeerSet creates a new peer set to track the active participants.
 func newPeerSet() *peerSet {
 	return &peerSet{
-		peers:    make(map[string]*ethPeer),
-		snapWait: make(map[string]chan *snap.Peer),
-		snapPend: make(map[string]*snap.Peer),
+		peers:     make(map[string]*ethPeer),
+		snapWait:  make(map[string]chan *snap.Peer),
+		snapPend:  make(map[string]*snap.Peer),
+		roninWait: make(map[string]chan *ronin.Peer),
+		roninPend: make(map[string]*ronin.Peer),
 	}
 }
 
@@ -131,9 +141,66 @@ func (ps *peerSet) waitSnapExtension(peer *eth.Peer) (*snap.Peer, error) {
 	return <-wait, nil
 }
 
+// registerRoninExtension unblocks an already connected `eth` peer waiting for its
+// `ronin` extension, or if no such peer exists, tracks the extension for the time
+// being until the `eth` main protocol starts looking for it.
+func (ps *peerSet) registerRoninExtension(peer *ronin.Peer) error {
+	if !peer.RunningCap(eth.ProtocolName, eth.ProtocolVersions) {
+		return errRoninWithoutEth
+	}
+
+	ps.lock.Lock()
+	defer ps.lock.Unlock()
+
+	id := peer.ID()
+	if _, ok := ps.peers[id]; ok {
+		return errPeerAlreadyRegistered // avoid connections with the same id as existing ones
+	}
+	if _, ok := ps.roninPend[id]; ok {
+		return errPeerAlreadyRegistered // avoid connections with the same id as pending ones
+	}
+	if wait, ok := ps.roninWait[id]; ok {
+		delete(ps.roninWait, id)
+		wait <- peer
+		return nil
+	}
+	ps.roninPend[id] = peer
+	return nil
+}
+
+// waitRoninExtensions blocks until `ronin` satellite protocols are connected and tracked
+// by the peerset.
+func (ps *peerSet) waitRoninExtension(peer *eth.Peer) (*ronin.Peer, error) {
+	// If the peer does not support a compatible `ronin`, don't wait
+	if !peer.RunningCap(ronin.ProtocolName, ronin.ProtocolVersions) {
+		return nil, nil
+	}
+	ps.lock.Lock()
+
+	id := peer.ID()
+	if _, ok := ps.peers[id]; ok {
+		ps.lock.Unlock()
+		return nil, errPeerAlreadyRegistered // avoid connections with the same id as existing ones
+	}
+	if _, ok := ps.roninWait[id]; ok {
+		ps.lock.Unlock()
+		return nil, errPeerAlreadyRegistered // avoid connections with the same id as pending ones
+	}
+	if peer, ok := ps.roninPend[id]; ok {
+		delete(ps.roninPend, id)
+		ps.lock.Unlock()
+		return peer, nil
+	}
+	wait := make(chan *ronin.Peer)
+	ps.roninWait[id] = wait
+	ps.lock.Unlock()
+
+	return <-wait, nil
+}
+
 // registerPeer injects a new `eth` peer into the working set, or returns an error
 // if the peer is already known.
-func (ps *peerSet) registerPeer(peer *eth.Peer, ext *snap.Peer) error {
+func (ps *peerSet) registerPeer(peer *eth.Peer, ext *snap.Peer, roninExt *ronin.Peer) error {
 	// Start tracking the new peer
 	ps.lock.Lock()
 	defer ps.lock.Unlock()
@@ -151,6 +218,9 @@ func (ps *peerSet) registerPeer(peer *eth.Peer, ext *snap.Peer) error {
 	if ext != nil {
 		eth.snapExt = &snapPeer{ext}
 		ps.snapPeers++
+	}
+	if roninExt != nil {
+		eth.roninExt = roninExt
 	}
 	ps.peers[id] = eth
 	return nil
@@ -245,6 +315,20 @@ func (ps *peerSet) peerWithHighestTD() *eth.Peer {
 		}
 	}
 	return bestPeer
+}
+
+func (ps *peerSet) roninPeerWithoutVote(hash common.Hash) []*ronin.Peer {
+	ps.lock.RLock()
+	defer ps.lock.RUnlock()
+
+	var roninPeers []*ronin.Peer
+	for _, peer := range ps.peers {
+		if peer.roninExt != nil && !peer.roninExt.KnownFinalityVote(hash) {
+			roninPeers = append(roninPeers, peer.roninExt)
+		}
+	}
+
+	return roninPeers
 }
 
 // close disconnects all peers.

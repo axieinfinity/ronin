@@ -171,6 +171,7 @@ var (
 		utils.EnableFastFinality,
 		utils.BlsPasswordPath,
 		utils.BlsWalletPath,
+		utils.DisableRoninProtocol,
 	}
 
 	rpcFlags = []cli.Flag{
