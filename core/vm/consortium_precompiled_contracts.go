@@ -16,7 +16,10 @@ import (
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/bls/blst"
+	blsCommon "github.com/ethereum/go-ethereum/crypto/bls/common"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
 	"golang.org/x/crypto/sha3"
 )
@@ -27,6 +30,7 @@ var (
 	consortiumVerifyHeadersAbi      = `[{"outputs":[],"name":"getHeader","inputs":[{"internalType":"uint256","name":"chainId","type":"uint256"},{"internalType":"bytes32","name":"parentHash","type":"bytes32"},{"internalType":"bytes32","name":"ommersHash","type":"bytes32"},{"internalType":"address","name":"coinbase","type":"address"},{"internalType":"bytes32","name":"stateRoot","type":"bytes32"},{"internalType":"bytes32","name":"transactionsRoot","type":"bytes32"},{"internalType":"bytes32","name":"receiptsRoot","type":"bytes32"},{"internalType":"uint8[256]","name":"logsBloom","type":"uint8[256]"},{"internalType":"uint256","name":"difficulty","type":"uint256"},{"internalType":"uint256","name":"number","type":"uint256"},{"internalType":"uint64","name":"gasLimit","type":"uint64"},{"internalType":"uint64","name":"gasUsed","type":"uint64"},{"internalType":"uint64","name":"timestamp","type":"uint64"},{"internalType":"bytes","name":"extraData","type":"bytes"},{"internalType":"bytes32","name":"mixHash","type":"bytes32"},{"internalType":"uint64","name":"nonce","type":"uint64"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"consensusAddr","type":"address"},{"internalType":"bytes","name":"header1","type":"bytes"},{"internalType":"bytes","name":"header2","type":"bytes"}],"name":"validatingDoubleSignProof","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"view","type":"function"}]`
 	consortiumPickValidatorSetAbi   = `[{"inputs":[],"stateMutability":"nonpayable","type":"constructor"},{"inputs":[{"internalType":"address[]","name":"_candidates","type":"address[]"},{"internalType":"uint256[]","name":"_weights","type":"uint256[]"},{"internalType":"uint256[]","name":"_trustedWeights","type":"uint256[]"},{"internalType":"uint256","name":"_maxValidatorNumber","type":"uint256"},{"internalType":"uint256","name":"_maxPrioritizedValidatorNumber","type":"uint256"}],"name":"pickValidatorSet","outputs":[{"internalType":"address[]","name":"_validators","type":"address[]"}],"stateMutability":"view","type":"function"}]`
 	getDoubleSignSlashingConfigsAbi = `[{"inputs":[],"name":"getDoubleSignSlashingConfigs","outputs":[{"internalType":"uint256","name":"","type":"uint256"},{"internalType":"uint256","name":"","type":"uint256"},{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"}]`
+	validateFinaltyVoteProofAbi     = `[{"inputs":[{"internalType":"bytes","name":"voterPublicKey","type":"bytes"},{"internalType":"uint256","name":"targetBlockNumber","type":"uint256"},{"internalType":"bytes32[2]","name":"targetBlockHash","type":"bytes32[2]"},{"internalType":"bytes[][2]","name":"listOfPublicKey","type":"bytes[][2]"},{"internalType":"bytes[2]","name":"aggregatedSignature","type":"bytes[2]"}],"name":"validateFinaltyVoteProof","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"view","type":"function"}]`
 )
 
 const (
@@ -39,6 +43,9 @@ const (
 	getHeader                    = "getHeader"
 	getDoubleSignSlashingConfigs = "getDoubleSignSlashingConfigs"
 	extraVanity                  = 32
+
+	validateFinaltyVoteProof  = "validateFinaltyVoteProof"
+	maxBlsPublicKeyListLength = 100
 )
 
 func PrecompiledContractsConsortium(caller ContractRef, evm *EVM) map[common.Address]PrecompiledContract {
@@ -47,6 +54,7 @@ func PrecompiledContractsConsortium(caller ContractRef, evm *EVM) map[common.Add
 		common.BytesToAddress([]byte{102}): &consortiumValidatorSorting{caller: caller, evm: evm},
 		common.BytesToAddress([]byte{103}): &consortiumVerifyHeaders{caller: caller, evm: evm},
 		common.BytesToAddress([]byte{104}): &consortiumPickValidatorSet{caller: caller, evm: evm},
+		common.BytesToAddress([]byte{105}): &consortiumValidateFinalityProof{caller: caller, evm: evm},
 	}
 }
 
@@ -520,4 +528,123 @@ func encodeSigHeader(w io.Writer, header *types.Header, chainId *big.Int) {
 	if err != nil {
 		panic("can't encode: " + err.Error())
 	}
+}
+
+type consortiumValidateFinalityProof struct {
+	caller ContractRef
+	evm    *EVM
+}
+
+func (contract *consortiumValidateFinalityProof) RequiredGas(input []byte) uint64 {
+	return params.ValidateFinalityProofGas
+}
+
+func (contract *consortiumValidateFinalityProof) Run(input []byte) ([]byte, error) {
+	// These 2 fields are nil in testing only
+	if contract.caller != nil && contract.evm != nil {
+		if contract.evm.ChainConfig().ConsortiumV2Contracts == nil {
+			return nil, errors.New("cannot find consortium v2 contracts")
+		}
+		if !contract.evm.ChainConfig().ConsortiumV2Contracts.IsSystemContract(contract.caller.Address()) {
+			return nil, errors.New("unauthorized sender")
+		}
+	}
+
+	_, method, args, err := loadMethodAndArgs(validateFinaltyVoteProofAbi, input)
+	if err != nil {
+		return nil, err
+	}
+	if method.Name != validateFinaltyVoteProof {
+		return nil, errors.New("invalid method")
+	}
+	if len(args) != 5 {
+		return nil, fmt.Errorf("invalid arguments, expect 5 got %d", len(args))
+	}
+
+	rawVoterPublicKey, ok := args[0].([]byte)
+	if !ok {
+		return nil, errors.New("invalid voter public key")
+	}
+
+	targetBlockNumber, ok := args[1].(*big.Int)
+	if !ok {
+		return nil, errors.New("invalid target block number")
+	}
+	if !targetBlockNumber.IsUint64() {
+		return nil, errors.New("malformed target block number")
+	}
+
+	targetBlockHashes, ok := args[2].([2][32]byte)
+	if !ok {
+		return nil, errors.New("invalid target block hashes")
+	}
+
+	if targetBlockHashes[0] == targetBlockHashes[1] {
+		return nil, errors.New("block hash is the same")
+	}
+
+	listOfRawPublicKey, ok := args[3].([2][][]byte)
+	if !ok {
+		return nil, errors.New("invalid target block number")
+	}
+
+	rawAggregatedSignatures, ok := args[4].([2][]byte)
+	if !ok {
+		return nil, errors.New("invalid aggregated signature")
+	}
+
+	voterPublicKey, err := blst.PublicKeyFromBytes(rawVoterPublicKey)
+	if err != nil {
+		return nil, errors.New("malformed voter public key")
+	}
+
+	var listOfPublicKey [2][]blsCommon.PublicKey
+	for block := range listOfRawPublicKey {
+		voterInPublicKeyList := false
+		for _, rawKey := range listOfRawPublicKey[block] {
+			publicKey, err := blst.PublicKeyFromBytes(rawKey)
+			if err != nil {
+				return nil, errors.New("malformed public key in list of public keys")
+			}
+
+			if publicKey.Equals(voterPublicKey) {
+				voterInPublicKeyList = true
+			}
+
+			listOfPublicKey[block] = append(listOfPublicKey[block], publicKey)
+		}
+
+		if !voterInPublicKeyList {
+			return nil, errors.New("reported voter does not in public key list")
+		}
+	}
+
+	for _, list := range listOfPublicKey {
+		if len(list) > maxBlsPublicKeyListLength {
+			return nil, errors.New("public key list is too long")
+		}
+	}
+
+	var aggregatedSignature [2]blsCommon.Signature
+	for block, rawSignature := range rawAggregatedSignatures {
+		signature, err := blst.SignatureFromBytes(rawSignature)
+		if err != nil {
+			return nil, errors.New("malformed signature")
+		}
+
+		aggregatedSignature[block] = signature
+	}
+
+	for block := 0; block < 2; block++ {
+		voteData := types.VoteData{
+			TargetNumber: targetBlockNumber.Uint64(),
+			TargetHash:   targetBlockHashes[block],
+		}
+		digest := voteData.Hash()
+		if !aggregatedSignature[block].FastAggregateVerify(listOfPublicKey[block], digest) {
+			return nil, errors.New("failed to verify signature")
+		}
+	}
+
+	return method.Outputs.Pack(true)
 }
