@@ -537,6 +537,9 @@ func toBlockNumArg(number *big.Int) string {
 	if number.Cmp(big.NewInt(int64(rpc.PendingBlockNumber))) == 0 {
 		return "pending"
 	}
+	if number.Cmp(big.NewInt(int64(rpc.FinalizedBlockNumber))) == 0 {
+		return "finalized"
+	}
 	return hexutil.EncodeBig(number)
 }
 
