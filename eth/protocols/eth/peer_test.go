@@ -24,6 +24,7 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/eth/protocols"
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 )
@@ -64,7 +65,7 @@ func (p *testPeer) close() {
 
 func TestPeerSet(t *testing.T) {
 	size := 5
-	s := newKnownCache(size)
+	s := protocols.NewKnownCache(size)
 
 	// add 10 items
 	for i := 0; i < size*2; i++ {
