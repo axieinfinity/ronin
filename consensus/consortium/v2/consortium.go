@@ -2,27 +2,32 @@ package v2
 
 import (
 	"bytes"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"math/big"
 	"math/rand"
 	"sort"
 	"sync"
 	"time"
 
+	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/core"
 
 	"github.com/common-nighthawk/go-figure"
 
-	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	consortiumCommon "github.com/ethereum/go-ethereum/consensus/consortium/common"
+	"github.com/ethereum/go-ethereum/consensus/consortium/v2/finality"
 	"github.com/ethereum/go-ethereum/consensus/misc"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/bls/blst"
+	blsCommon "github.com/ethereum/go-ethereum/crypto/bls/common"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"github.com/ethereum/go-ethereum/log"
@@ -38,12 +43,11 @@ const (
 	inmemorySnapshots  = 128  // Number of recent vote snapshots to keep in memory
 	inmemorySignatures = 4096 // Number of recent block signatures to keep in memory
 
-	extraVanity = 32 // Fixed number of extra-data prefix bytes reserved for signer vanity
-	extraSeal   = 65 // Fixed number of extra-data suffix bytes reserved for signer seal
+	wiggleTime          = 1000 * time.Millisecond // Random delay (per signer) to allow concurrent signers
+	unSealableValidator = -1
 
-	validatorBytesLength = common.AddressLength
-	wiggleTime           = 1000 * time.Millisecond // Random delay (per signer) to allow concurrent signers
-	unSealableValidator  = -1
+	finalityRatio                  float64 = 2.0 / 3
+	assemblingFinalityVoteDuration         = 1 * time.Second
 )
 
 // Consortium delegated proof-of-stake protocol constants.
@@ -104,6 +108,8 @@ type Consortium struct {
 
 	fakeDiff bool
 	v1       consortiumCommon.ConsortiumAdapter
+
+	votePool consensus.VotePool
 }
 
 // New creates a Consortium delegated proof-of-stake consensus engine
@@ -200,6 +206,67 @@ func (c *Consortium) GetRecents(chain consensus.ChainHeaderReader, number uint64
 	return nil
 }
 
+// VerifyVote check if the finality voter is in the validator set, it assumes the signature is
+// already verified
+func (c *Consortium) VerifyVote(chain consensus.ChainHeaderReader, vote *types.VoteEnvelope) error {
+	// Look at the comment assembleFinalityVote in function for the
+	// detailed explanation on the snapshot we need to get to verify the
+	// finality vote.
+	// Here we want to verify vote for TargetNumber, so we get snapshot
+	// at TargetNumber.
+	snap, err := c.snapshot(chain, vote.Data.TargetNumber, vote.Data.TargetHash, nil)
+	if err != nil {
+		return err
+	}
+
+	publicKey, _ := blst.PublicKeyFromBytes(vote.PublicKey[:])
+	if !snap.inBlsPublicKeySet(publicKey) {
+		return finality.ErrUnauthorizedFinalityVoter
+	}
+
+	return nil
+}
+
+// verifyFinalitySignatures verifies the finality signatures in the block header
+func (c *Consortium) verifyFinalitySignatures(
+	chain consensus.ChainHeaderReader,
+	finalityVotedValidators finality.FinalityVoteBitSet,
+	finalitySignatures blsCommon.Signature,
+	parentNumber uint64,
+	parentHash common.Hash,
+	parents []*types.Header,
+) error {
+	snap, err := c.snapshot(chain, parentNumber, parentHash, parents)
+	if err != nil {
+		return err
+	}
+
+	votedValidatorPositions := finalityVotedValidators.Indices()
+	if len(votedValidatorPositions) <= int(math.Floor(finalityRatio*float64(len(snap.ValidatorsWithBlsPub))))+1 {
+		return finality.ErrNotEnoughFinalityVote
+	}
+
+	voteData := types.VoteData{
+		TargetNumber: parentNumber,
+		TargetHash:   parentHash,
+	}
+	digest := voteData.Hash()
+
+	// verify aggregated signature
+	var publicKeys []blsCommon.PublicKey
+	for _, position := range votedValidatorPositions {
+		if position >= len(snap.ValidatorsWithBlsPub) {
+			return finality.ErrInvalidFinalityVotedBitSet
+		}
+		publicKeys = append(publicKeys, snap.ValidatorsWithBlsPub[position].BlsPublicKey)
+	}
+	if !finalitySignatures.FastAggregateVerify(publicKeys, digest) {
+		return finality.ErrFinalitySignatureVerificationFailed
+	}
+
+	return nil
+}
+
 // VerifyHeaderAndParents checks whether a header conforms to the consensus rules.The
 // caller may optionally pass in a batch of parents (ascending order) to avoid
 // looking those up from the database. This is useful for concurrently verifying
@@ -210,24 +277,30 @@ func (c *Consortium) VerifyHeaderAndParents(chain consensus.ChainHeaderReader, h
 	}
 	number := header.Number.Uint64()
 
-	// Check that the extra-data contains the vanity, validators and signature.
-	if len(header.Extra) < extraVanity {
-		return consortiumCommon.ErrMissingVanity
+	isShillin := c.chainConfig.IsShillin(header.Number)
+	extraData, err := finality.DecodeExtra(header.Extra, isShillin)
+	if err != nil {
+		return err
 	}
-	if len(header.Extra) < extraVanity+extraSeal {
-		return consortiumCommon.ErrMissingSignature
-	}
+
 	// Check extra data
 	isEpoch := number%c.config.EpochV2 == 0 || c.chainConfig.IsOnConsortiumV2(header.Number)
 
-	// Ensure that the extra-data contains a signer list on checkpoint, but none otherwise
-	signersBytes := len(header.Extra) - extraVanity - extraSeal
-	if !isEpoch && signersBytes != 0 {
+	if !isEpoch && len(extraData.CheckpointValidators) != 0 {
 		return consortiumCommon.ErrExtraValidators
 	}
 
-	if isEpoch && signersBytes%common.AddressLength != 0 {
-		return consortiumCommon.ErrInvalidSpanValidators
+	if isShillin && extraData.HasFinalityVote == 1 {
+		if err := c.verifyFinalitySignatures(
+			chain,
+			extraData.FinalityVotedValidators,
+			extraData.AggregatedFinalityVotes,
+			header.Number.Uint64()-1,
+			header.ParentHash,
+			parents,
+		); err != nil {
+			return err
+		}
 	}
 
 	// Ensure that the mix digest is zero as we don't have fork protection currently
@@ -338,7 +411,7 @@ func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, 
 				log.Error("Load validators at the beginning failed", "err", err)
 				return nil, err
 			}
-			snap = newSnapshot(c.chainConfig, c.config, c.signatures, number, hash, validators, c.ethAPI)
+			snap = newSnapshot(c.chainConfig, c.config, c.signatures, number, hash, validators, nil, c.ethAPI)
 
 			// load v1 recent list to prevent recent producing-block-validators produce block again
 			snapV1 := c.v1.GetSnapshot(chain, number, parents)
@@ -448,7 +521,7 @@ func (c *Consortium) verifySeal(chain consensus.ChainHeaderReader, header *types
 		return errCoinBaseMisMatch
 	}
 
-	if _, ok := snap.Validators[signer]; !ok {
+	if !snap.inInValidatorSet(signer) {
 		return errUnauthorizedValidator
 	}
 
@@ -557,11 +630,8 @@ func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.He
 	// Set the correct difficulty
 	header.Difficulty = CalcDifficulty(snap, coinbase)
 
-	// Ensure the extra data has all it's components
-	if len(header.Extra) < extraVanity {
-		header.Extra = append(header.Extra, bytes.Repeat([]byte{0x00}, extraVanity-len(header.Extra))...)
-	}
-	header.Extra = header.Extra[:extraVanity]
+	isShillin := c.chainConfig.IsShillin(header.Number)
+	var extraData finality.HeaderExtraData
 
 	if number%c.config.EpochV2 == 0 || c.chainConfig.IsOnConsortiumV2(big.NewInt(int64(number))) {
 		// This block is not inserted, the transactions in this block are not applied, so we need
@@ -570,15 +640,37 @@ func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.He
 		if err != nil {
 			return err
 		}
-		// Sort validators by address
-		sort.Sort(validatorsAscending(newValidators))
-		for _, validator := range newValidators {
-			header.Extra = append(header.Extra, validator.Bytes()...)
+
+		var (
+			blsPublicKeys       []*blst.PublicKey = make([]*blst.PublicKey, len(newValidators))
+			checkpointValidator []finality.ValidatorWithBlsPub
+		)
+
+		// Before Shillin, when encoding the checkpointExtra into header's extra data,
+		// we ignore the blsPublicKeys. So just leave the checkpointExtra's blsPublicKeys
+		// filled with zero value before Shillin.
+		if isShillin {
+			// TODO: Get finality voter public key from contract
+			// blsPublicKeys =
 		}
+
+		for i := range newValidators {
+			checkpointValidator = append(checkpointValidator, finality.ValidatorWithBlsPub{
+				Address:      newValidators[i],
+				BlsPublicKey: blsPublicKeys[i],
+			})
+		}
+
+		// Sort validators by address
+		sort.Sort(finality.CheckpointValidatorAscending(checkpointValidator))
+		extraData.CheckpointValidators = checkpointValidator
 	}
 
-	// Add extra seal space
-	header.Extra = append(header.Extra, make([]byte, extraSeal)...)
+	// After Shillin, extraData.hasFinalityVote = 0 here as we does
+	// not assemble finality vote yet. Let's wait some time for the
+	// finality votes to be broadcasted around the network. The
+	// finality votes are assembled later in Seal function.
+	header.Extra = extraData.Encode(isShillin)
 
 	// Mix digest is reserved for now, set to empty
 	header.MixDigest = common.Hash{}
@@ -604,12 +696,32 @@ func (c *Consortium) submitBlockReward(transactOpts *consortiumCommon.ApplyTrans
 func (c *Consortium) processSystemTransactions(chain consensus.ChainHeaderReader, header *types.Header,
 	transactOpts *consortiumCommon.ApplyTransactOpts, isFinalizeAndAssemble bool) error {
 
-	if header.Difficulty.Cmp(diffInTurn) != 0 {
-		number := header.Number.Uint64()
-		snap, err := c.snapshot(chain, number-1, header.ParentHash, nil)
+	snap, err := c.snapshot(chain, header.Number.Uint64()-1, header.ParentHash, nil)
+	if err != nil {
+		return err
+	}
+
+	if c.chainConfig.IsShillin(header.Number) {
+		extraData, err := finality.DecodeExtra(header.Extra, c.chainConfig.IsShillin(header.Number))
 		if err != nil {
 			return err
 		}
+		if extraData.HasFinalityVote == 1 {
+			votedValidatorPositions := extraData.FinalityVotedValidators.Indices()
+			var votedValidators []common.Address
+			for _, position := range votedValidatorPositions {
+				// The header has been verified so there must be no out of bound here
+				votedValidators = append(votedValidators, snap.ValidatorsWithBlsPub[position].Address)
+			}
+
+			if err := c.contract.FinalityReward(transactOpts, votedValidators); err != nil {
+				log.Error("Failed to finality reward validator", "err", err)
+				return err
+			}
+		}
+	}
+
+	if header.Difficulty.Cmp(diffInTurn) != 0 {
 		spoiledVal := snap.supposeValidator()
 		signedRecently := false
 		if c.chainConfig.IsOlek(header.Number) {
@@ -692,16 +804,43 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 		if err != nil {
 			return err
 		}
-		// sort validator by address
-		sort.Sort(validatorsAscending(newValidators))
-		validatorsBytes := make([]byte, len(newValidators)*validatorBytesLength)
-		for i, validator := range newValidators {
-			copy(validatorsBytes[i*validatorBytesLength:], validator.Bytes())
+
+		var (
+			blsPublicKeys       []blsCommon.PublicKey = make([]blsCommon.PublicKey, len(newValidators))
+			checkpointValidator []finality.ValidatorWithBlsPub
+		)
+
+		if c.chainConfig.IsShillin(header.Number) {
+			// TODO: Get finality voter public key from contract
+			// blsPublicKeys =
 		}
 
-		extraSuffix := len(header.Extra) - extraSeal
-		if !bytes.Equal(header.Extra[extraVanity:extraSuffix], validatorsBytes) {
+		for i := range newValidators {
+			checkpointValidator = append(checkpointValidator, finality.ValidatorWithBlsPub{
+				Address:      newValidators[i],
+				BlsPublicKey: blsPublicKeys[i],
+			})
+		}
+
+		// sort validator by address
+		sort.Sort(finality.CheckpointValidatorAscending(checkpointValidator))
+		extraData, err := finality.DecodeExtra(header.Extra, c.chainConfig.IsShillin(header.Number))
+		if err != nil {
+			return err
+		}
+
+		if len(newValidators) != len(extraData.CheckpointValidators) {
 			return errMismatchingEpochValidators
+		}
+
+		for i := range newValidators {
+			if newValidators[i] != extraData.CheckpointValidators[i].Address {
+				return errMismatchingEpochValidators
+			}
+
+			if !blsPublicKeys[i].Equals(extraData.CheckpointValidators[i].BlsPublicKey) {
+				return errMismatchingEpochValidators
+			}
 		}
 	}
 
@@ -815,7 +954,7 @@ func (c *Consortium) Seal(chain consensus.ChainHeaderReader, block *types.Block,
 	}
 
 	// Bail out if we're unauthorized to sign a block
-	if _, authorized := snap.Validators[val]; !authorized {
+	if !snap.inInValidatorSet(val) {
 		return errUnauthorizedValidator
 	}
 
@@ -830,7 +969,7 @@ func (c *Consortium) Seal(chain consensus.ChainHeaderReader, block *types.Block,
 	if !c.chainConfig.IsBuba(block.Number()) {
 		if header.Difficulty.Cmp(diffInTurn) != 0 {
 			// It's not our turn explicitly to sign, delay it a bit
-			wiggle := time.Duration(len(snap.Validators)/2+1) * wiggleTime
+			wiggle := time.Duration(len(snap.validators())/2+1) * wiggleTime
 			delay += time.Duration(rand.Int63n(int64(wiggle))) + wiggleTime // delay for 0.5s more
 
 			log.Trace("Out-of-turn signing requested", "wiggle", common.PrettyDuration(wiggle))
@@ -838,16 +977,25 @@ func (c *Consortium) Seal(chain consensus.ChainHeaderReader, block *types.Block,
 	}
 	log.Info("Sealing block with", "number", number, "delay", delay, "headerDifficulty", header.Difficulty, "val", val.Hex(), "txs", len(block.Transactions()))
 
-	// Sign all the things!
-	sig, err := signFn(accounts.Account{Address: val}, accounts.MimetypeConsortium, consortiumRLP(header, c.chainConfig.ChainID))
-	if err != nil {
-		return err
-	}
-	copy(header.Extra[len(header.Extra)-extraSeal:], sig)
-
 	// Wait until sealing is terminated or delay timeout.
 	log.Trace("Waiting for slot to sign and propagate", "delay", common.PrettyDuration(delay))
 	go func() {
+		select {
+		case <-stop:
+			return
+		case <-time.After(delay - assemblingFinalityVoteDuration):
+			c.assembleFinalityVote(header, snap)
+
+			// Sign all the things!
+			sig, err := signFn(accounts.Account{Address: val}, accounts.MimetypeConsortium, consortiumRLP(header, c.chainConfig.ChainID))
+			if err != nil {
+				log.Error("Failed to seal block", "err", err)
+				return
+			}
+			copy(header.Extra[len(header.Extra)-consortiumCommon.ExtraSeal:], sig)
+		}
+
+		delay = time.Until(time.Unix(int64(header.Time), 0))
 		select {
 		case <-stop:
 			return
@@ -950,6 +1098,153 @@ func (c *Consortium) GetBestParentBlock(chain *core.BlockChain) (*types.Block, b
 	}
 
 	return currentBlock, false
+}
+
+// GetJustifiedBlock gets the fast finality justified block
+func (c *Consortium) GetJustifiedBlock(chain consensus.ChainHeaderReader, blockNumber uint64, blockHash common.Hash) (uint64, common.Hash) {
+	snap, err := c.snapshot(chain, blockNumber, blockHash, nil)
+	if err != nil {
+		log.Error("Failed to get snapshot", "err", err)
+		return 0, common.Hash{}
+	}
+
+	return snap.JustifiedBlockNumber, snap.JustifiedBlockHash
+}
+
+// assembleFinalityVote collects finality votes from vote pool and assembles
+// them into block header
+//
+// block (N) <- block (N + 1)
+// Block (N) is justified means there are enough finality votes for block (N) in
+// block (N + 1)
+// The finality vote in block (N + 1) is verified by validator set that are able
+// to produce block (N + 1) (ignoring the recently signed rule) which is in
+// snapshot (N)
+// So here when including the vote for header.Number - 1 into header.Number, the
+// snapshot provided must be at header.Number - 1
+func (c *Consortium) assembleFinalityVote(header *types.Header, snap *Snapshot) {
+	if c.chainConfig.IsShillin(header.Number) {
+		var (
+			signatures              []blsCommon.Signature
+			finalityVotedValidators finality.FinalityVoteBitSet
+			finalityThreshold       int = int(math.Floor(finalityRatio*float64(len(snap.ValidatorsWithBlsPub)))) + 1
+		)
+
+		// We assume the signature has been verified in vote pool
+		// so we do not verify signature here
+		if c.votePool != nil {
+			votes := c.votePool.FetchVoteByBlockHash(header.ParentHash)
+			if len(votes) > finalityThreshold {
+				for votePosition, vote := range votes {
+					authorized := false
+					publicKey, _ := blst.PublicKeyFromBytes(vote.PublicKey[:])
+					for valPosition, validator := range snap.ValidatorsWithBlsPub {
+						if publicKey.Equals(validator.BlsPublicKey) {
+							finalityVotedValidators.SetBit(valPosition)
+							authorized = true
+							break
+						}
+					}
+					if !authorized {
+						log.Warn("Unauthorized voter's signature from vote pool", "publicKey", hex.EncodeToString(publicKey.Marshal()))
+						// remove the signature of the invalid public key
+						signatures = append(signatures[:votePosition], signatures[votePosition+1:]...)
+					}
+				}
+
+				bitSetCount := len(finalityVotedValidators.Indices())
+				if bitSetCount > finalityThreshold && bitSetCount == len(signatures) {
+					extraData, err := finality.DecodeExtra(header.Extra, true)
+					if err != nil {
+						// This should not happen
+						log.Error("Failed to decode header extra data", "err", err)
+					}
+					extraData.HasFinalityVote = 1
+					extraData.FinalityVotedValidators = finalityVotedValidators
+					extraData.AggregatedFinalityVotes = blst.AggregateSignatures(signatures)
+					header.Extra = extraData.Encode(true)
+				}
+			}
+		}
+	}
+
+}
+
+// GetFinalizedBlock gets the fast finality finalized block
+func (c *Consortium) GetFinalizedBlock(
+	chain consensus.ChainHeaderReader,
+	headNumber uint64,
+	headHash common.Hash,
+) (uint64, common.Hash) {
+	var (
+		justifiedNumber, descendantJustifiedNumber uint64
+		justifiedHash, descendantJustifiedHash     common.Hash
+	)
+
+	for {
+		justifiedNumber, justifiedHash = c.GetJustifiedBlock(chain, headNumber, headHash)
+		if justifiedNumber == 0 {
+			return 0, common.Hash{}
+		}
+
+		// Check if the block is justified and its direct descendant is also justified
+		if descendantJustifiedNumber != 0 && descendantJustifiedNumber-1 == justifiedNumber {
+			// Check if the justified block and its justified direct descendant are voted by the
+			// same set of validators.
+			// The validator set verifies finality vote for block (N) is in the snapshot (N)
+			descendantSnap, err := c.snapshot(chain, descendantJustifiedNumber, descendantJustifiedHash, nil)
+			if err != nil {
+				return 0, common.Hash{}
+			}
+
+			snap, err := c.snapshot(chain, justifiedNumber, justifiedHash, nil)
+			if err != nil {
+				return 0, common.Hash{}
+			}
+
+			descendantValidator := descendantSnap.validators()
+			snapValidator := snap.validators()
+
+			if len(descendantValidator) == len(snapValidator) {
+				var i int
+				for i = 0; i < len(descendantValidator); i++ {
+					if descendantValidator[i] != snapValidator[i] {
+						break
+					}
+				}
+
+				if i == len(descendantValidator) {
+					return justifiedNumber, justifiedHash
+				}
+			}
+		}
+
+		header := chain.GetHeaderByHash(justifiedHash)
+		headNumber = header.Number.Uint64() - 1
+		headHash = header.ParentHash
+		descendantJustifiedNumber = justifiedNumber
+		descendantJustifiedHash = justifiedHash
+	}
+}
+
+// SetVotePool sets the finality vote pool to be used by consensus
+// engine
+func (c *Consortium) SetVotePool(votePool consensus.VotePool) {
+	c.votePool = votePool
+}
+
+// IsActiveValidatorAt is used to check if we can vote for header.Number (the vote
+// is included at header.Number + 1). As explained in assembleFinalityVote, the vote
+// for header.Number is verified by the validator set at snapshot at block.Number.
+// So here we get the snapshot at block.Number not at block.Number - 1
+func (c *Consortium) IsActiveValidatorAt(chain consensus.ChainHeaderReader, header *types.Header) bool {
+	snap, err := c.snapshot(chain, header.Number.Uint64(), header.Hash(), nil)
+	if err != nil {
+		return false
+	}
+
+	nodeValidator, _, _ := c.readSigner()
+	return snap.inInValidatorSet(nodeValidator)
 }
 
 // ecrecover extracts the Ronin account address from a signed header.

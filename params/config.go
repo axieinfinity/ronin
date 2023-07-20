@@ -520,6 +520,8 @@ type ChainConfig struct {
 	BubaBlock  *big.Int `json:"bubaBlock,omitempty"`  // Buba switch block (nil = no fork, 0 = already on activated)
 	// Olek hardfork reduces the delay in block time of out of turn miner
 	OlekBlock *big.Int `json:"olekBlock,omitempty"` // Olek switch block (nil = no fork, 0 = already on activated)
+	// Shillin hardfork introduces fast finality
+	ShillinBlock *big.Int `json:"shillinBlock,omitempty"` // Shillin switch block (nil = no fork, 0 = already on activated)
 
 	BlacklistContractAddress      *common.Address `json:"blacklistContractAddress,omitempty"`      // Address of Blacklist Contract (nil = no blacklist)
 	FenixValidatorContractAddress *common.Address `json:"fenixValidatorContractAddress,omitempty"` // Address of Ronin Contract in the Fenix hardfork (nil = no blacklist)
@@ -622,7 +624,7 @@ func (c *ChainConfig) String() string {
 	chainConfigFmt := "{ChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v "
 	chainConfigFmt += "Petersburg: %v Istanbul: %v, Odysseus: %v, Fenix: %v, Muir Glacier: %v, Berlin: %v, London: %v, Arrow Glacier: %v, "
 	chainConfigFmt += "Engine: %v, Blacklist Contract: %v, Fenix Validator Contract: %v, ConsortiumV2: %v, ConsortiumV2.RoninValidatorSet: %v, "
-	chainConfigFmt += "ConsortiumV2.SlashIndicator: %v, ConsortiumV2.StakingContract: %v, Puffy: %v, Buba: %v, Olek: %v}"
+	chainConfigFmt += "ConsortiumV2.SlashIndicator: %v, ConsortiumV2.StakingContract: %v, Puffy: %v, Buba: %v, Olek: %v, Shillin: %v}"
 
 	return fmt.Sprintf(chainConfigFmt,
 		c.ChainID,
@@ -652,6 +654,7 @@ func (c *ChainConfig) String() string {
 		c.PuffyBlock,
 		c.BubaBlock,
 		c.OlekBlock,
+		c.ShillinBlock,
 	)
 }
 
@@ -763,6 +766,11 @@ func (c *ChainConfig) IsBuba(num *big.Int) bool {
 // IsOlek returns whether the num is equals to or larger than the olek fork block.
 func (c *ChainConfig) IsOlek(num *big.Int) bool {
 	return isForked(c.OlekBlock, num)
+}
+
+// IsShillin returns whether the num is equals to or larger than the shillin fork block.
+func (c *ChainConfig) IsShillin(num *big.Int) bool {
+	return isForked(c.ShillinBlock, num)
 }
 
 // CheckCompatible checks whether scheduled fork transitions have been imported
@@ -883,6 +891,21 @@ func (c *ChainConfig) checkCompatible(newcfg *ChainConfig, head *big.Int) *Confi
 	}
 	if isForkIncompatible(c.FenixBlock, newcfg.FenixBlock, head) {
 		return newCompatError("Fenix fork block", c.FenixBlock, newcfg.FenixBlock)
+	}
+	if isForkIncompatible(c.ConsortiumV2Block, newcfg.ConsortiumV2Block, head) {
+		return newCompatError("Consortium v2 fork block", c.ConsortiumV2Block, newcfg.ConsortiumV2Block)
+	}
+	if isForkIncompatible(c.PuffyBlock, newcfg.PuffyBlock, head) {
+		return newCompatError("Puffy fork block", c.PuffyBlock, newcfg.PuffyBlock)
+	}
+	if isForkIncompatible(c.BubaBlock, newcfg.BubaBlock, head) {
+		return newCompatError("Buba fork block", c.BubaBlock, newcfg.BubaBlock)
+	}
+	if isForkIncompatible(c.OlekBlock, newcfg.OlekBlock, head) {
+		return newCompatError("Olek fork block", c.OlekBlock, newcfg.OlekBlock)
+	}
+	if isForkIncompatible(c.ShillinBlock, newcfg.ShillinBlock, head) {
+		return newCompatError("Shillin fork block", c.ShillinBlock, newcfg.ShillinBlock)
 	}
 	return nil
 }
