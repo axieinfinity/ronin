@@ -465,6 +465,50 @@ func (bc *BlockChain) StartDoubleSignMonitor() {
 	}
 }
 
+func (bc *BlockChain) StartFinalityVoteMonitor() {
+	log.Info("Starting finality vote monitor")
+
+	consensus, ok := bc.engine.(consensus.FastFinalityPoSA)
+	if !ok {
+		log.Error("Not a fast finality consensus, stop finality vote monitor")
+		return
+	}
+	finalityVoteMonitor, err := monitor.NewFinalityVoteMonitor(bc, consensus)
+	if err != nil {
+		log.Error("Finality vote monitor creation failed", "err", err)
+		return
+	}
+
+	chainEventCh := make(chan ChainEvent)
+	chainSideEventCh := make(chan ChainSideEvent)
+
+	chainEventSub := bc.SubscribeChainEvent(chainEventCh)
+	defer chainEventSub.Unsubscribe()
+	chainSideEventSub := bc.SubscribeChainSideEvent(chainSideEventCh)
+	defer chainSideEventSub.Unsubscribe()
+
+	for {
+		select {
+		case ev := <-chainEventCh:
+			block := ev.Block
+			if bc.chainConfig.IsShillin(block.Number()) {
+				finalityVoteMonitor.CheckFinalityVote(block)
+			}
+		case ev := <-chainSideEventCh:
+			block := ev.Block
+			if bc.chainConfig.IsShillin(block.Number()) {
+				finalityVoteMonitor.CheckFinalityVote(block)
+			}
+		case <-chainEventSub.Err():
+			return
+		case <-chainSideEventSub.Err():
+			return
+		case <-bc.quit:
+			return
+		}
+	}
+}
+
 // empty returns an indicator whether the blockchain is empty.
 // Note, it's a special case that we connect a non-empty ancient
 // database with an empty node, so that we can plugin the ancient
