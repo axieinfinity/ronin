@@ -28,9 +28,11 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/forkid"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/core/vote"
 	"github.com/ethereum/go-ethereum/eth/downloader"
 	"github.com/ethereum/go-ethereum/eth/fetcher"
 	"github.com/ethereum/go-ethereum/eth/protocols/eth"
+	"github.com/ethereum/go-ethereum/eth/protocols/ronin"
 	"github.com/ethereum/go-ethereum/eth/protocols/snap"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
@@ -76,15 +78,17 @@ type txPool interface {
 // handlerConfig is the collection of initialization parameters to create a full
 // node network handler.
 type handlerConfig struct {
-	Database   ethdb.Database            // Database for direct sync insertions
-	Chain      *core.BlockChain          // Blockchain to serve data from
-	TxPool     txPool                    // Transaction pool to propagate from
-	Network    uint64                    // Network identifier to adfvertise
-	Sync       downloader.SyncMode       // Whether to fast or full sync
-	BloomCache uint64                    // Megabytes to alloc for fast sync bloom
-	EventMux   *event.TypeMux            // Legacy event mux, deprecate for `feed`
-	Checkpoint *params.TrustedCheckpoint // Hard coded checkpoint for sync challenges
-	Whitelist  map[uint64]common.Hash    // Hard coded whitelist for sync challenged
+	Database             ethdb.Database            // Database for direct sync insertions
+	Chain                *core.BlockChain          // Blockchain to serve data from
+	TxPool               txPool                    // Transaction pool to propagate from
+	Network              uint64                    // Network identifier to adfvertise
+	Sync                 downloader.SyncMode       // Whether to fast or full sync
+	BloomCache           uint64                    // Megabytes to alloc for fast sync bloom
+	EventMux             *event.TypeMux            // Legacy event mux, deprecate for `feed`
+	Checkpoint           *params.TrustedCheckpoint // Hard coded checkpoint for sync challenges
+	Whitelist            map[uint64]common.Hash    // Hard coded whitelist for sync challenged
+	DisableRoninProtocol bool                      // Ronin protocol is enabled
+	VotePool             *vote.VotePool            // Vote pool when fast finality is enabled
 }
 
 type handler struct {
@@ -124,6 +128,11 @@ type handler struct {
 
 	handlerStartCh chan struct{}
 	handlerDoneCh  chan struct{}
+
+	disableRoninProtocol bool
+	votePool             *vote.VotePool
+	voteCh               chan core.NewVoteEvent
+	voteSub              event.Subscription
 }
 
 // newHandler returns a handler for all Ethereum chain management protocol.
@@ -133,17 +142,19 @@ func newHandler(config *handlerConfig) (*handler, error) {
 		config.EventMux = new(event.TypeMux) // Nicety initialization for tests
 	}
 	h := &handler{
-		networkID:      config.Network,
-		forkFilter:     forkid.NewFilter(config.Chain),
-		eventMux:       config.EventMux,
-		database:       config.Database,
-		txpool:         config.TxPool,
-		chain:          config.Chain,
-		peers:          newPeerSet(),
-		whitelist:      config.Whitelist,
-		quitSync:       make(chan struct{}),
-		handlerDoneCh:  make(chan struct{}),
-		handlerStartCh: make(chan struct{}),
+		networkID:            config.Network,
+		forkFilter:           forkid.NewFilter(config.Chain),
+		eventMux:             config.EventMux,
+		database:             config.Database,
+		txpool:               config.TxPool,
+		chain:                config.Chain,
+		peers:                newPeerSet(),
+		whitelist:            config.Whitelist,
+		quitSync:             make(chan struct{}),
+		handlerDoneCh:        make(chan struct{}),
+		handlerStartCh:       make(chan struct{}),
+		disableRoninProtocol: config.DisableRoninProtocol,
+		votePool:             config.VotePool,
 	}
 	if config.Sync == downloader.FullSync {
 		// The database seems empty as the current block is the genesis. Yet the fast
@@ -287,6 +298,15 @@ func (h *handler) runEthPeer(peer *eth.Peer, handler eth.Handler) error {
 		return err
 	}
 
+	var ronin *ronin.Peer
+	if !h.disableRoninProtocol {
+		ronin, err = h.peers.waitRoninExtension(peer)
+		if err != nil {
+			peer.Log().Error("Ronin extension barrier failed", "err", err)
+			return err
+		}
+	}
+
 	// Execute the Ethereum handshake
 	var (
 		genesis = h.chain.Genesis()
@@ -320,7 +340,7 @@ func (h *handler) runEthPeer(peer *eth.Peer, handler eth.Handler) error {
 	peer.Log().Debug("Ethereum peer connected", "name", peer.Name())
 
 	// Register the peer locally
-	if err := h.peers.registerPeer(peer, snap); err != nil {
+	if err := h.peers.registerPeer(peer, snap, ronin); err != nil {
 		peer.Log().Error("Ethereum peer registration failed", "err", err)
 		return err
 	}
@@ -393,6 +413,20 @@ func (h *handler) runSnapExtension(peer *snap.Peer, handler snap.Handler) error 
 	return handler(peer)
 }
 
+func (h *handler) runRoninExtension(peer *ronin.Peer, handler ronin.Handler) error {
+	if !h.incHandlers() {
+		return p2p.DiscQuitting
+	}
+	defer h.decHandlers()
+
+	if err := h.peers.registerRoninExtension(peer); err != nil {
+		peer.Log().Info("Ronin extension registration failed", "err", err)
+		return err
+	}
+
+	return handler(peer)
+}
+
 // removePeer requests disconnection of a peer.
 func (h *handler) removePeer(id string) {
 	peer := h.peers.peer(id)
@@ -453,11 +487,21 @@ func (h *handler) Start(maxPeers int) {
 	// start peer handler tracker
 	h.wg.Add(1)
 	go h.protoTracker()
+
+	if h.votePool != nil {
+		h.voteCh = make(chan core.NewVoteEvent)
+		h.voteSub = h.votePool.SubscribeNewVoteEvent(h.voteCh)
+		h.wg.Add(1)
+		go h.voteBroadcastLoop()
+	}
 }
 
 func (h *handler) Stop() {
 	h.txsSub.Unsubscribe()        // quits txBroadcastLoop
 	h.minedBlockSub.Unsubscribe() // quits blockBroadcastLoop
+	if h.voteSub != nil {
+		h.voteSub.Unsubscribe() // quits voteBroadcastLoop
+	}
 
 	// Quit chainSync and txsync64.
 	// After this is done, no new peers will be accepted.
@@ -569,6 +613,25 @@ func (h *handler) txBroadcastLoop() {
 		case event := <-h.txsCh:
 			h.BroadcastTransactions(event.Txs)
 		case <-h.txsSub.Err():
+			return
+		}
+	}
+}
+
+func (h *handler) broadcastVote(voteEnvelop *types.VoteEnvelope) {
+	roninPeers := h.peers.roninPeerWithoutVote(voteEnvelop.Hash())
+	for _, peer := range roninPeers {
+		peer.AsyncSendNewVote(voteEnvelop)
+	}
+}
+
+func (h *handler) voteBroadcastLoop() {
+	defer h.wg.Done()
+	for {
+		select {
+		case voteEvent := <-h.voteCh:
+			h.broadcastVote(voteEvent.Vote)
+		case <-h.voteSub.Err():
 			return
 		}
 	}

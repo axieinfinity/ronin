@@ -894,6 +894,11 @@ var (
 		Usage: "The path to bls wallet secret key",
 		Value: "bls_key",
 	}
+
+	DisableRoninProtocol = cli.BoolFlag{
+		Name:  "ronin.disable",
+		Usage: "Disable ronin p2p protocol",
+	}
 )
 
 // MakeDataDir retrieves the currently requested data directory, terminating
@@ -1728,6 +1733,9 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 		} else {
 			cfg.EthDiscoveryURLs = SplitAndTrim(urls)
 		}
+	}
+	if ctx.GlobalIsSet(DisableRoninProtocol.Name) {
+		cfg.DisableRoninProtocol = ctx.GlobalBool(DisableRoninProtocol.Name)
 	}
 	// Override any default configs for hard coded networks.
 	switch {
