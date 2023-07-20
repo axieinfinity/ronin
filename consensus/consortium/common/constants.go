@@ -2,11 +2,13 @@ package common
 
 import (
 	"errors"
+
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
 const (
-	ExtraSeal = crypto.SignatureLength // Fixed number of extra-data suffix bytes reserved for signer seal
+	ExtraSeal   = crypto.SignatureLength
+	ExtraVanity = 32
 )
 
 var (
