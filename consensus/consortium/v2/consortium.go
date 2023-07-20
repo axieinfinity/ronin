@@ -1247,6 +1247,22 @@ func (c *Consortium) IsActiveValidatorAt(chain consensus.ChainHeaderReader, head
 	return snap.inInValidatorSet(nodeValidator)
 }
 
+// GetActiveValidatorAt gets the validator that can vote for block number
+// (the vote is included in block number + 1), so get the snapshot at
+// block number
+func (c *Consortium) GetActiveValidatorAt(
+	chain consensus.ChainHeaderReader,
+	blockNumber uint64,
+	blockHash common.Hash,
+) []finality.ValidatorWithBlsPub {
+	snap, err := c.snapshot(chain, blockNumber, blockHash, nil)
+	if err != nil {
+		return nil
+	}
+
+	return snap.ValidatorsWithBlsPub
+}
+
 // ecrecover extracts the Ronin account address from a signed header.
 func ecrecover(header *types.Header, sigcache *lru.ARCCache, chainId *big.Int) (common.Address, error) {
 	// If the signature's already cached, return that
