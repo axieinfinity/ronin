@@ -20,6 +20,7 @@ package consensus
 import (
 	"math/big"
 
+	"github.com/ethereum/go-ethereum/consensus/consortium/v2/finality"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/ethdb"
 
@@ -163,6 +164,8 @@ type FastFinalityPoSA interface {
 	VerifyVote(chain ChainHeaderReader, vote *types.VoteEnvelope) error
 
 	SetVotePool(votePool VotePool)
+
+	GetActiveValidatorAt(chain ChainHeaderReader, blockNumber uint64, blockHash common.Hash) []finality.ValidatorWithBlsPub
 }
 
 type VotePool interface {
