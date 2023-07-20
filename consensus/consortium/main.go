@@ -8,6 +8,7 @@ import (
 	consortiumCommon "github.com/ethereum/go-ethereum/consensus/consortium/common"
 	v1 "github.com/ethereum/go-ethereum/consensus/consortium/v1"
 	v2 "github.com/ethereum/go-ethereum/consensus/consortium/v2"
+	"github.com/ethereum/go-ethereum/consensus/consortium/v2/finality"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -235,6 +236,21 @@ func (c *Consortium) IsActiveValidatorAt(chain consensus.ChainHeaderReader, head
 	}
 
 	return false
+}
+
+// GetActiveValidatorAt always return false before Shillin
+// See the comment for GetActiveValidatorAt in v2 package
+// for more information
+func (c *Consortium) GetActiveValidatorAt(
+	chain consensus.ChainHeaderReader,
+	blockNumber uint64,
+	blockHash common.Hash,
+) []finality.ValidatorWithBlsPub {
+	if c.chainConfig.IsShillin(big.NewInt(int64(blockNumber))) {
+		return c.v2.GetActiveValidatorAt(chain, blockNumber, blockHash)
+	}
+
+	return nil
 }
 
 // HandleSystemTransaction fixes up the statedb when system transaction
