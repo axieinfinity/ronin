@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus"
 	consortiumCommon "github.com/ethereum/go-ethereum/consensus/consortium/common"
 	"github.com/ethereum/go-ethereum/consensus/consortium/v2/finality"
+	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto/bls/blst"
 	blsCommon "github.com/ethereum/go-ethereum/crypto/bls/common"
@@ -634,5 +635,45 @@ func TestVerifyFinalitySignature(t *testing.T) {
 	err = c.verifyFinalitySignatures(nil, votedBitSet, aggregatedSignature, 0, snap.Hash, nil)
 	if err != nil {
 		t.Errorf("Expect successful verification have %v", err)
+	}
+}
+
+func TestSnapshotValidatorWithBlsKey(t *testing.T) {
+	secretKey, err := blst.RandKey()
+	if err != nil {
+		t.Fatalf("Failed to generate secret key, err: %s", err)
+	}
+
+	validators := []finality.ValidatorWithBlsPub{
+		{
+			Address:      common.Address{0x1},
+			BlsPublicKey: secretKey.PublicKey(),
+		},
+	}
+	snap := newSnapshot(nil, nil, nil, 10, common.Hash{0x2}, nil, validators, nil)
+	db := rawdb.NewMemoryDatabase()
+	err = snap.store(db)
+	if err != nil {
+		t.Fatalf("Failed to store snapshot, err: %s", err)
+	}
+
+	savedSnap, err := loadSnapshot(nil, nil, db, common.Hash{0x2}, nil, nil)
+	if err != nil {
+		t.Fatalf("Failed to load snapshot, err: %s", err)
+	}
+
+	savedValidators := savedSnap.ValidatorsWithBlsPub
+	if len(savedValidators) != len(validators) {
+		t.Fatalf("Saved snapshot is corrupted")
+	}
+
+	for i := range validators {
+		if validators[i].Address != savedValidators[i].Address {
+			t.Fatalf("Saved snapshot is corrupted")
+		}
+
+		if !validators[i].BlsPublicKey.Equals(savedValidators[i].BlsPublicKey) {
+			t.Fatalf("Saved snapshot is corrupted")
+		}
 	}
 }
