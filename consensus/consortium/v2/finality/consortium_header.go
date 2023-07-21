@@ -3,6 +3,8 @@ package finality
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -63,8 +65,47 @@ var (
 )
 
 type ValidatorWithBlsPub struct {
-	Address      common.Address      `json:"address"`
-	BlsPublicKey blsCommon.PublicKey `json:"blsPublicKey"`
+	Address      common.Address
+	BlsPublicKey blsCommon.PublicKey
+}
+
+type savedValidatorWithBlsPub struct {
+	Address      common.Address `json:"address"`
+	BlsPublicKey string         `json:"blsPublicKey,omitempty"`
+}
+
+func (validator *ValidatorWithBlsPub) UnmarshalJSON(input []byte) error {
+	var (
+		savedValidator savedValidatorWithBlsPub
+		err            error
+	)
+
+	if err = json.Unmarshal(input, &savedValidator); err != nil {
+		return err
+	}
+
+	validator.Address = savedValidator.Address
+	rawPublicKey, err := hex.DecodeString(savedValidator.BlsPublicKey)
+	if err != nil {
+		return err
+	}
+	validator.BlsPublicKey, err = blst.PublicKeyFromBytes(rawPublicKey)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (validator *ValidatorWithBlsPub) MarshalJSON() ([]byte, error) {
+	savedValidator := savedValidatorWithBlsPub{
+		Address: validator.Address,
+	}
+
+	if validator.BlsPublicKey != nil {
+		savedValidator.BlsPublicKey = hex.EncodeToString(validator.BlsPublicKey.Marshal())
+	}
+
+	return json.Marshal(&savedValidator)
 }
 
 // CheckpointValidatorAscending implements the sort interface to allow sorting a list
