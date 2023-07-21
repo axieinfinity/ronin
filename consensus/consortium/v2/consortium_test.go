@@ -770,3 +770,112 @@ func TestGetCheckpointValidatorFromContract(t *testing.T) {
 		t.Fatalf("Wrong returned list")
 	}
 }
+
+type mockVotePool struct {
+	vote []*types.VoteEnvelope
+}
+
+func (votePool *mockVotePool) FetchVoteByBlockHash(hash common.Hash) []*types.VoteEnvelope {
+	return votePool.vote
+}
+
+func TestAssembleFinalityVote(t *testing.T) {
+	var err error
+	secretKeys := make([]blsCommon.SecretKey, 10)
+	for i := 0; i < len(secretKeys); i++ {
+		secretKeys[i], err = blst.RandKey()
+		if err != nil {
+			t.Fatalf("Failed to generate secret key, err: %s", err)
+		}
+	}
+
+	voteData := types.VoteData{
+		TargetNumber: 4,
+		TargetHash:   common.Hash{0x1},
+	}
+	digest := voteData.Hash()
+
+	signatures := make([]blsCommon.Signature, 10)
+	for i := 0; i < len(signatures); i++ {
+		signatures[i] = secretKeys[i].Sign(digest[:])
+	}
+
+	var votes []*types.VoteEnvelope
+	for i := 0; i < 10; i++ {
+		votes = append(votes, &types.VoteEnvelope{
+			RawVoteEnvelope: types.RawVoteEnvelope{
+				PublicKey: types.BLSPublicKey(secretKeys[i].PublicKey().Marshal()),
+				Signature: types.BLSSignature(signatures[i].Marshal()),
+				Data:      &voteData,
+			},
+		})
+	}
+	// Wrong target number vote
+	malformedVoteData := types.VoteData{
+		TargetNumber: 6,
+		TargetHash:   common.Hash{0x1},
+	}
+	votes[4].Data = &malformedVoteData
+
+	mock := mockVotePool{
+		vote: votes,
+	}
+	c := Consortium{
+		chainConfig: &params.ChainConfig{
+			ShillinBlock: big.NewInt(0),
+		},
+		votePool: &mock,
+	}
+
+	var validators []finality.ValidatorWithBlsPub
+	for i := 0; i < 9; i++ {
+		validators = append(validators, finality.ValidatorWithBlsPub{
+			Address:      common.BigToAddress(big.NewInt(int64(i))),
+			BlsPublicKey: secretKeys[i].PublicKey(),
+		})
+	}
+
+	snap := newSnapshot(nil, nil, nil, 10, common.Hash{}, nil, validators, nil)
+
+	header := types.Header{Number: big.NewInt(5)}
+	extraData := &finality.HeaderExtraData{}
+	header.Extra = extraData.Encode(true)
+	c.assembleFinalityVote(&header, snap)
+
+	extraData, err = finality.DecodeExtra(header.Extra, true)
+	if err != nil {
+		t.Fatalf("Failed to decode extra data, err: %s", err)
+	}
+
+	if extraData.HasFinalityVote != 1 {
+		t.Fatal("Missing finality vote in header")
+	}
+
+	bitSet := finality.FinalityVoteBitSet(0)
+	for i := 0; i < 9; i++ {
+		if i != 4 {
+			bitSet.SetBit(i)
+		}
+	}
+
+	if uint64(bitSet) != uint64(extraData.FinalityVotedValidators) {
+		t.Fatalf(
+			"Mismatch voted validator, expect %d have %d",
+			uint64(bitSet),
+			uint64(extraData.FinalityVotedValidators),
+		)
+	}
+
+	var includedSignatures []blsCommon.Signature
+	for i := 0; i < 9; i++ {
+		if i != 4 {
+			includedSignatures = append(includedSignatures, signatures[i])
+		}
+	}
+
+	aggregatedSignature := blst.AggregateSignatures(includedSignatures)
+
+	if !bytes.Equal(aggregatedSignature.Marshal(), extraData.AggregatedFinalityVotes.Marshal()) {
+		t.Fatal("Mismatch signature")
+	}
+}
