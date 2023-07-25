@@ -677,3 +677,96 @@ func TestSnapshotValidatorWithBlsKey(t *testing.T) {
 		}
 	}
 }
+
+type mockContract struct {
+	validators map[common.Address]blsCommon.PublicKey
+}
+
+func (contract *mockContract) WrapUpEpoch(opts *consortiumCommon.ApplyTransactOpts) error {
+	return nil
+}
+
+func (contract *mockContract) SubmitBlockReward(opts *consortiumCommon.ApplyTransactOpts) error {
+	return nil
+}
+
+func (contract *mockContract) Slash(opts *consortiumCommon.ApplyTransactOpts, spoiledValidator common.Address) error {
+	return nil
+}
+
+func (contract *mockContract) FinalityReward(opts *consortiumCommon.ApplyTransactOpts, votedValidators []common.Address) error {
+	return nil
+}
+
+func (contract *mockContract) GetValidators(*big.Int) ([]common.Address, error) {
+	var validatorAddresses []common.Address
+	for address := range contract.validators {
+		validatorAddresses = append(validatorAddresses, address)
+	}
+	return validatorAddresses, nil
+}
+
+func (contract *mockContract) GetBlsPublicKey(_ *big.Int, address common.Address) (blsCommon.PublicKey, error) {
+	if key, ok := contract.validators[address]; ok {
+		if key != nil {
+			return key, nil
+		} else {
+			return nil, errors.New("no BLS public key found")
+		}
+	} else {
+		return nil, errors.New("address is not a validator")
+	}
+}
+
+func TestGetCheckpointValidatorFromContract(t *testing.T) {
+	var err error
+	secretKeys := make([]blsCommon.SecretKey, 3)
+	for i := 0; i < len(secretKeys); i++ {
+		secretKeys[i], err = blst.RandKey()
+		if err != nil {
+			t.Fatalf("Failed to generate secret key, err: %s", err)
+		}
+	}
+
+	mock := &mockContract{
+		validators: map[common.Address]blsCommon.PublicKey{
+			common.Address{0x1}: secretKeys[1].PublicKey(),
+			common.Address{0x2}: nil,
+			common.Address{0x5}: secretKeys[0].PublicKey(),
+			common.Address{0x3}: secretKeys[2].PublicKey(),
+		},
+	}
+	c := Consortium{
+		chainConfig: &params.ChainConfig{
+			ShillinBlock: big.NewInt(0),
+		},
+		contract: mock,
+	}
+
+	validatorWithPubs, err := c.getCheckpointValidatorsFromContract(&types.Header{Number: big.NewInt(3)})
+	if err != nil {
+		t.Fatalf("Failed to get checkpoint validators from contract, err: %s", err)
+	}
+
+	if len(validatorWithPubs) != 3 {
+		t.Fatalf("Expect returned list, length: %d have: %d", 3, len(validatorWithPubs))
+	}
+	if validatorWithPubs[0].Address != (common.Address{0x1}) {
+		t.Fatalf("Wrong returned list")
+	}
+	if !validatorWithPubs[0].BlsPublicKey.Equals(secretKeys[1].PublicKey()) {
+		t.Fatalf("Wrong returned list")
+	}
+	if validatorWithPubs[1].Address != (common.Address{0x3}) {
+		t.Fatalf("Wrong returned list")
+	}
+	if !validatorWithPubs[1].BlsPublicKey.Equals(secretKeys[2].PublicKey()) {
+		t.Fatalf("Wrong returned list")
+	}
+	if validatorWithPubs[2].Address != (common.Address{0x5}) {
+		t.Fatalf("Wrong returned list")
+	}
+	if !validatorWithPubs[2].BlsPublicKey.Equals(secretKeys[0].PublicKey()) {
+		t.Fatalf("Wrong returned list")
+	}
+}
