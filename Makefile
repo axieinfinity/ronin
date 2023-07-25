@@ -8,9 +8,10 @@
 .PHONY: ronin-darwin ronin-darwin-386 geth-darwin-amd64
 .PHONY: ronin-windows ronin-windows-386 geth-windows-amd64
 
+CFLAGS = "-O -D__BLST_PORTABLE__"
 GOBIN = ./build/bin
 GO ?= latest
-GORUN = go run
+GORUN = CGO_CFLAGS_ALLOW=$(CFLAGS) CGO_CFLAGS=$(CFLAGS) go run
 RONIN_CONTRACTS_PATH = ../ronin-dpos-contracts
 RONIN_CONTRACTS_OUTPUT_PATH = ./tmp/contracts
 GEN_CONTRACTS_OUTPUT_PATH = ./consensus/consortium/generated_contracts
@@ -27,7 +28,7 @@ generate-contract:
 	abigen --abi $(RONIN_CONTRACTS_OUTPUT_PATH)/slashing/SlashIndicator.abi --bin $(RONIN_CONTRACTS_OUTPUT_PATH)/slashing/SlashIndicator.bin --pkg slashIndicator --out $(GEN_CONTRACTS_OUTPUT_PATH)/slash_indicator/slash_indicator.go
 
 ronin:
-	CGO_CFLAGS="-O -D__BLST_PORTABLE__" $(GORUN) build/ci.go install ./cmd/ronin
+	$(GORUN) build/ci.go install ./cmd/ronin
 	@echo "Done building."
 	@echo "Run \"$(GOBIN)/ronin\" to launch ronin."
 
