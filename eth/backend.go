@@ -287,6 +287,9 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 			}
 			return state.GetFenixValidators(stateDb, eth.blockchain.Config().FenixValidatorContractAddress), nil
 		})
+		if votePool != nil {
+			c.SetVotePool(votePool)
+		}
 	}
 	// The first thing the node will do is reconstruct the verification data for
 	// the head block (ethash cache or clique voting snapshot). Might as well do
