@@ -525,7 +525,7 @@ func TestExtraDataDecode(t *testing.T) {
 }
 
 func TestVerifyFinalitySignature(t *testing.T) {
-	const numValidator = 4
+	const numValidator = 3
 	var err error
 
 	secretKey := make([]blsCommon.SecretKey, numValidator+1)
@@ -581,8 +581,7 @@ func TestVerifyFinalitySignature(t *testing.T) {
 	votedBitSet = finality.FinalityVoteBitSet(0)
 	votedBitSet.SetBit(0)
 	votedBitSet.SetBit(1)
-	votedBitSet.SetBit(2)
-	votedBitSet.SetBit(4)
+	votedBitSet.SetBit(3)
 	err = c.verifyFinalitySignatures(nil, votedBitSet, nil, 0, snap.Hash, nil)
 	if !errors.Is(err, finality.ErrInvalidFinalityVotedBitSet) {
 		t.Errorf("Expect error %v have %v", finality.ErrInvalidFinalityVotedBitSet, err)
@@ -592,12 +591,10 @@ func TestVerifyFinalitySignature(t *testing.T) {
 	votedBitSet.SetBit(0)
 	votedBitSet.SetBit(1)
 	votedBitSet.SetBit(2)
-	votedBitSet.SetBit(3)
 	aggregatedSignature := blst.AggregateSignatures([]blsCommon.Signature{
 		signature[0],
 		signature[1],
-		signature[2],
-		signature[4],
+		signature[3],
 	})
 	err = c.verifyFinalitySignatures(nil, votedBitSet, aggregatedSignature, 0, snap.Hash, nil)
 	if !errors.Is(err, finality.ErrFinalitySignatureVerificationFailed) {
@@ -608,13 +605,11 @@ func TestVerifyFinalitySignature(t *testing.T) {
 	votedBitSet.SetBit(0)
 	votedBitSet.SetBit(1)
 	votedBitSet.SetBit(2)
-	votedBitSet.SetBit(3)
 	aggregatedSignature = blst.AggregateSignatures([]blsCommon.Signature{
 		signature[0],
 		signature[1],
 		signature[2],
 		signature[3],
-		signature[4],
 	})
 	err = c.verifyFinalitySignatures(nil, votedBitSet, aggregatedSignature, 0, snap.Hash, nil)
 	if !errors.Is(err, finality.ErrFinalitySignatureVerificationFailed) {
@@ -625,12 +620,10 @@ func TestVerifyFinalitySignature(t *testing.T) {
 	votedBitSet.SetBit(0)
 	votedBitSet.SetBit(1)
 	votedBitSet.SetBit(2)
-	votedBitSet.SetBit(3)
 	aggregatedSignature = blst.AggregateSignatures([]blsCommon.Signature{
 		signature[0],
 		signature[1],
 		signature[2],
-		signature[3],
 	})
 	err = c.verifyFinalitySignatures(nil, votedBitSet, aggregatedSignature, 0, snap.Hash, nil)
 	if err != nil {
