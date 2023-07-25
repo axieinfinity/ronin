@@ -219,7 +219,10 @@ func (c *Consortium) VerifyVote(chain consensus.ChainHeaderReader, vote *types.V
 		return err
 	}
 
-	publicKey, _ := blst.PublicKeyFromBytes(vote.PublicKey[:])
+	publicKey, err := blst.PublicKeyFromBytes(vote.PublicKey[:])
+	if err != nil {
+		return err
+	}
 	if !snap.inBlsPublicKeySet(publicKey) {
 		return finality.ErrUnauthorizedFinalityVoter
 	}
@@ -1129,11 +1132,24 @@ func (c *Consortium) assembleFinalityVote(header *types.Header, snap *Snapshot) 
 		if c.votePool != nil {
 			votes := c.votePool.FetchVoteByBlockHash(header.ParentHash)
 			if len(votes) > finalityThreshold {
-				for votePosition, vote := range votes {
+				for _, vote := range votes {
+					publicKey, err := blst.PublicKeyFromBytes(vote.PublicKey[:])
+					if err != nil {
+						log.Warn("Malformed public key from vote pool", "err", err)
+						continue
+					}
+					if vote.Data.TargetNumber != header.Number.Uint64()-1 {
+						continue
+					}
 					authorized := false
-					publicKey, _ := blst.PublicKeyFromBytes(vote.PublicKey[:])
 					for valPosition, validator := range snap.ValidatorsWithBlsPub {
 						if publicKey.Equals(validator.BlsPublicKey) {
+							signature, err := blst.SignatureFromBytes(vote.Signature[:])
+							if err != nil {
+								log.Warn("Malformed signature from vote pool", "err", err)
+								break
+							}
+							signatures = append(signatures, signature)
 							finalityVotedValidators.SetBit(valPosition)
 							authorized = true
 							break
@@ -1141,17 +1157,16 @@ func (c *Consortium) assembleFinalityVote(header *types.Header, snap *Snapshot) 
 					}
 					if !authorized {
 						log.Warn("Unauthorized voter's signature from vote pool", "publicKey", hex.EncodeToString(publicKey.Marshal()))
-						// remove the signature of the invalid public key
-						signatures = append(signatures[:votePosition], signatures[votePosition+1:]...)
 					}
 				}
 
 				bitSetCount := len(finalityVotedValidators.Indices())
-				if bitSetCount > finalityThreshold && bitSetCount == len(signatures) {
+				if bitSetCount > finalityThreshold {
 					extraData, err := finality.DecodeExtra(header.Extra, true)
 					if err != nil {
 						// This should not happen
 						log.Error("Failed to decode header extra data", "err", err)
+						return
 					}
 					extraData.HasFinalityVote = 1
 					extraData.FinalityVotedValidators = finalityVotedValidators
