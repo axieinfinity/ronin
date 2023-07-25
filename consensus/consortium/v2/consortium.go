@@ -104,7 +104,7 @@ type Consortium struct {
 	lock sync.RWMutex // Protects the signer fields
 
 	ethAPI   *ethapi.PublicBlockChainAPI
-	contract *consortiumCommon.ContractIntegrator
+	contract consortiumCommon.ContractInteraction
 
 	fakeDiff bool
 	v1       consortiumCommon.ConsortiumAdapter
@@ -614,6 +614,47 @@ func (c *Consortium) verifyHeaderTime(header, parent *types.Header, snapshot *Sn
 	return nil
 }
 
+func (c *Consortium) getCheckpointValidatorsFromContract(
+	header *types.Header,
+) ([]finality.ValidatorWithBlsPub, error) {
+
+	parentBlockNumber := new(big.Int).Sub(header.Number, common.Big1)
+	newValidators, err := c.contract.GetValidators(parentBlockNumber)
+	if err != nil {
+		return nil, err
+	}
+
+	var (
+		blsPublicKeys       []blsCommon.PublicKey
+		checkpointValidator []finality.ValidatorWithBlsPub
+		filteredValidators  []common.Address = newValidators
+	)
+
+	if c.chainConfig.IsShillin(header.Number) {
+		// The filteredValidators shares the same underlying array with newValidators
+		// See more: https://github.com/golang/go/wiki/SliceTricks#filtering-without-allocating
+		filteredValidators = filteredValidators[:0]
+		for _, validator := range newValidators {
+			blsPublicKey, err := c.contract.GetBlsPublicKey(parentBlockNumber, validator)
+			if err == nil {
+				filteredValidators = append(filteredValidators, validator)
+				blsPublicKeys = append(blsPublicKeys, blsPublicKey)
+			}
+		}
+	}
+
+	for i := range filteredValidators {
+		checkpointValidator = append(checkpointValidator, finality.ValidatorWithBlsPub{
+			Address:      filteredValidators[i],
+			BlsPublicKey: blsPublicKeys[i],
+		})
+	}
+
+	// sort validator by address
+	sort.Sort(finality.CheckpointValidatorAscending(checkpointValidator))
+	return checkpointValidator, nil
+}
+
 // Prepare implements consensus.Engine, preparing all the consensus fields of the
 // header for running the transactions on top.
 func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.Header) error {
@@ -634,35 +675,10 @@ func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.He
 	var extraData finality.HeaderExtraData
 
 	if number%c.config.EpochV2 == 0 || c.chainConfig.IsOnConsortiumV2(big.NewInt(int64(number))) {
-		// This block is not inserted, the transactions in this block are not applied, so we need
-		// the call GetValidators at the context of previous block
-		newValidators, err := c.contract.GetValidators(new(big.Int).Sub(header.Number, common.Big1))
+		checkpointValidator, err := c.getCheckpointValidatorsFromContract(header)
 		if err != nil {
 			return err
 		}
-
-		var (
-			blsPublicKeys       []*blst.PublicKey = make([]*blst.PublicKey, len(newValidators))
-			checkpointValidator []finality.ValidatorWithBlsPub
-		)
-
-		// Before Shillin, when encoding the checkpointExtra into header's extra data,
-		// we ignore the blsPublicKeys. So just leave the checkpointExtra's blsPublicKeys
-		// filled with zero value before Shillin.
-		if isShillin {
-			// TODO: Get finality voter public key from contract
-			// blsPublicKeys =
-		}
-
-		for i := range newValidators {
-			checkpointValidator = append(checkpointValidator, finality.ValidatorWithBlsPub{
-				Address:      newValidators[i],
-				BlsPublicKey: blsPublicKeys[i],
-			})
-		}
-
-		// Sort validators by address
-		sort.Sort(finality.CheckpointValidatorAscending(checkpointValidator))
 		extraData.CheckpointValidators = checkpointValidator
 	}
 
@@ -798,47 +814,25 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 	// If the block is an epoch end block, verify the validator list
 	// The verification can only be done when the state is ready, it can't be done in VerifyHeader.
 	if header.Number.Uint64()%c.config.EpochV2 == 0 {
-		// The GetValidators in Prepare is called on the context of previous block so here it must
-		// be called on context of previous block too
-		newValidators, err := c.contract.GetValidators(new(big.Int).Sub(header.Number, common.Big1))
+		checkpointValidator, err := c.getCheckpointValidatorsFromContract(header)
 		if err != nil {
 			return err
 		}
-
-		var (
-			blsPublicKeys       []blsCommon.PublicKey = make([]blsCommon.PublicKey, len(newValidators))
-			checkpointValidator []finality.ValidatorWithBlsPub
-		)
-
-		if c.chainConfig.IsShillin(header.Number) {
-			// TODO: Get finality voter public key from contract
-			// blsPublicKeys =
-		}
-
-		for i := range newValidators {
-			checkpointValidator = append(checkpointValidator, finality.ValidatorWithBlsPub{
-				Address:      newValidators[i],
-				BlsPublicKey: blsPublicKeys[i],
-			})
-		}
-
-		// sort validator by address
-		sort.Sort(finality.CheckpointValidatorAscending(checkpointValidator))
 		extraData, err := finality.DecodeExtra(header.Extra, c.chainConfig.IsShillin(header.Number))
 		if err != nil {
 			return err
 		}
 
-		if len(newValidators) != len(extraData.CheckpointValidators) {
+		if len(checkpointValidator) != len(extraData.CheckpointValidators) {
 			return errMismatchingEpochValidators
 		}
 
-		for i := range newValidators {
-			if newValidators[i] != extraData.CheckpointValidators[i].Address {
+		for i := range checkpointValidator {
+			if checkpointValidator[i].Address != extraData.CheckpointValidators[i].Address {
 				return errMismatchingEpochValidators
 			}
 
-			if !blsPublicKeys[i].Equals(extraData.CheckpointValidators[i].BlsPublicKey) {
+			if !checkpointValidator[i].BlsPublicKey.Equals(extraData.CheckpointValidators[i].BlsPublicKey) {
 				return errMismatchingEpochValidators
 			}
 		}
