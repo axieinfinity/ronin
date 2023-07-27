@@ -128,9 +128,9 @@ func testVotePool(t *testing.T, isValidRules bool) {
 		voteManager *VoteManager
 	)
 	if isValidRules {
-		voteManager, err = NewVoteManager(newTestBackend(), db, params.TestChainConfig, chain, votePool, walletPasswordDir, walletDir, mockEngine, nil)
+		voteManager, err = NewVoteManager(newTestBackend(), db, params.TestChainConfig, chain, votePool, true, walletPasswordDir, walletDir, mockEngine, nil)
 	} else {
-		voteManager, err = NewVoteManager(newTestBackend(), db, params.TestChainConfig, chain, votePool, walletPasswordDir, walletDir, mockEngine, &Debug{ValidateRule: func(header *types.Header) error {
+		voteManager, err = NewVoteManager(newTestBackend(), db, params.TestChainConfig, chain, votePool, true, walletPasswordDir, walletDir, mockEngine, &Debug{ValidateRule: func(header *types.Header) error {
 			return errors.New("mock error")
 		}})
 	}
@@ -328,8 +328,10 @@ func setUpKeyManager(t *testing.T) (string, string) {
 	if err := ioutil.WriteFile(walletPasswordDir, []byte(password), 0600); err != nil {
 		t.Fatalf("failed to write wallet password dir: %v", err)
 	}
-	w := wallet.New(walletDir, password)
-	err := w.SaveWallet()
+	if err := os.MkdirAll(walletDir, 0700); err != nil {
+		t.Fatalf("failed to create wallet dir: %v", err)
+	}
+	w, err := wallet.New(walletDir, walletPasswordDir)
 	if err != nil {
 		t.Fatalf("failed to create wallet: %v", err)
 	}
