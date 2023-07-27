@@ -245,7 +245,7 @@ func (c *Consortium) verifyFinalitySignatures(
 	}
 
 	votedValidatorPositions := finalityVotedValidators.Indices()
-	if len(votedValidatorPositions) <= int(math.Floor(finalityRatio*float64(len(snap.ValidatorsWithBlsPub))))+1 {
+	if len(votedValidatorPositions) < int(math.Floor(finalityRatio*float64(len(snap.ValidatorsWithBlsPub))))+1 {
 		return finality.ErrNotEnoughFinalityVote
 	}
 
@@ -1131,7 +1131,7 @@ func (c *Consortium) assembleFinalityVote(header *types.Header, snap *Snapshot) 
 		// so we do not verify signature here
 		if c.votePool != nil {
 			votes := c.votePool.FetchVoteByBlockHash(header.ParentHash)
-			if len(votes) > finalityThreshold {
+			if len(votes) >= finalityThreshold {
 				for _, vote := range votes {
 					publicKey, err := blst.PublicKeyFromBytes(vote.PublicKey[:])
 					if err != nil {
@@ -1161,7 +1161,7 @@ func (c *Consortium) assembleFinalityVote(header *types.Header, snap *Snapshot) 
 				}
 
 				bitSetCount := len(finalityVotedValidators.Indices())
-				if bitSetCount > finalityThreshold {
+				if bitSetCount >= finalityThreshold {
 					extraData, err := finality.DecodeExtra(header.Extra, true)
 					if err != nil {
 						// This should not happen
