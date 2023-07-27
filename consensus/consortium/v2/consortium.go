@@ -1021,7 +1021,14 @@ func (c *Consortium) Close() error {
 
 // APIs are backward compatible with the v1, so we do not to implement it again
 func (c *Consortium) APIs(chain consensus.ChainHeaderReader) []rpc.API {
-	return []rpc.API{}
+	return []rpc.API{
+		{
+			Namespace: "consortiumv2",
+			Version:   "1.0",
+			Service:   &consortiumV2Api{chain: chain, consortium: c},
+			Public:    false,
+		},
+	}
 }
 
 // CalcDifficulty is the difficulty adjustment algorithm. It returns the difficulty
