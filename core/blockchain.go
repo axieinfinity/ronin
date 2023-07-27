@@ -1331,6 +1331,8 @@ func (bc *BlockChain) reorgNeeded(localBlock *types.Block, localTd *big.Int, ext
 
 		if externJustifiedBlockNumber > localJustifiedBlockNumber {
 			return true
+		} else if externJustifiedBlockNumber < localJustifiedBlockNumber {
+			return false
 		}
 	}
 
