@@ -5,6 +5,9 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"strings"
+	"sync"
+
 	ethCommon "github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto/bls"
 	"github.com/ethereum/go-ethereum/crypto/bls/common"
@@ -13,8 +16,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	keystorev4 "github.com/wealdtech/go-eth2-wallet-encryptor-keystorev4"
-	"strings"
-	"sync"
 )
 
 const (
@@ -134,6 +135,19 @@ func (km *KeyManager) FetchValidatingPublicKeys(ctx context.Context) ([][params.
 	result := make([][params.BLSPubkeyLength]byte, len(keys))
 	copy(result, keys)
 	return result, nil
+}
+
+// FetchValidatingSecretKeys fetches the list of active secret keys from the local account keystores.
+func (km *KeyManager) FetchValidatingSecretKeys(ctx context.Context) ([][params.BLSSecretKeyLength]byte, error) {
+	km.lock.RLock()
+	defer km.lock.RUnlock()
+
+	var secretKeys [][params.BLSSecretKeyLength]byte
+	for _, secretKey := range km.secKeys {
+		secretKeys = append(secretKeys, [params.BLSSecretKeyLength]byte(secretKey.Marshal()))
+	}
+
+	return secretKeys, nil
 }
 
 // Sign signs a message using a validator key.

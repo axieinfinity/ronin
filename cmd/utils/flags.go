@@ -883,6 +883,11 @@ var (
 		Usage: "Enable fast finality vote",
 	}
 
+	EnableFastFinalitySign = cli.BoolFlag{
+		Name:  "finality.enablesign",
+		Usage: "Enable fast finality vote signing",
+	}
+
 	BlsPasswordPath = cli.StringFlag{
 		Name:  "finality.blspasswordpath",
 		Usage: "The path to bls wallet password file",
@@ -892,7 +897,7 @@ var (
 	BlsWalletPath = cli.StringFlag{
 		Name:  "finality.blswalletpath",
 		Usage: "The path to bls wallet secret key",
-		Value: "bls_key",
+		Value: "bls_keystore",
 	}
 
 	DisableRoninProtocol = cli.BoolFlag{
@@ -1362,6 +1367,7 @@ func SetNodeConfig(ctx *cli.Context, cfg *node.Config) {
 func setFastFinality(ctx *cli.Context, cfg *node.Config) {
 	cfg.MaxCurVoteAmountPerBlock = ctx.GlobalInt(MaxCurVoteAmountPerBlock.Name)
 	cfg.EnableFastFinality = ctx.GlobalBool(EnableFastFinality.Name)
+	cfg.EnableFastFinalitySign = ctx.GlobalBool(EnableFastFinalitySign.Name)
 	cfg.BlsPasswordPath = ctx.GlobalString(BlsPasswordPath.Name)
 	cfg.BlsWalletPath = ctx.GlobalString(BlsWalletPath.Name)
 }

@@ -14,12 +14,15 @@
 datadir="/ronin/data"
 KEYSTORE_DIR="/ronin/keystore"
 PASSWORD_FILE="/ronin/password"
+BLS_PASSWORD_FILE="/ronin/bls_password"
+BLS_PRIVATE_KEY_DIR="/ronin/bls_keystore"
 
 # variables
 genesisPath=""
 params=""
 syncmode="snap"
 mine="true"
+blsParams=""
 
 set -e
 
@@ -68,9 +71,25 @@ if [[ ! -f $PASSWORD_FILE ]]; then
   if [[ ! -z $PASSWORD ]]; then
     echo "Password env is set. Writing into file."
     echo "$PASSWORD" > $PASSWORD_FILE
+    unset $PASSWORD
   else
     echo "No password set (or empty), generating a new one"
     $(< /dev/urandom tr -dc _A-Z-a-z-0-9 | head -c 32 > $PASSWORD_FILE)
+  fi
+fi
+
+# BLS password file
+if [[ ! -f $BLS_PASSWORD_FILE ]]; then
+  mkdir -p $KEYSTORE_DIR
+  if [[ ! -z $BLS_PASSWORD ]]; then
+    echo "BLS password env is set. Writing into file."
+    echo "$BLS_PASSWORD" > $BLS_PASSWORD_FILE
+    unset $BLS_PASSWORD
+  else
+    if [[ "$ENABLE_FAST_FINALITY_SIGN" = "true" && "$BLS_AUTO_GENERATE" = "true" ]]
+      echo "No BLS password set (or empty), generating a new one"
+      $(< /dev/urandom tr -dc _A-Z-a-z-0-9 | head -c 32 > $BLS_PASSWORD_FILE)
+    fi
   fi
 fi
 
@@ -117,11 +136,64 @@ elif [[ "$mine" = "true" ]]; then
   echo "Warning: A mining node is started without private key environment provided"
 fi
 
-accountsCount=$(
-  ronin account list --datadir $datadir  --keystore $KEYSTORE_DIR \
+blsAccountsCount=$(
+  ronin account listbls --datadir $datadir  --keystore $KEYSTORE_DIR \
   2> /dev/null \
   | wc -l
 )
+
+if [[ "$ENABLE_FAST_FINALITY" = "true" ]]; then
+  params="$params --finality.enable"
+fi
+
+if [[ "$ENABLE_FAST_FINALITY_SIGN" = "true" ]]
+  if [[ ! -z $BLS_PRIVATE_KEY ]]; then
+    echo "$BLS_PRIVATE_KEY" > ./bls_private_key
+    if [[ $blsAccountsCount -le 0 ]]; then
+      echo "No BLS accounts found"
+      echo "Creating BLS account from BLS private key"
+      ronin account importbls ./bls_private_key \
+        --bls_password $BLS_PASSWORD_FILE \
+        --bls_key $BLS_PRIVATE_KEY_DIR
+    else
+      set +e
+      ronin account checkbls ./bls_private_key \
+        --bls_password $BLS_PASSWORD_FILE \
+        --bls_key $BLS_PRIVATE_KEY_DIR 2> /dev/null
+      exitCode=$?
+      if [[ $exitCode -ne 0 ]]; then
+        echo "An account with different public key already exists in $KEYSTORE_DIR"
+        echo "Please consider remove account in keystore" \
+          "or unset the BLS private key environment variable"
+        exit 1
+      fi
+      set -e
+    fi
+    rm ./bls_private_key
+    unset BLS_PRIVATE_KEY
+  else
+    if [[ $blsAccountsCount -eq 0 ]]; then
+      if [[ $BLS_AUTO_GENERATE = "true" ]]; then
+        ronin account generatebls \
+          --bls_password $BLS_PASSWORD_FILE \
+          --bls_key $BLS_PRIVATE_KEY_DIR
+      else
+        echo "Error: Enable fast finality without providing BLS secret key"
+        exit 1
+      fi
+    fi
+  fi
+
+  blsParams="--finality.enablesign --bls_password $BLS_PASSWORD_FILE --bls_key $BLS_PRIVATE_KEY_DIR"
+  blsAccount=$(
+    ronin account list --datadir $datadir  --keystore $KEYSTORE_DIR \
+    2> /dev/null \
+    | head -n 1 \
+    | cut -d"{" -f 2 | cut -d"}" -f 1
+  )
+
+  echo "Using BLS account $blsAccount"
+fi
 
 if [[ $accountsCount -gt 0 ]]; then
   account=$(
@@ -235,4 +307,5 @@ exec ronin $params \
   --ws.origins "*" \
   --allow-insecure-unlock \
   --miner.gastarget "100000000" \
+  $blsParams \
   "$@"

@@ -257,6 +257,7 @@ var AppHelpFlagGroups = []flags.FlagGroup{
 		Flags: []cli.Flag{
 			utils.MaxCurVoteAmountPerBlock,
 			utils.EnableFastFinality,
+			utils.EnableFastFinalitySign,
 			utils.BlsPasswordPath,
 			utils.BlsWalletPath,
 		},
