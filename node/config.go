@@ -203,6 +203,7 @@ type Config struct {
 	// The maximum finality vote per current block
 	MaxCurVoteAmountPerBlock int
 	EnableFastFinality       bool
+	EnableFastFinalitySign   bool
 	// The path of password and encrypted BLS secret key used for fast finality voting
 	BlsPasswordPath string
 	BlsWalletPath   string

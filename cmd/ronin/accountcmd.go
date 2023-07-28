@@ -17,13 +17,19 @@
 package main
 
 import (
+	"context"
+	"encoding/hex"
 	"fmt"
 	"io/ioutil"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/accounts"
+	"github.com/ethereum/go-ethereum/accounts/bls"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/cmd/utils"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/bls/blst"
+	blsCommon "github.com/ethereum/go-ethereum/crypto/bls/common"
 	"github.com/ethereum/go-ethereum/log"
 	"gopkg.in/urfave/cli.v1"
 )
@@ -203,6 +209,56 @@ Check if the account corresponding to the private key exists in keystore.
 
 The keyfile is assumed to contain an unencrypted private key in hexadecimal format.
 `,
+			},
+			{
+				Name:   "listbls",
+				Usage:  "Print information of BLS account",
+				Action: utils.MigrateFlags(blsAccountList),
+				Flags: []cli.Flag{
+					utils.BlsWalletPath,
+					utils.BlsPasswordPath,
+					cli.BoolFlag{
+						Name:  "secret",
+						Usage: "include the secret key in the output",
+					},
+				},
+				Description: `ronin account listbls [--secret]`,
+			},
+			{
+				Name:   "importbls",
+				Usage:  "Import the BLS secret key",
+				Action: utils.MigrateFlags(blsAccountImport),
+				Flags: []cli.Flag{
+					utils.BlsWalletPath,
+					utils.BlsPasswordPath,
+				},
+				ArgsUsage:   "<keyFile>",
+				Description: `ronin account importbls <keyFile>`,
+			},
+			{
+				Name:   "checkbls",
+				Usage:  "Check if the BLS account corresponding to secret key exists",
+				Action: utils.MigrateFlags(blsAccountCheck),
+				Flags: []cli.Flag{
+					utils.BlsWalletPath,
+					utils.BlsPasswordPath,
+				},
+				ArgsUsage:   "<keyFile>",
+				Description: `ronin account checkbls <keyFile>`,
+			},
+			{
+				Name:   "generatebls",
+				Usage:  "Generate BLS secret key",
+				Action: utils.MigrateFlags(blsAccountGenerate),
+				Flags: []cli.Flag{
+					utils.BlsWalletPath,
+					utils.BlsPasswordPath,
+					cli.BoolFlag{
+						Name:  "secret",
+						Usage: "include the secret key in the output",
+					},
+				},
+				Description: `ronin account generatebls [--secret]`,
 			},
 		},
 	}
@@ -396,5 +452,178 @@ func accountCheck(ctx *cli.Context) error {
 		}
 	}
 	utils.Fatalf("Account %x not found", address)
+	return nil
+}
+
+func loadKeyManager(ctx *cli.Context) (*bls.KeyManager, []blsCommon.PublicKey, error) {
+	blsPasswordPath := ctx.GlobalString(utils.BlsPasswordPath.Name)
+	blsWalletPath := ctx.GlobalString(utils.BlsWalletPath.Name)
+
+	wallet, err := bls.New(blsWalletPath, blsPasswordPath)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create wallet, err %s", err)
+	}
+
+	km, err := bls.NewKeyManager(context.Background(), wallet)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to initialized key manager, err %s", err)
+	}
+
+	rawPublicKeys, err := km.FetchValidatingPublicKeys(context.Background())
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to fetch BLS public key, err %s", err)
+	}
+
+	var publicKeys []blsCommon.PublicKey
+	for _, rawPublicKey := range rawPublicKeys {
+		publicKey, err := blst.PublicKeyFromBytes(rawPublicKey[:])
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to decode BLS public key, err %s", err)
+		}
+
+		publicKeys = append(publicKeys, publicKey)
+	}
+
+	return km, publicKeys, nil
+}
+
+func loadBlsSecretKey(ctx *cli.Context) (blsCommon.SecretKey, error) {
+	keyfile := ctx.Args().First()
+	if len(keyfile) == 0 {
+		utils.Fatalf("keyfile must be given as argument")
+	}
+
+	secretKeyHex, err := ioutil.ReadFile(keyfile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read secret key, err %s", err)
+	}
+	secretKeyHexString := strings.TrimSuffix(string(secretKeyHex), "\n")
+
+	key, err := hex.DecodeString(secretKeyHexString)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode secret key, err %s", err)
+	}
+
+	secretKey, err := blst.SecretKeyFromBytes(key)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode secret key, err %s", err)
+	}
+
+	return secretKey, nil
+}
+
+func blsAccountList(ctx *cli.Context) error {
+	km, publicKeys, err := loadKeyManager(ctx)
+	if err != nil {
+		utils.Fatalf("Failed to fetch BLS public key, err %s", err)
+	}
+
+	if ctx.Bool("secret") {
+		rawSecretKeys, err := km.FetchValidatingSecretKeys(context.Background())
+		if err != nil {
+			utils.Fatalf("Failed to fetch BLS secret key, err %s", err)
+		}
+
+		for i, rawsecretKey := range rawSecretKeys {
+			secretKey, err := blst.SecretKeyFromBytes(rawsecretKey[:])
+			if err != nil {
+				utils.Fatalf("Failed to decode BLS secret key, err %s", err)
+			}
+
+			fmt.Printf("BLS public key #%d: {%x}\n", i, secretKey.PublicKey().Marshal())
+			fmt.Printf("BLS secret key #%d: {%x}\n", i, secretKey.Marshal())
+			fmt.Println()
+		}
+
+	} else {
+		for i, publicKey := range publicKeys {
+			fmt.Printf("BLS public key #%d: {%x}\n", i, publicKey.Marshal())
+		}
+	}
+
+	return nil
+}
+
+func blsAccountImport(ctx *cli.Context) error {
+	secretKey, err := loadBlsSecretKey(ctx)
+	if err != nil {
+		utils.Fatalf("Failed to load BLS secret key, err %s", err)
+	}
+
+	publicKey := secretKey.PublicKey()
+
+	km, publicKeys, err := loadKeyManager(ctx)
+	if err != nil {
+		utils.Fatalf("Failed to load BLS public key, err %s", err)
+	}
+
+	for _, pkey := range publicKeys {
+		if pkey.Equals(publicKey) {
+			utils.Fatalf("Account already existed, public key: {%x}", publicKey.Marshal())
+		}
+	}
+
+	err = km.ImportKeypairs(
+		context.Background(),
+		[][]byte{secretKey.Marshal()},
+		[][]byte{publicKey.Marshal()},
+	)
+	if err != nil {
+		utils.Fatalf("Failed to import secret key, err %s", err)
+	}
+
+	return nil
+}
+
+func blsAccountCheck(ctx *cli.Context) error {
+	secretKey, err := loadBlsSecretKey(ctx)
+	if err != nil {
+		utils.Fatalf("Failed to load BLS secret key, err %s", err)
+	}
+	publicKey := secretKey.PublicKey()
+
+	_, publicKeys, err := loadKeyManager(ctx)
+	if err != nil {
+		utils.Fatalf("Failed to load BLS public key, err %s", err)
+	}
+
+	for _, pkey := range publicKeys {
+		if pkey.Equals(publicKey) {
+			fmt.Printf("Found BLS account %x\n", publicKey.Marshal())
+			return nil
+		}
+	}
+
+	utils.Fatalf("BLS account %x not found", publicKey.Marshal())
+	return nil
+}
+
+func blsAccountGenerate(ctx *cli.Context) error {
+	secretKey, err := blst.RandKey()
+	if err != nil {
+		utils.Fatalf("Failed to generate secret key, err %s", err)
+	}
+
+	km, _, err := loadKeyManager(ctx)
+	if err != nil {
+		utils.Fatalf("Failed to load BLS public key, err %s", err)
+	}
+
+	err = km.ImportKeypairs(
+		context.Background(),
+		[][]byte{secretKey.Marshal()},
+		[][]byte{secretKey.PublicKey().Marshal()},
+	)
+	if err != nil {
+		utils.Fatalf("Failed to import generated BLS key, err %s", err)
+	}
+
+	fmt.Println("Successfully generated BLS key")
+	fmt.Printf("Public key: {%x}\n", secretKey.PublicKey().Marshal())
+
+	if ctx.Bool("secret") {
+		fmt.Printf("Secret key: {%x}\n", secretKey.Marshal())
+	}
+
 	return nil
 }
