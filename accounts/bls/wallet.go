@@ -3,10 +3,12 @@ package bls
 import (
 	"context"
 	"fmt"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/pkg/errors"
+	"io/ioutil"
 	"os"
 	"path/filepath"
+
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/pkg/errors"
 )
 
 // AccountsKeystoreFileName exposes the name of the keystore file.
@@ -17,8 +19,21 @@ type Wallet struct {
 	walletPassword string
 }
 
-func New(walletDir, walletPassword string) *Wallet {
-	return &Wallet{walletDir: walletDir, walletPassword: walletPassword}
+func New(walletDir, passwordPath string) (*Wallet, error) {
+	dirExists, err := HasDir(walletDir)
+	if err != nil {
+		return nil, err
+	}
+	if !dirExists {
+		return nil, fmt.Errorf("bls wallet dir does not exists, path: %s", walletDir)
+	}
+
+	password, err := ioutil.ReadFile(passwordPath)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Wallet{walletDir: walletDir, walletPassword: string(password)}, nil
 }
 
 // SaveWallet persists the wallet's directories to disk.

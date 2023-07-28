@@ -2,7 +2,6 @@ package vote
 
 import (
 	"context"
-	"io/ioutil"
 	"time"
 
 	wallet "github.com/ethereum/go-ethereum/accounts/bls"
@@ -28,24 +27,14 @@ type VoteSigner struct {
 }
 
 func NewVoteSigner(blsPasswordPath, blsWalletPath string) (*VoteSigner, error) {
-	dirExists, err := wallet.HasDir(blsWalletPath)
+	w, err := wallet.New(blsWalletPath, blsPasswordPath)
 	if err != nil {
-		log.Error("Check BLS wallet exists", "err", err)
+		log.Error("Failed to open BLS wallet", "err", err)
 		return nil, err
-	}
-	if !dirExists {
-		log.Error("BLS wallet did not exists.")
-		return nil, errors.New("bls wallet did not exists.")
 	}
 
-	walletPassword, err := ioutil.ReadFile(blsPasswordPath)
-	if err != nil {
-		log.Error("Read BLS wallet password", "err", err)
-		return nil, err
-	}
 	log.Info("Read BLS wallet password successfully")
 
-	w := wallet.New(blsWalletPath, string(walletPassword))
 	km, err := wallet.NewKeyManager(context.Background(), w)
 	if err != nil {
 		log.Error("Initialize key manager failed", "err", err)
