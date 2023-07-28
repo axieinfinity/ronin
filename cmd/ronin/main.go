@@ -169,6 +169,7 @@ var (
 		utils.StoreInternalTransactions,
 		utils.MaxCurVoteAmountPerBlock,
 		utils.EnableFastFinality,
+		utils.EnableFastFinalitySign,
 		utils.BlsPasswordPath,
 		utils.BlsWalletPath,
 		utils.DisableRoninProtocol,

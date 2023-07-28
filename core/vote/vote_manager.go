@@ -1,6 +1,8 @@
 package vote
 
 import (
+	"encoding/hex"
+
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
@@ -51,6 +53,7 @@ func NewVoteManager(
 	chainconfig *params.ChainConfig,
 	chain *core.BlockChain,
 	pool *VotePool,
+	enableSign bool,
 	blsPasswordPath, blsWalletPath string,
 	engine consensus.FastFinalityPoSA,
 	debug *Debug,
@@ -68,13 +71,15 @@ func NewVoteManager(
 		debug:  debug,
 	}
 
-	// Create voteSigner.
-	voteSigner, err := NewVoteSigner(blsPasswordPath, blsWalletPath)
-	if err != nil {
-		return nil, err
+	if enableSign {
+		// Create voteSigner.
+		voteSigner, err := NewVoteSigner(blsPasswordPath, blsWalletPath)
+		if err != nil {
+			return nil, err
+		}
+		log.Info("BLS voter public key", "public key", hex.EncodeToString(voteSigner.pubKey[:]))
+		voteManager.signer = voteSigner
 	}
-	log.Info("Create voteSigner successfully")
-	voteManager.signer = voteSigner
 
 	// Subscribe to chain head event.
 	voteManager.chainHeadSub = voteManager.chain.SubscribeChainHeadEvent(voteManager.chainHeadCh)
@@ -123,6 +128,10 @@ func (voteManager *VoteManager) loop() {
 			}
 			if !voteManager.eth.IsMining() {
 				log.Debug("skip voting because mining is disabled, continue")
+				continue
+			}
+			if voteManager.signer == nil {
+				log.Debug("voting is disable, skip voting")
 				continue
 			}
 
