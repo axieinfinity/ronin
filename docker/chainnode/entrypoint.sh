@@ -71,7 +71,7 @@ if [[ ! -f $PASSWORD_FILE ]]; then
   if [[ ! -z $PASSWORD ]]; then
     echo "Password env is set. Writing into file."
     echo "$PASSWORD" > $PASSWORD_FILE
-    unset $PASSWORD
+    unset PASSWORD
   else
     echo "No password set (or empty), generating a new one"
     $(< /dev/urandom tr -dc _A-Z-a-z-0-9 | head -c 32 > $PASSWORD_FILE)
@@ -84,9 +84,9 @@ if [[ ! -f $BLS_PASSWORD_FILE ]]; then
   if [[ ! -z $BLS_PASSWORD ]]; then
     echo "BLS password env is set. Writing into file."
     echo "$BLS_PASSWORD" > $BLS_PASSWORD_FILE
-    unset $BLS_PASSWORD
+    unset BLS_PASSWORD
   else
-    if [[ "$ENABLE_FAST_FINALITY_SIGN" = "true" && "$BLS_AUTO_GENERATE" = "true" ]]
+    if [[ "$ENABLE_FAST_FINALITY_SIGN" = "true" && "$BLS_AUTO_GENERATE" = "true" ]]; then
       echo "No BLS password set (or empty), generating a new one"
       $(< /dev/urandom tr -dc _A-Z-a-z-0-9 | head -c 32 > $BLS_PASSWORD_FILE)
     fi
@@ -137,29 +137,32 @@ elif [[ "$mine" = "true" ]]; then
 fi
 
 blsAccountsCount=$(
-  ronin account listbls --datadir $datadir  --keystore $KEYSTORE_DIR \
-  2> /dev/null \
-  | wc -l
+  ronin account listbls \
+    --finality.blspasswordpath $BLS_PASSWORD_FILE \
+    --finality.blswalletpath $BLS_PRIVATE_KEY_DIR \
+    2> /dev/null \
+    | wc -l
 )
 
 if [[ "$ENABLE_FAST_FINALITY" = "true" ]]; then
   params="$params --finality.enable"
 fi
 
-if [[ "$ENABLE_FAST_FINALITY_SIGN" = "true" ]]
+if [[ "$ENABLE_FAST_FINALITY_SIGN" = "true" ]]; then
+  mkdir -p $BLS_PRIVATE_KEY_DIR
   if [[ ! -z $BLS_PRIVATE_KEY ]]; then
     echo "$BLS_PRIVATE_KEY" > ./bls_private_key
     if [[ $blsAccountsCount -le 0 ]]; then
       echo "No BLS accounts found"
       echo "Creating BLS account from BLS private key"
       ronin account importbls ./bls_private_key \
-        --bls_password $BLS_PASSWORD_FILE \
-        --bls_key $BLS_PRIVATE_KEY_DIR
+        --finality.blspasswordpath $BLS_PASSWORD_FILE \
+        --finality.blswalletpath $BLS_PRIVATE_KEY_DIR
     else
       set +e
       ronin account checkbls ./bls_private_key \
-        --bls_password $BLS_PASSWORD_FILE \
-        --bls_key $BLS_PRIVATE_KEY_DIR 2> /dev/null
+        --finality.blspasswordpath $BLS_PASSWORD_FILE \
+        --finality.blswalletpath $BLS_PRIVATE_KEY_DIR 2> /dev/null
       exitCode=$?
       if [[ $exitCode -ne 0 ]]; then
         echo "An account with different public key already exists in $KEYSTORE_DIR"
@@ -175,8 +178,8 @@ if [[ "$ENABLE_FAST_FINALITY_SIGN" = "true" ]]
     if [[ $blsAccountsCount -eq 0 ]]; then
       if [[ $BLS_AUTO_GENERATE = "true" ]]; then
         ronin account generatebls \
-          --bls_password $BLS_PASSWORD_FILE \
-          --bls_key $BLS_PRIVATE_KEY_DIR
+          --finality.blspasswordpath $BLS_PASSWORD_FILE \
+          --finality.blswalletpath $BLS_PRIVATE_KEY_DIR
       else
         echo "Error: Enable fast finality without providing BLS secret key"
         exit 1
@@ -184,7 +187,7 @@ if [[ "$ENABLE_FAST_FINALITY_SIGN" = "true" ]]
     fi
   fi
 
-  blsParams="--finality.enablesign --bls_password $BLS_PASSWORD_FILE --bls_key $BLS_PRIVATE_KEY_DIR"
+  blsParams="--finality.enablesign --finality.blspasswordpath $BLS_PASSWORD_FILE --finality.blswalletpath $BLS_PRIVATE_KEY_DIR"
   blsAccount=$(
     ronin account list --datadir $datadir  --keystore $KEYSTORE_DIR \
     2> /dev/null \

@@ -1,7 +1,7 @@
 # Build Geth in a stock Go builder container
 FROM golang:1.20.0-alpine3.17 as builder
 
-RUN apk add --no-cache make gcc musl-dev linux-headers git
+RUN apk add --no-cache make gcc musl-dev linux-headers git libstdc++-dev
 
 COPY . /opt
 RUN cd /opt && make ronin
