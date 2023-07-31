@@ -633,7 +633,8 @@ func (c *Consortium) getCheckpointValidatorsFromContract(
 		filteredValidators  []common.Address = newValidators
 	)
 
-	if c.chainConfig.IsShillin(header.Number) {
+	isShillin := c.chainConfig.IsShillin(header.Number)
+	if isShillin {
 		// The filteredValidators shares the same underlying array with newValidators
 		// See more: https://github.com/golang/go/wiki/SliceTricks#filtering-without-allocating
 		filteredValidators = filteredValidators[:0]
@@ -647,10 +648,14 @@ func (c *Consortium) getCheckpointValidatorsFromContract(
 	}
 
 	for i := range filteredValidators {
-		checkpointValidator = append(checkpointValidator, finality.ValidatorWithBlsPub{
-			Address:      filteredValidators[i],
-			BlsPublicKey: blsPublicKeys[i],
-		})
+		validatorWithBlsPub := finality.ValidatorWithBlsPub{
+			Address: filteredValidators[i],
+		}
+		if isShillin {
+			validatorWithBlsPub.BlsPublicKey = blsPublicKeys[i]
+		}
+
+		checkpointValidator = append(checkpointValidator, validatorWithBlsPub)
 	}
 
 	// sort validator by address
@@ -814,6 +819,8 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 		EthAPI:      c.ethAPI,
 	}
 
+	isShillin := c.chainConfig.IsShillin(header.Number)
+
 	// If the block is an epoch end block, verify the validator list
 	// The verification can only be done when the state is ready, it can't be done in VerifyHeader.
 	if header.Number.Uint64()%c.config.EpochV2 == 0 {
@@ -821,7 +828,7 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 		if err != nil {
 			return err
 		}
-		extraData, err := finality.DecodeExtra(header.Extra, c.chainConfig.IsShillin(header.Number))
+		extraData, err := finality.DecodeExtra(header.Extra, isShillin)
 		if err != nil {
 			return err
 		}
@@ -835,8 +842,10 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 				return errMismatchingEpochValidators
 			}
 
-			if !checkpointValidator[i].BlsPublicKey.Equals(extraData.CheckpointValidators[i].BlsPublicKey) {
-				return errMismatchingEpochValidators
+			if isShillin {
+				if !checkpointValidator[i].BlsPublicKey.Equals(extraData.CheckpointValidators[i].BlsPublicKey) {
+					return errMismatchingEpochValidators
+				}
 			}
 		}
 	}
