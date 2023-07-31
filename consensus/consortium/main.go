@@ -238,6 +238,12 @@ func (c *Consortium) IsActiveValidatorAt(chain consensus.ChainHeaderReader, head
 	return false
 }
 
+// VerifyVote check if the finality voter is in the validator set, it assumes the signature is
+// already verified
+func (c *Consortium) VerifyVote(chain consensus.ChainHeaderReader, vote *types.VoteEnvelope) error {
+	return c.v2.VerifyVote(chain, vote)
+}
+
 // GetActiveValidatorAt always return false before Shillin
 // See the comment for GetActiveValidatorAt in v2 package
 // for more information
