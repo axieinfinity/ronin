@@ -114,13 +114,15 @@ func (s *Snapshot) store(db ethdb.Database) error {
 // copy creates a deep copy of the snapshot.
 func (s *Snapshot) copy() *Snapshot {
 	cpy := &Snapshot{
-		chainConfig: s.chainConfig,
-		config:      s.config,
-		ethAPI:      s.ethAPI,
-		sigCache:    s.sigCache,
-		Number:      s.Number,
-		Hash:        s.Hash,
-		Recents:     make(map[uint64]common.Address),
+		chainConfig:          s.chainConfig,
+		config:               s.config,
+		ethAPI:               s.ethAPI,
+		sigCache:             s.sigCache,
+		Number:               s.Number,
+		Hash:                 s.Hash,
+		Recents:              make(map[uint64]common.Address),
+		JustifiedBlockNumber: s.JustifiedBlockNumber,
+		JustifiedBlockHash:   s.JustifiedBlockHash,
 	}
 
 	if s.Validators != nil {
@@ -212,8 +214,8 @@ func (s *Snapshot) apply(headers []*types.Header, chain consensus.ChainHeaderRea
 			// already and the impact is not high, we simply trust the finality vote
 			// here without verification.
 			if extraData.HasFinalityVote == 1 {
-				s.JustifiedBlockNumber = header.Number.Uint64() - 1
-				s.JustifiedBlockHash = header.ParentHash
+				snap.JustifiedBlockNumber = header.Number.Uint64() - 1
+				snap.JustifiedBlockHash = header.ParentHash
 			}
 		}
 
