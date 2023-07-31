@@ -14,7 +14,7 @@ func (r *roninHandler) RunPeer(peer *ronin.Peer, hand ronin.Handler) error {
 
 func (r *roninHandler) PeerInfo(id enode.ID) interface{} {
 	ethPeer := r.peers.peer(id.String())
-	if ethPeer.roninExt != nil {
+	if ethPeer != nil && ethPeer.roninExt != nil {
 		return ethPeer.roninExt.Version()
 	} else {
 		return nil
