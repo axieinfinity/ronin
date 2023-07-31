@@ -1206,8 +1206,14 @@ func (c *Consortium) GetFinalizedBlock(
 		justifiedHash, descendantJustifiedHash     common.Hash
 	)
 
+	justifiedNumber = headNumber
+	justifiedHash = headHash
+
 	for {
-		justifiedNumber, justifiedHash = c.GetJustifiedBlock(chain, headNumber, headHash)
+		// When getting the snapshot at block N, the maximum justified number is N - 1.
+		// Here, we want to check if the block at justifiedNumber - 1 is justified too.
+		// So, the snapshot we need to look up is at justifiedNumber.
+		justifiedNumber, justifiedHash = c.GetJustifiedBlock(chain, justifiedNumber, justifiedHash)
 		if justifiedNumber == 0 {
 			return 0, common.Hash{}
 		}
@@ -1244,9 +1250,6 @@ func (c *Consortium) GetFinalizedBlock(
 			}
 		}
 
-		header := chain.GetHeaderByHash(justifiedHash)
-		headNumber = header.Number.Uint64() - 1
-		headHash = header.ParentHash
 		descendantJustifiedNumber = justifiedNumber
 		descendantJustifiedHash = justifiedHash
 	}
