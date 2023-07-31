@@ -40,9 +40,9 @@ func (api *consortiumV2Api) GetValidatorAtHash(hash common.Hash) ([]finality.Val
 }
 
 type finalityVote struct {
-	Signature      string
-	VoterPublicKey []string
-	VoterAddress   []string
+	Signature      string   `json:"signature"`
+	VoterPublicKey []string `json:"voterPublicKey"`
+	VoterAddress   []string `json:"voterAddress"`
 }
 
 // GetFinalityVoteAtHash returns the finality vote at block hash
