@@ -144,11 +144,6 @@ if [[ ! -z $SYNC_MODE ]]; then
   syncmode="$SYNC_MODE"
 fi
 
-# debug mode - enable rpc and disable local transactions
-if [[ ! -z $RPC_NODE ]]; then
-  params="$params --gcmode archive --http.api eth,net,web3,debug,consortium --txpool.nolocals"
-fi
-
 # ethstats
 if [[ ! -z $ETHSTATS_ENDPOINT ]]; then
   params="$params --ethstats $ETHSTATS_ENDPOINT"
