@@ -104,10 +104,6 @@ func (tx *LegacyTx) nonce() uint64          { return tx.Nonce }
 func (tx *LegacyTx) to() *common.Address    { return tx.To }
 func (tx *LegacyTx) expiredTime() uint64    { return 0 }
 
-func (tx *LegacyTx) blobGas() uint64           { return 0 }
-func (tx *LegacyTx) blobGasFeeCap() *big.Int   { return nil }
-func (tx *LegacyTx) blobHashes() []common.Hash { return nil }
-
 func (tx *LegacyTx) rawPayerSignatureValues() (v, r, s *big.Int) {
 	return nil, nil, nil
 }

@@ -96,10 +96,6 @@ func (tx *DynamicFeeTx) nonce() uint64          { return tx.Nonce }
 func (tx *DynamicFeeTx) to() *common.Address    { return tx.To }
 func (tx *DynamicFeeTx) expiredTime() uint64    { return 0 }
 
-func (tx *DynamicFeeTx) blobGas() uint64           { return 0 }
-func (tx *DynamicFeeTx) blobGasFeeCap() *big.Int   { return nil }
-func (tx *DynamicFeeTx) blobHashes() []common.Hash { return nil }
-
 func (tx *DynamicFeeTx) rawPayerSignatureValues() (v, r, s *big.Int) {
 	return nil, nil, nil
 }
