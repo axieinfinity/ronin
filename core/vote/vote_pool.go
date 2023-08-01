@@ -68,6 +68,7 @@ type VotePool struct {
 
 	numFutureVotePerPeer map[string]uint64      // number of queued votes per peer
 	originatedFrom       map[common.Hash]string // mapping from vote hash to the sender
+	justifiedBlockNumber uint64
 }
 
 type votesPriorityQueue []*types.VoteData
@@ -106,8 +107,13 @@ func (pool *VotePool) loop() {
 		case ev := <-pool.chainHeadCh:
 			if ev.Block != nil {
 				latestBlockNumber := ev.Block.NumberU64()
+				justifiedBlockNumber, _ := pool.engine.GetJustifiedBlock(pool.chain, ev.Block.NumberU64(), ev.Block.Hash())
+
+				pool.mu.Lock()
+				pool.justifiedBlockNumber = justifiedBlockNumber
 				pool.prune(latestBlockNumber)
 				pool.transferVotesFromFutureToCur(ev.Block.Header())
+				pool.mu.Unlock()
 			}
 		case <-pool.chainHeadSub.Err():
 			return
@@ -140,6 +146,11 @@ func (pool *VotePool) putIntoVotePool(voteWithPeerInfo *voteWithPeer) bool {
 
 	pool.mu.Lock()
 	defer pool.mu.Unlock()
+
+	if targetNumber <= pool.justifiedBlockNumber {
+		log.Debug("BlockNumber of vote is older than justified block number")
+		return false
+	}
 
 	voteHash := vote.Hash()
 	if _, ok := pool.originatedFrom[voteHash]; ok {
@@ -232,10 +243,8 @@ func (pool *VotePool) putVote(m map[common.Hash]*VoteBox, votesPq *votesPriority
 	log.Debug("VoteHash put into votepool is:", "voteHash", voteHash)
 }
 
+// The caller must hold the pool mutex
 func (pool *VotePool) transferVotesFromFutureToCur(latestBlockHeader *types.Header) {
-	pool.mu.Lock()
-	defer pool.mu.Unlock()
-
 	futurePq := pool.futureVotesPq
 	latestBlockNumber := latestBlockHeader.Number.Uint64()
 
@@ -310,26 +319,30 @@ func (pool *VotePool) transfer(blockHash common.Hash) {
 }
 
 // Prune old data of duplicationSet, curVotePq and curVotesMap.
+// The caller must hold the pool mutex
 func (pool *VotePool) prune(latestBlockNumber uint64) {
-	pool.mu.Lock()
-	defer pool.mu.Unlock()
 	curVotes := pool.curVotes
 	curVotesPq := pool.curVotesPq
 
-	// delete votes in the range [,latestBlockNumber-lowerLimitOfVoteBlockNumber]
-	for curVotesPq.Len() > 0 && curVotesPq.Peek().TargetNumber+lowerLimitOfVoteBlockNumber-1 < latestBlockNumber {
-		// Prune curPriorityQueue.
-		blockHash := heap.Pop(curVotesPq).(*types.VoteData).TargetHash
-		localCurVotesPqGauge.Update(int64(curVotesPq.Len()))
-		if voteBox, ok := curVotes[blockHash]; ok {
-			voteMessages := voteBox.voteMessages
-			// Prune duplicationSet.
-			for _, voteMessage := range voteMessages {
-				voteHash := voteMessage.Hash()
-				delete(pool.originatedFrom, voteHash)
+	// delete votes older than or equal to latestBlockNumber-lowerLimitOfVoteBlockNumber or justified block number
+	for curVotesPq.Len() > 0 {
+		vote := curVotesPq.Peek()
+		if vote.TargetNumber+lowerLimitOfVoteBlockNumber-1 < latestBlockNumber || vote.TargetNumber <= pool.justifiedBlockNumber {
+			// Prune curPriorityQueue.
+			blockHash := heap.Pop(curVotesPq).(*types.VoteData).TargetHash
+			localCurVotesPqGauge.Update(int64(curVotesPq.Len()))
+			if voteBox, ok := curVotes[blockHash]; ok {
+				voteMessages := voteBox.voteMessages
+				// Prune duplicationSet.
+				for _, voteMessage := range voteMessages {
+					voteHash := voteMessage.Hash()
+					delete(pool.originatedFrom, voteHash)
+				}
+				// Prune curVotes Map.
+				delete(curVotes, blockHash)
 			}
-			// Prune curVotes Map.
-			delete(curVotes, blockHash)
+		} else {
+			break
 		}
 	}
 }
