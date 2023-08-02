@@ -318,33 +318,46 @@ func (pool *VotePool) transfer(blockHash common.Hash) {
 	delete(futureVotes, blockHash)
 }
 
-// Prune old data of duplicationSet, curVotePq and curVotesMap.
-// The caller must hold the pool mutex
-func (pool *VotePool) prune(latestBlockNumber uint64) {
-	curVotes := pool.curVotes
-	curVotesPq := pool.curVotesPq
-
+func (pool *VotePool) pruneVote(
+	latestBlockNumber uint64,
+	voteMap map[common.Hash]*VoteBox,
+	voteQueue *votesPriorityQueue,
+	isFuture bool,
+) {
 	// delete votes older than or equal to latestBlockNumber-lowerLimitOfVoteBlockNumber or justified block number
-	for curVotesPq.Len() > 0 {
-		vote := curVotesPq.Peek()
+	for voteQueue.Len() > 0 {
+		vote := voteQueue.Peek()
 		if vote.TargetNumber+lowerLimitOfVoteBlockNumber-1 < latestBlockNumber || vote.TargetNumber <= pool.justifiedBlockNumber {
-			// Prune curPriorityQueue.
-			blockHash := heap.Pop(curVotesPq).(*types.VoteData).TargetHash
-			localCurVotesPqGauge.Update(int64(curVotesPq.Len()))
-			if voteBox, ok := curVotes[blockHash]; ok {
+			blockHash := heap.Pop(voteQueue).(*types.VoteData).TargetHash
+
+			if isFuture {
+				localFutureVotesPqGauge.Update(int64(voteQueue.Len()))
+			} else {
+				localCurVotesPqGauge.Update(int64(voteQueue.Len()))
+			}
+
+			if voteBox, ok := voteMap[blockHash]; ok {
 				voteMessages := voteBox.voteMessages
-				// Prune duplicationSet.
 				for _, voteMessage := range voteMessages {
 					voteHash := voteMessage.Hash()
+					if peer := pool.originatedFrom[voteHash]; peer != "" && isFuture {
+						pool.numFutureVotePerPeer[peer]--
+					}
 					delete(pool.originatedFrom, voteHash)
 				}
-				// Prune curVotes Map.
-				delete(curVotes, blockHash)
+				delete(voteMap, blockHash)
 			}
 		} else {
 			break
 		}
 	}
+}
+
+// Prune old data of curVotes and futureVotes
+// The caller must hold the pool mutex
+func (pool *VotePool) prune(latestBlockNumber uint64) {
+	pool.pruneVote(latestBlockNumber, pool.curVotes, pool.curVotesPq, false)
+	pool.pruneVote(latestBlockNumber, pool.futureVotes, pool.futureVotesPq, true)
 }
 
 // GetVotes as batch.
