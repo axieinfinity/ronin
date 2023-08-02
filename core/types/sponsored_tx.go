@@ -1,9 +1,11 @@
 package types
 
 import (
+	"bytes"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/rlp"
 )
 
 type SponsoredTx struct {
@@ -86,10 +88,6 @@ func (tx *SponsoredTx) nonce() uint64          { return tx.Nonce }
 func (tx *SponsoredTx) to() *common.Address    { return tx.To }
 func (tx *SponsoredTx) expiredTime() uint64    { return tx.ExpiredTime }
 
-func (tx *SponsoredTx) blobGas() uint64           { return 0 }
-func (tx *SponsoredTx) blobGasFeeCap() *big.Int   { return nil }
-func (tx *SponsoredTx) blobHashes() []common.Hash { return nil }
-
 func (tx *SponsoredTx) rawPayerSignatureValues() (v, r, s *big.Int) {
 	return tx.PayerV, tx.PayerR, tx.PayerS
 }
@@ -100,4 +98,12 @@ func (tx *SponsoredTx) rawSignatureValues() (v, r, s *big.Int) {
 
 func (tx *SponsoredTx) setSignatureValues(chainID, v, r, s *big.Int) {
 	tx.ChainID, tx.V, tx.R, tx.S = chainID, v, r, s
+}
+
+func (tx *SponsoredTx) encode(b *bytes.Buffer) error {
+	return rlp.Encode(b, tx)
+}
+
+func (tx *SponsoredTx) decode(input []byte) error {
+	return rlp.DecodeBytes(input, tx)
 }
