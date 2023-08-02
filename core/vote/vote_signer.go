@@ -50,6 +50,10 @@ func NewVoteSigner(blsPasswordPath, blsWalletPath string) (*VoteSigner, error) {
 		return nil, errors.Wrap(err, "could not fetch validating public keys")
 	}
 
+	if len(pubKeys) < 1 {
+		return nil, errors.New("no BLS key in keystore")
+	}
+
 	return &VoteSigner{
 		km:     km,
 		pubKey: pubKeys[0],

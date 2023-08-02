@@ -136,20 +136,20 @@ elif [[ "$mine" = "true" ]]; then
   echo "Warning: A mining node is started without private key environment provided"
 fi
 
-blsAccountsCount=$(
-  ronin account listbls \
-    --finality.blspasswordpath $BLS_PASSWORD_FILE \
-    --finality.blswalletpath $BLS_PRIVATE_KEY_DIR \
-    2> /dev/null \
-    | wc -l
-)
-
 if [[ "$ENABLE_FAST_FINALITY" = "true" ]]; then
   params="$params --finality.enable"
 fi
 
 if [[ "$ENABLE_FAST_FINALITY_SIGN" = "true" ]]; then
   mkdir -p $BLS_PRIVATE_KEY_DIR
+  blsAccountsCount=$(
+    ronin account listbls \
+      --finality.blspasswordpath $BLS_PASSWORD_FILE \
+      --finality.blswalletpath $BLS_PRIVATE_KEY_DIR \
+      2> /dev/null \
+      | wc -l
+  )
+
   if [[ ! -z $BLS_PRIVATE_KEY ]]; then
     echo "$BLS_PRIVATE_KEY" > ./bls_private_key
     if [[ $blsAccountsCount -le 0 ]]; then
@@ -189,10 +189,12 @@ if [[ "$ENABLE_FAST_FINALITY_SIGN" = "true" ]]; then
 
   blsParams="--finality.enablesign --finality.blspasswordpath $BLS_PASSWORD_FILE --finality.blswalletpath $BLS_PRIVATE_KEY_DIR"
   blsAccount=$(
-    ronin account list --datadir $datadir  --keystore $KEYSTORE_DIR \
-    2> /dev/null \
-    | head -n 1 \
-    | cut -d"{" -f 2 | cut -d"}" -f 1
+    ronin account listbls \
+      --finality.blspasswordpath $BLS_PASSWORD_FILE \
+      --finality.blswalletpath $BLS_PRIVATE_KEY_DIR \
+      2> /dev/null \
+      | head -n 1 \
+      | cut -d"{" -f 2 | cut -d"}" -f 1
   )
 
   echo "Using BLS account $blsAccount"
@@ -296,6 +298,14 @@ fi
 echo "dump: $account $BOOTNODES"
 
 set -x
+
+if [[ "$BLS_SHOW_PRIVATE_KEY" = "true" ]]; then
+  mkdir -p $BLS_PRIVATE_KEY_DIR
+  exec ronin account listbls \
+    --finality.blspasswordpath $BLS_PASSWORD_FILE \
+    --finality.blswalletpath $BLS_PRIVATE_KEY_DIR \
+    --secret
+fi
 
 exec ronin $params \
   --syncmode $syncmode \
