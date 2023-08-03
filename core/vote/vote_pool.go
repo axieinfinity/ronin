@@ -120,7 +120,11 @@ func (pool *VotePool) loop() {
 }
 
 func (pool *VotePool) PutVote(peer string, vote *types.VoteEnvelope) {
-	pool.votesCh <- &voteWithPeer{vote: vote, peer: peer}
+	select {
+	case pool.votesCh <- &voteWithPeer{vote: vote, peer: peer}:
+	default:
+		log.Debug("Failed to put vote into vote pool")
+	}
 }
 
 func (pool *VotePool) putIntoVotePool(voteWithPeerInfo *voteWithPeer) bool {
