@@ -89,7 +89,6 @@ func (p *Peer) AsyncSendNewVote(vote *types.VoteEnvelope) {
 	default:
 		p.Log().Debug("Dropping vote announcement", "hash", vote.Hash())
 	}
-	p.voteCh <- vote
 }
 
 // batchVote batches multiple votes and sends to the peer.
