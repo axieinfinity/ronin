@@ -28,6 +28,7 @@ ENV ENABLE_FAST_FINALITY_SIGN 'true'
 ENV BLS_PRIVATE_KEY ''
 ENV BLS_PASSWORD ''
 ENV BLS_AUTO_GENERATE 'false'
+ENV BLS_SHOW_PRIVATE_KEY 'false'
 
 COPY --from=builder /opt/build/bin/ronin /usr/local/bin/ronin
 COPY --from=builder /opt/genesis/ ./
