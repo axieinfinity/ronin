@@ -62,6 +62,10 @@ var (
 	// ErrInvalidSpanValidators is returned if a block contains an
 	// invalid list of validators (i.e. non divisible by 20 bytes).
 	ErrInvalidSpanValidators = errors.New("invalid validator list on sprint end block")
+
+	// ErrInvalidTargetNumber is returned if the vote contains invalid
+	// target number
+	ErrInvalidTargetNumber = errors.New("invalid target number in vote")
 )
 
 type ValidatorWithBlsPub struct {

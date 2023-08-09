@@ -12,8 +12,11 @@ import (
 	"github.com/ethereum/go-ethereum/consensus"
 	consortiumCommon "github.com/ethereum/go-ethereum/consensus/consortium/common"
 	"github.com/ethereum/go-ethereum/consensus/consortium/v2/finality"
+	"github.com/ethereum/go-ethereum/consensus/ethash"
+	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto/bls/blst"
 	blsCommon "github.com/ethereum/go-ethereum/crypto/bls/common"
 	"github.com/ethereum/go-ethereum/params"
@@ -539,8 +542,8 @@ func TestVerifyFinalitySignature(t *testing.T) {
 	valWithBlsPub := make([]finality.ValidatorWithBlsPub, numValidator)
 	for i := 0; i < len(valWithBlsPub); i++ {
 		valWithBlsPub[i] = finality.ValidatorWithBlsPub{
-			common.BigToAddress(big.NewInt(int64(i))),
-			secretKey[i].PublicKey(),
+			Address:      common.BigToAddress(big.NewInt(int64(i))),
+			BlsPublicKey: secretKey[i].PublicKey(),
 		}
 	}
 
@@ -803,12 +806,6 @@ func TestAssembleFinalityVote(t *testing.T) {
 			},
 		})
 	}
-	// Wrong target number vote
-	malformedVoteData := types.VoteData{
-		TargetNumber: 6,
-		TargetHash:   common.Hash{0x1},
-	}
-	votes[4].Data = &malformedVoteData
 
 	mock := mockVotePool{
 		vote: votes,
@@ -846,9 +843,7 @@ func TestAssembleFinalityVote(t *testing.T) {
 
 	bitSet := finality.FinalityVoteBitSet(0)
 	for i := 0; i < 9; i++ {
-		if i != 4 {
-			bitSet.SetBit(i)
-		}
+		bitSet.SetBit(i)
 	}
 
 	if uint64(bitSet) != uint64(extraData.FinalityVotedValidators) {
@@ -861,14 +856,119 @@ func TestAssembleFinalityVote(t *testing.T) {
 
 	var includedSignatures []blsCommon.Signature
 	for i := 0; i < 9; i++ {
-		if i != 4 {
-			includedSignatures = append(includedSignatures, signatures[i])
-		}
+		includedSignatures = append(includedSignatures, signatures[i])
 	}
 
 	aggregatedSignature := blst.AggregateSignatures(includedSignatures)
 
 	if !bytes.Equal(aggregatedSignature.Marshal(), extraData.AggregatedFinalityVotes.Marshal()) {
 		t.Fatal("Mismatch signature")
+	}
+}
+
+func TestVerifyVote(t *testing.T) {
+	const numValidator = 3
+	var err error
+
+	secretKey := make([]blsCommon.SecretKey, numValidator+1)
+	for i := 0; i < len(secretKey); i++ {
+		secretKey[i], err = blst.RandKey()
+		if err != nil {
+			t.Fatalf("Failed to generate secret key, err %s", err)
+		}
+	}
+
+	valWithBlsPub := make([]finality.ValidatorWithBlsPub, numValidator)
+	for i := 0; i < len(valWithBlsPub); i++ {
+		valWithBlsPub[i] = finality.ValidatorWithBlsPub{
+			Address:      common.BigToAddress(big.NewInt(int64(i))),
+			BlsPublicKey: secretKey[i].PublicKey(),
+		}
+	}
+
+	db := rawdb.NewMemoryDatabase()
+	genesis := (&core.Genesis{
+		Config:  params.TestChainConfig,
+		BaseFee: big.NewInt(params.InitialBaseFee),
+	}).MustCommit(db)
+	chain, _ := core.NewBlockChain(db, nil, params.TestChainConfig, ethash.NewFullFaker(), vm.Config{}, nil, nil)
+
+	bs, _ := core.GenerateChain(params.TestChainConfig, genesis, ethash.NewFaker(), db, 1, nil, true)
+	if _, err := chain.InsertChain(bs[:]); err != nil {
+		panic(err)
+	}
+
+	snap := newSnapshot(nil, nil, nil, 10, common.Hash{}, nil, valWithBlsPub, nil)
+	recents, _ := lru.NewARC(inmemorySnapshots)
+	c := Consortium{
+		chainConfig: &params.ChainConfig{
+			ShillinBlock: big.NewInt(0),
+		},
+		config: &params.ConsortiumConfig{
+			EpochV2: 300,
+		},
+		recents: recents,
+	}
+	snap.Hash = bs[0].Hash()
+	c.recents.Add(snap.Hash, snap)
+
+	// invalid vote number
+	voteData := types.VoteData{
+		TargetNumber: 2,
+		TargetHash:   bs[0].Hash(),
+	}
+	signature := secretKey[0].Sign(voteData.Hash().Bytes())
+
+	vote := types.VoteEnvelope{
+		RawVoteEnvelope: types.RawVoteEnvelope{
+			PublicKey: types.BLSPublicKey(secretKey[0].PublicKey().Marshal()),
+			Signature: types.BLSSignature(signature.Marshal()),
+			Data:      &voteData,
+		},
+	}
+
+	err = c.VerifyVote(chain, &vote)
+	if !errors.Is(err, finality.ErrInvalidTargetNumber) {
+		t.Errorf("Expect error %v have %v", finality.ErrInvalidTargetNumber, err)
+	}
+
+	// invalid public key
+	voteData = types.VoteData{
+		TargetNumber: 1,
+		TargetHash:   bs[0].Hash(),
+	}
+	signature = secretKey[numValidator].Sign(voteData.Hash().Bytes())
+
+	vote = types.VoteEnvelope{
+		RawVoteEnvelope: types.RawVoteEnvelope{
+			PublicKey: types.BLSPublicKey(secretKey[numValidator].PublicKey().Marshal()),
+			Signature: types.BLSSignature(signature.Marshal()),
+			Data:      &voteData,
+		},
+	}
+
+	err = c.VerifyVote(chain, &vote)
+	if !errors.Is(err, finality.ErrUnauthorizedFinalityVoter) {
+		t.Errorf("Expect error %v have %v", finality.ErrUnauthorizedFinalityVoter, err)
+	}
+
+	// sucessful case
+	voteData = types.VoteData{
+		TargetNumber: 1,
+		TargetHash:   bs[0].Hash(),
+	}
+	signature = secretKey[0].Sign(voteData.Hash().Bytes())
+
+	vote = types.VoteEnvelope{
+		RawVoteEnvelope: types.RawVoteEnvelope{
+			PublicKey: types.BLSPublicKey(secretKey[0].PublicKey().Marshal()),
+			Signature: types.BLSSignature(signature.Marshal()),
+			Data:      &voteData,
+		},
+	}
+
+	err = c.VerifyVote(chain, &vote)
+	if err != nil {
+		t.Errorf("Expect sucessful verification have %s", err)
 	}
 }
