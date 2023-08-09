@@ -59,12 +59,8 @@ func newTestBackend() *testBackend {
 func (b *testBackend) IsMining() bool           { return true }
 func (b *testBackend) EventMux() *event.TypeMux { return b.eventMux }
 
-func (p *mockPOSA) GetJustifiedNumberAndHash(chain consensus.ChainHeaderReader, header *types.Header) (uint64, common.Hash, error) {
-	parentHeader := chain.GetHeaderByHash(header.ParentHash)
-	if parentHeader == nil {
-		return 0, common.Hash{}, fmt.Errorf("unexpected error")
-	}
-	return parentHeader.Number.Uint64(), parentHeader.Hash(), nil
+func (p *mockPOSA) GetJustifiedBlock(chain consensus.ChainHeaderReader, blockNumber uint64, blockHash common.Hash) (uint64, common.Hash) {
+	return 0, common.Hash{}
 }
 
 func (m *mockPOSA) VerifyVote(chain consensus.ChainHeaderReader, vote *types.VoteEnvelope) error {
