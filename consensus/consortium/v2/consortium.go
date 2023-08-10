@@ -96,15 +96,14 @@ type Consortium struct {
 	recents    *lru.ARCCache // Snapshots for recent block to speed up reorgs
 	signatures *lru.ARCCache // Signatures of recent blocks to speed up mining
 
-	val      common.Address // Ethereum address of the signing key
-	signer   types.Signer
+	lock     sync.RWMutex              // Protects the below 4 fields
+	val      common.Address            // Ethereum address of the signing key
 	signFn   consortiumCommon.SignerFn // Signer function to authorize hashes with
 	signTxFn consortiumCommon.SignerTxFn
-
-	lock sync.RWMutex // Protects the signer fields
-
-	ethAPI   *ethapi.PublicBlockChainAPI
 	contract consortiumCommon.ContractInteraction
+
+	signer types.Signer
+	ethAPI *ethapi.PublicBlockChainAPI
 
 	fakeDiff bool
 	v1       consortiumCommon.ConsortiumAdapter
@@ -409,7 +408,8 @@ func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, 
 			}
 
 			// get validators set from number
-			validators, err = c.contract.GetValidators(big.NewInt(0).SetUint64(number))
+			_, _, _, contract := c.readSignerAndContract()
+			validators, err = contract.GetValidators(big.NewInt(0).SetUint64(number))
 			if err != nil {
 				log.Error("Load validators at the beginning failed", "err", err)
 				return nil, err
@@ -622,7 +622,8 @@ func (c *Consortium) getCheckpointValidatorsFromContract(
 ) ([]finality.ValidatorWithBlsPub, error) {
 
 	parentBlockNumber := new(big.Int).Sub(header.Number, common.Big1)
-	newValidators, err := c.contract.GetValidators(parentBlockNumber)
+	_, _, _, contract := c.readSignerAndContract()
+	newValidators, err := contract.GetValidators(parentBlockNumber)
 	if err != nil {
 		return nil, err
 	}
@@ -639,7 +640,7 @@ func (c *Consortium) getCheckpointValidatorsFromContract(
 		// See more: https://github.com/golang/go/wiki/SliceTricks#filtering-without-allocating
 		filteredValidators = filteredValidators[:0]
 		for _, validator := range newValidators {
-			blsPublicKey, err := c.contract.GetBlsPublicKey(parentBlockNumber, validator)
+			blsPublicKey, err := contract.GetBlsPublicKey(parentBlockNumber, validator)
 			if err == nil {
 				filteredValidators = append(filteredValidators, validator)
 				blsPublicKeys = append(blsPublicKeys, blsPublicKey)
@@ -666,7 +667,7 @@ func (c *Consortium) getCheckpointValidatorsFromContract(
 // Prepare implements consensus.Engine, preparing all the consensus fields of the
 // header for running the transactions on top.
 func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.Header) error {
-	coinbase, _, _ := c.readSigner()
+	coinbase, _, _, _ := c.readSignerAndContract()
 	header.Coinbase = coinbase
 	header.Nonce = types.BlockNonce{}
 
@@ -709,14 +710,6 @@ func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.He
 	return nil
 }
 
-func (c *Consortium) submitBlockReward(transactOpts *consortiumCommon.ApplyTransactOpts) error {
-	if err := c.contract.SubmitBlockReward(transactOpts); err != nil {
-		log.Error("Failed to submit block reward", "err", err)
-		return err
-	}
-	return nil
-}
-
 func (c *Consortium) processSystemTransactions(chain consensus.ChainHeaderReader, header *types.Header,
 	transactOpts *consortiumCommon.ApplyTransactOpts, isFinalizeAndAssemble bool) error {
 
@@ -724,6 +717,8 @@ func (c *Consortium) processSystemTransactions(chain consensus.ChainHeaderReader
 	if err != nil {
 		return err
 	}
+
+	_, _, _, contract := c.readSignerAndContract()
 
 	if c.chainConfig.IsShillin(header.Number) {
 		extraData, err := finality.DecodeExtra(header.Extra, c.chainConfig.IsShillin(header.Number))
@@ -738,7 +733,7 @@ func (c *Consortium) processSystemTransactions(chain consensus.ChainHeaderReader
 				votedValidators = append(votedValidators, snap.ValidatorsWithBlsPub[position].Address)
 			}
 
-			if err := c.contract.FinalityReward(transactOpts, votedValidators); err != nil {
+			if err := contract.FinalityReward(transactOpts, votedValidators); err != nil {
 				log.Error("Failed to finality reward validator", "err", err)
 				return err
 			}
@@ -762,7 +757,7 @@ func (c *Consortium) processSystemTransactions(chain consensus.ChainHeaderReader
 			if !isFinalizeAndAssemble {
 				log.Info("Slash validator", "number", header.Number, "spoiled", spoiledVal)
 			}
-			if err := c.contract.Slash(transactOpts, spoiledVal); err != nil {
+			if err := contract.Slash(transactOpts, spoiledVal); err != nil {
 				// it is possible that slash validator failed because of the slash channel is disabled.
 				log.Error("Failed to slash validator", "block hash", header.Hash(), "address", spoiledVal)
 				return err
@@ -773,20 +768,24 @@ func (c *Consortium) processSystemTransactions(chain consensus.ChainHeaderReader
 	// Previously, we call WrapUpEpoch before SubmitBlockReward which is the wrong order.
 	// We create a hardfork here to fix the contract call order.
 	if c.chainConfig.IsPuffy(header.Number) {
-		if err := c.submitBlockReward(transactOpts); err != nil {
+		if err := contract.SubmitBlockReward(transactOpts); err != nil {
+			log.Error("Failed to submit block reward", "err", err)
 			return err
 		}
 	}
 
 	if header.Number.Uint64()%c.config.EpochV2 == c.config.EpochV2-1 {
-		if err := c.contract.WrapUpEpoch(transactOpts); err != nil {
+		if err := contract.WrapUpEpoch(transactOpts); err != nil {
 			log.Error("Failed to wrap up epoch", "err", err)
 			return err
 		}
 	}
 
 	if !c.chainConfig.IsPuffy(header.Number) {
-		return c.submitBlockReward(transactOpts)
+		if err := contract.SubmitBlockReward(transactOpts); err != nil {
+			log.Error("Failed to submit block reward", "err", err)
+			return err
+		}
 	}
 
 	return nil
@@ -798,7 +797,7 @@ func (c *Consortium) processSystemTransactions(chain consensus.ChainHeaderReader
 // - SubmitBlockRewards of the current block
 func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.Header, state *state.StateDB, txs *[]*types.Transaction,
 	uncles []*types.Header, receipts *[]*types.Receipt, systemTxs *[]*types.Transaction, internalTxs *[]*types.InternalTransaction, usedGas *uint64) error {
-	_, _, signTxFn := c.readSigner()
+	_, _, signTxFn, _ := c.readSignerAndContract()
 	evmContext := core.NewEVMBlockContext(header, consortiumCommon.ChainContext{Chain: chain, Consortium: c}, &header.Coinbase, chain.OpEvents()...)
 	transactOpts := &consortiumCommon.ApplyTransactOpts{
 		ApplyMessageOpts: &consortiumCommon.ApplyMessageOpts{
@@ -875,7 +874,7 @@ func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, head
 	if receipts == nil {
 		receipts = make([]*types.Receipt, 0)
 	}
-	_, _, signTxFn := c.readSigner()
+	_, _, signTxFn, _ := c.readSignerAndContract()
 	evmContext := core.NewEVMBlockContext(header, consortiumCommon.ChainContext{Chain: chain, Consortium: c}, &header.Coinbase, chain.OpEvents()...)
 	transactOpts := &consortiumCommon.ApplyTransactOpts{
 		ApplyMessageOpts: &consortiumCommon.ApplyMessageOpts{
@@ -925,10 +924,11 @@ func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, head
 // Authorize injects a private key into the consensus engine to mint new blocks with
 func (c *Consortium) Authorize(signer common.Address, signFn consortiumCommon.SignerFn, signTxFn consortiumCommon.SignerTxFn) {
 	c.lock.Lock()
+	defer c.lock.Unlock()
+
 	c.val = signer
 	c.signFn = signFn
 	c.signTxFn = signTxFn
-	c.lock.Unlock()
 
 	err := c.initContract(signer, signTxFn)
 	if err != nil {
@@ -952,7 +952,7 @@ func (c *Consortium) Seal(chain consensus.ChainHeaderReader, block *types.Block,
 		return nil
 	}
 	// Don't hold the val fields for the entire sealing procedure
-	val, signFn, _ := c.readSigner()
+	val, signFn, _, _ := c.readSignerAndContract()
 
 	snap, err := c.snapshot(chain, number-1, header.ParentHash, nil)
 	if err != nil {
@@ -1049,7 +1049,7 @@ func (c *Consortium) CalcDifficulty(chain consensus.ChainHeaderReader, time uint
 	if err != nil {
 		return nil
 	}
-	coinbase, _, _ := c.readSigner()
+	coinbase, _, _, _ := c.readSignerAndContract()
 	return CalcDifficulty(snap, coinbase)
 }
 
@@ -1074,11 +1074,16 @@ func (c *Consortium) initContract(coinbase common.Address, signTxFn consortiumCo
 	return nil
 }
 
-func (c *Consortium) readSigner() (common.Address, consortiumCommon.SignerFn, consortiumCommon.SignerTxFn) {
+func (c *Consortium) readSignerAndContract() (
+	common.Address,
+	consortiumCommon.SignerFn,
+	consortiumCommon.SignerTxFn,
+	consortiumCommon.ContractInteraction,
+) {
 	c.lock.RLock()
 	defer c.lock.RUnlock()
 
-	return c.val, c.signFn, c.signTxFn
+	return c.val, c.signFn, c.signTxFn, c.contract
 }
 
 // GetBestParentBlock goes backward in the canonical chain to find if the miner can
@@ -1086,7 +1091,7 @@ func (c *Consortium) readSigner() (common.Address, consortiumCommon.SignerFn, co
 // cannot create a better chain, this function returns the head block of current
 // canonical chain.
 func (c *Consortium) GetBestParentBlock(chain *core.BlockChain) (*types.Block, bool) {
-	signer, _, _ := c.readSigner()
+	signer, _, _, _ := c.readSignerAndContract()
 
 	currentBlock := chain.CurrentBlock()
 	block := currentBlock
@@ -1271,7 +1276,7 @@ func (c *Consortium) IsActiveValidatorAt(chain consensus.ChainHeaderReader, head
 		return false
 	}
 
-	nodeValidator, _, _ := c.readSigner()
+	nodeValidator, _, _, _ := c.readSignerAndContract()
 	return snap.inInValidatorSet(nodeValidator)
 }
 
