@@ -1011,7 +1011,7 @@ func (c *Consortium) Seal(chain consensus.ChainHeaderReader, block *types.Block,
 		select {
 		case results <- block.WithSeal(header):
 		default:
-			log.Warn("Sealing result is not read by miner", "sealhash", SealHash(header, c.chainConfig.ChainID))
+			log.Warn("Sealing result is not read by miner", "sealhash", calculateSealHash(header, c.chainConfig.ChainID))
 		}
 	}()
 
@@ -1020,7 +1020,24 @@ func (c *Consortium) Seal(chain consensus.ChainHeaderReader, block *types.Block,
 
 // SealHash returns the hash of a block prior to it being sealed.
 func (c *Consortium) SealHash(header *types.Header) common.Hash {
-	return SealHash(header, c.chainConfig.ChainID)
+	isShillin := c.chainConfig.IsShillin(header.Number)
+	if isShillin {
+		// After Shillin, this consensus.SealHash function does not
+		// return the real hash used for sealing because the real
+		// hash changes after the FinalizeAndAssemble call. As this
+		// function is used by worker only to store and look up the
+		// sealing tasks, we just return the hash of header without
+		// the finality vote, so this hash remains unchanged after
+		// FinalizeAndAssemble call.
+		copyHeader := types.CopyHeader(header)
+
+		extraData, _ := finality.DecodeExtra(copyHeader.Extra, true)
+		extraData.HasFinalityVote = 0
+		copyHeader.Extra = extraData.Encode(true)
+		return calculateSealHash(copyHeader, c.chainConfig.ChainID)
+	} else {
+		return calculateSealHash(header, c.chainConfig.ChainID)
+	}
 }
 
 // Close implements consensus.Engine. It's a noop for Consortium as there are no background threads.
@@ -1305,7 +1322,7 @@ func ecrecover(header *types.Header, sigcache *lru.ARCCache, chainId *big.Int) (
 	signature := header.Extra[len(header.Extra)-consortiumCommon.ExtraSeal:]
 
 	// Recover the public key and the Ethereum address
-	pubkey, err := crypto.Ecrecover(SealHash(header, chainId).Bytes(), signature)
+	pubkey, err := crypto.Ecrecover(calculateSealHash(header, chainId).Bytes(), signature)
 	if err != nil {
 		return common.Address{}, err
 	}
@@ -1316,8 +1333,8 @@ func ecrecover(header *types.Header, sigcache *lru.ARCCache, chainId *big.Int) (
 	return signer, nil
 }
 
-// SealHash returns the hash of a block prior to it being sealed.
-func SealHash(header *types.Header, chainId *big.Int) (hash common.Hash) {
+// calculateSealHash returns the hash of a block prior to it being sealed.
+func calculateSealHash(header *types.Header, chainId *big.Int) (hash common.Hash) {
 	hasher := sha3.NewLegacyKeccak256()
 	encodeSigHeader(hasher, header, chainId)
 	hasher.Sum(hash[:0])
