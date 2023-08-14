@@ -363,7 +363,7 @@ func generateVote(
 	secretKey blsCommon.SecretKey,
 ) *types.VoteEnvelope {
 	voteData := types.VoteData{
-		TargetNumber: 1,
+		TargetNumber: uint64(blockNumber),
 		TargetHash:   blockHash,
 	}
 	digest := voteData.Hash()
@@ -463,5 +463,69 @@ func TestVotePoolDosProtection(t *testing.T) {
 	}
 	if votePool.numFutureVotePerPeer["AAAA"] != 0 {
 		t.Fatalf("Number of future vote per peer, expect %d have %d", 0, votePool.numFutureVotePerPeer["AAAA"])
+	}
+}
+
+type mockPOSAv2 struct {
+	consensus.FastFinalityPoSA
+}
+
+func (p *mockPOSAv2) GetJustifiedNumberAndHash(chain consensus.ChainHeaderReader, header *types.Header) (uint64, common.Hash, error) {
+	parentHeader := chain.GetHeaderByHash(header.ParentHash)
+	if parentHeader == nil {
+		return 0, common.Hash{}, fmt.Errorf("unexpected error")
+	}
+	return parentHeader.Number.Uint64(), parentHeader.Hash(), nil
+}
+
+func (m *mockPOSAv2) VerifyVote(chain consensus.ChainHeaderReader, vote *types.VoteEnvelope) error {
+	header := chain.GetHeaderByHash(vote.Data.TargetHash)
+	if header == nil {
+		return errors.New("header not found")
+	}
+
+	if header.Number.Uint64() != vote.Data.TargetNumber {
+		return errors.New("wrong target number in vote")
+	}
+
+	return nil
+}
+
+func (m *mockPOSAv2) IsActiveValidatorAt(chain consensus.ChainHeaderReader, header *types.Header) bool {
+	return true
+}
+
+func TestVotePoolWrongTargetNumber(t *testing.T) {
+	secretKey, err := bls.RandKey()
+	if err != nil {
+		t.Fatalf("Failed to create secret key, err %s", err)
+	}
+
+	// Create a database pre-initialize with a genesis block
+	db := rawdb.NewMemoryDatabase()
+	genesis := (&core.Genesis{
+		Config:  params.TestChainConfig,
+		Alloc:   core.GenesisAlloc{testAddr: {Balance: big.NewInt(1000000)}},
+		BaseFee: big.NewInt(params.InitialBaseFee),
+	}).MustCommit(db)
+	chain, _ := core.NewBlockChain(db, nil, params.TestChainConfig, ethash.NewFullFaker(), vm.Config{}, nil, nil)
+
+	bs, _ := core.GenerateChain(params.TestChainConfig, genesis, ethash.NewFaker(), db, 1, nil, true)
+	if _, err := chain.InsertChain(bs[:1]); err != nil {
+		panic(err)
+	}
+	mockEngine := &mockPOSAv2{}
+
+	// Create vote pool
+	votePool := NewVotePool(chain, mockEngine, 22)
+
+	// bs[0] is the block 1 so the target block number must be 1.
+	// Here we provide wrong target number 0
+	vote := generateVote(0, bs[0].Hash(), secretKey)
+	votePool.PutVote("AAAA", vote)
+	time.Sleep(100 * time.Millisecond)
+
+	if len(votePool.curVotes) != 0 {
+		t.Fatalf("Current vote length, expect %d have %d", 0, len(votePool.curVotes))
 	}
 }
