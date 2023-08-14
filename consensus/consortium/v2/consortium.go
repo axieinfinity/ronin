@@ -208,6 +208,15 @@ func (c *Consortium) GetRecents(chain consensus.ChainHeaderReader, number uint64
 // VerifyVote check if the finality voter is in the validator set, it assumes the signature is
 // already verified
 func (c *Consortium) VerifyVote(chain consensus.ChainHeaderReader, vote *types.VoteEnvelope) error {
+	header := chain.GetHeaderByHash(vote.Data.TargetHash)
+	if header == nil {
+		return errors.New("header not found")
+	}
+
+	if header.Number.Uint64() != vote.Data.TargetNumber {
+		return finality.ErrInvalidTargetNumber
+	}
+
 	// Look at the comment assembleFinalityVote in function for the
 	// detailed explanation on the snapshot we need to get to verify the
 	// finality vote.
@@ -1174,9 +1183,6 @@ func (c *Consortium) assembleFinalityVote(header *types.Header, snap *Snapshot) 
 					publicKey, err := blst.PublicKeyFromBytes(vote.PublicKey[:])
 					if err != nil {
 						log.Warn("Malformed public key from vote pool", "err", err)
-						continue
-					}
-					if vote.Data.TargetNumber != header.Number.Uint64()-1 {
 						continue
 					}
 					authorized := false
