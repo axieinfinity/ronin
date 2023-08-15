@@ -76,6 +76,7 @@ type StateDB interface {
 	ForEachStorage(common.Address, func(common.Hash, common.Hash) bool) error
 
 	ValidDeployer(common.Address) bool
+	ValidDeployerv2(common.Address, uint64) bool
 	Blacklisted(*common.Address, *common.Address) bool
 }
 

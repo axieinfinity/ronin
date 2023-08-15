@@ -500,10 +500,17 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 			}
 		}
 	}
-
-	if evm.chainRules.IsOdysseusFork && !evm.StateDB.ValidDeployer(caller.Address()) {
-		captureTraceEarly(ErrExecutionReverted)
-		return nil, common.Address{}, gas, ErrExecutionReverted
+	// Handle Latest Hardfork Firstly
+	if evm.chainRules.IsComingFork {
+		if !evm.StateDB.ValidDeployerv2(caller.Address(), evm.Context.Time) {
+			captureTraceEarly(ErrExecutionReverted)
+			return nil, common.Address{}, gas, ErrExecutionReverted
+		}
+	} else if evm.chainRules.IsOdysseusFork {
+		if !evm.StateDB.ValidDeployer(caller.Address()) {
+			captureTraceEarly(ErrExecutionReverted)
+			return nil, common.Address{}, gas, ErrExecutionReverted
+		}
 	}
 
 	// Depth check execution. Fail if we're trying to execute above the

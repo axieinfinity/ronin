@@ -465,6 +465,7 @@ type ChainConfig struct {
 	// Olek hardfork reduces the delay in block time of out of turn miner
 	OlekBlock *big.Int `json:"olekBlock,omitempty"` // Olek switch block (nil = no fork, 0 = already on activated)
 
+	ComingForkBlock               *big.Int        `json:"comingForkBlock,omitempty"`               // ComingForkBlock switch block (nil = no fork, 0 = already on activated)
 	BlacklistContractAddress      *common.Address `json:"blacklistContractAddress,omitempty"`      // Address of Blacklist Contract (nil = no blacklist)
 	FenixValidatorContractAddress *common.Address `json:"fenixValidatorContractAddress,omitempty"` // Address of Ronin Contract in the Fenix hardfork (nil = no blacklist)
 
@@ -701,6 +702,11 @@ func (c *ChainConfig) IsOlek(num *big.Int) bool {
 	return isForked(c.OlekBlock, num)
 }
 
+// IsConsortiumV2 returns whether the num is equals to or larger than the consortiumV2 fork block.
+func (c *ChainConfig) IsComingFork(num *big.Int) bool {
+	return isForked(c.ComingForkBlock, num)
+}
+
 // CheckCompatible checks whether scheduled fork transitions have been imported
 // with a mismatching chain configuration.
 func (c *ChainConfig) CheckCompatible(newcfg *ChainConfig, height uint64) *ConfigCompatError {
@@ -888,7 +894,7 @@ type Rules struct {
 	IsHomestead, IsEIP150, IsEIP155, IsEIP158               bool
 	IsByzantium, IsConstantinople, IsPetersburg, IsIstanbul bool
 	IsBerlin, IsLondon                                      bool
-	IsOdysseusFork, IsFenix, IsConsortiumV2                 bool
+	IsOdysseusFork, IsFenix, IsConsortiumV2, IsComingFork   bool
 }
 
 // Rules ensures c's ChainID is not nil.
@@ -912,5 +918,6 @@ func (c *ChainConfig) Rules(num *big.Int) Rules {
 		IsOdysseusFork:   c.IsOdysseus(num),
 		IsFenix:          c.IsFenix(num),
 		IsConsortiumV2:   c.IsConsortiumV2(num),
+		IsComingFork:     c.IsComingFork(num),
 	}
 }

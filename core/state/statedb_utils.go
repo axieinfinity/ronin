@@ -20,6 +20,10 @@ var (
 		WHITELISTED:   1,
 		WHITELIST_ALL: 2,
 	}
+	slotWhitelistDeployerMappingV2 = map[string]uint64{
+		WHITELISTED:   53,
+		WHITELIST_ALL: 58,
+	} // Contract Infinity
 	slotBlacklistContractMapping = map[string]uint64{
 		BLACKLISTED: 1,
 		DISABLED:    2,
@@ -33,10 +37,40 @@ var (
 )
 
 // IsWhitelistedDeployer reads the contract storage to check if an address is allow to deploy
+func IsWhitelistedDeployerV2(statedb *StateDB, address common.Address, blockTime uint64) bool {
+	contract := common.HexToAddress(common.WhitelistDeployerSCV2)
+	whitelistAllSlot := slotWhitelistDeployerMappingV2[WHITELIST_ALL]
+	whitelistAll := statedb.GetState(contract, GetLocSimpleVariable(whitelistAllSlot))
+
+	if whitelistAll.Big().Cmp(big.NewInt(1)) == 0 {
+		return true
+	}
+
+	whitelistedSlot := slotWhitelistDeployerMapping[WHITELISTED]
+	// whiteListed Have 2 fields, so we need to plus 1
+	expiredLoc := GetLocMappingAtKey(address.Hash(), whitelistedSlot)
+	activatedLoc := common.BigToHash(expiredLoc.Big().Add(expiredLoc.Big(), common.Big1))
+	expiredHash := statedb.GetState(contract, expiredLoc)
+
+	activatedHash := statedb.GetState(contract, activatedLoc)
+
+	// (whiteListInfo.activated && block.timestamp < whiteListInfo.expiryTimestamp)
+	// Compare expiredHash  with Blockheader Timestamp
+	if activatedHash.Big().Cmp(big.NewInt(1)) == 0 {
+		if expiredHash.Big().Cmp(new(big.Int).SetUint64(blockTime)) > 0 {
+			// Block time still is in expiredTime
+			return true
+		}
+	}
+	return false
+}
+
+// IsWhitelistedDeployer reads the contract storage to check if an address is allow to deploy
 func IsWhitelistedDeployer(statedb *StateDB, address common.Address) bool {
 	contract := common.HexToAddress(common.WhitelistDeployerSC)
 	whitelistAllSlot := slotWhitelistDeployerMapping[WHITELIST_ALL]
 	whitelistAll := statedb.GetState(contract, GetLocSimpleVariable(whitelistAllSlot))
+
 	if whitelistAll.Big().Cmp(big.NewInt(1)) == 0 {
 		return true
 	}
