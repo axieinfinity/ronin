@@ -23,6 +23,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/keystore"
@@ -151,10 +152,11 @@ func dnsSign(ctx *cli.Context) error {
 		return fmt.Errorf("need tree definition directory and key file as arguments")
 	}
 	var (
-		defdir  = ctx.Args().Get(0)
-		keyfile = ctx.Args().Get(1)
-		def     = loadTreeDefinition(defdir)
-		domain  = directoryName(defdir)
+		defdir       = ctx.Args().Get(0)
+		keyfile      = ctx.Args().Get(1)
+		def          = loadTreeDefinition(defdir)
+		domain       = directoryName(defdir)
+		passwordfile string
 	)
 	if def.Meta.URL != "" {
 		d, _, err := dnsdisc.ParseURL(def.Meta.URL)
@@ -176,7 +178,10 @@ func dnsSign(ctx *cli.Context) error {
 		return err
 	}
 
-	key := loadSigningKey(keyfile)
+	if ctx.NArg() == 3 {
+		passwordfile = ctx.Args().Get(2)
+	}
+	key := loadSigningKey(keyfile, passwordfile)
 	url, err := t.Sign(key, domain)
 	if err != nil {
 		return fmt.Errorf("can't sign: %v", err)
@@ -252,12 +257,23 @@ func dnsNukeRoute53(ctx *cli.Context) error {
 }
 
 // loadSigningKey loads a private key in Ethereum keystore format.
-func loadSigningKey(keyfile string) *ecdsa.PrivateKey {
+func loadSigningKey(keyfile, passwordfile string) *ecdsa.PrivateKey {
 	keyjson, err := ioutil.ReadFile(keyfile)
 	if err != nil {
 		exit(fmt.Errorf("failed to read the keyfile at '%s': %v", keyfile, err))
 	}
-	password, _ := prompt.Stdin.PromptPassword("Please enter the password for '" + keyfile + "': ")
+
+	var password string
+	if passwordfile != "" {
+		rawPassword, err := ioutil.ReadFile(passwordfile)
+		if err != nil {
+			exit(fmt.Errorf("failed to read the passwordfile at '%s': %v", passwordfile, err))
+		}
+		password = strings.TrimRight(string(rawPassword), "\r\n")
+	} else {
+		password, _ = prompt.Stdin.PromptPassword("Please enter the password for '" + keyfile + "': ")
+	}
+
 	key, err := keystore.DecryptKey(keyjson, password)
 	if err != nil {
 		exit(fmt.Errorf("error decrypting key: %v", err))

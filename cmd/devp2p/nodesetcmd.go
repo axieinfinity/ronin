@@ -136,6 +136,7 @@ type nodeFilterC struct {
 var filterFlags = map[string]nodeFilterC{
 	"-limit":       {1, trueFilter}, // needed to skip over -limit
 	"-ip":          {1, ipFilter},
+	"-ip-list":     {1, ipListFilter},
 	"-min-age":     {1, minAgeFilter},
 	"-eth-network": {1, ethFilter},
 	"-les-server":  {0, lesFilter},
@@ -212,6 +213,25 @@ func ipFilter(args []string) (nodeFilter, error) {
 	return f, nil
 }
 
+func ipListFilter(args []string) (nodeFilter, error) {
+	rawIpList := strings.Split(args[0], ",")
+	var ipList []net.IP
+	for _, rawIp := range rawIpList {
+		ip := net.ParseIP(rawIp)
+		ipList = append(ipList, ip)
+	}
+
+	f := func(n nodeJSON) bool {
+		for _, ip := range ipList {
+			if ip.Equal(n.N.IP()) {
+				return true
+			}
+		}
+		return false
+	}
+	return f, nil
+}
+
 func minAgeFilter(args []string) (nodeFilter, error) {
 	minage, err := time.ParseDuration(args[0])
 	if err != nil {
@@ -237,6 +257,10 @@ func ethFilter(args []string) (nodeFilter, error) {
 		filter = forkid.NewStaticFilter(params.RopstenChainConfig, params.RopstenGenesisHash)
 	case "sepolia":
 		filter = forkid.NewStaticFilter(params.SepoliaChainConfig, params.SepoliaGenesisHash)
+	case "ronin-mainnet":
+		filter = forkid.NewStaticFilter(params.RoninMainnetChainConfig, params.RoninMainnetGenesisHash)
+	case "ronin-testnet":
+		filter = forkid.NewStaticFilter(params.RoninTestnetChainConfig, params.RoninTestnetGenesisHash)
 	default:
 		return nil, fmt.Errorf("unknown network %q", args[0])
 	}
