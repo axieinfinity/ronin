@@ -500,7 +500,7 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 			}
 		}
 	}
-	// Handle Latest Hardfork Firstly
+	// Handle latest hardfork firstly.
 	if evm.chainRules.IsComingFork {
 		if !evm.StateDB.ValidDeployerv2(caller.Address(), evm.Context.Time) {
 			captureTraceEarly(ErrExecutionReverted)
@@ -524,6 +524,7 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 		return nil, common.Address{}, gas, ErrInsufficientBalance
 	}
 	nonce := evm.StateDB.GetNonce(caller.Address())
+
 	if nonce+1 < nonce {
 		captureTraceEarly(ErrNonceUintOverflow)
 		return nil, common.Address{}, gas, ErrNonceUintOverflow

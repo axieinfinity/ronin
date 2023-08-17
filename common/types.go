@@ -44,6 +44,9 @@ const (
 	AcknowledgementSC = "0x0000000000000000000000000000000000000022"
 	// WhitelistDeployerSC is the address of whitelisted deployer
 	WhitelistDeployerSC = "0x0000000000000000000000000000000000000033"
+)
+
+var (
 	// WhitelistDeployerSCV2 is the address of whitelisted deployer V2, should replace
 	WhitelistDeployerSCV2 = "0x0000000000000000000000000000000000000033"
 )
