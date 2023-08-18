@@ -37,8 +37,8 @@ var (
 )
 
 // IsWhitelistedDeployer reads the contract storage to check if an address is allow to deploy
-func IsWhitelistedDeployerV2(statedb *StateDB, address common.Address, blockTime uint64) bool {
-	contract := common.HexToAddress(common.WhitelistDeployerSCV2)
+func IsWhitelistedDeployerV2(statedb *StateDB, address common.Address, blockTime uint64, whiteListContract *common.Address) bool {
+	contract := *whiteListContract
 	whitelistAllSlot := slotWhitelistDeployerMappingV2[WHITELIST_ALL]
 	whitelistAll := statedb.GetState(contract, GetLocSimpleVariable(whitelistAllSlot))
 

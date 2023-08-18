@@ -33,18 +33,18 @@ var (
 )
 
 func TestValidDeployerV2AfterHardFork(t *testing.T) {
+	// Init stage
 	statedb, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
-
 	evm, err := newEVM(proxyAdminCaller, statedb)
 	if err != nil {
 		t.Fatal(err)
 	}
 	evm.Context.Time = uint64(time.Now().Unix())
+	// Deploy logic and proxy SC.
 	_, logicContractWhitelist, _, err := evm.Create(AccountRef(proxyAdminCaller), common.FromHex(whitelistDeployerV2), math.MaxUint64/2, big0)
 	if (logicContractWhitelist == common.Address{}) {
-		t.Fatal("Failed For deploying logic Contract")
+		t.Fatal("Failed for deploying logic Contract")
 	}
-
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,66 +53,57 @@ func TestValidDeployerV2AfterHardFork(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	logicSmcAbi, err := abi.JSON(strings.NewReader(logicAbi))
 
+	logicSmcAbi, err := abi.JSON(strings.NewReader(logicAbi))
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	initialisedData, _ := logicSmcAbi.Pack(initialize, adminCaller, []common.Address{common.BytesToAddress([]byte("sentry"))})
-	// "" will go constructor
 	constructorData, _ := smcAbi.Pack("", logicContractWhitelist, proxyAdminCaller, initialisedData)
-
 	if constructorData == nil {
 		t.Fatal("Failed for pack contructor data")
 	}
+
 	byteCode := append(common.FromHex(proxyByteCode), constructorData...)
 	_, contractProxyWhiteList, _, err := evm.Create(AccountRef(proxyAdminCaller), byteCode, math.MaxUint64/2, big0)
-
 	if err != nil {
 		t.Fatal(err)
 	}
 
+	// Test deploying without adding whitelist yet.
 	evm.chainRules.IsComingFork = true
+	evm.chainConfig.WhiteListDeployerContractV2Address = &contractProxyWhiteList
 
 	_, failedMockContract, _, _ := evm.Create(AccountRef(whitelistedCaller), byteCode, math.MaxUint64/2, big0)
 	if (failedMockContract != common.Address{}) {
 		t.Fatal("It should not be able for deploying")
 	}
-	// Whitelist
 
+	// Whitelist and redeploying again.
 	expiredTime := time.Now()
 	expiredTime = expiredTime.Add(time.Hour * 7)
 	whiteListedData, err := logicSmcAbi.Pack("whitelist", whitelistedCaller, new(big.Int).SetInt64(expiredTime.Unix()))
-
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	ret, _, err := evm.Call(AccountRef(adminCaller), contractProxyWhiteList, whiteListedData, math.MaxUint64/2, big0)
-
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	// Check isWhitelist succesfully
 	iswhiteListedData, err := logicSmcAbi.Pack("isWhitelisted", whitelistedCaller)
-
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	ret, _, _ = evm.StaticCall(AccountRef(adminCaller), contractProxyWhiteList, iswhiteListedData, 1000000)
-
 	if ret == nil {
-		t.Fatal("The whitelist function doesn't work")
+		t.Fatal("The caller is not whitelisted succesfully.")
 	}
-
-	common.WhitelistDeployerSCV2 = contractProxyWhiteList.Hex()
 	_, _, _, err = evm.Create(AccountRef(whitelistedCaller), byteCode, math.MaxUint64/2, big0)
-
 	if err != nil {
 		t.Fatal(err)
 	}
-
 }

@@ -465,10 +465,10 @@ type ChainConfig struct {
 	// Olek hardfork reduces the delay in block time of out of turn miner
 	OlekBlock *big.Int `json:"olekBlock,omitempty"` // Olek switch block (nil = no fork, 0 = already on activated)
 
-	ComingForkBlock               *big.Int        `json:"comingForkBlock,omitempty"`               // ComingForkBlock switch block (nil = no fork, 0 = already on activated)
-	BlacklistContractAddress      *common.Address `json:"blacklistContractAddress,omitempty"`      // Address of Blacklist Contract (nil = no blacklist)
-	FenixValidatorContractAddress *common.Address `json:"fenixValidatorContractAddress,omitempty"` // Address of Ronin Contract in the Fenix hardfork (nil = no blacklist)
-
+	ComingForkBlock                    *big.Int        `json:"comingForkBlock,omitempty"`                    // ComingForkBlock switch block (nil = no fork, 0 = already on activated)
+	BlacklistContractAddress           *common.Address `json:"blacklistContractAddress,omitempty"`           // Address of Blacklist Contract (nil = no blacklist)
+	FenixValidatorContractAddress      *common.Address `json:"fenixValidatorContractAddress,omitempty"`      // Address of Ronin Contract in the Fenix hardfork (nil = no blacklist)
+	WhiteListDeployerContractV2Address *common.Address `json:"whiteListDeployerContractV2Address,omitempty"` // Address of Whitelist Ronin Contract V2 (nil = no blacklist)
 	// TerminalTotalDifficulty is the amount of total difficulty reached by
 	// the network that triggers the consensus upgrade.
 	TerminalTotalDifficulty *big.Int `json:"terminalTotalDifficulty,omitempty"`

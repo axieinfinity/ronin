@@ -47,11 +47,6 @@ const (
 )
 
 var (
-	// WhitelistDeployerSCV2 is the address of whitelisted deployer V2, should replace
-	WhitelistDeployerSCV2 = "0x0000000000000000000000000000000000000033"
-)
-
-var (
 	hashT    = reflect.TypeOf(Hash{})
 	addressT = reflect.TypeOf(Address{})
 )
