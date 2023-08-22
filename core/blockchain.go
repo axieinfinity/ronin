@@ -2451,6 +2451,12 @@ func (bc *BlockChain) maintainTxIndex(ancients uint64) {
 	indexBlocks := func(tail *uint64, head uint64, done chan struct{}) {
 		defer func() { done <- struct{}{} }()
 
+		// If head is 0, it means the chain is just initialized and no blocks are inserted,
+		// so don't need to indexing anything.
+		if head == 0 {
+			return
+		}
+
 		// If the user just upgraded Geth to a new version which supports transaction
 		// index pruning, write the new tail and remove anything older.
 		if tail == nil {
@@ -2490,6 +2496,15 @@ func (bc *BlockChain) maintainTxIndex(ancients uint64) {
 		return
 	}
 	defer sub.Unsubscribe()
+	log.Info("Initialized transaction indexer", "limit", bc.TxLookupLimit())
+
+	// Launch the initial processing if chain is not empty. This step is
+	// useful in these scenarios that chain has no progress and indexer
+	// is never triggered.
+	if head := rawdb.ReadHeadBlock(bc.db); head != nil {
+		done = make(chan struct{})
+		go indexBlocks(rawdb.ReadTxIndexTail(bc.db), head.NumberU64(), done)
+	}
 
 	for {
 		select {
