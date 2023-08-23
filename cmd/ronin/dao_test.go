@@ -123,7 +123,7 @@ func testDAOForkBlockNewChain(t *testing.T, test int, genesis string, expectBloc
 	}
 	// Retrieve the DAO config flag from the database
 	path := filepath.Join(datadir, "ronin", "chaindata")
-	db, err := rawdb.NewPebbleDBDatabase(path, 0, 0, "", false)
+	db, err := rawdb.NewPebbleDBDatabase(path, 0, 0, "", false, true)
 	if err != nil {
 		t.Fatalf("test %d: failed to open test database: %v", test, err)
 	}
