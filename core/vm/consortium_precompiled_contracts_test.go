@@ -1731,7 +1731,7 @@ func addressesToByte(addresses []common.Address) [][]byte {
 func TestValidateFinalityVoteProof(t *testing.T) {
 	contract := consortiumValidateFinalityProof{}
 
-	contractAbi, err := abi.JSON(strings.NewReader(validateFinaltyVoteProofAbi))
+	contractAbi, err := abi.JSON(strings.NewReader(validateFinalityVoteProofAbi))
 	if err != nil {
 		t.Fatalf("Failed to parse ABI, err %s", err)
 	}
@@ -1773,7 +1773,7 @@ func TestValidateFinalityVoteProof(t *testing.T) {
 	}
 
 	input, err := contractAbi.Pack(
-		validateFinaltyVoteProof,
+		validateFinalityVoteProof,
 		voterPublicKey,
 		new(big.Int).Add(new(big.Int).SetUint64(1<<64-1), common.Big1),
 		targetBlockHashes,
@@ -1790,7 +1790,7 @@ func TestValidateFinalityVoteProof(t *testing.T) {
 	}
 
 	input, err = contractAbi.Pack(
-		validateFinaltyVoteProof,
+		validateFinalityVoteProof,
 		voterPublicKey,
 		big.NewInt(int64(blockNumber)),
 		targetBlockHashes,
@@ -1824,7 +1824,7 @@ func TestValidateFinalityVoteProof(t *testing.T) {
 	}
 
 	input, err = contractAbi.Pack(
-		validateFinaltyVoteProof,
+		validateFinalityVoteProof,
 		voterPublicKey,
 		big.NewInt(int64(blockNumber)),
 		targetBlockHashes,
@@ -1863,7 +1863,7 @@ func TestValidateFinalityVoteProof(t *testing.T) {
 	}
 
 	input, err = contractAbi.Pack(
-		validateFinaltyVoteProof,
+		validateFinalityVoteProof,
 		voterPublicKey,
 		big.NewInt(int64(blockNumber)),
 		targetBlockHashes,
@@ -1879,7 +1879,7 @@ func TestValidateFinalityVoteProof(t *testing.T) {
 		t.Fatalf("Expect to successfully verify proof, get %s", err)
 	}
 
-	ret, err := contractAbi.Unpack(validateFinaltyVoteProof, rawReturn)
+	ret, err := contractAbi.Unpack(validateFinalityVoteProof, rawReturn)
 	if err != nil {
 		t.Fatalf("Failed to unpack output, err: %s", err)
 	}
@@ -1891,7 +1891,7 @@ func TestValidateFinalityVoteProof(t *testing.T) {
 }
 
 func BenchmarkPrecompiledValidateFinalityVoteProof(b *testing.B) {
-	contractAbi, err := abi.JSON(strings.NewReader(validateFinaltyVoteProofAbi))
+	contractAbi, err := abi.JSON(strings.NewReader(validateFinalityVoteProofAbi))
 	if err != nil {
 		b.Fatalf("Failed to parse ABI, err %s", err)
 	}
@@ -1937,7 +1937,7 @@ func BenchmarkPrecompiledValidateFinalityVoteProof(b *testing.B) {
 	aggregatedSignature2 := blst.AggregateSignatures(signature[:])
 
 	input, err := contractAbi.Pack(
-		validateFinaltyVoteProof,
+		validateFinalityVoteProof,
 		secretKeys[0].PublicKey().Marshal(),
 		big.NewInt(int64(blockNumber)),
 		[2]common.Hash{
@@ -1954,7 +1954,7 @@ func BenchmarkPrecompiledValidateFinalityVoteProof(b *testing.B) {
 		b.Fatalf("Failed to pack contract input, err: %s", err)
 	}
 
-	output, err := contractAbi.Methods[validateFinaltyVoteProof].Outputs.Pack(true)
+	output, err := contractAbi.Methods[validateFinalityVoteProof].Outputs.Pack(true)
 	if err != nil {
 		b.Fatalf("Failed to pack contract output, err: %s", err)
 	}
