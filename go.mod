@@ -76,7 +76,7 @@ require (
 	github.com/klauspost/compress v1.16.4
 	github.com/pkg/errors v0.9.1
 	github.com/pyroscope-io/client v0.7.2
-	github.com/supranational/blst v0.3.10
+	github.com/supranational/blst v0.3.11
 	github.com/wealdtech/go-eth2-wallet-encryptor-keystorev4 v1.3.1
 )
 
