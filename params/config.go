@@ -34,6 +34,7 @@ var (
 	RinkebyGenesisHash      = common.HexToHash("0x6341fd3daf94b748c72ced5a5b26028f2474f5f00d824504e4fa37a75767e177")
 	GoerliGenesisHash       = common.HexToHash("0xbf7e331f7f7c1dd2e05159666b3bf8bc7a8a3a9eb1d518969eab529dd9b88c1a")
 	RoninMainnetGenesisHash = common.HexToHash("0x6e675ee97607f4e695188786c3c1853fb1562f1c075629eb5dbcff269422a1a4")
+	RoninTestnetGenesisHash = common.HexToHash("0x13e47595099383189b8b0d5f3b67aa161495e478bb3fea64f4cf85cdf69cac4d")
 )
 
 // TrustedCheckpoints associates each known checkpoint with the genesis hash of
@@ -235,6 +236,9 @@ var (
 
 	RoninMainnetBlacklistContract             = common.HexToAddress("0x313b24994c93FA0471CB4D7aB796b07467041806")
 	RoninMainnetFenixValidatorContractAddress = common.HexToAddress("0x7f13232Bdc3a010c3f749a1c25bF99f1C053CE70")
+	RoninMainnetRoninValidatorSetAddress      = common.HexToAddress("0x617c5d73662282EA7FfD231E020eCa6D2B0D552f")
+	RoninMainnetSlashIndicatorAddress         = common.HexToAddress("0xEBFFF2b32fA0dF9C5C8C5d5AAa7e8b51d5207bA3")
+	RoninMainnetStakingContractAddress        = common.HexToAddress("0x545edb750eB8769C868429BE9586F5857A768758")
 
 	RoninMainnetChainConfig = &ChainConfig{
 		ChainID:                       big.NewInt(2020),
@@ -251,9 +255,55 @@ var (
 		BlacklistContractAddress:      &RoninMainnetBlacklistContract,
 		FenixValidatorContractAddress: &RoninMainnetFenixValidatorContractAddress,
 		Consortium: &ConsortiumConfig{
-			Period: 3,
-			Epoch:  600,
+			Period:  3,
+			Epoch:   600,
+			EpochV2: 200,
 		},
+		ConsortiumV2Contracts: &ConsortiumV2Contracts{
+			RoninValidatorSet: RoninMainnetRoninValidatorSetAddress,
+			SlashIndicator:    RoninMainnetSlashIndicatorAddress,
+			StakingContract:   RoninMainnetStakingContractAddress,
+		},
+		ConsortiumV2Block: big.NewInt(23155200),
+		PuffyBlock:        big.NewInt(0),
+		BubaBlock:         big.NewInt(0),
+		OlekBlock:         big.NewInt(24935500),
+	}
+
+	RoninTestnetBlacklistContract             = common.HexToAddress("0xF53EED5210c9cF308abFe66bA7CF14884c95A8aC")
+	RoninTestnetFenixValidatorContractAddress = common.HexToAddress("0x1454cAAd1637b662432Bb795cD5773d21281eDAb")
+	RoninTestnetRoninValidatorSetAddress      = common.HexToAddress("0x54B3AC74a90E64E8dDE60671b6fE8F8DDf18eC9d")
+	RoninTestnetSlashIndicatorAddress         = common.HexToAddress("0xF7837778b6E180Df6696C8Fa986d62f8b6186752")
+	RoninTestnetStakingContractAddress        = common.HexToAddress("0x9C245671791834daf3885533D24dce516B763B28")
+
+	RoninTestnetChainConfig = &ChainConfig{
+		ChainID:                       big.NewInt(2021),
+		HomesteadBlock:                big.NewInt(0),
+		EIP150Block:                   big.NewInt(0),
+		EIP155Block:                   big.NewInt(0),
+		EIP158Block:                   big.NewInt(0),
+		ByzantiumBlock:                big.NewInt(0),
+		ConstantinopleBlock:           big.NewInt(0),
+		PetersburgBlock:               big.NewInt(0),
+		IstanbulBlock:                 big.NewInt(0),
+		OdysseusBlock:                 big.NewInt(3315095),
+		FenixBlock:                    big.NewInt(6770400),
+		BlacklistContractAddress:      &RoninTestnetBlacklistContract,
+		FenixValidatorContractAddress: &RoninTestnetFenixValidatorContractAddress,
+		Consortium: &ConsortiumConfig{
+			Period:  3,
+			Epoch:   30,
+			EpochV2: 200,
+		},
+		ConsortiumV2Contracts: &ConsortiumV2Contracts{
+			RoninValidatorSet: RoninTestnetRoninValidatorSetAddress,
+			SlashIndicator:    RoninTestnetSlashIndicatorAddress,
+			StakingContract:   RoninTestnetStakingContractAddress,
+		},
+		ConsortiumV2Block: big.NewInt(11706000),
+		PuffyBlock:        big.NewInt(12254000),
+		BubaBlock:         big.NewInt(14260600),
+		OlekBlock:         big.NewInt(16849000),
 	}
 
 	// GoerliTrustedCheckpoint contains the light client trusted checkpoint for the Görli test network.
