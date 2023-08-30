@@ -31,6 +31,11 @@ ronin:
 	@echo "Done building."
 	@echo "Run \"$(GOBIN)/ronin\" to launch ronin."
 
+ronin-race-detector:
+	$(GORUN) build/ci.go install --race ./cmd/ronin
+	@echo "Done building."
+	@echo "Run \"$(GOBIN)/ronin\" to launch ronin."
+
 bootnode:
 	$(GORUN) build/ci.go install ./cmd/bootnode
 	@echo "Done building."
