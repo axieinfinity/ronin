@@ -202,6 +202,7 @@ func doInstall(cmdline []string) {
 		dlgo = flag.Bool("dlgo", false, "Download Go and build with it")
 		arch = flag.String("arch", "", "Architecture to cross build for")
 		cc   = flag.String("cc", "", "C compiler to cross build with")
+		race = flag.Bool("race", false, "Execute the race detector")
 	)
 	flag.CommandLine.Parse(cmdline)
 
@@ -215,6 +216,10 @@ func doInstall(cmdline []string) {
 	// Configure the build.
 	env := build.Env()
 	gobuild := tc.Go("build", buildFlags(env)...)
+
+	if *race {
+		gobuild.Args = append(gobuild.Args, "-race")
+	}
 
 	// arm64 CI builders are memory-constrained and can't handle concurrent builds,
 	// better disable it. This check isn't the best, it should probably
