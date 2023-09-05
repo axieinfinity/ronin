@@ -49,7 +49,6 @@ type Config struct {
 	ExtraData            hexutil.Bytes  `toml:",omitempty"` // Block extra data set by the miner
 	GasFloor             uint64         // Target gas floor for mined blocks.
 	GasCeil              uint64         // Target gas ceiling for mined blocks.
-	GasReserve           uint64         // Reserved gas for system transactions
 	GasPrice             *big.Int       // Minimum gas price for mining a transaction
 	Recommit             time.Duration  // The time interval for miner to re-create mining work.
 	Noverify             bool           // Disable remote mining solution verification(only useful in ethash).
@@ -217,11 +216,6 @@ func (miner *Miner) SetEtherbase(addr common.Address) {
 // For pre-1559 blocks, it sets the ceiling.
 func (miner *Miner) SetGasCeil(ceil uint64) {
 	miner.worker.setGasCeil(ceil)
-}
-
-// SetGasReserve sets the reserved gas for system transactions
-func (miner *Miner) SetGasReserve(reserve uint64) {
-	miner.worker.setGasReserve(reserve)
 }
 
 func (miner *Miner) SetBlockProducerLeftover(interval time.Duration) {
