@@ -875,6 +875,19 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 	gasLimit := w.current.header.GasLimit
 	if w.current.gasPool == nil {
 		w.current.gasPool = new(core.GasPool).AddGas(gasLimit)
+
+		// If the gas pool is newly created, reserve some gas for system transactions
+		if w.chainConfig.Consortium != nil {
+			if err := w.current.gasPool.SubGas(params.ReservedGasForSystemTransactions); err != nil {
+				log.Error(
+					"Failed to reserve gas for system transactions",
+					"pool", w.current.gasPool,
+					"reserve", params.ReservedGasForSystemTransactions,
+					"error", err,
+				)
+				return true
+			}
+		}
 	}
 
 	var coalescedLogs []*types.Log
