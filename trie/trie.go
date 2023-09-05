@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -65,7 +66,7 @@ type Trie struct {
 	// Keep track of the number leafs which have been inserted since the last
 	// hashing operation. This number will not directly map to the number of
 	// actually unhashed nodes
-	unhashed int
+	unhashed int32
 }
 
 // newFlag returns the cache flag value for a newly created node.
@@ -283,6 +284,98 @@ func (t *Trie) TryUpdate(key, value []byte) error {
 	return nil
 }
 
+func (t *Trie) TryUpdateLeaf(key, value []byte) error {
+	// Other TryUpdateLeaf can run in parallel, so use atomic here
+	atomic.AddInt32(&t.unhashed, 1)
+	k := keybytesToHex(key)
+
+	return t.updateLeaf(t.root, nil, k, valueNode(value))
+}
+
+// resolveChildNode check if the child node is a hash node, if so hold the lock in parent node and
+// resolve the hash node.
+func (t *Trie) resolveChildNode(childPointer *node, lock *sync.RWMutex, prefix []byte) (node, error) {
+	var (
+		childNode node
+		err       error
+	)
+
+	lock.RLock()
+	childNode = *childPointer
+	lock.RUnlock()
+
+	if _, ok := childNode.(hashNode); ok {
+		lock.Lock()
+		childNode = *childPointer
+		if v, ok := childNode.(hashNode); ok {
+			childNode, err = t.resolveHash(v, prefix)
+			if err != nil {
+				return nil, err
+			}
+
+			*childPointer = childNode
+		}
+		lock.Unlock()
+	}
+
+	return childNode, nil
+}
+
+// updateLeaf is called in parallel to update the leaf node of the trie
+func (t *Trie) updateLeaf(n node, prefix, key []byte, value node) error {
+	switch n := n.(type) {
+	case *shortNode:
+		matchlen := prefixLen(key, n.Key)
+		if matchlen == len(n.Key) {
+			if matchlen == len(key) {
+				// child node is the value node we want to update
+				n.Val = value
+				n.flags = t.newFlag()
+			} else {
+				childNode, err := t.resolveChildNode(&n.Val, &n.lock, prefix)
+				if err != nil {
+					return err
+				}
+
+				if err := t.updateLeaf(childNode, append(prefix, key[:matchlen]...), key[matchlen:], value); err != nil {
+					return err
+				}
+
+				// This can cause a data race as 2 writers can happen concurrently. However, we write the same
+				// value in these 2 writers so it must be safe here.
+				n.flags = t.newFlag()
+			}
+			return nil
+		}
+
+		return fmt.Errorf("key does not match, key: %s short node's key: %s", common.Bytes2Hex(key), common.Bytes2Hex(n.Key))
+
+	case *fullNode:
+		if len(key) == 1 {
+			// child node is the value node we want to update
+			n.Children[key[0]] = value
+			n.flags = t.newFlag()
+		} else {
+			childNode, err := t.resolveChildNode(&n.Children[key[0]], &n.lock[key[0]], prefix)
+			if err != nil {
+				return err
+			}
+
+			if err := t.updateLeaf(childNode, append(prefix, key[0]), key[1:], value); err != nil {
+				return err
+			}
+
+			// This can cause a data race as 2 writers can happen concurrently. However, we write the same
+			// value in these 2 writers so it must be safe here.
+			n.flags = t.newFlag()
+		}
+		return nil
+
+	default:
+		return fmt.Errorf("%T: invalid node: %v", n, n)
+	}
+}
+
 func (t *Trie) insert(n node, prefix, key []byte, value node) (bool, node, error) {
 	if len(key) == 0 {
 		if v, ok := n.(valueNode); ok {
@@ -300,7 +393,7 @@ func (t *Trie) insert(n node, prefix, key []byte, value node) (bool, node, error
 			if !dirty || err != nil {
 				return false, n, err
 			}
-			return true, &shortNode{n.Key, nn, t.newFlag()}, nil
+			return true, &shortNode{Key: n.Key, Val: nn, flags: t.newFlag()}, nil
 		}
 		// Otherwise branch out at the index where they differ.
 		branch := &fullNode{flags: t.newFlag()}
@@ -318,7 +411,7 @@ func (t *Trie) insert(n node, prefix, key []byte, value node) (bool, node, error
 			return true, branch, nil
 		}
 		// Otherwise, replace it with a short node leading up to the branch.
-		return true, &shortNode{key[:matchlen], branch, t.newFlag()}, nil
+		return true, &shortNode{Key: key[:matchlen], Val: branch, flags: t.newFlag()}, nil
 
 	case *fullNode:
 		dirty, nn, err := t.insert(n.Children[key[0]], append(prefix, key[0]), key[1:], value)
@@ -331,7 +424,7 @@ func (t *Trie) insert(n node, prefix, key []byte, value node) (bool, node, error
 		return true, n, nil
 
 	case nil:
-		return true, &shortNode{key, value, t.newFlag()}, nil
+		return true, &shortNode{Key: key, Val: value, flags: t.newFlag()}, nil
 
 	case hashNode:
 		// We've hit a part of the trie that isn't loaded yet. Load
@@ -401,9 +494,9 @@ func (t *Trie) delete(n node, prefix, key []byte) (bool, node, error) {
 			// always creates a new slice) instead of append to
 			// avoid modifying n.Key since it might be shared with
 			// other nodes.
-			return true, &shortNode{concat(n.Key, child.Key...), child.Val, t.newFlag()}, nil
+			return true, &shortNode{Key: concat(n.Key, child.Key...), Val: child.Val, flags: t.newFlag()}, nil
 		default:
-			return true, &shortNode{n.Key, child, t.newFlag()}, nil
+			return true, &shortNode{Key: n.Key, Val: child, flags: t.newFlag()}, nil
 		}
 
 	case *fullNode:
@@ -457,12 +550,12 @@ func (t *Trie) delete(n node, prefix, key []byte) (bool, node, error) {
 				}
 				if cnode, ok := cnode.(*shortNode); ok {
 					k := append([]byte{byte(pos)}, cnode.Key...)
-					return true, &shortNode{k, cnode.Val, t.newFlag()}, nil
+					return true, &shortNode{Key: k, Val: cnode.Val, flags: t.newFlag()}, nil
 				}
 			}
 			// Otherwise, n is replaced by a one-nibble short node
 			// containing the child.
-			return true, &shortNode{[]byte{byte(pos)}, n.Children[pos], t.newFlag()}, nil
+			return true, &shortNode{Key: []byte{byte(pos)}, Val: n.Children[pos], flags: t.newFlag()}, nil
 		}
 		// n still contains at least two values and cannot be reduced.
 		return true, n, nil

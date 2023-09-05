@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"sync"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -36,11 +37,13 @@ type (
 	fullNode struct {
 		Children [17]node // Actual trie node data to encode/decode (needs custom encoder)
 		flags    nodeFlag
+		lock     [16]sync.RWMutex
 	}
 	shortNode struct {
 		Key   []byte
 		Val   node
 		flags nodeFlag
+		lock  sync.RWMutex
 	}
 	hashNode  []byte
 	valueNode []byte
@@ -147,13 +150,13 @@ func decodeShort(hash, elems []byte) (node, error) {
 		if err != nil {
 			return nil, fmt.Errorf("invalid value node: %v", err)
 		}
-		return &shortNode{key, append(valueNode{}, val...), flag}, nil
+		return &shortNode{Key: key, Val: append(valueNode{}, val...), flags: flag}, nil
 	}
 	r, _, err := decodeRef(rest)
 	if err != nil {
 		return nil, wrapError(err, "val")
 	}
-	return &shortNode{key, r, flag}, nil
+	return &shortNode{Key: key, Val: r, flags: flag}, nil
 }
 
 func decodeFull(hash, elems []byte) (*fullNode, error) {

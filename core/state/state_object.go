@@ -21,16 +21,22 @@ import (
 	"fmt"
 	"io"
 	"math/big"
+	"runtime"
+	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/rlp"
+	triePkg "github.com/ethereum/go-ethereum/trie"
 )
 
 var emptyCodeHash = crypto.Keccak256(nil)
+
+const skipParallelInsert = 100
 
 type Code []byte
 
@@ -317,6 +323,61 @@ func (s *stateObject) finalise(prefetch bool) {
 	}
 }
 
+type keyValuePair struct {
+	key   common.Hash
+	value []byte
+}
+
+func (s *stateObject) updateStorage(trie Trie, key common.Hash, value []byte, parallel bool) {
+	if parallel {
+		if secureTrie, ok := trie.(*triePkg.SecureTrie); ok {
+			s.setError(secureTrie.TryUpdateLeaf(key[:], value))
+		} else {
+			s.setError(trie.TryUpdate(key[:], value))
+		}
+	} else {
+		s.setError(trie.TryUpdate(key[:], value))
+	}
+
+	s.db.StorageUpdated += 1
+}
+
+func (s *stateObject) doUpdateStorage(storageTasks <-chan keyValuePair, trie Trie, wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	for task := range storageTasks {
+		s.updateStorage(trie, task.key, task.value, true)
+	}
+}
+
+func (s *stateObject) updateStorageParallel(trie Trie, storageMap map[common.Hash][]byte) {
+	if len(storageMap) > skipParallelInsert {
+		log.Info("Parallel insert", "num", len(storageMap))
+
+		var (
+			wg           sync.WaitGroup
+			numWorkers   = runtime.NumCPU()
+			storageTasks = make(chan keyValuePair, len(storageMap))
+		)
+
+		for worker := 0; worker < numWorkers; worker++ {
+			wg.Add(1)
+			go s.doUpdateStorage(storageTasks, trie, &wg)
+		}
+
+		for key, value := range storageMap {
+			storageTasks <- keyValuePair{key: key, value: value}
+		}
+		close(storageTasks)
+
+		wg.Wait()
+	} else {
+		for key, value := range storageMap {
+			s.updateStorage(trie, key, value, false)
+		}
+	}
+}
+
 // updateTrie writes cached storage modifications into the object's storage trie.
 // It will return nil if the trie has not been loaded and no changes have been made
 func (s *stateObject) updateTrie(db Database) Trie {
@@ -329,8 +390,12 @@ func (s *stateObject) updateTrie(db Database) Trie {
 	if metrics.EnabledExpensive {
 		defer func(start time.Time) { s.db.StorageUpdates += time.Since(start) }(time.Now())
 	}
-	// The snapshot storage map for the object
-	var storage map[common.Hash][]byte
+	var (
+		// The snapshot storage map for the object
+		storage map[common.Hash][]byte
+
+		parallelInsertStorage = make(map[common.Hash][]byte)
+	)
 	// Insert all the pending updates into the trie
 	tr := s.getTrie(db)
 	hasher := s.db.hasher
@@ -341,6 +406,7 @@ func (s *stateObject) updateTrie(db Database) Trie {
 		if value == s.originStorage[key] {
 			continue
 		}
+		originValue := s.originStorage[key]
 		s.originStorage[key] = value
 
 		var v []byte
@@ -350,8 +416,14 @@ func (s *stateObject) updateTrie(db Database) Trie {
 		} else {
 			// Encoding []byte cannot fail, ok to ignore the error.
 			v, _ = rlp.EncodeToBytes(common.TrimLeftZeroes(value[:]))
-			s.setError(tr.TryUpdate(key[:], v))
-			s.db.StorageUpdated += 1
+			if originValue == (common.Hash{}) {
+				s.updateStorage(tr, key, v, false)
+			} else {
+				// This change does not insert a new node to trie,
+				// it just updates the leaf value node. It is possible
+				// to do these changes parallel to reduce the latency.
+				parallelInsertStorage[key] = v
+			}
 		}
 		// If state snapshotting is active, cache the data til commit
 		if s.db.snap != nil {
@@ -366,6 +438,9 @@ func (s *stateObject) updateTrie(db Database) Trie {
 		}
 		usedStorage = append(usedStorage, common.CopyBytes(key[:])) // Copy needed for closure
 	}
+
+	s.updateStorageParallel(tr, parallelInsertStorage)
+
 	if s.db.prefetcher != nil {
 		s.db.prefetcher.used(s.data.Root, usedStorage)
 	}

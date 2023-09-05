@@ -21,8 +21,10 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
+	"golang.org/x/crypto/sha3"
 )
 
 // SecureTrie wraps a trie with key hashing. In a secure trie, all
@@ -129,6 +131,28 @@ func (t *SecureTrie) TryUpdate(key, value []byte) error {
 		return err
 	}
 	t.getSecKeyCache()[string(hk)] = common.CopyBytes(key)
+	return nil
+}
+
+// hashKeyParallel is the the same as hashKey but it creates a distinct buffer
+// for storing the result instead of sharing the result buffer. This allows
+// this function to run parallel
+func hashKeyParallel(key []byte) []byte {
+	hash := make([]byte, common.HashLength)
+
+	hasher := sha3.NewLegacyKeccak256()
+	hasher.Write(key)
+	hasher.(crypto.KeccakState).Read(hash)
+	return hash
+}
+
+// TryUpdateLeaf updates the leaf value node, this function can run parallel
+func (t *SecureTrie) TryUpdateLeaf(key, value []byte) error {
+	hk := hashKeyParallel(key)
+	err := t.trie.TryUpdateLeaf(hk, value)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
