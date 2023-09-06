@@ -573,6 +573,7 @@ type ConsortiumV2Contracts struct {
 	RoninValidatorSet common.Address `json:"roninValidatorSet"`
 	SlashIndicator    common.Address `json:"slashIndicator"`
 	ProfileContract   common.Address `json:"profileContract"`
+	FinalityTracking  common.Address `json:"finalityTracking"`
 }
 
 func (c *ConsortiumV2Contracts) IsSystemContract(address common.Address) bool {
@@ -619,11 +620,16 @@ func (c *ChainConfig) String() string {
 		profileContract = c.ConsortiumV2Contracts.ProfileContract
 	}
 
+	finalityTrackingContract := common.HexToAddress("")
+	if c.ConsortiumV2Contracts != nil {
+		finalityTrackingContract = c.ConsortiumV2Contracts.FinalityTracking
+	}
+
 	chainConfigFmt := "{ChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v "
 	chainConfigFmt += "Petersburg: %v Istanbul: %v, Odysseus: %v, Fenix: %v, Muir Glacier: %v, Berlin: %v, London: %v, Arrow Glacier: %v, "
 	chainConfigFmt += "Engine: %v, Blacklist Contract: %v, Fenix Validator Contract: %v, ConsortiumV2: %v, ConsortiumV2.RoninValidatorSet: %v, "
 	chainConfigFmt += "ConsortiumV2.SlashIndicator: %v, ConsortiumV2.StakingContract: %v, Puffy: %v, Buba: %v, Olek: %v, Shillin: %v, "
-	chainConfigFmt += "ConsortiumV2.ProfileContract: %v}"
+	chainConfigFmt += "ConsortiumV2.ProfileContract: %v, ConsortiumV2.FinalityTracking: %v}"
 
 	return fmt.Sprintf(chainConfigFmt,
 		c.ChainID,
@@ -655,6 +661,7 @@ func (c *ChainConfig) String() string {
 		c.OlekBlock,
 		c.ShillinBlock,
 		profileContract.Hex(),
+		finalityTrackingContract.Hex(),
 	)
 }
 
