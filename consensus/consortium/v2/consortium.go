@@ -729,17 +729,24 @@ func (c *Consortium) processSystemTransactions(chain consensus.ChainHeaderReader
 
 	_, _, _, contract := c.readSignerAndContract()
 
-	if c.chainConfig.IsShillin(header.Number) {
-		extraData, err := finality.DecodeExtra(header.Extra, c.chainConfig.IsShillin(header.Number))
+	// If the parent's block includes the finality votes, distribute reward for the voters
+	if c.chainConfig.IsShillin(new(big.Int).Sub(header.Number, common.Big1)) {
+		parentHeader := chain.GetHeaderByHash(header.ParentHash)
+		extraData, err := finality.DecodeExtra(parentHeader.Extra, true)
 		if err != nil {
 			return err
 		}
 		if extraData.HasFinalityVote == 1 {
+			parentSnap, err := c.snapshot(chain, parentHeader.Number.Uint64()-1, parentHeader.ParentHash, nil)
+			if err != nil {
+				return err
+			}
+
 			votedValidatorPositions := extraData.FinalityVotedValidators.Indices()
 			var votedValidators []common.Address
 			for _, position := range votedValidatorPositions {
 				// The header has been verified so there must be no out of bound here
-				votedValidators = append(votedValidators, snap.ValidatorsWithBlsPub[position].Address)
+				votedValidators = append(votedValidators, parentSnap.ValidatorsWithBlsPub[position].Address)
 			}
 
 			if err := contract.FinalityReward(transactOpts, votedValidators); err != nil {

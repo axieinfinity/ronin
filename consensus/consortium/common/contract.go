@@ -15,6 +15,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/consensus"
+	finalityTracking "github.com/ethereum/go-ethereum/consensus/consortium/generated_contracts/finality_tracking"
 	"github.com/ethereum/go-ethereum/consensus/consortium/generated_contracts/profile"
 	roninValidatorSet "github.com/ethereum/go-ethereum/consensus/consortium/generated_contracts/ronin_validator_set"
 	slashIndicator "github.com/ethereum/go-ethereum/consensus/consortium/generated_contracts/slash_indicator"
@@ -69,6 +70,7 @@ type ContractIntegrator struct {
 	roninValidatorSetSC *roninValidatorSet.RoninValidatorSet
 	slashIndicatorSC    *slashIndicator.SlashIndicator
 	profileSC           *profile.Profile
+	finalityTrackingSC  *finalityTracking.FinalityTracking
 	signTxFn            SignerTxFn
 	coinbase            common.Address
 }
@@ -93,11 +95,18 @@ func NewContractIntegrator(config *chainParams.ChainConfig, backend bind.Contrac
 		return nil, err
 	}
 
+	// Create Finality Tracking contract instance
+	finalityTrackingSC, err := finalityTracking.NewFinalityTracking(config.ConsortiumV2Contracts.FinalityTracking, backend)
+	if err != nil {
+		return nil, err
+	}
+
 	return &ContractIntegrator{
 		chainId:             config.ChainID,
 		roninValidatorSetSC: roninValidatorSetSC,
 		slashIndicatorSC:    slashIndicatorSC,
 		profileSC:           profileSC,
+		finalityTrackingSC:  finalityTrackingSC,
 		signTxFn:            signTxFn,
 		signer:              types.LatestSignerForChainID(config.ChainID),
 		coinbase:            coinbase,
@@ -214,8 +223,7 @@ func (c *ContractIntegrator) Slash(opts *ApplyTransactOpts, spoiledValidator com
 
 func (c *ContractIntegrator) FinalityReward(opts *ApplyTransactOpts, votedValidators []common.Address) error {
 	nonce := opts.State.GetNonce(c.coinbase)
-	// FIXME: Change this
-	tx, err := c.slashIndicatorSC.SlashUnavailability(getTransactionOpts(c.coinbase, nonce, c.chainId, c.signTxFn), common.Address{})
+	tx, err := c.finalityTrackingSC.RecordFinality(getTransactionOpts(c.coinbase, nonce, c.chainId, c.signTxFn), votedValidators)
 	if err != nil {
 		return err
 	}
