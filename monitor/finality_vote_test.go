@@ -18,6 +18,7 @@ func TestCheckSameHeightVote(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create bls key, err %s", err)
 	}
+	signature := key1.Sign([]byte{1})
 	address1 := common.Address{0x1}
 
 	key2, err := blst.RandKey()
@@ -28,19 +29,19 @@ func TestCheckSameHeightVote(t *testing.T) {
 
 	voterPublicKey := []blsCommon.PublicKey{key1.PublicKey()}
 	voterAddress := []common.Address{address1}
-	if monitor.checkSameHeightVote(0, common.Hash{0x1}, voterPublicKey, voterAddress) != nil {
+	if monitor.checkSameHeightVote(0, common.Hash{0x1}, voterPublicKey, voterAddress, signature) != nil {
 		t.Fatalf("Expect no error when checkSameHeightVote")
 	}
 
 	voterPublicKey = []blsCommon.PublicKey{key2.PublicKey()}
 	voterAddress = []common.Address{address2}
-	if monitor.checkSameHeightVote(0, common.Hash{0x2}, voterPublicKey, voterAddress) != nil {
+	if monitor.checkSameHeightVote(0, common.Hash{0x2}, voterPublicKey, voterAddress, signature) != nil {
 		t.Fatalf("Expect no error when checkSameHeightVote")
 	}
 
 	voterPublicKey = []blsCommon.PublicKey{key2.PublicKey()}
 	voterAddress = []common.Address{address2}
-	if monitor.checkSameHeightVote(0, common.Hash{0x3}, voterPublicKey, voterAddress) == nil {
+	if monitor.checkSameHeightVote(0, common.Hash{0x3}, voterPublicKey, voterAddress, signature) == nil {
 		t.Fatalf("Expect error when checkSameHeightVote")
 	}
 }
