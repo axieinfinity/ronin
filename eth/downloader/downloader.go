@@ -1777,17 +1777,30 @@ func (d *Downloader) processFastSyncContent() error {
 
 	// To cater for moving pivot points, track the pivot block and subsequently
 	// accumulated download results separately.
+	//
+	// These will be nil up to the point where we reach the pivot, and will only
+	// be set temporarily if the synced blocks are piling up, but the pivot is
+	// still busy downloading. In that case, we need to occasionally check for
+	// pivot moves, so need to unblock the loop. These fields will accumulate
+	// the results in the meantime.
+	//
+	// Note, there's no issue with memory piling up since after 64 blocks the
+	// pivot will forcefully move so these accumulators will be dropped.
 	var (
 		oldPivot *fetchResult   // Locked in pivot block, might change eventually
 		oldTail  []*fetchResult // Downloaded content after the pivot
 	)
 	for {
-		// Wait for the next batch of downloaded data to be available, and if the pivot
-		// block became stale, move the goalpost
-		results := d.queue.Results(oldPivot == nil) // Block if we're not monitoring pivot staleness
+		// Wait for the next batch of downloaded data to be available. If we have
+		// not yet reached the pivot point, wait blockingly as there's no need to
+		// spin-loop check for pivot moves. If we reached the pivot but have not
+		// yet processed it, check for results async, so we might notice pivot
+		// moves while state syncing. If the pivot was passed fully, block again
+		// as there's no more reason to check for pivot moves at all.
+		results := d.queue.Results(oldPivot == nil)
 		if len(results) == 0 {
 			// If pivot sync is done, stop
-			if oldPivot == nil {
+			if atomic.LoadInt32(&d.committed) == 1 {
 				return sync.Cancel()
 			}
 			// If sync failed, stop
@@ -1807,21 +1820,23 @@ func (d *Downloader) processFastSyncContent() error {
 		pivot := d.pivotHeader
 		d.pivotLock.RUnlock()
 
-		if oldPivot == nil {
-			if pivot.Root != sync.root {
-				sync.Cancel()
-				sync = d.syncState(pivot.Root)
+		if oldPivot == nil { // no results piling up, we can move the pivot
+			if atomic.LoadInt32(&d.committed) == 0 { // not yet passed the pivot, we can move the pivot
+				if pivot.Root != sync.root { // pivot position changed, we can move the pivot
+					sync.Cancel()
+					sync = d.syncState(pivot.Root)
 
-				go closeOnErr(sync)
+					go closeOnErr(sync)
+				}
 			}
-		} else {
+		} else { // results already piled up, consume before handling pivot move
 			results = append(append([]*fetchResult{oldPivot}, oldTail...), results...)
 		}
 		// Split around the pivot block and process the two sides via fast/full sync
 		if atomic.LoadInt32(&d.committed) == 0 {
 			latest := results[len(results)-1].Header
 			// If the height is above the pivot block by 2 sets, it means the pivot
-			// become stale in the network and it was garbage collected, move to a
+			// become stale in the network, and it was garbage collected, move to a
 			// new pivot.
 			//
 			// Note, we have `reorgProtHeaderDelay` number of blocks withheld, Those
