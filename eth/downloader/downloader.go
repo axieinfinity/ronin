@@ -383,6 +383,13 @@ func (d *Downloader) synchronise(id string, hash common.Hash, td *big.Int, mode 
 	// but until snap becomes prevalent, we should support both. TODO(karalabe).
 	if mode == SnapSync {
 		if !d.snapSync {
+			// Snap sync will directly modify the persistent state, making the entire
+			// trie database unusable until the state is fully synced. To prevent any
+			// subsequent state reads, explicitly disable the trie database and state
+			// syncer is responsible to address and correct any state missing.
+			if d.blockchain.TrieDB().Scheme() == rawdb.PathScheme {
+				d.blockchain.TrieDB().Reset(types.EmptyRootHash)
+			}
 			// Snap sync uses the snapshot namespace to store potentially flakey data until
 			// sync completely heals and finishes. Pause snapshot maintenance in the mean
 			// time to prevent access.
