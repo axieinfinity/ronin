@@ -528,7 +528,7 @@ type ChainConfig struct {
 	// Shillin hardfork introduces fast finality
 	ShillinBlock *big.Int `json:"shillinBlock,omitempty"` // Shillin switch block (nil = no fork, 0 = already on activated)
 
-	ComingForkBlock                    *big.Int        `json:"comingForkBlock,omitempty"`                    // ComingForkBlock switch block (nil = no fork, 0 = already on activated)
+	AntennaBlock                       *big.Int        `json:"antennaBlock,omitempty"`                       // AntennaBlock switch block (nil = no fork, 0 = already on activated)
 	BlacklistContractAddress           *common.Address `json:"blacklistContractAddress,omitempty"`           // Address of Blacklist Contract (nil = no blacklist)
 	FenixValidatorContractAddress      *common.Address `json:"fenixValidatorContractAddress,omitempty"`      // Address of Ronin Contract in the Fenix hardfork (nil = no blacklist)
 	WhiteListDeployerContractV2Address *common.Address `json:"whiteListDeployerContractV2Address,omitempty"` // Address of Whitelist Ronin Contract V2 (nil = no blacklist)
@@ -782,8 +782,9 @@ func (c *ChainConfig) IsOlek(num *big.Int) bool {
 }
 
 // IsConsortiumV2 returns whether the num is equals to or larger than the consortiumV2 fork block.
-func (c *ChainConfig) IsComingFork(num *big.Int) bool {
-	return isForked(c.ComingForkBlock, num)
+func (c *ChainConfig) IsAntenna(num *big.Int) bool {
+	return isForked(c.AntennaBlock, num)
+}
 
 // IsShillin returns whether the num is equals to or larger than the shillin fork block.
 func (c *ChainConfig) IsShillin(num *big.Int) bool {
@@ -992,7 +993,7 @@ type Rules struct {
 	IsHomestead, IsEIP150, IsEIP155, IsEIP158               bool
 	IsByzantium, IsConstantinople, IsPetersburg, IsIstanbul bool
 	IsBerlin, IsLondon                                      bool
-	IsOdysseusFork, IsFenix, IsConsortiumV2, IsComingFork   bool
+	IsOdysseusFork, IsFenix, IsConsortiumV2, IsAntenna      bool
 }
 
 // Rules ensures c's ChainID is not nil.
@@ -1016,6 +1017,6 @@ func (c *ChainConfig) Rules(num *big.Int) Rules {
 		IsOdysseusFork:   c.IsOdysseus(num),
 		IsFenix:          c.IsFenix(num),
 		IsConsortiumV2:   c.IsConsortiumV2(num),
-		IsComingFork:     c.IsComingFork(num),
+		IsAntenna:        c.IsAntenna(num),
 	}
 }

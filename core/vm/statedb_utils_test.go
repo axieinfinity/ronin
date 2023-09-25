@@ -72,7 +72,7 @@ func TestValidDeployerV2AfterHardFork(t *testing.T) {
 	}
 
 	// Test deploying without adding whitelist yet.
-	evm.chainRules.IsComingFork = true
+	evm.chainRules.IsAntenna = true
 	evm.chainConfig.WhiteListDeployerContractV2Address = &contractProxyWhiteList
 
 	_, _, _, err = evm.Create(AccountRef(whitelistedCaller), byteCode, math.MaxUint64/2, big0)
@@ -148,7 +148,7 @@ func TestValidDeployerV2Expiration(t *testing.T) {
 	}
 
 	// Test deploying without adding whitelist yet.
-	evm.chainRules.IsComingFork = true
+	evm.chainRules.IsAntenna = true
 	evm.chainConfig.WhiteListDeployerContractV2Address = &contractProxyWhiteList
 
 	// Whitelist

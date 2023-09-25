@@ -501,7 +501,7 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 		}
 	}
 	// Handle latest hardfork firstly.
-	if evm.chainRules.IsComingFork {
+	if evm.chainRules.IsAntenna {
 		if !evm.StateDB.ValidDeployerV2(caller.Address(), evm.Context.Time, evm.ChainConfig().WhiteListDeployerContractV2Address) {
 			captureTraceEarly(ErrExecutionReverted)
 			return nil, common.Address{}, gas, ErrExecutionReverted
