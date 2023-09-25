@@ -199,6 +199,14 @@ type Config struct {
 
 	// AllowUnprotectedTxs allows non EIP-155 protected transactions to be send over RPC.
 	AllowUnprotectedTxs bool `toml:",omitempty"`
+
+	// The maximum finality vote per current block
+	MaxCurVoteAmountPerBlock int
+	EnableFastFinality       bool
+	EnableFastFinalitySign   bool
+	// The path of password and encrypted BLS secret key used for fast finality voting
+	BlsPasswordPath string
+	BlsWalletPath   string
 }
 
 // IPCEndpoint resolves an IPC endpoint based on a configured value, taking into

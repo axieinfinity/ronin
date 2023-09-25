@@ -26,6 +26,12 @@ import (
 	"golang.org/x/crypto/sha3"
 )
 
+const (
+	BLSSignatureLength = 96 // BLSSignatureLength defines the byte length of a BLSSignature.
+	BLSSecretKeyLength = 32
+	BLSPubkeyLength    = 48 // BLSPubkeyLength defines the byte length of a BLSSignature.
+)
+
 // Genesis hashes to enforce below configs on.
 var (
 	MainnetGenesisHash      = common.HexToHash("0xd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3")
@@ -34,6 +40,7 @@ var (
 	RinkebyGenesisHash      = common.HexToHash("0x6341fd3daf94b748c72ced5a5b26028f2474f5f00d824504e4fa37a75767e177")
 	GoerliGenesisHash       = common.HexToHash("0xbf7e331f7f7c1dd2e05159666b3bf8bc7a8a3a9eb1d518969eab529dd9b88c1a")
 	RoninMainnetGenesisHash = common.HexToHash("0x6e675ee97607f4e695188786c3c1853fb1562f1c075629eb5dbcff269422a1a4")
+	RoninTestnetGenesisHash = common.HexToHash("0x13e47595099383189b8b0d5f3b67aa161495e478bb3fea64f4cf85cdf69cac4d")
 )
 
 // TrustedCheckpoints associates each known checkpoint with the genesis hash of
@@ -235,6 +242,9 @@ var (
 
 	RoninMainnetBlacklistContract             = common.HexToAddress("0x313b24994c93FA0471CB4D7aB796b07467041806")
 	RoninMainnetFenixValidatorContractAddress = common.HexToAddress("0x7f13232Bdc3a010c3f749a1c25bF99f1C053CE70")
+	RoninMainnetRoninValidatorSetAddress      = common.HexToAddress("0x617c5d73662282EA7FfD231E020eCa6D2B0D552f")
+	RoninMainnetSlashIndicatorAddress         = common.HexToAddress("0xEBFFF2b32fA0dF9C5C8C5d5AAa7e8b51d5207bA3")
+	RoninMainnetStakingContractAddress        = common.HexToAddress("0x545edb750eB8769C868429BE9586F5857A768758")
 
 	RoninMainnetChainConfig = &ChainConfig{
 		ChainID:                       big.NewInt(2020),
@@ -251,9 +261,60 @@ var (
 		BlacklistContractAddress:      &RoninMainnetBlacklistContract,
 		FenixValidatorContractAddress: &RoninMainnetFenixValidatorContractAddress,
 		Consortium: &ConsortiumConfig{
-			Period: 3,
-			Epoch:  600,
+			Period:  3,
+			Epoch:   600,
+			EpochV2: 200,
 		},
+		ConsortiumV2Contracts: &ConsortiumV2Contracts{
+			RoninValidatorSet: RoninMainnetRoninValidatorSetAddress,
+			SlashIndicator:    RoninMainnetSlashIndicatorAddress,
+			StakingContract:   RoninMainnetStakingContractAddress,
+		},
+		ConsortiumV2Block: big.NewInt(23155200),
+		PuffyBlock:        big.NewInt(0),
+		BubaBlock:         big.NewInt(0),
+		OlekBlock:         big.NewInt(24935500),
+	}
+
+	RoninTestnetBlacklistContract             = common.HexToAddress("0xF53EED5210c9cF308abFe66bA7CF14884c95A8aC")
+	RoninTestnetFenixValidatorContractAddress = common.HexToAddress("0x1454cAAd1637b662432Bb795cD5773d21281eDAb")
+	RoninTestnetRoninValidatorSetAddress      = common.HexToAddress("0x54B3AC74a90E64E8dDE60671b6fE8F8DDf18eC9d")
+	RoninTestnetSlashIndicatorAddress         = common.HexToAddress("0xF7837778b6E180Df6696C8Fa986d62f8b6186752")
+	RoninTestnetStakingContractAddress        = common.HexToAddress("0x9C245671791834daf3885533D24dce516B763B28")
+	RoninTestnetProfileContractAddress        = common.HexToAddress("0x3b67c8D22a91572a6AB18acC9F70787Af04A4043")
+	RoninTestnetFinalityTrackingAddress       = common.HexToAddress("0x41aCDFe786171824a037f2Cd6224c5916A58969a")
+
+	RoninTestnetChainConfig = &ChainConfig{
+		ChainID:                       big.NewInt(2021),
+		HomesteadBlock:                big.NewInt(0),
+		EIP150Block:                   big.NewInt(0),
+		EIP155Block:                   big.NewInt(0),
+		EIP158Block:                   big.NewInt(0),
+		ByzantiumBlock:                big.NewInt(0),
+		ConstantinopleBlock:           big.NewInt(0),
+		PetersburgBlock:               big.NewInt(0),
+		IstanbulBlock:                 big.NewInt(0),
+		OdysseusBlock:                 big.NewInt(3315095),
+		FenixBlock:                    big.NewInt(6770400),
+		BlacklistContractAddress:      &RoninTestnetBlacklistContract,
+		FenixValidatorContractAddress: &RoninTestnetFenixValidatorContractAddress,
+		Consortium: &ConsortiumConfig{
+			Period:  3,
+			Epoch:   30,
+			EpochV2: 200,
+		},
+		ConsortiumV2Contracts: &ConsortiumV2Contracts{
+			RoninValidatorSet: RoninTestnetRoninValidatorSetAddress,
+			SlashIndicator:    RoninTestnetSlashIndicatorAddress,
+			StakingContract:   RoninTestnetStakingContractAddress,
+			ProfileContract:   RoninTestnetProfileContractAddress,
+			FinalityTracking:  RoninTestnetFinalityTrackingAddress,
+		},
+		ConsortiumV2Block: big.NewInt(11706000),
+		PuffyBlock:        big.NewInt(12254000),
+		BubaBlock:         big.NewInt(14260600),
+		OlekBlock:         big.NewInt(16849000),
+		ShillinBlock:      big.NewInt(20268000),
 	}
 
 	// GoerliTrustedCheckpoint contains the light client trusted checkpoint for the Görli test network.
@@ -464,6 +525,8 @@ type ChainConfig struct {
 	BubaBlock  *big.Int `json:"bubaBlock,omitempty"`  // Buba switch block (nil = no fork, 0 = already on activated)
 	// Olek hardfork reduces the delay in block time of out of turn miner
 	OlekBlock *big.Int `json:"olekBlock,omitempty"` // Olek switch block (nil = no fork, 0 = already on activated)
+	// Shillin hardfork introduces fast finality
+	ShillinBlock *big.Int `json:"shillinBlock,omitempty"` // Shillin switch block (nil = no fork, 0 = already on activated)
 
 	ComingForkBlock                    *big.Int        `json:"comingForkBlock,omitempty"`                    // ComingForkBlock switch block (nil = no fork, 0 = already on activated)
 	BlacklistContractAddress           *common.Address `json:"blacklistContractAddress,omitempty"`           // Address of Blacklist Contract (nil = no blacklist)
@@ -515,6 +578,8 @@ type ConsortiumV2Contracts struct {
 	StakingContract   common.Address `json:"stakingContract"`
 	RoninValidatorSet common.Address `json:"roninValidatorSet"`
 	SlashIndicator    common.Address `json:"slashIndicator"`
+	ProfileContract   common.Address `json:"profileContract"`
+	FinalityTracking  common.Address `json:"finalityTracking"`
 }
 
 func (c *ConsortiumV2Contracts) IsSystemContract(address common.Address) bool {
@@ -556,10 +621,21 @@ func (c *ChainConfig) String() string {
 		stakingContract = c.ConsortiumV2Contracts.StakingContract
 	}
 
+	profileContract := common.HexToAddress("")
+	if c.ConsortiumV2Contracts != nil {
+		profileContract = c.ConsortiumV2Contracts.ProfileContract
+	}
+
+	finalityTrackingContract := common.HexToAddress("")
+	if c.ConsortiumV2Contracts != nil {
+		finalityTrackingContract = c.ConsortiumV2Contracts.FinalityTracking
+	}
+
 	chainConfigFmt := "{ChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v "
 	chainConfigFmt += "Petersburg: %v Istanbul: %v, Odysseus: %v, Fenix: %v, Muir Glacier: %v, Berlin: %v, London: %v, Arrow Glacier: %v, "
 	chainConfigFmt += "Engine: %v, Blacklist Contract: %v, Fenix Validator Contract: %v, ConsortiumV2: %v, ConsortiumV2.RoninValidatorSet: %v, "
-	chainConfigFmt += "ConsortiumV2.SlashIndicator: %v, ConsortiumV2.StakingContract: %v, Puffy: %v, Buba: %v, Olek: %v}"
+	chainConfigFmt += "ConsortiumV2.SlashIndicator: %v, ConsortiumV2.StakingContract: %v, Puffy: %v, Buba: %v, Olek: %v, Shillin: %v, "
+	chainConfigFmt += "ConsortiumV2.ProfileContract: %v, ConsortiumV2.FinalityTracking: %v}"
 
 	return fmt.Sprintf(chainConfigFmt,
 		c.ChainID,
@@ -589,6 +665,9 @@ func (c *ChainConfig) String() string {
 		c.PuffyBlock,
 		c.BubaBlock,
 		c.OlekBlock,
+		c.ShillinBlock,
+		profileContract.Hex(),
+		finalityTrackingContract.Hex(),
 	)
 }
 
@@ -705,6 +784,10 @@ func (c *ChainConfig) IsOlek(num *big.Int) bool {
 // IsConsortiumV2 returns whether the num is equals to or larger than the consortiumV2 fork block.
 func (c *ChainConfig) IsComingFork(num *big.Int) bool {
 	return isForked(c.ComingForkBlock, num)
+
+// IsShillin returns whether the num is equals to or larger than the shillin fork block.
+func (c *ChainConfig) IsShillin(num *big.Int) bool {
+	return isForked(c.ShillinBlock, num)
 }
 
 // CheckCompatible checks whether scheduled fork transitions have been imported
@@ -825,6 +908,21 @@ func (c *ChainConfig) checkCompatible(newcfg *ChainConfig, head *big.Int) *Confi
 	}
 	if isForkIncompatible(c.FenixBlock, newcfg.FenixBlock, head) {
 		return newCompatError("Fenix fork block", c.FenixBlock, newcfg.FenixBlock)
+	}
+	if isForkIncompatible(c.ConsortiumV2Block, newcfg.ConsortiumV2Block, head) {
+		return newCompatError("Consortium v2 fork block", c.ConsortiumV2Block, newcfg.ConsortiumV2Block)
+	}
+	if isForkIncompatible(c.PuffyBlock, newcfg.PuffyBlock, head) {
+		return newCompatError("Puffy fork block", c.PuffyBlock, newcfg.PuffyBlock)
+	}
+	if isForkIncompatible(c.BubaBlock, newcfg.BubaBlock, head) {
+		return newCompatError("Buba fork block", c.BubaBlock, newcfg.BubaBlock)
+	}
+	if isForkIncompatible(c.OlekBlock, newcfg.OlekBlock, head) {
+		return newCompatError("Olek fork block", c.OlekBlock, newcfg.OlekBlock)
+	}
+	if isForkIncompatible(c.ShillinBlock, newcfg.ShillinBlock, head) {
+		return newCompatError("Shillin fork block", c.ShillinBlock, newcfg.ShillinBlock)
 	}
 	return nil
 }

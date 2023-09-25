@@ -18,9 +18,11 @@
 package consensus
 
 import (
+	"math/big"
+
+	"github.com/ethereum/go-ethereum/consensus/consortium/v2/finality"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/ethdb"
-	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/state"
@@ -146,4 +148,26 @@ type PoSA interface {
 
 	IsSystemTransaction(tx *types.Transaction, header *types.Header) (bool, error)
 	IsSystemContract(to *common.Address) bool
+}
+
+type FastFinalityPoSA interface {
+	PoSA
+
+	GetJustifiedBlock(chain ChainHeaderReader, blockNumber uint64, blockHash common.Hash) (uint64, common.Hash)
+	GetFinalizedBlock(chain ChainHeaderReader, blockNumber uint64, blockHash common.Hash) (uint64, common.Hash)
+
+	// IsActiveValidatorAt always returns false before Shillin
+	IsActiveValidatorAt(chain ChainHeaderReader, header *types.Header) bool
+
+	// VerifyVote check if the finality voter is in the validator set, it assumes the signature is
+	// already verified
+	VerifyVote(chain ChainHeaderReader, vote *types.VoteEnvelope) error
+
+	SetVotePool(votePool VotePool)
+
+	GetActiveValidatorAt(chain ChainHeaderReader, blockNumber uint64, blockHash common.Hash) []finality.ValidatorWithBlsPub
+}
+
+type VotePool interface {
+	FetchVoteByBlockHash(blockHash common.Hash) []*types.VoteEnvelope
 }

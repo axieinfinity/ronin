@@ -8,6 +8,7 @@ import (
 	consortiumCommon "github.com/ethereum/go-ethereum/consensus/consortium/common"
 	v1 "github.com/ethereum/go-ethereum/consensus/consortium/v1"
 	v2 "github.com/ethereum/go-ethereum/consensus/consortium/v2"
+	"github.com/ethereum/go-ethereum/consensus/consortium/v2/finality"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -200,6 +201,62 @@ func (c *Consortium) IsSystemContract(to *common.Address) bool {
 
 func (c *Consortium) GetBestParentBlock(chain *core.BlockChain) (*types.Block, bool) {
 	return c.v2.GetBestParentBlock(chain)
+}
+
+func (c *Consortium) GetJustifiedBlock(
+	chain consensus.ChainHeaderReader,
+	blockNumber uint64,
+	blockHash common.Hash,
+) (uint64, common.Hash) {
+	if c.chainConfig.IsShillin(new(big.Int).SetUint64(blockNumber)) {
+		return c.v2.GetJustifiedBlock(chain, blockNumber, blockHash)
+	}
+	return 0, common.Hash{}
+}
+
+func (c *Consortium) GetFinalizedBlock(
+	chain consensus.ChainHeaderReader,
+	headNumber uint64,
+	headHash common.Hash,
+) (uint64, common.Hash) {
+	if c.chainConfig.IsShillin(new(big.Int).SetUint64(headNumber)) {
+		return c.v2.GetFinalizedBlock(chain, headNumber, headHash)
+	}
+	return 0, common.Hash{}
+}
+
+func (c *Consortium) SetVotePool(votePool consensus.VotePool) {
+	c.v2.SetVotePool(votePool)
+}
+
+// IsActiveValidatorAt always returns false before Shillin
+func (c *Consortium) IsActiveValidatorAt(chain consensus.ChainHeaderReader, header *types.Header) bool {
+	if c.chainConfig.IsShillin(header.Number) {
+		return c.v2.IsActiveValidatorAt(chain, header)
+	}
+
+	return false
+}
+
+// VerifyVote check if the finality voter is in the validator set, it assumes the signature is
+// already verified
+func (c *Consortium) VerifyVote(chain consensus.ChainHeaderReader, vote *types.VoteEnvelope) error {
+	return c.v2.VerifyVote(chain, vote)
+}
+
+// GetActiveValidatorAt always return false before Shillin
+// See the comment for GetActiveValidatorAt in v2 package
+// for more information
+func (c *Consortium) GetActiveValidatorAt(
+	chain consensus.ChainHeaderReader,
+	blockNumber uint64,
+	blockHash common.Hash,
+) []finality.ValidatorWithBlsPub {
+	if c.chainConfig.IsShillin(big.NewInt(int64(blockNumber))) {
+		return c.v2.GetActiveValidatorAt(chain, blockNumber, blockHash)
+	}
+
+	return nil
 }
 
 // HandleSystemTransaction fixes up the statedb when system transaction

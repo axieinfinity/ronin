@@ -15,11 +15,15 @@ import (
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/consensus"
+	finalityTracking "github.com/ethereum/go-ethereum/consensus/consortium/generated_contracts/finality_tracking"
+	"github.com/ethereum/go-ethereum/consensus/consortium/generated_contracts/profile"
 	roninValidatorSet "github.com/ethereum/go-ethereum/consensus/consortium/generated_contracts/ronin_validator_set"
 	slashIndicator "github.com/ethereum/go-ethereum/consensus/consortium/generated_contracts/slash_indicator"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/crypto/bls/blst"
+	blsCommon "github.com/ethereum/go-ethereum/crypto/bls/common"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"github.com/ethereum/go-ethereum/log"
 	chainParams "github.com/ethereum/go-ethereum/params"
@@ -50,12 +54,23 @@ func getTransactionOpts(from common.Address, nonce uint64, chainId *big.Int, sig
 	}
 }
 
+type ContractInteraction interface {
+	GetValidators(blockNumber *big.Int) ([]common.Address, error)
+	WrapUpEpoch(opts *ApplyTransactOpts) error
+	SubmitBlockReward(opts *ApplyTransactOpts) error
+	Slash(opts *ApplyTransactOpts, spoiledValidator common.Address) error
+	FinalityReward(opts *ApplyTransactOpts, votedValidators []common.Address) error
+	GetBlsPublicKey(blockNumber *big.Int, validator common.Address) (blsCommon.PublicKey, error)
+}
+
 // ContractIntegrator is a contract facing to interact with smart contract that supports DPoS
 type ContractIntegrator struct {
 	chainId             *big.Int
 	signer              types.Signer
 	roninValidatorSetSC *roninValidatorSet.RoninValidatorSet
 	slashIndicatorSC    *slashIndicator.SlashIndicator
+	profileSC           *profile.Profile
+	finalityTrackingSC  *finalityTracking.FinalityTracking
 	signTxFn            SignerTxFn
 	coinbase            common.Address
 }
@@ -74,10 +89,24 @@ func NewContractIntegrator(config *chainParams.ChainConfig, backend bind.Contrac
 		return nil, err
 	}
 
+	// Create Profile contract instance
+	profileSC, err := profile.NewProfile(config.ConsortiumV2Contracts.ProfileContract, backend)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create Finality Tracking contract instance
+	finalityTrackingSC, err := finalityTracking.NewFinalityTracking(config.ConsortiumV2Contracts.FinalityTracking, backend)
+	if err != nil {
+		return nil, err
+	}
+
 	return &ContractIntegrator{
 		chainId:             config.ChainID,
 		roninValidatorSetSC: roninValidatorSetSC,
 		slashIndicatorSC:    slashIndicatorSC,
+		profileSC:           profileSC,
+		finalityTrackingSC:  finalityTrackingSC,
 		signTxFn:            signTxFn,
 		signer:              types.LatestSignerForChainID(config.ChainID),
 		coinbase:            coinbase,
@@ -190,6 +219,50 @@ func (c *ContractIntegrator) Slash(opts *ApplyTransactOpts, spoiledValidator com
 	}
 
 	return nil
+}
+
+func (c *ContractIntegrator) FinalityReward(opts *ApplyTransactOpts, votedValidators []common.Address) error {
+	nonce := opts.State.GetNonce(c.coinbase)
+	tx, err := c.finalityTrackingSC.RecordFinality(getTransactionOpts(c.coinbase, nonce, c.chainId, c.signTxFn), votedValidators)
+	if err != nil {
+		return err
+	}
+
+	msg := types.NewMessage(
+		opts.Header.Coinbase,
+		tx.To(),
+		opts.State.GetNonce(opts.Header.Coinbase),
+		tx.Value(),
+		tx.Gas(),
+		big.NewInt(0),
+		big.NewInt(0),
+		big.NewInt(0),
+		tx.Data(),
+		tx.AccessList(),
+		false,
+	)
+
+	if err = ApplyTransaction(msg, opts); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *ContractIntegrator) GetBlsPublicKey(blockNumber *big.Int, validator common.Address) (blsCommon.PublicKey, error) {
+	callOpts := bind.CallOpts{
+		BlockNumber: blockNumber,
+	}
+	validatorProfile, err := c.profileSC.GetId2Profile(&callOpts, validator)
+	if err != nil {
+		return nil, err
+	}
+	blsPublicKey, err := blst.PublicKeyFromBytes(validatorProfile.Pubkey)
+	if err != nil {
+		return nil, err
+	}
+
+	return blsPublicKey, nil
 }
 
 // ApplyMessageOpts is the collection of options to fine tune a contract call request.

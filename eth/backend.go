@@ -28,6 +28,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/consensus/consortium"
 	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/core/vote"
 
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
@@ -45,6 +46,7 @@ import (
 	"github.com/ethereum/go-ethereum/eth/filters"
 	"github.com/ethereum/go-ethereum/eth/gasprice"
 	"github.com/ethereum/go-ethereum/eth/protocols/eth"
+	"github.com/ethereum/go-ethereum/eth/protocols/ronin"
 	"github.com/ethereum/go-ethereum/eth/protocols/snap"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
@@ -223,16 +225,46 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 	if checkpoint == nil {
 		checkpoint = params.TrustedCheckpoints[genesisHash]
 	}
+	var votePool *vote.VotePool
+	nodeConfig := stack.Config()
+	if nodeConfig.EnableFastFinality {
+		if config.DisableRoninProtocol {
+			return nil, errors.New("fast finality requires ronin protocol to be enabled")
+		}
+
+		finalityEngine, ok := eth.engine.(consensus.FastFinalityPoSA)
+		if !ok {
+			return nil, errors.New("consensus engine does not support fast finality")
+		}
+		votePool = vote.NewVotePool(eth.blockchain, finalityEngine, nodeConfig.MaxCurVoteAmountPerBlock)
+
+		if _, err := vote.NewVoteManager(
+			eth,
+			chainDb,
+			chainConfig,
+			eth.blockchain,
+			votePool,
+			nodeConfig.EnableFastFinalitySign,
+			nodeConfig.BlsPasswordPath,
+			nodeConfig.BlsWalletPath,
+			finalityEngine,
+			nil,
+		); err != nil {
+			return nil, err
+		}
+	}
 	if eth.handler, err = newHandler(&handlerConfig{
-		Database:   chainDb,
-		Chain:      eth.blockchain,
-		TxPool:     eth.txPool,
-		Network:    config.NetworkId,
-		Sync:       config.SyncMode,
-		BloomCache: uint64(cacheLimit),
-		EventMux:   eth.eventMux,
-		Checkpoint: checkpoint,
-		Whitelist:  config.Whitelist,
+		Database:             chainDb,
+		Chain:                eth.blockchain,
+		TxPool:               eth.txPool,
+		Network:              config.NetworkId,
+		Sync:                 config.SyncMode,
+		BloomCache:           uint64(cacheLimit),
+		EventMux:             eth.eventMux,
+		Checkpoint:           checkpoint,
+		Whitelist:            config.Whitelist,
+		DisableRoninProtocol: config.DisableRoninProtocol,
+		VotePool:             votePool,
 	}); err != nil {
 		return nil, err
 	}
@@ -257,6 +289,9 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 			}
 			return state.GetFenixValidators(stateDb, eth.blockchain.Config().FenixValidatorContractAddress), nil
 		})
+		if votePool != nil {
+			c.SetVotePool(votePool)
+		}
 	}
 	// The first thing the node will do is reconstruct the verification data for
 	// the head block (ethash cache or clique voting snapshot). Might as well do
@@ -567,6 +602,11 @@ func (s *Ethereum) Protocols() []p2p.Protocol {
 	if s.config.SnapshotCache > 0 {
 		protos = append(protos, snap.MakeProtocols((*snapHandler)(s.handler), s.snapDialCandidates)...)
 	}
+
+	if !s.config.DisableRoninProtocol {
+		protos = append(protos, ronin.MakeProtocols((*roninHandler)(s.handler))...)
+	}
+
 	return protos
 }
 

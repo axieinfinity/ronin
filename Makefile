@@ -8,9 +8,10 @@
 .PHONY: ronin-darwin ronin-darwin-386 geth-darwin-amd64
 .PHONY: ronin-windows ronin-windows-386 geth-windows-amd64
 
+CFLAGS = "-O -D__BLST_PORTABLE__"
 GOBIN = ./build/bin
 GO ?= latest
-GORUN = go run
+GORUN = CGO_CFLAGS_ALLOW=$(CFLAGS) CGO_CFLAGS=$(CFLAGS) go run
 RONIN_CONTRACTS_PATH = ../ronin-dpos-contracts
 RONIN_CONTRACTS_OUTPUT_PATH = ./tmp/contracts
 GEN_CONTRACTS_OUTPUT_PATH = ./consensus/consortium/generated_contracts
@@ -28,6 +29,11 @@ generate-contract:
 
 ronin:
 	$(GORUN) build/ci.go install ./cmd/ronin
+	@echo "Done building."
+	@echo "Run \"$(GOBIN)/ronin\" to launch ronin."
+
+ronin-race-detector:
+	$(GORUN) build/ci.go install --race ./cmd/ronin
 	@echo "Done building."
 	@echo "Run \"$(GOBIN)/ronin\" to launch ronin."
 
@@ -66,7 +72,7 @@ clean:
 
 devtools:
 	env GOBIN= go install golang.org/x/tools/cmd/stringer@latest
-	env GOBIN= go install github.com/kevinburke/go-bindata/go-bindata@latest
+	env GOBIN= go install github.com/kevinburke/go-bindata@latest
 	env GOBIN= go install github.com/fjl/gencodec@latest
 	env GOBIN= go install github.com/golang/protobuf/protoc-gen-go@latest
 	env GOBIN= go install ./cmd/abigen

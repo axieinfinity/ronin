@@ -57,6 +57,7 @@ var AppHelpFlagGroups = []flags.FlagGroup{
 			utils.ForceOverrideChainConfigFlag,
 			utils.MonitorDoubleSign,
 			utils.StoreInternalTransactions,
+			utils.DisableRoninProtocol,
 		},
 	},
 	{
@@ -249,6 +250,16 @@ var AppHelpFlagGroups = []flags.FlagGroup{
 			utils.BloomFilterSizeFlag,
 			cli.HelpFlag,
 			utils.CatalystFlag,
+		},
+	},
+	{
+		Name: "FAST FINALITY",
+		Flags: []cli.Flag{
+			utils.MaxCurVoteAmountPerBlock,
+			utils.EnableFastFinality,
+			utils.EnableFastFinalitySign,
+			utils.BlsPasswordPath,
+			utils.BlsWalletPath,
 		},
 	},
 }

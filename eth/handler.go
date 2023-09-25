@@ -28,9 +28,11 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/forkid"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/core/vote"
 	"github.com/ethereum/go-ethereum/eth/downloader"
 	"github.com/ethereum/go-ethereum/eth/fetcher"
 	"github.com/ethereum/go-ethereum/eth/protocols/eth"
+	"github.com/ethereum/go-ethereum/eth/protocols/ronin"
 	"github.com/ethereum/go-ethereum/eth/protocols/snap"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
@@ -76,15 +78,17 @@ type txPool interface {
 // handlerConfig is the collection of initialization parameters to create a full
 // node network handler.
 type handlerConfig struct {
-	Database   ethdb.Database            // Database for direct sync insertions
-	Chain      *core.BlockChain          // Blockchain to serve data from
-	TxPool     txPool                    // Transaction pool to propagate from
-	Network    uint64                    // Network identifier to adfvertise
-	Sync       downloader.SyncMode       // Whether to fast or full sync
-	BloomCache uint64                    // Megabytes to alloc for fast sync bloom
-	EventMux   *event.TypeMux            // Legacy event mux, deprecate for `feed`
-	Checkpoint *params.TrustedCheckpoint // Hard coded checkpoint for sync challenges
-	Whitelist  map[uint64]common.Hash    // Hard coded whitelist for sync challenged
+	Database             ethdb.Database            // Database for direct sync insertions
+	Chain                *core.BlockChain          // Blockchain to serve data from
+	TxPool               txPool                    // Transaction pool to propagate from
+	Network              uint64                    // Network identifier to adfvertise
+	Sync                 downloader.SyncMode       // Whether to fast or full sync
+	BloomCache           uint64                    // Megabytes to alloc for fast sync bloom
+	EventMux             *event.TypeMux            // Legacy event mux, deprecate for `feed`
+	Checkpoint           *params.TrustedCheckpoint // Hard coded checkpoint for sync challenges
+	Whitelist            map[uint64]common.Hash    // Hard coded whitelist for sync challenged
+	DisableRoninProtocol bool                      // Ronin protocol is enabled
+	VotePool             *vote.VotePool            // Vote pool when fast finality is enabled
 }
 
 type handler struct {
@@ -121,7 +125,14 @@ type handler struct {
 
 	chainSync *chainSyncer
 	wg        sync.WaitGroup
-	peerWG    sync.WaitGroup
+
+	handlerStartCh chan struct{}
+	handlerDoneCh  chan struct{}
+
+	disableRoninProtocol bool
+	votePool             *vote.VotePool
+	voteCh               chan core.NewVoteEvent
+	voteSub              event.Subscription
 }
 
 // newHandler returns a handler for all Ethereum chain management protocol.
@@ -131,15 +142,19 @@ func newHandler(config *handlerConfig) (*handler, error) {
 		config.EventMux = new(event.TypeMux) // Nicety initialization for tests
 	}
 	h := &handler{
-		networkID:  config.Network,
-		forkFilter: forkid.NewFilter(config.Chain),
-		eventMux:   config.EventMux,
-		database:   config.Database,
-		txpool:     config.TxPool,
-		chain:      config.Chain,
-		peers:      newPeerSet(),
-		whitelist:  config.Whitelist,
-		quitSync:   make(chan struct{}),
+		networkID:            config.Network,
+		forkFilter:           forkid.NewFilter(config.Chain),
+		eventMux:             config.EventMux,
+		database:             config.Database,
+		txpool:               config.TxPool,
+		chain:                config.Chain,
+		peers:                newPeerSet(),
+		whitelist:            config.Whitelist,
+		quitSync:             make(chan struct{}),
+		handlerDoneCh:        make(chan struct{}),
+		handlerStartCh:       make(chan struct{}),
+		disableRoninProtocol: config.DisableRoninProtocol,
+		votePool:             config.VotePool,
 	}
 	if config.Sync == downloader.FullSync {
 		// The database seems empty as the current block is the genesis. Yet the fast
@@ -231,9 +246,50 @@ func newHandler(config *handlerConfig) (*handler, error) {
 	return h, nil
 }
 
+// protoTracker tracks the number of active protocol handlers.
+func (h *handler) protoTracker() {
+	defer h.wg.Done()
+	var active int
+	for {
+		select {
+		case <-h.handlerStartCh:
+			active++
+		case <-h.handlerDoneCh:
+			active--
+		case <-h.quitSync:
+			// Wait for all active handlers to finish.
+			for ; active > 0; active-- {
+				<-h.handlerDoneCh
+			}
+			return
+		}
+	}
+}
+
+// incHandlers signals to increment the number of active handlers if not
+// quitting.
+func (h *handler) incHandlers() bool {
+	select {
+	case h.handlerStartCh <- struct{}{}:
+		return true
+	case <-h.quitSync:
+		return false
+	}
+}
+
+// decHandlers signals to decrement the number of active handlers.
+func (h *handler) decHandlers() {
+	h.handlerDoneCh <- struct{}{}
+}
+
 // runEthPeer registers an eth peer into the joint eth/snap peerset, adds it to
 // various subsistems and starts handling messages.
 func (h *handler) runEthPeer(peer *eth.Peer, handler eth.Handler) error {
+	if !h.incHandlers() {
+		return p2p.DiscQuitting
+	}
+	defer h.decHandlers()
+
 	// If the peer has a `snap` extension, wait for it to connect so we can have
 	// a uniform initialization/teardown mechanism
 	snap, err := h.peers.waitSnapExtension(peer)
@@ -241,12 +297,15 @@ func (h *handler) runEthPeer(peer *eth.Peer, handler eth.Handler) error {
 		peer.Log().Error("Snapshot extension barrier failed", "err", err)
 		return err
 	}
-	// TODO(karalabe): Not sure why this is needed
-	if !h.chainSync.handlePeerEvent(peer) {
-		return p2p.DiscQuitting
+
+	var ronin *ronin.Peer
+	if !h.disableRoninProtocol {
+		ronin, err = h.peers.waitRoninExtension(peer)
+		if err != nil {
+			peer.Log().Error("Ronin extension barrier failed", "err", err)
+			return err
+		}
 	}
-	h.peerWG.Add(1)
-	defer h.peerWG.Done()
 
 	// Execute the Ethereum handshake
 	var (
@@ -281,7 +340,7 @@ func (h *handler) runEthPeer(peer *eth.Peer, handler eth.Handler) error {
 	peer.Log().Debug("Ethereum peer connected", "name", peer.Name())
 
 	// Register the peer locally
-	if err := h.peers.registerPeer(peer, snap); err != nil {
+	if err := h.peers.registerPeer(peer, snap, ronin); err != nil {
 		peer.Log().Error("Ethereum peer registration failed", "err", err)
 		return err
 	}
@@ -302,7 +361,7 @@ func (h *handler) runEthPeer(peer *eth.Peer, handler eth.Handler) error {
 			return err
 		}
 	}
-	h.chainSync.handlePeerEvent(peer)
+	h.chainSync.handlePeerEvent()
 
 	// Propagate existing transactions. new transactions appearing
 	// after this will be sent via broadcasts.
@@ -342,13 +401,29 @@ func (h *handler) runEthPeer(peer *eth.Peer, handler eth.Handler) error {
 // `eth`, all subsystem registrations and lifecycle management will be done by
 // the main `eth` handler to prevent strange races.
 func (h *handler) runSnapExtension(peer *snap.Peer, handler snap.Handler) error {
-	h.peerWG.Add(1)
-	defer h.peerWG.Done()
+	if !h.incHandlers() {
+		return p2p.DiscQuitting
+	}
+	defer h.decHandlers()
 
 	if err := h.peers.registerSnapExtension(peer); err != nil {
 		peer.Log().Info("Snapshot extension registration failed", "err", err)
 		return err
 	}
+	return handler(peer)
+}
+
+func (h *handler) runRoninExtension(peer *ronin.Peer, handler ronin.Handler) error {
+	if !h.incHandlers() {
+		return p2p.DiscQuitting
+	}
+	defer h.decHandlers()
+
+	if err := h.peers.registerRoninExtension(peer); err != nil {
+		peer.Log().Info("Ronin extension registration failed", "err", err)
+		return err
+	}
+
 	return handler(peer)
 }
 
@@ -408,23 +483,36 @@ func (h *handler) Start(maxPeers int) {
 	// start sync handlers
 	h.wg.Add(1)
 	go h.chainSync.loop()
+
+	// start peer handler tracker
+	h.wg.Add(1)
+	go h.protoTracker()
+
+	if h.votePool != nil {
+		h.voteCh = make(chan core.NewVoteEvent)
+		h.voteSub = h.votePool.SubscribeNewVoteEvent(h.voteCh)
+		h.wg.Add(1)
+		go h.voteBroadcastLoop()
+	}
 }
 
 func (h *handler) Stop() {
 	h.txsSub.Unsubscribe()        // quits txBroadcastLoop
 	h.minedBlockSub.Unsubscribe() // quits blockBroadcastLoop
+	if h.voteSub != nil {
+		h.voteSub.Unsubscribe() // quits voteBroadcastLoop
+	}
 
 	// Quit chainSync and txsync64.
 	// After this is done, no new peers will be accepted.
 	close(h.quitSync)
-	h.wg.Wait()
 
 	// Disconnect existing sessions.
 	// This also closes the gate for any new registrations on the peer set.
 	// sessions which are already established but not added to h.peers yet
 	// will exit when they try to register.
 	h.peers.close()
-	h.peerWG.Wait()
+	h.wg.Wait()
 
 	log.Info("Ethereum protocol stopped")
 }
@@ -525,6 +613,25 @@ func (h *handler) txBroadcastLoop() {
 		case event := <-h.txsCh:
 			h.BroadcastTransactions(event.Txs)
 		case <-h.txsSub.Err():
+			return
+		}
+	}
+}
+
+func (h *handler) broadcastVote(voteEnvelop *types.VoteEnvelope) {
+	roninPeers := h.peers.roninPeerWithoutVote(voteEnvelop.Hash())
+	for _, peer := range roninPeers {
+		peer.AsyncSendNewVote(voteEnvelop)
+	}
+}
+
+func (h *handler) voteBroadcastLoop() {
+	defer h.wg.Done()
+	for {
+		select {
+		case voteEvent := <-h.voteCh:
+			h.broadcastVote(voteEvent.Vote)
+		case <-h.voteSub.Err():
 			return
 		}
 	}

@@ -14,6 +14,8 @@ import (
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/bls/blst"
+	blsCommon "github.com/ethereum/go-ethereum/crypto/bls/common"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -1724,4 +1726,244 @@ func addressesToByte(addresses []common.Address) [][]byte {
 	}
 
 	return result
+}
+
+func TestValidateFinalityVoteProof(t *testing.T) {
+	contract := consortiumValidateFinalityProof{}
+
+	contractAbi, err := abi.JSON(strings.NewReader(validateFinalityVoteProofAbi))
+	if err != nil {
+		t.Fatalf("Failed to parse ABI, err %s", err)
+	}
+
+	var secretKey [3]blsCommon.SecretKey
+	for i := 0; i < 3; i++ {
+		secretKey[i], err = blst.RandKey()
+		if err != nil {
+			t.Fatalf("Failed to generate key, err %s", err)
+		}
+	}
+	var blockNumber uint64 = 1
+	blockHash1 := common.Hash{0x1}
+	voteData1 := types.VoteData{
+		TargetNumber: blockNumber,
+		TargetHash:   blockHash1,
+	}
+	digest1 := voteData1.Hash()
+	blockHash2 := common.Hash{0x2}
+	voteData2 := types.VoteData{
+		TargetNumber: blockNumber,
+		TargetHash:   blockHash2,
+	}
+	digest2 := voteData2.Hash()
+
+	targetBlockHashes := [2]common.Hash{blockHash1, blockHash1}
+	listOfPublicKeys := [2][][]byte{
+		{
+			secretKey[0].PublicKey().Marshal(),
+		},
+		{
+			secretKey[0].PublicKey().Marshal(),
+		},
+	}
+	voterPublicKey := secretKey[0].PublicKey().Marshal()
+	aggregatedSignature := [2][]byte{
+		secretKey[0].Sign(digest1[:]).Marshal(),
+		secretKey[0].Sign(digest1[:]).Marshal(),
+	}
+
+	input, err := contractAbi.Pack(
+		validateFinalityVoteProof,
+		voterPublicKey,
+		new(big.Int).Add(new(big.Int).SetUint64(1<<64-1), common.Big1),
+		targetBlockHashes,
+		listOfPublicKeys,
+		aggregatedSignature,
+	)
+	if err != nil {
+		t.Fatalf("Failed to pack contract input, err: %s", err)
+	}
+
+	_, err = contract.Run(input)
+	if err == nil || err.Error() != "malformed target block number" {
+		t.Fatalf("Expect to get error %s have %s", "malformed target block number", err)
+	}
+
+	input, err = contractAbi.Pack(
+		validateFinalityVoteProof,
+		voterPublicKey,
+		big.NewInt(int64(blockNumber)),
+		targetBlockHashes,
+		listOfPublicKeys,
+		aggregatedSignature,
+	)
+	if err != nil {
+		t.Fatalf("Failed to pack contract input, err: %s", err)
+	}
+
+	_, err = contract.Run(input)
+	if err == nil || err.Error() != "block hash is the same" {
+		t.Fatalf("Expect to get error %s have %s", "block hash is the same", err)
+	}
+
+	targetBlockHashes = [2]common.Hash{
+		blockHash1,
+		blockHash2,
+	}
+	aggregatedSignature = [2][]byte{
+		secretKey[0].Sign(digest1[:]).Marshal(),
+		secretKey[1].Sign(digest2[:]).Marshal(),
+	}
+	listOfPublicKeys = [2][][]byte{
+		{
+			secretKey[0].PublicKey().Marshal(),
+		},
+		{
+			secretKey[1].PublicKey().Marshal(),
+		},
+	}
+
+	input, err = contractAbi.Pack(
+		validateFinalityVoteProof,
+		voterPublicKey,
+		big.NewInt(int64(blockNumber)),
+		targetBlockHashes,
+		listOfPublicKeys,
+		aggregatedSignature,
+	)
+	if err != nil {
+		t.Fatalf("Failed to pack contract input, err: %s", err)
+	}
+
+	_, err = contract.Run(input)
+	if err == nil || err.Error() != "reported voter does not in public key list" {
+		t.Fatalf("Expect to get error %s have %s", "reported voter does not in public key list", err)
+	}
+
+	aggregatedSignature = [2][]byte{
+		blst.AggregateSignatures([]blsCommon.Signature{
+			secretKey[0].Sign(digest1[:]),
+			secretKey[1].Sign(digest1[:]),
+		}).Marshal(),
+		blst.AggregateSignatures([]blsCommon.Signature{
+			secretKey[0].Sign(digest2[:]),
+			secretKey[2].Sign(digest2[:]),
+		}).Marshal(),
+	}
+
+	listOfPublicKeys = [2][][]byte{
+		{
+			secretKey[0].PublicKey().Marshal(),
+			secretKey[1].PublicKey().Marshal(),
+		},
+		{
+			secretKey[0].PublicKey().Marshal(),
+			secretKey[2].PublicKey().Marshal(),
+		},
+	}
+
+	input, err = contractAbi.Pack(
+		validateFinalityVoteProof,
+		voterPublicKey,
+		big.NewInt(int64(blockNumber)),
+		targetBlockHashes,
+		listOfPublicKeys,
+		aggregatedSignature,
+	)
+	if err != nil {
+		t.Fatalf("Failed to pack contract input, err: %s", err)
+	}
+
+	rawReturn, err := contract.Run(input)
+	if err != nil {
+		t.Fatalf("Expect to successfully verify proof, get %s", err)
+	}
+
+	ret, err := contractAbi.Unpack(validateFinalityVoteProof, rawReturn)
+	if err != nil {
+		t.Fatalf("Failed to unpack output, err: %s", err)
+	}
+
+	returnedBool := (ret[0]).(bool)
+	if returnedBool != true {
+		t.Fatalf("Expect the returned value to be true, get %v", returnedBool)
+	}
+}
+
+func BenchmarkPrecompiledValidateFinalityVoteProof(b *testing.B) {
+	contractAbi, err := abi.JSON(strings.NewReader(validateFinalityVoteProofAbi))
+	if err != nil {
+		b.Fatalf("Failed to parse ABI, err %s", err)
+	}
+
+	var secretKeys []blsCommon.SecretKey
+	for i := 0; i < 200; i++ {
+		key, err := blst.RandKey()
+		if err != nil {
+			b.Fatalf("Failed to generate secret key")
+		}
+
+		secretKeys = append(secretKeys, key)
+	}
+	blockNumber := 10000
+	blockHash1 := crypto.Keccak256Hash([]byte{'t', 'e', 's', 't'})
+	vote := types.VoteData{
+		TargetNumber: uint64(blockNumber),
+		TargetHash:   blockHash1,
+	}
+	digest1 := vote.Hash()
+
+	blockHash2 := crypto.Keccak256Hash([]byte{'t', 'e', 's', 't', '2'})
+	vote = types.VoteData{
+		TargetNumber: uint64(blockNumber),
+		TargetHash:   blockHash2,
+	}
+	digest2 := vote.Hash()
+
+	var signature [100]blsCommon.Signature
+	var listOfPublicKey [2][][]byte
+	for i := 0; i < 100; i++ {
+		signature[i] = secretKeys[i].Sign(digest1[:])
+		listOfPublicKey[0] = append(listOfPublicKey[0], secretKeys[i].PublicKey().Marshal())
+	}
+	aggregatedSignature1 := blst.AggregateSignatures(signature[:])
+
+	signature[0] = secretKeys[0].Sign(digest2[:])
+	listOfPublicKey[1] = append(listOfPublicKey[1], secretKeys[0].PublicKey().Marshal())
+	for i := 101; i < 200; i++ {
+		signature[i-100] = secretKeys[i].Sign(digest2[:])
+		listOfPublicKey[1] = append(listOfPublicKey[1], secretKeys[i].PublicKey().Marshal())
+	}
+	aggregatedSignature2 := blst.AggregateSignatures(signature[:])
+
+	input, err := contractAbi.Pack(
+		validateFinalityVoteProof,
+		secretKeys[0].PublicKey().Marshal(),
+		big.NewInt(int64(blockNumber)),
+		[2]common.Hash{
+			blockHash1,
+			blockHash2,
+		},
+		listOfPublicKey,
+		[2][]byte{
+			aggregatedSignature1.Marshal(),
+			aggregatedSignature2.Marshal(),
+		},
+	)
+	if err != nil {
+		b.Fatalf("Failed to pack contract input, err: %s", err)
+	}
+
+	output, err := contractAbi.Methods[validateFinalityVoteProof].Outputs.Pack(true)
+	if err != nil {
+		b.Fatalf("Failed to pack contract output, err: %s", err)
+	}
+
+	test := precompiledTest{
+		Input:    common.Bytes2Hex(input),
+		Expected: common.Bytes2Hex(output),
+		Name:     "200-public-keys",
+	}
+
+	benchmarkPrecompiled("69", test, b)
 }
