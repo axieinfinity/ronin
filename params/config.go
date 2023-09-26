@@ -283,21 +283,23 @@ var (
 	RoninTestnetStakingContractAddress        = common.HexToAddress("0x9C245671791834daf3885533D24dce516B763B28")
 	RoninTestnetProfileContractAddress        = common.HexToAddress("0x3b67c8D22a91572a6AB18acC9F70787Af04A4043")
 	RoninTestnetFinalityTrackingAddress       = common.HexToAddress("0x41aCDFe786171824a037f2Cd6224c5916A58969a")
+	RoninWhiteListDeployerContractV2Address   = common.HexToAddress("0x50a7e07Aa75eB9C04281713224f50403cA79851F")
 
 	RoninTestnetChainConfig = &ChainConfig{
-		ChainID:                       big.NewInt(2021),
-		HomesteadBlock:                big.NewInt(0),
-		EIP150Block:                   big.NewInt(0),
-		EIP155Block:                   big.NewInt(0),
-		EIP158Block:                   big.NewInt(0),
-		ByzantiumBlock:                big.NewInt(0),
-		ConstantinopleBlock:           big.NewInt(0),
-		PetersburgBlock:               big.NewInt(0),
-		IstanbulBlock:                 big.NewInt(0),
-		OdysseusBlock:                 big.NewInt(3315095),
-		FenixBlock:                    big.NewInt(6770400),
-		BlacklistContractAddress:      &RoninTestnetBlacklistContract,
-		FenixValidatorContractAddress: &RoninTestnetFenixValidatorContractAddress,
+		ChainID:                            big.NewInt(2021),
+		HomesteadBlock:                     big.NewInt(0),
+		EIP150Block:                        big.NewInt(0),
+		EIP155Block:                        big.NewInt(0),
+		EIP158Block:                        big.NewInt(0),
+		ByzantiumBlock:                     big.NewInt(0),
+		ConstantinopleBlock:                big.NewInt(0),
+		PetersburgBlock:                    big.NewInt(0),
+		IstanbulBlock:                      big.NewInt(0),
+		OdysseusBlock:                      big.NewInt(3315095),
+		FenixBlock:                         big.NewInt(6770400),
+		BlacklistContractAddress:           &RoninTestnetBlacklistContract,
+		FenixValidatorContractAddress:      &RoninTestnetFenixValidatorContractAddress,
+		WhiteListDeployerContractV2Address: &RoninWhiteListDeployerContractV2Address,
 		Consortium: &ConsortiumConfig{
 			Period:  3,
 			Epoch:   30,
@@ -631,6 +633,10 @@ func (c *ChainConfig) String() string {
 	if c.ConsortiumV2Contracts != nil {
 		finalityTrackingContract = c.ConsortiumV2Contracts.FinalityTracking
 	}
+	whiteListDeployerContractV2Address := common.HexToAddress("")
+	if c.WhiteListDeployerContractV2Address != nil {
+		whiteListDeployerContractV2Address = *c.WhiteListDeployerContractV2Address
+	}
 
 	chainConfigFmt := "{ChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v "
 	chainConfigFmt += "Petersburg: %v Istanbul: %v, Odysseus: %v, Fenix: %v, Muir Glacier: %v, Berlin: %v, London: %v, Arrow Glacier: %v, "
@@ -670,7 +676,7 @@ func (c *ChainConfig) String() string {
 		c.AntennaBlock,
 		profileContract.Hex(),
 		finalityTrackingContract.Hex(),
-		c.WhiteListDeployerContractV2Address.Hex(),
+		whiteListDeployerContractV2Address.Hex(),
 	)
 }
 
