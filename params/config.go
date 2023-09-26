@@ -634,7 +634,7 @@ func (c *ChainConfig) String() string {
 	chainConfigFmt := "{ChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v "
 	chainConfigFmt += "Petersburg: %v Istanbul: %v, Odysseus: %v, Fenix: %v, Muir Glacier: %v, Berlin: %v, London: %v, Arrow Glacier: %v, "
 	chainConfigFmt += "Engine: %v, Blacklist Contract: %v, Fenix Validator Contract: %v, ConsortiumV2: %v, ConsortiumV2.RoninValidatorSet: %v, "
-	chainConfigFmt += "ConsortiumV2.SlashIndicator: %v, ConsortiumV2.StakingContract: %v, Puffy: %v, Buba: %v, Olek: %v, Shillin: %v, "
+	chainConfigFmt += "ConsortiumV2.SlashIndicator: %v, ConsortiumV2.StakingContract: %v, Puffy: %v, Buba: %v, Olek: %v, Shillin: %v, Antenna: %v, "
 	chainConfigFmt += "ConsortiumV2.ProfileContract: %v, ConsortiumV2.FinalityTracking: %v}"
 
 	return fmt.Sprintf(chainConfigFmt,
@@ -666,6 +666,7 @@ func (c *ChainConfig) String() string {
 		c.BubaBlock,
 		c.OlekBlock,
 		c.ShillinBlock,
+		c.AntennaBlock,
 		profileContract.Hex(),
 		finalityTrackingContract.Hex(),
 	)
@@ -781,7 +782,7 @@ func (c *ChainConfig) IsOlek(num *big.Int) bool {
 	return isForked(c.OlekBlock, num)
 }
 
-// IsConsortiumV2 returns whether the num is equals to or larger than the consortiumV2 fork block.
+// IsAntenna returns whether the num is equals to or larger than the consortiumV2 fork block.
 func (c *ChainConfig) IsAntenna(num *big.Int) bool {
 	return isForked(c.AntennaBlock, num)
 }
