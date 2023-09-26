@@ -646,6 +646,10 @@ func (s *StateDB) ValidDeployer(addr common.Address) bool {
 	return IsWhitelistedDeployer(s, addr)
 }
 
+func (s *StateDB) ValidDeployerV2(addr common.Address, blockTime uint64, whiteListContract *common.Address) bool {
+	return IsWhitelistedDeployerV2(s, addr, blockTime, whiteListContract)
+}
+
 func (s *StateDB) Blacklisted(contractAddr *common.Address, addr *common.Address) bool {
 	return IsAddressBlacklisted(s, contractAddr, addr)
 }

@@ -500,10 +500,17 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 			}
 		}
 	}
-
-	if evm.chainRules.IsOdysseusFork && !evm.StateDB.ValidDeployer(caller.Address()) {
-		captureTraceEarly(ErrExecutionReverted)
-		return nil, common.Address{}, gas, ErrExecutionReverted
+	// Handle latest hardfork firstly.
+	if evm.chainRules.IsAntenna {
+		if !evm.StateDB.ValidDeployerV2(caller.Address(), evm.Context.Time, evm.ChainConfig().WhiteListDeployerContractV2Address) {
+			captureTraceEarly(ErrExecutionReverted)
+			return nil, common.Address{}, gas, ErrExecutionReverted
+		}
+	} else if evm.chainRules.IsOdysseusFork {
+		if !evm.StateDB.ValidDeployer(caller.Address()) {
+			captureTraceEarly(ErrExecutionReverted)
+			return nil, common.Address{}, gas, ErrExecutionReverted
+		}
 	}
 
 	// Depth check execution. Fail if we're trying to execute above the
@@ -517,6 +524,7 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 		return nil, common.Address{}, gas, ErrInsufficientBalance
 	}
 	nonce := evm.StateDB.GetNonce(caller.Address())
+
 	if nonce+1 < nonce {
 		captureTraceEarly(ErrNonceUintOverflow)
 		return nil, common.Address{}, gas, ErrNonceUintOverflow

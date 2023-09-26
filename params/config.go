@@ -283,21 +283,23 @@ var (
 	RoninTestnetStakingContractAddress        = common.HexToAddress("0x9C245671791834daf3885533D24dce516B763B28")
 	RoninTestnetProfileContractAddress        = common.HexToAddress("0x3b67c8D22a91572a6AB18acC9F70787Af04A4043")
 	RoninTestnetFinalityTrackingAddress       = common.HexToAddress("0x41aCDFe786171824a037f2Cd6224c5916A58969a")
+	RoninWhiteListDeployerContractV2Address   = common.HexToAddress("0x50a7e07Aa75eB9C04281713224f50403cA79851F")
 
 	RoninTestnetChainConfig = &ChainConfig{
-		ChainID:                       big.NewInt(2021),
-		HomesteadBlock:                big.NewInt(0),
-		EIP150Block:                   big.NewInt(0),
-		EIP155Block:                   big.NewInt(0),
-		EIP158Block:                   big.NewInt(0),
-		ByzantiumBlock:                big.NewInt(0),
-		ConstantinopleBlock:           big.NewInt(0),
-		PetersburgBlock:               big.NewInt(0),
-		IstanbulBlock:                 big.NewInt(0),
-		OdysseusBlock:                 big.NewInt(3315095),
-		FenixBlock:                    big.NewInt(6770400),
-		BlacklistContractAddress:      &RoninTestnetBlacklistContract,
-		FenixValidatorContractAddress: &RoninTestnetFenixValidatorContractAddress,
+		ChainID:                            big.NewInt(2021),
+		HomesteadBlock:                     big.NewInt(0),
+		EIP150Block:                        big.NewInt(0),
+		EIP155Block:                        big.NewInt(0),
+		EIP158Block:                        big.NewInt(0),
+		ByzantiumBlock:                     big.NewInt(0),
+		ConstantinopleBlock:                big.NewInt(0),
+		PetersburgBlock:                    big.NewInt(0),
+		IstanbulBlock:                      big.NewInt(0),
+		OdysseusBlock:                      big.NewInt(3315095),
+		FenixBlock:                         big.NewInt(6770400),
+		BlacklistContractAddress:           &RoninTestnetBlacklistContract,
+		FenixValidatorContractAddress:      &RoninTestnetFenixValidatorContractAddress,
+		WhiteListDeployerContractV2Address: &RoninWhiteListDeployerContractV2Address,
 		Consortium: &ConsortiumConfig{
 			Period:  3,
 			Epoch:   30,
@@ -315,6 +317,7 @@ var (
 		BubaBlock:         big.NewInt(14260600),
 		OlekBlock:         big.NewInt(16849000),
 		ShillinBlock:      big.NewInt(20268000),
+		AntennaBlock:      big.NewInt(20737258),
 	}
 
 	// GoerliTrustedCheckpoint contains the light client trusted checkpoint for the Görli test network.
@@ -528,9 +531,10 @@ type ChainConfig struct {
 	// Shillin hardfork introduces fast finality
 	ShillinBlock *big.Int `json:"shillinBlock,omitempty"` // Shillin switch block (nil = no fork, 0 = already on activated)
 
-	BlacklistContractAddress      *common.Address `json:"blacklistContractAddress,omitempty"`      // Address of Blacklist Contract (nil = no blacklist)
-	FenixValidatorContractAddress *common.Address `json:"fenixValidatorContractAddress,omitempty"` // Address of Ronin Contract in the Fenix hardfork (nil = no blacklist)
-
+	AntennaBlock                       *big.Int        `json:"antennaBlock,omitempty"`                       // AntennaBlock switch block (nil = no fork, 0 = already on activated)
+	BlacklistContractAddress           *common.Address `json:"blacklistContractAddress,omitempty"`           // Address of Blacklist Contract (nil = no blacklist)
+	FenixValidatorContractAddress      *common.Address `json:"fenixValidatorContractAddress,omitempty"`      // Address of Ronin Contract in the Fenix hardfork (nil = no blacklist)
+	WhiteListDeployerContractV2Address *common.Address `json:"whiteListDeployerContractV2Address,omitempty"` // Address of Whitelist Ronin Contract V2 (nil = no blacklist)
 	// TerminalTotalDifficulty is the amount of total difficulty reached by
 	// the network that triggers the consensus upgrade.
 	TerminalTotalDifficulty *big.Int `json:"terminalTotalDifficulty,omitempty"`
@@ -629,12 +633,16 @@ func (c *ChainConfig) String() string {
 	if c.ConsortiumV2Contracts != nil {
 		finalityTrackingContract = c.ConsortiumV2Contracts.FinalityTracking
 	}
+	whiteListDeployerContractV2Address := common.HexToAddress("")
+	if c.WhiteListDeployerContractV2Address != nil {
+		whiteListDeployerContractV2Address = *c.WhiteListDeployerContractV2Address
+	}
 
 	chainConfigFmt := "{ChainID: %v Homestead: %v DAO: %v DAOSupport: %v EIP150: %v EIP155: %v EIP158: %v Byzantium: %v Constantinople: %v "
 	chainConfigFmt += "Petersburg: %v Istanbul: %v, Odysseus: %v, Fenix: %v, Muir Glacier: %v, Berlin: %v, London: %v, Arrow Glacier: %v, "
 	chainConfigFmt += "Engine: %v, Blacklist Contract: %v, Fenix Validator Contract: %v, ConsortiumV2: %v, ConsortiumV2.RoninValidatorSet: %v, "
-	chainConfigFmt += "ConsortiumV2.SlashIndicator: %v, ConsortiumV2.StakingContract: %v, Puffy: %v, Buba: %v, Olek: %v, Shillin: %v, "
-	chainConfigFmt += "ConsortiumV2.ProfileContract: %v, ConsortiumV2.FinalityTracking: %v}"
+	chainConfigFmt += "ConsortiumV2.SlashIndicator: %v, ConsortiumV2.StakingContract: %v, Puffy: %v, Buba: %v, Olek: %v, Shillin: %v, Antenna: %v, "
+	chainConfigFmt += "ConsortiumV2.ProfileContract: %v, ConsortiumV2.FinalityTracking: %v, whiteListDeployerContractV2Address: %v}"
 
 	return fmt.Sprintf(chainConfigFmt,
 		c.ChainID,
@@ -665,8 +673,10 @@ func (c *ChainConfig) String() string {
 		c.BubaBlock,
 		c.OlekBlock,
 		c.ShillinBlock,
+		c.AntennaBlock,
 		profileContract.Hex(),
 		finalityTrackingContract.Hex(),
+		whiteListDeployerContractV2Address.Hex(),
 	)
 }
 
@@ -778,6 +788,11 @@ func (c *ChainConfig) IsBuba(num *big.Int) bool {
 // IsOlek returns whether the num is equals to or larger than the olek fork block.
 func (c *ChainConfig) IsOlek(num *big.Int) bool {
 	return isForked(c.OlekBlock, num)
+}
+
+// IsAntenna returns whether the num is equals to or larger than the Antenna fork block.
+func (c *ChainConfig) IsAntenna(num *big.Int) bool {
+	return isForked(c.AntennaBlock, num)
 }
 
 // IsShillin returns whether the num is equals to or larger than the shillin fork block.
@@ -919,6 +934,9 @@ func (c *ChainConfig) checkCompatible(newcfg *ChainConfig, head *big.Int) *Confi
 	if isForkIncompatible(c.ShillinBlock, newcfg.ShillinBlock, head) {
 		return newCompatError("Shillin fork block", c.ShillinBlock, newcfg.ShillinBlock)
 	}
+	if isForkIncompatible(c.AntennaBlock, newcfg.AntennaBlock, head) {
+		return newCompatError("Antenna fork block", c.AntennaBlock, newcfg.AntennaBlock)
+	}
 	return nil
 }
 
@@ -987,7 +1005,7 @@ type Rules struct {
 	IsHomestead, IsEIP150, IsEIP155, IsEIP158               bool
 	IsByzantium, IsConstantinople, IsPetersburg, IsIstanbul bool
 	IsBerlin, IsLondon                                      bool
-	IsOdysseusFork, IsFenix, IsConsortiumV2                 bool
+	IsOdysseusFork, IsFenix, IsConsortiumV2, IsAntenna      bool
 }
 
 // Rules ensures c's ChainID is not nil.
@@ -1011,5 +1029,6 @@ func (c *ChainConfig) Rules(num *big.Int) Rules {
 		IsOdysseusFork:   c.IsOdysseus(num),
 		IsFenix:          c.IsFenix(num),
 		IsConsortiumV2:   c.IsConsortiumV2(num),
+		IsAntenna:        c.IsAntenna(num),
 	}
 }
