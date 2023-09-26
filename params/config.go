@@ -315,6 +315,7 @@ var (
 		BubaBlock:         big.NewInt(14260600),
 		OlekBlock:         big.NewInt(16849000),
 		ShillinBlock:      big.NewInt(20268000),
+		AntennaBlock:      big.NewInt(20737258),
 	}
 
 	// GoerliTrustedCheckpoint contains the light client trusted checkpoint for the Görli test network.
@@ -635,7 +636,7 @@ func (c *ChainConfig) String() string {
 	chainConfigFmt += "Petersburg: %v Istanbul: %v, Odysseus: %v, Fenix: %v, Muir Glacier: %v, Berlin: %v, London: %v, Arrow Glacier: %v, "
 	chainConfigFmt += "Engine: %v, Blacklist Contract: %v, Fenix Validator Contract: %v, ConsortiumV2: %v, ConsortiumV2.RoninValidatorSet: %v, "
 	chainConfigFmt += "ConsortiumV2.SlashIndicator: %v, ConsortiumV2.StakingContract: %v, Puffy: %v, Buba: %v, Olek: %v, Shillin: %v, Antenna: %v, "
-	chainConfigFmt += "ConsortiumV2.ProfileContract: %v, ConsortiumV2.FinalityTracking: %v}"
+	chainConfigFmt += "ConsortiumV2.ProfileContract: %v, ConsortiumV2.FinalityTracking: %v, whiteListDeployerContractV2Address: %v}"
 
 	return fmt.Sprintf(chainConfigFmt,
 		c.ChainID,
@@ -669,6 +670,7 @@ func (c *ChainConfig) String() string {
 		c.AntennaBlock,
 		profileContract.Hex(),
 		finalityTrackingContract.Hex(),
+		c.WhiteListDeployerContractV2Address.Hex(),
 	)
 }
 
@@ -782,7 +784,7 @@ func (c *ChainConfig) IsOlek(num *big.Int) bool {
 	return isForked(c.OlekBlock, num)
 }
 
-// IsAntenna returns whether the num is equals to or larger than the consortiumV2 fork block.
+// IsAntenna returns whether the num is equals to or larger than the Antenna fork block.
 func (c *ChainConfig) IsAntenna(num *big.Int) bool {
 	return isForked(c.AntennaBlock, num)
 }
@@ -925,6 +927,9 @@ func (c *ChainConfig) checkCompatible(newcfg *ChainConfig, head *big.Int) *Confi
 	}
 	if isForkIncompatible(c.ShillinBlock, newcfg.ShillinBlock, head) {
 		return newCompatError("Shillin fork block", c.ShillinBlock, newcfg.ShillinBlock)
+	}
+	if isForkIncompatible(c.AntennaBlock, newcfg.AntennaBlock, head) {
+		return newCompatError("Antenna fork block", c.AntennaBlock, newcfg.AntennaBlock)
 	}
 	return nil
 }
