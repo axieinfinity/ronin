@@ -2,6 +2,7 @@ package monitor
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -15,15 +16,17 @@ import (
 const finalityVoteCache = 100
 
 type blockInformation struct {
-	blockHash      common.Hash
-	voterPublicKey []blsCommon.PublicKey
-	voterAddress   []common.Address
+	blockHash           common.Hash
+	voterPublicKey      []blsCommon.PublicKey
+	voterAddress        []common.Address
+	aggregatedSignature blsCommon.Signature
 }
 
 type FinalityVoteMonitor struct {
 	chain         consensus.ChainHeaderReader
 	engine        consensus.FastFinalityPoSA
 	observedVotes *lru.Cache
+	alerter       *slackAlerter
 }
 
 func NewFinalityVoteMonitor(
@@ -38,6 +41,7 @@ func NewFinalityVoteMonitor(
 	return &FinalityVoteMonitor{
 		engine:        engine,
 		observedVotes: observedVotes,
+		alerter:       NewSlackAlert(),
 	}, nil
 }
 
@@ -90,6 +94,7 @@ func (monitor *FinalityVoteMonitor) CheckFinalityVote(block *types.Block) error 
 			block.Hash(),
 			voterPublicKey,
 			voterAddress,
+			extraData.AggregatedFinalityVotes,
 		)
 	}
 
@@ -101,14 +106,16 @@ func (monitor *FinalityVoteMonitor) checkSameHeightVote(
 	blockHash common.Hash,
 	voterPublicKey []blsCommon.PublicKey,
 	voterAddress []common.Address,
+	aggregatedSignature blsCommon.Signature,
 ) error {
 	rawBlockInfo, ok := monitor.observedVotes.Get(blockNumber)
 	if !ok {
 		monitor.observedVotes.Add(blockNumber, []blockInformation{
 			{
-				blockHash:      blockHash,
-				voterPublicKey: voterPublicKey,
-				voterAddress:   voterAddress,
+				blockHash:           blockHash,
+				voterPublicKey:      voterPublicKey,
+				voterAddress:        voterAddress,
+				aggregatedSignature: aggregatedSignature,
 			},
 		})
 		return nil
@@ -126,17 +133,37 @@ func (monitor *FinalityVoteMonitor) checkSameHeightVote(
 		for _, cachePublicKey := range block.voterPublicKey {
 			for _, blockPublicKey := range voterPublicKey {
 				if blockPublicKey.Equals(cachePublicKey) {
-					log.Error(
-						"Fast finality rule is violated",
-						"voter public key", common.Bytes2Hex(blockPublicKey.Marshal()),
-						"block number", blockNumber,
-						"block 1 hash", block.blockHash,
-						"block 1 voter public key", prettyPrintPublicKey(block.voterPublicKey),
-						"block 1 voter address", prettyPrintAddress(block.voterAddress),
-						"block 2 hash", blockHash,
-						"block 2 voter public key", prettyPrintPublicKey(voterPublicKey),
-						"block 2 voter address", prettyPrintAddress(voterAddress),
+					alertHeader := "Fast finality rule is violated"
+					alertFormat := "- Voter public key: %s\n" +
+						"- Block number: %d\n" +
+						"- Block 1 hash: %s\n" +
+						"- Block 1 voter public key: %s\n" +
+						"- Block 1 voter address: %s\n" +
+						"- Block 1 aggregated signature: %s\n" +
+						"- Block 2 hash: %s\n" +
+						"- Block 2 voter public key: %s\n" +
+						"- Block 2 voter address: %s\n" +
+						"- Block 2 aggregated signature: %s\n"
+
+					alertBody := fmt.Sprintf(
+						alertFormat,
+						common.Bytes2Hex(blockPublicKey.Marshal()),
+						blockNumber,
+						block.blockHash,
+						prettyPrintPublicKey(block.voterPublicKey),
+						prettyPrintAddress(block.voterAddress),
+						common.Bytes2Hex(block.aggregatedSignature.Marshal()),
+						blockHash,
+						prettyPrintPublicKey(voterPublicKey),
+						prettyPrintAddress(voterAddress),
+						common.Bytes2Hex(aggregatedSignature.Marshal()),
 					)
+
+					if monitor.alerter != nil {
+						monitor.alerter.Alert(alertHeader, alertBody)
+					}
+					log.Error(alertHeader, "message", alertBody)
+
 					violated = true
 				}
 			}
@@ -144,9 +171,10 @@ func (monitor *FinalityVoteMonitor) checkSameHeightVote(
 	}
 
 	blockInfo = append(blockInfo, blockInformation{
-		blockHash:      blockHash,
-		voterPublicKey: voterPublicKey,
-		voterAddress:   voterAddress,
+		blockHash:           blockHash,
+		voterPublicKey:      voterPublicKey,
+		voterAddress:        voterAddress,
+		aggregatedSignature: aggregatedSignature,
 	})
 
 	monitor.observedVotes.Add(blockNumber, blockInfo)
