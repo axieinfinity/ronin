@@ -904,6 +904,11 @@ var (
 		Name:  "ronin.disable",
 		Usage: "Disable ronin p2p protocol",
 	}
+
+	AdditionalChainEventFlag = cli.BoolFlag{
+		Name:  "additionalchainevent.enable",
+		Usage: "Enable additional chain event",
+	}
 )
 
 // MakeDataDir retrieves the currently requested data directory, terminating
@@ -1830,6 +1835,10 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 
 	if ctx.GlobalBool(MonitorDoubleSign.Name) {
 		cfg.EnableMonitorDoubleSign = true
+	}
+
+	if ctx.GlobalBool(AdditionalChainEventFlag.Name) {
+		cfg.EnableAdditionalChainEvent = true
 	}
 }
 
