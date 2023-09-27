@@ -215,6 +215,9 @@ type Config struct {
 
 	// Disable ronin p2p protocol
 	DisableRoninProtocol bool
+
+	// Send additional chain event
+	EnableAdditionalChainEvent bool
 }
 
 // CreateConsensusEngine creates a consensus engine for the given chain configuration.
