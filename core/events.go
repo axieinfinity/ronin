@@ -34,12 +34,14 @@ type RemovedLogsEvent struct{ Logs []*types.Log }
 type NewVoteEvent struct{ Vote *types.VoteEnvelope }
 
 type ChainEvent struct {
-	Block         *types.Block
-	Hash          common.Hash
-	Logs          []*types.Log
-	InternalTxs   []*types.InternalTransaction
-	DirtyAccounts []*types.DirtyStateAccount
-	Receipts      types.Receipts
+	Block                *types.Block
+	Hash                 common.Hash
+	Logs                 []*types.Log
+	InternalTxs          []*types.InternalTransaction
+	DirtyAccounts        []*types.DirtyStateAccount
+	Receipts             types.Receipts
+	FinalizedBlockNumber uint64
+	FinalizedBlockHash   common.Hash
 }
 
 type ChainSideEvent struct {

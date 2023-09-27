@@ -58,6 +58,7 @@ var AppHelpFlagGroups = []flags.FlagGroup{
 			utils.MonitorDoubleSign,
 			utils.StoreInternalTransactions,
 			utils.DisableRoninProtocol,
+			utils.AdditionalChainEventFlag,
 		},
 	},
 	{

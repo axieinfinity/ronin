@@ -205,6 +205,9 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 	if config.EnableMonitorDoubleSign {
 		go eth.blockchain.StartDoubleSignMonitor()
 	}
+	if config.EnableAdditionalChainEvent {
+		eth.blockchain.EnableAdditionalChainEvent()
+	}
 
 	// Rewind the chain in case of an incompatible config upgrade.
 	if compat, ok := genesisErr.(*params.ConfigCompatError); ok {
