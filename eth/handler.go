@@ -109,9 +109,9 @@ type handler struct {
 	networkID  uint64
 	forkFilter forkid.Filter // Fork ID filter, constant across the lifetime of the node
 
-	fastSync  uint32 // Flag whether fast sync is enabled (gets disabled if we already have blocks)
-	snapSync  uint32 // Flag whether fast sync should operate on top of the snap protocol
-	acceptTxs uint32 // Flag whether we're considered synchronised (enables transaction processing)
+	fastSync uint32 // Flag whether fast sync is enabled (gets disabled if we already have blocks)
+	snapSync uint32 // Flag whether fast sync should operate on top of the snap protocol
+	synced   uint32 // Flag whether we're considered synchronised (enables transaction processing)
 
 	checkpointNumber uint64      // Block number for the sync progress validator to cross reference
 	checkpointHash   common.Hash // Block hash for the sync progress validator to cross reference
@@ -183,17 +183,23 @@ func newHandler(config *handlerConfig) (*handler, error) {
 		fullBlock, fastBlock := h.chain.CurrentBlock(), h.chain.CurrentFastBlock()
 		if fullBlock.NumberU64() == 0 && fastBlock.NumberU64() > 0 {
 			h.fastSync = uint32(1)
-			log.Warn("Switch sync mode from full sync to fast sync")
+			log.Warn("Switch sync mode from full sync to fast sync", "reason", "snap sync incomplete")
+		} else if !h.chain.HasState(fullBlock.Root()) {
+			h.fastSync = uint32(1)
+			log.Warn("Switch sync mode from full sync to snap sync", "reason", "head state missing")
 		}
 	} else {
-		if h.chain.CurrentBlock().NumberU64() > 0 {
+		head := h.chain.CurrentBlock()
+		if head.NumberU64() > 0 {
 			// Print warning log if database is not empty to run fast sync.
 			log.Warn("Switch sync mode from fast sync to full sync")
 		} else {
 			// If fast sync was requested and our database is empty, grant it
 			h.fastSync = uint32(1)
+			log.Info("Enabled fast sync", "head", head.Number, "hash", head.Hash())
 			if config.Sync == downloader.SnapSync {
 				h.snapSync = uint32(1)
+				log.Info("Enabled snap sync", "head", head.Number, "hash", head.Hash())
 			}
 		}
 	}
@@ -237,15 +243,11 @@ func newHandler(config *handlerConfig) (*handler, error) {
 		// accept each others' blocks until a restart. Unfortunately we haven't figured
 		// out a way yet where nodes can decide unilaterally whether the network is new
 		// or not. This should be fixed if we figure out a solution.
-		if atomic.LoadUint32(&h.fastSync) == 1 {
-			log.Warn("Fast syncing, discarded propagated block", "number", blocks[0].Number(), "hash", blocks[0].Hash())
+		if atomic.LoadUint32(&h.synced) == 0 {
+			log.Warn("Syncing, discarded propagated block", "number", blocks[0].Number(), "hash", blocks[0].Hash())
 			return 0, nil
 		}
-		n, err := h.chain.InsertChain(blocks, sidecars)
-		if err == nil {
-			h.enableSyncedFeatures() // Mark initial sync done on any fetcher import
-		}
-		return n, err
+		return h.chain.InsertChain(blocks, sidecars)
 	}
 	h.blockFetcher = fetcher.NewBlockFetcher(false, nil, h.chain.GetBlockByHash, validator, h.chain.Engine().VerifyBlobHeader,
 		h.BroadcastBlock, heighter, nil, inserter, h.removePeer)
@@ -706,7 +708,18 @@ func (h *handler) voteBroadcastLoop() {
 // enableSyncedFeatures enables the post-sync functionalities when the initial
 // sync is finished.
 func (h *handler) enableSyncedFeatures() {
-	atomic.StoreUint32(&h.acceptTxs, 1)
+	atomic.StoreUint32(&h.synced, 1)
+
+	// If we were running fast/snap sync and it finished, disable doing another
+	// round on next sync cycle
+	if atomic.LoadUint32(&h.fastSync) == 1 {
+		log.Info("Fast sync complete, auto disabling")
+		atomic.StoreUint32(&h.fastSync, 0)
+	}
+	if atomic.LoadUint32(&h.snapSync) == 1 {
+		log.Info("Snap sync complete, auto disabling")
+		atomic.StoreUint32(&h.snapSync, 0)
+	}
 	if h.chain.TrieDB().Scheme() == rawdb.PathScheme {
 		h.chain.TrieDB().SetBufferSize(pathdb.DefaultBufferSize)
 	}
