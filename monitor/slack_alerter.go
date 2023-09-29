@@ -65,7 +65,7 @@ func (alerter *slackAlerter) Alert(header, body string) {
 	if response.StatusCode >= 400 {
 		responseBody := make([]byte, reponseBuffer)
 		response.Body.Read(responseBody)
-		log.Error("Error response from server", "status", response.StatusCode, "body", responseBody)
+		log.Error("Error response from server", "status", response.StatusCode, "body", string(responseBody))
 		return
 	}
 }

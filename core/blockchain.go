@@ -1309,7 +1309,7 @@ func (bc *BlockChain) sendNewBlockEvent(
 	for _, receipt := range receipts {
 		logs = append(logs, receipt.Logs...)
 	}
-	log.Info("send new block event", "height", block.NumberU64(), "txs", len(block.Transactions()), "logs", len(logs))
+	log.Debug("send new block event", "height", block.NumberU64(), "txs", len(block.Transactions()), "logs", len(logs))
 	bc.chainFeed.Send(ChainEvent{
 		Block:                block,
 		Hash:                 block.Hash(),

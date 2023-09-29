@@ -289,13 +289,13 @@ func (s *Service) loop(chainHeadCh chan core.ChainHeadEvent, txEventCh chan core
 				}
 			}
 			if err != nil {
-				log.Warn("Stats server unreachable", "err", err)
+				log.Debug("Stats server unreachable", "err", err)
 				errTimer.Reset(10 * time.Second)
 				continue
 			}
 			// Authenticate the client with the server
 			if err = s.login(conn); err != nil {
-				log.Warn("Stats login failed", "err", err)
+				log.Debug("Stats login failed", "err", err)
 				conn.Close()
 				errTimer.Reset(10 * time.Second)
 				continue
@@ -304,7 +304,7 @@ func (s *Service) loop(chainHeadCh chan core.ChainHeadEvent, txEventCh chan core
 
 			// Send the initial stats so our node looks decent from the get go
 			if err = s.report(conn); err != nil {
-				log.Warn("Initial stats report failed", "err", err)
+				log.Debug("Initial stats report failed", "err", err)
 				conn.Close()
 				errTimer.Reset(0)
 				continue
@@ -322,22 +322,22 @@ func (s *Service) loop(chainHeadCh chan core.ChainHeadEvent, txEventCh chan core
 
 				case <-fullReport.C:
 					if err = s.report(conn); err != nil {
-						log.Warn("Full stats report failed", "err", err)
+						log.Debug("Full stats report failed", "err", err)
 					}
 				case list := <-s.histCh:
 					if err = s.reportHistory(conn, list); err != nil {
-						log.Warn("Requested history report failed", "err", err)
+						log.Debug("Requested history report failed", "err", err)
 					}
 				case head := <-headCh:
 					if err = s.reportBlock(conn, head); err != nil {
-						log.Warn("Block stats report failed", "err", err)
+						log.Debug("Block stats report failed", "err", err)
 					}
 					if err = s.reportPending(conn); err != nil {
-						log.Warn("Post-block transaction stats report failed", "err", err)
+						log.Debug("Post-block transaction stats report failed", "err", err)
 					}
 				case <-txCh:
 					if err = s.reportPending(conn); err != nil {
-						log.Warn("Transaction stats report failed", "err", err)
+						log.Debug("Transaction stats report failed", "err", err)
 					}
 				}
 			}
@@ -362,14 +362,14 @@ func (s *Service) readLoop(conn *connWrapper) {
 		// Retrieve the next generic network packet and bail out on error
 		var blob json.RawMessage
 		if err := conn.ReadJSON(&blob); err != nil {
-			log.Warn("Failed to retrieve stats server message", "err", err)
+			log.Debug("Failed to retrieve stats server message", "err", err)
 			return
 		}
 		// If the network packet is a system ping, respond to it directly
 		var ping string
 		if err := json.Unmarshal(blob, &ping); err == nil && strings.HasPrefix(ping, "primus::ping::") {
 			if err := conn.WriteJSON(strings.Replace(ping, "ping", "pong", -1)); err != nil {
-				log.Warn("Failed to respond to system ping message", "err", err)
+				log.Debug("Failed to respond to system ping message", "err", err)
 				return
 			}
 			continue
@@ -377,17 +377,17 @@ func (s *Service) readLoop(conn *connWrapper) {
 		// Not a system ping, try to decode an actual state message
 		var msg map[string][]interface{}
 		if err := json.Unmarshal(blob, &msg); err != nil {
-			log.Warn("Failed to decode stats server message", "err", err)
+			log.Debug("Failed to decode stats server message", "err", err)
 			return
 		}
 		log.Trace("Received message from stats server", "msg", msg)
 		if len(msg["emit"]) == 0 {
-			log.Warn("Stats server sent non-broadcast", "msg", msg)
+			log.Debug("Stats server sent non-broadcast", "msg", msg)
 			return
 		}
 		command, ok := msg["emit"][0].(string)
 		if !ok {
-			log.Warn("Invalid stats server message type", "type", msg["emit"][0])
+			log.Debug("Invalid stats server message type", "type", msg["emit"][0])
 			return
 		}
 		// If the message is a ping reply, deliver (someone must be listening!)
@@ -398,7 +398,7 @@ func (s *Service) readLoop(conn *connWrapper) {
 				continue
 			default:
 				// Ping routine dead, abort
-				log.Warn("Stats server pinger seems to have died")
+				log.Debug("Stats server pinger seems to have died")
 				return
 			}
 		}
@@ -407,7 +407,7 @@ func (s *Service) readLoop(conn *connWrapper) {
 			// Make sure the request is valid and doesn't crash us
 			request, ok := msg["emit"][1].(map[string]interface{})
 			if !ok {
-				log.Warn("Invalid stats history request", "msg", msg["emit"][1])
+				log.Debug("Invalid stats history request", "msg", msg["emit"][1])
 				select {
 				case s.histCh <- nil: // Treat it as an no indexes request
 				default:
@@ -416,7 +416,7 @@ func (s *Service) readLoop(conn *connWrapper) {
 			}
 			list, ok := request["list"].([]interface{})
 			if !ok {
-				log.Warn("Invalid stats history block list", "list", request["list"])
+				log.Debug("Invalid stats history block list", "list", request["list"])
 				return
 			}
 			// Convert the block number list to an integer list
@@ -424,7 +424,7 @@ func (s *Service) readLoop(conn *connWrapper) {
 			for i, num := range list {
 				n, ok := num.(float64)
 				if !ok {
-					log.Warn("Invalid stats history block number", "number", num)
+					log.Debug("Invalid stats history block number", "number", num)
 					return
 				}
 				numbers[i] = uint64(n)
@@ -436,7 +436,7 @@ func (s *Service) readLoop(conn *connWrapper) {
 			}
 		}
 		// Report anything else and continue
-		log.Info("Unknown stats message", "msg", msg)
+		log.Debug("Unknown stats message", "msg", msg)
 	}
 }
 
