@@ -250,6 +250,7 @@ type TxPool struct {
 	eip2718  bool // Fork indicator whether we are using EIP-2718 type transactions.
 	eip1559  bool // Fork indicator whether we are using EIP-1559 type transactions.
 	odysseus bool // Fork indicator whether we are in the Odysseus stage.
+	antenna  bool // Fork indicator whether we are in Antenna stage.
 
 	currentState  *state.StateDB // Current state in the blockchain head
 	pendingNonces *txNoncer      // Pending state tracking virtual nonces
@@ -653,7 +654,17 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 
 	// Contract creation transaction
 	if tx.To() == nil && pool.chainconfig.Consortium != nil {
-		whitelisted := state.IsWhitelistedDeployer(pool.currentState, from)
+		var whitelisted bool
+		if pool.antenna {
+			whitelisted = state.IsWhitelistedDeployerV2(
+				pool.currentState,
+				from,
+				pool.chain.CurrentBlock().Time(),
+				pool.chainconfig.WhiteListDeployerContractV2Address,
+			)
+		} else {
+			whitelisted = state.IsWhitelistedDeployer(pool.currentState, from)
+		}
 		if !whitelisted {
 			return ErrUnauthorizedDeployer
 		}
@@ -1333,6 +1344,7 @@ func (pool *TxPool) reset(oldHead, newHead *types.Header) {
 	pool.eip2718 = pool.chainconfig.IsBerlin(next)
 	pool.eip1559 = pool.chainconfig.IsLondon(next)
 	pool.odysseus = pool.chainconfig.IsOdysseus(next)
+	pool.antenna = pool.chainconfig.IsAntenna(next)
 }
 
 // promoteExecutables moves transactions that have become processable from the
