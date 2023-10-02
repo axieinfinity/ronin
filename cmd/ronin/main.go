@@ -166,6 +166,7 @@ var (
 		configFileFlag,
 		utils.CatalystFlag,
 		utils.MonitorDoubleSign,
+		utils.MonitorFinalityVoteFlag,
 		utils.StoreInternalTransactions,
 		utils.MaxCurVoteAmountPerBlock,
 		utils.EnableFastFinality,

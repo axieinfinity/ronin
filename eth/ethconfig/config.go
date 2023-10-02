@@ -213,6 +213,9 @@ type Config struct {
 	// Enable double sign monitoring
 	EnableMonitorDoubleSign bool
 
+	// Enable finality vote monitoring
+	EnableMonitorFinalityVote bool
+
 	// Disable ronin p2p protocol
 	DisableRoninProtocol bool
 
