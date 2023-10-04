@@ -22,11 +22,16 @@
     "consortiumV2Contracts": {
       "roninValidatorSet": "0x617c5d73662282EA7FfD231E020eCa6D2B0D552f",
       "slashIndicator": "0xEBFFF2b32fA0dF9C5C8C5d5AAa7e8b51d5207bA3",
-      "stakingContract": "0x545edb750eB8769C868429BE9586F5857A768758"
+      "stakingContract": "0x545edb750eB8769C868429BE9586F5857A768758",
+      "profileContract": "0x840EBf1CA767CB690029E91856A357a43B85d035",
+      "finalityTracking": "0xA30B2932CD8b8A89E34551Cdfa13810af38dA576"
     },
     "puffyBlock": 0,
     "bubaBlock": 0,
-    "olekBlock": 24935500
+    "olekBlock": 24935500,
+    "shillinBlock": 28825400,
+    "antennaBlock": 28825400,
+    "whiteListDeployerContractV2Address": "0xc1876d5C4BFAF0eE325E4226B2bdf216D9896AE1"
   },
   "alloc": {
     "0x0000000000000000000000000000000000000011": {
