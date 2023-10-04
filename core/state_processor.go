@@ -143,14 +143,6 @@ func applyTransaction(
 	evm.Reset(txContext, statedb)
 	from := msg.From()
 
-	// Check if sender is authorized to deploy
-	if msg.To() == nil && config.Consortium != nil {
-		whitelistedDeployer := state.IsWhitelistedDeployer(statedb, from)
-		if !whitelistedDeployer {
-			return nil, nil, ErrUnauthorizedDeployer
-		}
-	}
-
 	// Check if sender and recipient are blacklisted
 	if config.Consortium != nil && config.IsOdysseus(blockNumber) {
 		contractAddr := config.BlacklistContractAddress
