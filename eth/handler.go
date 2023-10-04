@@ -432,6 +432,7 @@ func (h *handler) runSnapExtension(peer *snap.Peer, handler snap.Handler) error 
 				snap.EgressRegistrationErrorMeter.Mark(1)
 			}
 		}
+		peer.Log().Debug("Snapshot extension registration failed", "err", err)
 		return err
 	}
 	return handler(peer)
