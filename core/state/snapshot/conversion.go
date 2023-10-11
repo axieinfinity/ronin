@@ -366,11 +366,11 @@ func stackTrieGenerate(db ethdb.KeyValueWriter, scheme string, owner common.Hash
 	var nodeWriter trie.NodeWriteFunc
 	// Implement nodeWriter in case db is existed otherwise let it be nil.
 	if db != nil {
-		nodeWriter = func(owner common.Hash, path []byte, hash common.Hash, blob []byte) {
+		nodeWriter = func(path []byte, hash common.Hash, blob []byte) {
 			rawdb.WriteTrieNode(db, owner, path, hash, blob, scheme)
 		}
 	}
-	t := trie.NewStackTrieWithOwner(nodeWriter, owner)
+	t := trie.NewStackTrie(nodeWriter)
 	for leaf := range in {
 		t.TryUpdate(leaf.key[:], leaf.value)
 	}

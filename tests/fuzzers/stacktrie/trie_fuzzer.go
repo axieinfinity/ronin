@@ -153,8 +153,8 @@ func (f *fuzzer) fuzz() int {
 		trieA   = trie.NewEmpty(dbA)
 		spongeB = &spongeDb{sponge: sha3.NewLegacyKeccak256()}
 		dbB     = trie.NewDatabase(rawdb.NewDatabase(spongeB), nil)
-		trieB   = trie.NewStackTrie(func(owner common.Hash, path []byte, hash common.Hash, blob []byte) {
-			rawdb.WriteTrieNode(spongeB, owner, path, hash, blob, dbB.Scheme())
+		trieB   = trie.NewStackTrie(func(path []byte, hash common.Hash, blob []byte) {
+			rawdb.WriteTrieNode(spongeB, common.Hash{}, path, hash, blob, dbB.Scheme())
 		})
 		vals        kvs
 		useful      bool
@@ -218,12 +218,9 @@ func (f *fuzzer) fuzz() int {
 	// Need tracked deleted nodes.
 	var (
 		nodeset = make(map[string][]byte) // path -> blob
-		trieC   = trie.NewStackTrie(func(owner common.Hash, path []byte, hash common.Hash, blob []byte) {
+		trieC   = trie.NewStackTrie(func(path []byte, hash common.Hash, blob []byte) {
 			if crypto.Keccak256Hash(blob) != hash {
 				panic("invalid node blob")
-			}
-			if owner != (common.Hash{}) {
-				panic("invalid node owner")
 			}
 			nodeset[string(path)] = common.CopyBytes(blob)
 		})
