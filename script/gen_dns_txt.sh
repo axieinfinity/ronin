@@ -81,7 +81,7 @@ fi
 set -x
 
 devp2p nodeset filter all_nodes.json -eth-network $NETWORK $IP_LIST_PARAMS > $DNS_DIR/nodes.json
-devp2p dns sign $DNS_DIR keyfile.json password --domain $DOMAIN
+devp2p dns sign --domain $DOMAIN $DNS_DIR keyfile.json password
 devp2p dns to-txt $DNS_DIR $DNS_DIR/txt_record.json
 
 echo "Cleanup files"
