@@ -14,7 +14,7 @@ require (
 	github.com/btcsuite/btcd v0.20.1-beta
 	github.com/cespare/cp v1.1.1
 	github.com/cloudflare/cloudflare-go v0.14.0
-	github.com/consensys/gnark-crypto v0.4.1-0.20210426202927-39ac3d4b3f1f
+	github.com/consensys/gnark-crypto v0.12.0
 	github.com/davecgh/go-spew v1.1.1
 	github.com/deckarep/golang-set v0.0.0-20180603214616-504e848d77ea
 	github.com/docker/docker v1.4.2-0.20180625184442-8e610b2b55bf
@@ -86,7 +86,9 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sso v1.1.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.1.1 // indirect
 	github.com/aws/smithy-go v1.1.0 // indirect
+	github.com/bits-and-blooms/bitset v1.7.0 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
+	github.com/consensys/bavard v0.1.13 // indirect
 	github.com/deepmap/oapi-codegen v1.8.2 // indirect
 	github.com/dlclark/regexp2 v1.7.0 // indirect
 	github.com/go-kit/kit v0.10.0 // indirect
@@ -99,6 +101,7 @@ require (
 	github.com/mattn/go-runewidth v0.0.14 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/mitchellh/pointerstructure v1.2.0 // indirect
+	github.com/mmcloughlin/addchain v0.4.0 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/pyroscope-io/godeltaprof v0.1.2 // indirect
@@ -109,4 +112,5 @@ require (
 	golang.org/x/term v0.13.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
+	rsc.io/tmplfunc v0.0.3 // indirect
 )
