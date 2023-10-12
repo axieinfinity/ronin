@@ -58,6 +58,7 @@ require (
 	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
 	github.com/tklauser/go-sysconf v0.3.11 // indirect
 	github.com/tyler-smith/go-bip39 v1.1.0
+	github.com/urfave/cli/v2 v2.27.1
 	golang.org/x/crypto v0.17.0
 	golang.org/x/sync v0.1.0
 	golang.org/x/sys v0.15.0
@@ -65,11 +66,11 @@ require (
 	golang.org/x/time v0.0.0-20220922220347-f3bd1da661af
 	google.golang.org/protobuf v1.30.0 // indirect
 	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce
-	gopkg.in/urfave/cli.v1 v1.20.0
 	gotest.tools v2.2.0+incompatible // indirect
 )
 
 require (
+	github.com/cockroachdb/pebble v0.0.0-20230928194634-aa077af62593
 	github.com/common-nighthawk/go-figure v0.0.0-20210622060536-734e95fb86be
 	github.com/golang/mock v1.6.0
 	github.com/herumi/bls-eth-go-binary v1.31.0
@@ -92,11 +93,11 @@ require (
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/cockroachdb/errors v1.8.1 // indirect
 	github.com/cockroachdb/logtags v0.0.0-20190617123548-eb05cc24525f // indirect
-	github.com/cockroachdb/pebble v0.0.0-20230928194634-aa077af62593 // indirect
 	github.com/cockroachdb/redact v1.0.8 // indirect
 	github.com/cockroachdb/sentry-go v0.6.1-cockroachdb.2 // indirect
 	github.com/cockroachdb/tokenbucket v0.0.0-20230807174530-cc333fc44b06 // indirect
 	github.com/consensys/bavard v0.1.13 // indirect
+	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
 	github.com/deepmap/oapi-codegen v1.8.2 // indirect
 	github.com/dlclark/regexp2 v1.7.0 // indirect
 	github.com/go-kit/kit v0.10.0 // indirect
@@ -123,7 +124,9 @@ require (
 	github.com/pyroscope-io/godeltaprof v0.1.2 // indirect
 	github.com/rivo/uniseg v0.4.3 // indirect
 	github.com/rogpeppe/go-internal v1.9.0 // indirect
+	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/tklauser/numcpus v0.6.0 // indirect
+	github.com/xrash/smetrics v0.0.0-20201216005158-039620a65673 // indirect
 	github.com/yusufpapurcu/wmi v1.2.2 // indirect
 	golang.org/x/exp v0.0.0-20230626212559-97b1e661b5df // indirect
 	golang.org/x/net v0.17.0 // indirect
