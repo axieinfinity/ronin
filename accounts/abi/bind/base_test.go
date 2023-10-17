@@ -18,6 +18,7 @@ package bind_test
 
 import (
 	"context"
+	"errors"
 	"math/big"
 	"reflect"
 	"strings"
@@ -112,6 +113,27 @@ func (mc *mockPendingCaller) PendingCallContract(ctx context.Context, call ether
 	mc.pendingCallContractCalled = true
 	return mc.pendingCallContractBytes, mc.pendingCallContractErr
 }
+
+type mockBlockHashCaller struct {
+	*mockCaller
+	codeAtHashBytes          []byte
+	codeAtHashErr            error
+	codeAtHashCalled         bool
+	callContractAtHashCalled bool
+	callContractAtHashBytes  []byte
+	callContractAtHashErr    error
+}
+
+func (mc *mockBlockHashCaller) CodeAtHash(ctx context.Context, contract common.Address, hash common.Hash) ([]byte, error) {
+	mc.codeAtHashCalled = true
+	return mc.codeAtHashBytes, mc.codeAtHashErr
+}
+
+func (mc *mockBlockHashCaller) CallContractAtHash(ctx context.Context, call ethereum.CallMsg, hash common.Hash) ([]byte, error) {
+	mc.callContractAtHashCalled = true
+	return mc.callContractAtHashBytes, mc.callContractAtHashErr
+}
+
 func TestPassingBlockNumber(t *testing.T) {
 
 	mc := &mockPendingCaller{
@@ -355,5 +377,179 @@ func newMockLog(topics []common.Hash, txHash common.Hash) types.Log {
 		BlockHash:   common.BytesToHash([]byte{1, 2, 3, 4, 5}),
 		Index:       7,
 		Removed:     false,
+	}
+}
+
+func TestCall(t *testing.T) {
+	var method, methodWithArg = "something", "somethingArrrrg"
+	tests := []struct {
+		name, method string
+		opts         *bind.CallOpts
+		mc           bind.ContractCaller
+		results      *[]interface{}
+		wantErr      bool
+		wantErrExact error
+	}{{
+		name: "ok not pending",
+		mc: &mockCaller{
+			codeAtBytes: []byte{0},
+		},
+		method: method,
+	}, {
+		name: "ok pending",
+		mc: &mockPendingCaller{
+			pendingCodeAtBytes: []byte{0},
+		},
+		opts: &bind.CallOpts{
+			Pending: true,
+		},
+		method: method,
+	}, {
+		name: "ok hash",
+		mc: &mockBlockHashCaller{
+			codeAtHashBytes: []byte{0},
+		},
+		opts: &bind.CallOpts{
+			BlockHash: common.Hash{0xaa},
+		},
+		method: method,
+	}, {
+		name:    "pack error, no method",
+		mc:      new(mockCaller),
+		method:  "else",
+		wantErr: true,
+	}, {
+		name: "interface error, pending but not a PendingContractCaller",
+		mc:   new(mockCaller),
+		opts: &bind.CallOpts{
+			Pending: true,
+		},
+		method:       method,
+		wantErrExact: bind.ErrNoPendingState,
+	}, {
+		name: "interface error, blockHash but not a BlockHashContractCaller",
+		mc:   new(mockCaller),
+		opts: &bind.CallOpts{
+			BlockHash: common.Hash{0xaa},
+		},
+		method:       method,
+		wantErrExact: bind.ErrNoBlockHashState,
+	}, {
+		name: "pending call canceled",
+		mc: &mockPendingCaller{
+			pendingCallContractErr: context.DeadlineExceeded,
+		},
+		opts: &bind.CallOpts{
+			Pending: true,
+		},
+		method:       method,
+		wantErrExact: context.DeadlineExceeded,
+	}, {
+		name: "pending code at error",
+		mc: &mockPendingCaller{
+			pendingCodeAtErr: errors.New(""),
+		},
+		opts: &bind.CallOpts{
+			Pending: true,
+		},
+		method:  method,
+		wantErr: true,
+	}, {
+		name: "no pending code at",
+		mc:   new(mockPendingCaller),
+		opts: &bind.CallOpts{
+			Pending: true,
+		},
+		method:       method,
+		wantErrExact: bind.ErrNoCode,
+	}, {
+		name: "call contract error",
+		mc: &mockCaller{
+			callContractErr: context.DeadlineExceeded,
+		},
+		method:       method,
+		wantErrExact: context.DeadlineExceeded,
+	}, {
+		name: "code at error",
+		mc: &mockCaller{
+			codeAtErr: errors.New(""),
+		},
+		method:  method,
+		wantErr: true,
+	}, {
+		name:         "no code at",
+		mc:           new(mockCaller),
+		method:       method,
+		wantErrExact: bind.ErrNoCode,
+	}, {
+		name: "call contract at hash error",
+		mc: &mockBlockHashCaller{
+			callContractAtHashErr: context.DeadlineExceeded,
+		},
+		opts: &bind.CallOpts{
+			BlockHash: common.Hash{0xaa},
+		},
+		method:       method,
+		wantErrExact: context.DeadlineExceeded,
+	}, {
+		name: "code at error",
+		mc: &mockBlockHashCaller{
+			codeAtHashErr: errors.New(""),
+		},
+		opts: &bind.CallOpts{
+			BlockHash: common.Hash{0xaa},
+		},
+		method:  method,
+		wantErr: true,
+	}, {
+		name: "no code at hash",
+		mc:   new(mockBlockHashCaller),
+		opts: &bind.CallOpts{
+			BlockHash: common.Hash{0xaa},
+		},
+		method:       method,
+		wantErrExact: bind.ErrNoCode,
+	}, {
+		name: "unpack error missing arg",
+		mc: &mockCaller{
+			codeAtBytes: []byte{0},
+		},
+		method:  methodWithArg,
+		wantErr: true,
+	}, {
+		name: "interface unpack error",
+		mc: &mockCaller{
+			codeAtBytes: []byte{0},
+		},
+		method:  method,
+		results: &[]interface{}{0},
+		wantErr: true,
+	}}
+	for _, test := range tests {
+		bc := bind.NewBoundContract(common.HexToAddress("0x0"), abi.ABI{
+			Methods: map[string]abi.Method{
+				method: {
+					Name:    method,
+					Outputs: abi.Arguments{},
+				},
+				methodWithArg: {
+					Name:    methodWithArg,
+					Outputs: abi.Arguments{abi.Argument{}},
+				},
+			},
+		}, test.mc, nil, nil)
+		err := bc.Call(test.opts, test.results, test.method)
+		if test.wantErr || test.wantErrExact != nil {
+			if err == nil {
+				t.Fatalf("%q expected error", test.name)
+			}
+			if test.wantErrExact != nil && !errors.Is(err, test.wantErrExact) {
+				t.Fatalf("%q expected error %q but got %q", test.name, test.wantErrExact, err)
+			}
+			continue
+		}
+		if err != nil {
+			t.Fatalf("%q unexpected error: %v", test.name, err)
+		}
 	}
 }
