@@ -39,6 +39,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/fdlimit"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/clique"
+	"github.com/ethereum/go-ethereum/consensus/consortium"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
@@ -2036,9 +2037,17 @@ func MakeChain(ctx *cli.Context, stack *node.Node) (chain *core.BlockChain, chai
 	if err != nil {
 		Fatalf("%v", err)
 	}
-	var engine consensus.Engine
+	var (
+		engine        consensus.Engine
+		setBlockChain func(chain *core.BlockChain)
+		ethApiBackend *eth.EthAPIBackend
+	)
 	if config.Clique != nil {
 		engine = clique.New(config.Clique, chainDb)
+	} else if config.Consortium != nil {
+		ethApiBackend, setBlockChain = eth.MakeEthApiBackend(chainDb)
+		ethApi := ethapi.NewPublicBlockChainAPI(ethApiBackend)
+		engine = consortium.New(config, chainDb, ethApi)
 	} else {
 		engine = ethash.NewFaker()
 		if !ctx.GlobalBool(FakePoWFlag.Name) {
@@ -2087,6 +2096,7 @@ func MakeChain(ctx *cli.Context, stack *node.Node) (chain *core.BlockChain, chai
 	if err != nil {
 		Fatalf("Can't create BlockChain: %v", err)
 	}
+	setBlockChain(chain)
 	return chain, chainDb
 }
 
