@@ -38,9 +38,11 @@ import (
 	"github.com/ethereum/go-ethereum/common/fdlimit"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/clique"
+	"github.com/ethereum/go-ethereum/consensus/consortium"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
+	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/eth"
@@ -2218,9 +2220,17 @@ func MakeChain(ctx *cli.Context, stack *node.Node) (chain *core.BlockChain, chai
 	if err != nil {
 		Fatalf("%v", err)
 	}
-	var engine consensus.Engine
+	var (
+		engine        consensus.Engine
+		fixupEth      func(chain *core.BlockChain, engine consensus.Engine)
+		ethApiBackend *eth.EthAPIBackend
+	)
 	if config.Clique != nil {
 		engine = clique.New(config.Clique, chainDb)
+	} else if config.Consortium != nil {
+		ethApiBackend, fixupEth = eth.MakeEthApiBackend(chainDb)
+		ethApi := ethapi.NewPublicBlockChainAPI(ethApiBackend)
+		engine = consortium.New(config, chainDb, ethApi)
 	} else {
 		engine = ethash.NewFaker()
 		if !ctx.Bool(FakePoWFlag.Name) {
@@ -2268,6 +2278,26 @@ func MakeChain(ctx *cli.Context, stack *node.Node) (chain *core.BlockChain, chai
 	chain, err = core.NewBlockChain(chainDb, cache, config, engine, vmcfg, nil, nil)
 	if err != nil {
 		Fatalf("Can't create BlockChain: %v", err)
+	}
+	fixupEth(chain, engine)
+	if config.Consortium != nil {
+		c := engine.(*consortium.Consortium)
+		c.SetGetSCValidatorsFn(func() ([]common.Address, error) {
+			stateDb, err := chain.State()
+			if err != nil {
+				log.Crit("Cannot get state of blockchain", "err", err)
+				return nil, err
+			}
+			return state.GetSCValidators(stateDb), nil
+		})
+		c.SetGetFenixValidators(func() ([]common.Address, error) {
+			stateDb, err := chain.State()
+			if err != nil {
+				log.Crit("Cannot get state of blockchain", "err", err)
+				return nil, err
+			}
+			return state.GetFenixValidators(stateDb, config.FenixValidatorContractAddress), nil
+		})
 	}
 	return chain, chainDb
 }
