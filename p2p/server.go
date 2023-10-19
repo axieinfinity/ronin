@@ -62,6 +62,12 @@ const (
 
 	// Maximum amount of time allowed for writing a complete message.
 	frameWriteTimeout = 20 * time.Second
+
+	// The number of DHT seed nodes got from DNS resolve
+	numSeedNodesFromDns = 5
+
+	// Name of eth protocol
+	ethProtocolName = "eth"
 )
 
 var errServerStopped = errors.New("server stopped")
@@ -539,6 +545,22 @@ func (srv *Server) setupDiscovery() error {
 	added := make(map[string]bool)
 	for _, proto := range srv.Protocols {
 		if proto.DialCandidates != nil && !added[proto.Name] {
+			// If the protocol is eth, the dial candidates are retrieved from
+			// DNS URL. We want to use the DNS discovery for bootstrap nodes
+			// too, so resolve some nodes from DNS and add to DHT.
+			if proto.Name == ethProtocolName {
+				for i := 0; i < numSeedNodesFromDns; i++ {
+					if !proto.DialCandidates.Next() {
+						break
+					}
+
+					node := proto.DialCandidates.Node()
+					log.Info("Add resolved DNS node to discovery bootstrap nodes", "node", node.String())
+					srv.BootstrapNodes = append(srv.BootstrapNodes, node)
+					srv.BootstrapNodesV5 = append(srv.BootstrapNodesV5, node)
+				}
+			}
+
 			srv.discmix.AddSource(proto.DialCandidates)
 			added[proto.Name] = true
 		}
