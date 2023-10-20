@@ -173,6 +173,9 @@ func (t *StateTest) Run(subtest StateSubtest, vmconfig vm.Config, snapshotter bo
 		if triedb != nil {
 			triedb.Close()
 		}
+		if snaps != nil {
+			snaps.Release()
+		}
 	}()
 	post := t.json.Post[subtest.Fork][subtest.Index]
 	// N.B: We need to do this in a two-step process, because the first Commit takes care
