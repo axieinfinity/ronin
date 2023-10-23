@@ -238,6 +238,12 @@ func (t *freezerTable) repair() error {
 		t.index.ReadAt(buffer, offsetsSize-indexEntrySize)
 		lastIndex.unmarshalBinary(buffer)
 	}
+	// Print an error log if the index is corrupted due to an incorrect
+	// last index item. While it is theoretically possible to have a zero offset
+	// by storing all zero-size items, it is highly unlikely to occur in practice.
+	if lastIndex.offset == 0 && offsetsSize%indexEntrySize > 1 {
+		log.Error("Corrupted index file detected", "lastOffset", lastIndex.offset, "items", offsetsSize%indexEntrySize-1)
+	}
 	t.head, err = t.openFile(lastIndex.filenum, openFreezerFileForAppend)
 	if err != nil {
 		return err
@@ -491,6 +497,10 @@ func (t *freezerTable) truncateTail(items uint64) error {
 	if err := t.meta.Sync(); err != nil {
 		return err
 	}
+	// Close the index file before shorten it.
+	if err := t.index.Close(); err != nil {
+		return err
+	}
 	// Truncate the deleted index entries from the index file. It overwrites the entries in current index file.
 	err = copyFrom(t.index.Name(), t.index.Name(), indexEntrySize*(newDeleted-deleted+1), func(f *os.File) error {
 		tailIndex := indexEntry{
@@ -504,11 +514,12 @@ func (t *freezerTable) truncateTail(items uint64) error {
 		return err
 	}
 	// Reopen the modified index file to load the changes
-	if err := t.index.Close(); err != nil {
-		return err
-	}
 	t.index, err = openFreezerFileForAppend(t.index.Name())
 	if err != nil {
+		return err
+	}
+	// Sync the file to ensure changes are flushed to disk
+	if err := t.index.Sync(); err != nil {
 		return err
 	}
 	// Release/Delete any files before the current tail
