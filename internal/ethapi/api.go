@@ -20,10 +20,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/ethereum/go-ethereum/eth/tracers/logger"
 	"math/big"
 	"strings"
 	"time"
+
+	"github.com/ethereum/go-ethereum/eth/tracers/logger"
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/ethereum/go-ethereum/accounts"
@@ -1332,6 +1333,10 @@ type RPCTransaction struct {
 	V                *hexutil.Big      `json:"v"`
 	R                *hexutil.Big      `json:"r"`
 	S                *hexutil.Big      `json:"s"`
+	ExpiredTime      *hexutil.Uint64   `json:"expiredTime,omitempty"`
+	PayerV           *hexutil.Big      `json:"payerV,omitempty"`
+	PayerR           *hexutil.Big      `json:"payerR,omitempty"`
+	PayerS           *hexutil.Big      `json:"payerS,omitempty"`
 }
 
 // newRPCTransaction returns a transaction that will serialize to the RPC
@@ -1378,6 +1383,24 @@ func newRPCTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber
 		} else {
 			result.GasPrice = (*hexutil.Big)(tx.GasFeeCap())
 		}
+	case types.SponsoredTxType:
+		result.ChainID = (*hexutil.Big)(tx.ChainId())
+		result.GasFeeCap = (*hexutil.Big)(tx.GasFeeCap())
+		result.GasTipCap = (*hexutil.Big)(tx.GasTipCap())
+		// if the transaction has been mined, compute the effective gas price
+		if baseFee != nil && blockHash != (common.Hash{}) {
+			// price = min(tip + baseFee, gasFeeCap)
+			price := math.BigMin(new(big.Int).Add(tx.GasTipCap(), baseFee), tx.GasFeeCap())
+			result.GasPrice = (*hexutil.Big)(price)
+		} else {
+			result.GasPrice = (*hexutil.Big)(tx.GasFeeCap())
+		}
+		expiredTime := tx.ExpiredTime()
+		result.ExpiredTime = (*hexutil.Uint64)(&expiredTime)
+		v, r, s := tx.RawPayerSignatureValues()
+		result.PayerR = (*hexutil.Big)(r)
+		result.PayerS = (*hexutil.Big)(s)
+		result.PayerV = (*hexutil.Big)(v)
 	}
 	return result
 }
@@ -1679,6 +1702,11 @@ func (s *PublicTransactionPoolAPI) GetTransactionReceipt(ctx context.Context, ha
 		"logsBloom":         receipt.Bloom,
 		"type":              hexutil.Uint(tx.Type()),
 	}
+	if tx.Type() == types.SponsoredTxType {
+		payer, _ := types.Payer(signer, tx)
+		fields["payer"] = payer
+	}
+
 	// Assign the effective gas price paid
 	if !s.b.ChainConfig().IsLondon(bigblock) {
 		fields["effectiveGasPrice"] = hexutil.Uint64(tx.GasPrice().Uint64())

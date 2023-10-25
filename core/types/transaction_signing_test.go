@@ -17,6 +17,7 @@
 package types
 
 import (
+	"errors"
 	"math/big"
 	"testing"
 
@@ -134,5 +135,166 @@ func TestChainId(t *testing.T) {
 	_, err = Sender(NewEIP155Signer(big.NewInt(1)), tx)
 	if err != nil {
 		t.Error("expected no error")
+	}
+}
+
+func TestSponsoredTransactionSigner(t *testing.T) {
+	recipient := common.HexToAddress("0000000000000000000000000000000000000001")
+	sender, err := crypto.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	senderAddr := crypto.PubkeyToAddress(sender.PublicKey)
+
+	payer, err := crypto.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	payerAddr := crypto.PubkeyToAddress(payer.PublicKey)
+
+	mikoSigner := NewMikoSigner(big.NewInt(2020))
+	eip155Signer := NewEIP155Signer(big.NewInt(2020))
+	latestSigner := LatestSignerForChainID(big.NewInt(2020))
+
+	innerTx := SponsoredTx{
+		ChainID:     big.NewInt(2020),
+		Nonce:       1,
+		GasTipCap:   big.NewInt(100000),
+		GasFeeCap:   big.NewInt(100000),
+		Gas:         1000,
+		To:          &recipient,
+		Value:       big.NewInt(10),
+		Data:        []byte("abcd"),
+		ExpiredTime: 100000,
+	}
+
+	innerTx.PayerR, innerTx.PayerS, innerTx.PayerV, err = PayerSign(payer, mikoSigner, senderAddr, &innerTx)
+	if err != nil {
+		t.Fatalf("Payer fails to sign, err %s", err)
+	}
+
+	// 1. Check hash
+	tx := NewTx(&innerTx)
+
+	expectedHash := prefixedRlpHash(0x64, []interface{}{
+		big.NewInt(2020),
+		innerTx.Nonce,
+		innerTx.GasTipCap,
+		innerTx.GasFeeCap,
+		innerTx.Gas,
+		innerTx.To,
+		innerTx.Value,
+		innerTx.Data,
+		innerTx.ExpiredTime,
+		innerTx.PayerV,
+		innerTx.PayerR,
+		innerTx.PayerS,
+	})
+
+	hash := mikoSigner.Hash(tx)
+	if hash != expectedHash {
+		t.Fatalf("Tx hash mismatches, get %s expect %s", hash, expectedHash)
+	}
+
+	hash = latestSigner.Hash(tx)
+	if hash != expectedHash {
+		t.Fatalf("Tx hash mismatches, get %s expect %s", hash, expectedHash)
+	}
+
+	tx, err = SignTx(tx, mikoSigner, sender)
+	if err != nil {
+		t.Fatalf("Failed to sign tx, err %s", err)
+	}
+	v, r, s := tx.RawSignatureValues()
+	transactionHash := tx.Hash()
+
+	expectedTxHash := prefixedRlpHash(0x64, []interface{}{
+		big.NewInt(2020),
+		innerTx.Nonce,
+		innerTx.GasTipCap,
+		innerTx.GasFeeCap,
+		innerTx.Gas,
+		innerTx.To,
+		innerTx.Value,
+		innerTx.Data,
+		innerTx.ExpiredTime,
+		innerTx.PayerV,
+		innerTx.PayerR,
+		innerTx.PayerS,
+		v, r, s,
+	})
+	if transactionHash != expectedTxHash {
+		t.Fatalf("Transaction hash mismatches, get %s expect %s", transactionHash, expectedTxHash)
+	}
+
+	// 2. Check sender
+	tx, err = SignTx(tx, mikoSigner, sender)
+	if err != nil {
+		t.Fatalf("Failed to sign tx, err %s", err)
+	}
+
+	v, _, _ = tx.RawSignatureValues()
+	if v.Cmp(big.NewInt(0)) != 0 && v.Cmp(big.NewInt(1)) != 0 {
+		t.Fatalf("V is expected to be {0, 1}, get %d", v.Uint64())
+	}
+
+	recoveredSender, err := Sender(mikoSigner, tx)
+	if err != nil {
+		t.Fatalf("Failed to recover sender, err %s", err)
+	}
+
+	if recoveredSender != senderAddr {
+		t.Fatalf("Sender mismatches, get %s expect %s", recoveredSender, senderAddr)
+	}
+
+	// London signer should be able to recover sender too
+	recoveredSender, err = Sender(latestSigner, tx)
+	if err != nil {
+		t.Fatalf("Failed to recover sender, err %s", err)
+	}
+
+	if recoveredSender != senderAddr {
+		t.Fatalf("Sender mismatches, get %s expect %s", recoveredSender, senderAddr)
+	}
+
+	// EIP155 should not accept sponsored tx
+	_, err = Sender(eip155Signer, tx)
+	if err == nil || !errors.Is(err, ErrTxTypeNotSupported) {
+		t.Fatalf("Expect %s, get %s", ErrTxTypeNotSupported, err)
+	}
+
+	// 3. Check payer
+	payerV, _, _ := tx.RawPayerSignatureValues()
+	if payerV.Cmp(big.NewInt(0)) != 0 && payerV.Cmp(big.NewInt(1)) != 0 {
+		t.Fatalf("payerV is expected to be {0, 1}, get %d", v.Uint64())
+	}
+	recoveredPayerAddr, err := Payer(mikoSigner, tx)
+	if err != nil {
+		t.Fatalf("Failed to recover payer, err %s", err)
+	}
+
+	if recoveredPayerAddr != payerAddr {
+		t.Fatalf("Payer mismatches, get %s expect %s", recoveredPayerAddr, payerAddr)
+	}
+
+	// London signer should be able to recover sender too
+	recoveredPayerAddr, err = Payer(latestSigner, tx)
+	if err != nil {
+		t.Fatalf("Failed to recover payer, err %s", err)
+	}
+
+	if recoveredPayerAddr != payerAddr {
+		t.Fatalf("Payer mismatches, get %s expect %s", recoveredPayerAddr, payerAddr)
+	}
+
+	// 4. Check chainID
+	// Don't bother to fix up the signature here, Sender reject the
+	// tx with mismatching chainID before recovering address
+	innerTx.ChainID = big.NewInt(1000)
+	tx = NewTx(&innerTx)
+
+	_, err = Sender(mikoSigner, tx)
+	if err == nil || !errors.Is(err, ErrInvalidChainId) {
+		t.Fatalf("Expect %s, get %s", ErrInvalidChainId, err)
 	}
 }
