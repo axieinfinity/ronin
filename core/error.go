@@ -96,4 +96,19 @@ var (
 
 	// ErrSenderNoEOA is returned if the sender of a transaction is a contract.
 	ErrSenderNoEOA = errors.New("sender not an eoa")
+
+	// ErrExpiredSponsoredTx is returned if the sponsored transaction is expired.
+	ErrExpiredSponsoredTx = errors.New("sponsored transaction is expired")
+
+	// ErrInsufficientPayerFunds is returned if the gas fee cost of executing a transaction
+	// is higher than the balance of the payer's account.
+	ErrInsufficientPayerFunds = errors.New("insufficient payer funds for gas * price")
+
+	// ErrInsufficientSenderFunds is returned if the value in transaction
+	// is higher than the balance of the user's account.
+	ErrInsufficientSenderFunds = errors.New("insufficient sender funds for value")
+
+	// ErrDifferentFeeCapTipCap is returned if fee cap and tip cap are different
+	// when dynamic gas fee is not supported
+	ErrDifferentFeeCapTipCap = errors.New("gas fee cap and gas tip cap are different")
 )

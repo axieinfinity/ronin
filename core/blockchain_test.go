@@ -19,7 +19,6 @@ package core
 import (
 	"errors"
 	"fmt"
-	"github.com/ethereum/go-ethereum/eth/tracers/logger"
 	"io/ioutil"
 	"math/big"
 	"math/rand"
@@ -27,6 +26,9 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/ethereum/go-ethereum/common/math"
+	"github.com/ethereum/go-ethereum/eth/tracers/logger"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -3335,5 +3337,270 @@ func TestEIP1559Transition(t *testing.T) {
 	expected = new(big.Int).SetUint64(block.GasUsed() * (effectiveTip + block.BaseFee().Uint64()))
 	if actual.Cmp(expected) != 0 {
 		t.Fatalf("sender balance incorrect: expected %d, got %d", expected, actual)
+	}
+}
+
+func TestSponsoredTxTransitionBeforeMiko(t *testing.T) {
+	var chainConfig params.ChainConfig
+
+	chainConfig.HomesteadBlock = common.Big0
+	chainConfig.EIP150Block = common.Big0
+	chainConfig.EIP155Block = common.Big0
+	chainConfig.ChainID = big.NewInt(2020)
+
+	engine := ethash.NewFaker()
+	db := rawdb.NewMemoryDatabase()
+
+	recipient := common.HexToAddress("1000000000000000000000000000000000000001")
+	senderKey, err := crypto.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	payerKey, err := crypto.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	gspec := &Genesis{
+		Config: &chainConfig,
+	}
+	genesis := gspec.MustCommit(db)
+	chain, err := NewBlockChain(db, nil, &chainConfig, engine, vm.Config{}, nil, nil)
+	if err != nil {
+		t.Fatalf("Failed to create blockchain, err %s", err)
+	}
+	defer chain.Stop()
+	mikoSigner := types.NewMikoSigner(big.NewInt(2020))
+
+	innerTx := types.SponsoredTx{
+		ChainID:     big.NewInt(2020),
+		Nonce:       1,
+		GasTipCap:   big.NewInt(100000),
+		GasFeeCap:   big.NewInt(100000),
+		Gas:         1000,
+		To:          &recipient,
+		Value:       big.NewInt(10),
+		ExpiredTime: 1000,
+	}
+
+	innerTx.PayerR, innerTx.PayerS, innerTx.PayerV, err = types.PayerSign(
+		payerKey,
+		mikoSigner,
+		crypto.PubkeyToAddress(senderKey.PublicKey),
+		&innerTx,
+	)
+	if err != nil {
+		t.Fatalf("Payer fails to sign transaction, err %s", err)
+	}
+
+	tx, err := types.SignNewTx(senderKey, mikoSigner, &innerTx)
+	if err != nil {
+		t.Fatalf("Fail to sign transaction, err %s", err)
+	}
+
+	block := GenerateBadBlock(genesis, engine, types.Transactions{tx}, &chainConfig)
+	_, err = chain.InsertChain(types.Blocks{block})
+	want := fmt.Errorf("could not apply tx %d [%v]: %w", 0, tx.Hash().String(), ErrTxTypeNotSupported)
+	if err == nil || err.Error() != want.Error() {
+		t.Fatalf("Expect error %s, get %s", want, err)
+	}
+}
+
+func TestSponsoredTxTransition(t *testing.T) {
+	var chainConfig params.ChainConfig
+
+	chainConfig.HomesteadBlock = common.Big0
+	chainConfig.EIP150Block = common.Big0
+	chainConfig.EIP155Block = common.Big0
+	chainConfig.MikoBlock = common.Big0
+	chainConfig.ChainID = big.NewInt(2020)
+
+	engine := ethash.NewFaker()
+	db := rawdb.NewMemoryDatabase()
+
+	recipient := common.HexToAddress("1000000000000000000000000000000000000001")
+	senderKey, err := crypto.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	senderAddr := crypto.PubkeyToAddress(senderKey.PublicKey)
+	payerKey, err := crypto.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	payerAddr := crypto.PubkeyToAddress(payerKey.PublicKey)
+	adminKey, err := crypto.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	adminAddr := crypto.PubkeyToAddress(adminKey.PublicKey)
+
+	gspec := &Genesis{
+		Config:    &chainConfig,
+		Timestamp: 2000,
+		Alloc: GenesisAlloc{
+			adminAddr: {Balance: math.BigPow(10, 18)},
+		},
+	}
+	genesis := gspec.MustCommit(db)
+	chain, err := NewBlockChain(db, nil, &chainConfig, engine, vm.Config{}, nil, nil)
+	if err != nil {
+		t.Fatalf("Failed to create blockchain, err %s", err)
+	}
+	defer chain.Stop()
+	mikoSigner := types.NewMikoSigner(big.NewInt(2020))
+
+	// 1. Same payer and sender in sponsored tx
+	innerTx := types.SponsoredTx{
+		ChainID:     big.NewInt(2020),
+		Nonce:       0,
+		GasTipCap:   big.NewInt(100000),
+		GasFeeCap:   big.NewInt(100000),
+		Gas:         30000,
+		To:          &recipient,
+		Value:       big.NewInt(10),
+		ExpiredTime: 1000,
+	}
+
+	innerTx.PayerR, innerTx.PayerS, innerTx.PayerV, err = types.PayerSign(
+		payerKey,
+		mikoSigner,
+		crypto.PubkeyToAddress(payerKey.PublicKey),
+		&innerTx,
+	)
+	if err != nil {
+		t.Fatalf("Payer fails to sign transaction, err %s", err)
+	}
+
+	sponsoredTx, err := types.SignNewTx(payerKey, mikoSigner, &innerTx)
+	if err != nil {
+		t.Fatalf("Fail to sign transaction, err %s", err)
+	}
+
+	block := GenerateBadBlock(genesis, engine, types.Transactions{sponsoredTx}, &chainConfig)
+	_, err = chain.InsertChain(types.Blocks{block})
+	if err == nil || !errors.Is(err, types.ErrSamePayerSenderSponsoredTx) {
+		t.Fatalf("Expect error %s, get %s", types.ErrSamePayerSenderSponsoredTx, err)
+	}
+
+	// 2. Expired sponsored tx
+
+	innerTx.PayerR, innerTx.PayerS, innerTx.PayerV, err = types.PayerSign(
+		payerKey,
+		mikoSigner,
+		crypto.PubkeyToAddress(senderKey.PublicKey),
+		&innerTx,
+	)
+	if err != nil {
+		t.Fatalf("Payer fails to sign transaction, err %s", err)
+	}
+
+	sponsoredTx, err = types.SignNewTx(senderKey, mikoSigner, &innerTx)
+	if err != nil {
+		t.Fatalf("Fail to sign transaction, err %s", err)
+	}
+
+	block = GenerateBadBlock(genesis, engine, types.Transactions{sponsoredTx}, &chainConfig)
+	_, err = chain.InsertChain(types.Blocks{block})
+	if err == nil || !errors.Is(err, ErrExpiredSponsoredTx) {
+		t.Fatalf("Expect error %s, get %s", ErrExpiredSponsoredTx, err)
+	}
+
+	// 3. Gas tip cap and gas fee cap are different
+	innerTx.ExpiredTime = 3000
+	innerTx.GasTipCap = new(big.Int).Add(innerTx.GasFeeCap, common.Big1)
+	innerTx.PayerR, innerTx.PayerS, innerTx.PayerV, err = types.PayerSign(
+		payerKey,
+		mikoSigner,
+		crypto.PubkeyToAddress(senderKey.PublicKey),
+		&innerTx,
+	)
+	if err != nil {
+		t.Fatalf("Payer fails to sign transaction, err %s", err)
+	}
+
+	sponsoredTx, err = types.SignNewTx(senderKey, mikoSigner, &innerTx)
+	if err != nil {
+		t.Fatalf("Fail to sign transaction, err %s", err)
+	}
+
+	block = GenerateBadBlock(genesis, engine, types.Transactions{sponsoredTx}, &chainConfig)
+	_, err = chain.InsertChain(types.Blocks{block})
+	if err == nil || !errors.Is(err, ErrDifferentFeeCapTipCap) {
+		t.Fatalf("Expect error %s, get %s", ErrDifferentFeeCapTipCap, err)
+	}
+
+	// 4. Payer does not have sufficient fund
+	innerTx.GasTipCap = innerTx.GasFeeCap
+	innerTx.PayerR, innerTx.PayerS, innerTx.PayerV, err = types.PayerSign(
+		payerKey,
+		mikoSigner,
+		crypto.PubkeyToAddress(senderKey.PublicKey),
+		&innerTx,
+	)
+	if err != nil {
+		t.Fatalf("Payer fails to sign transaction, err %s", err)
+	}
+
+	sponsoredTx, err = types.SignNewTx(senderKey, mikoSigner, &innerTx)
+	if err != nil {
+		t.Fatalf("Fail to sign transaction, err %s", err)
+	}
+
+	block = GenerateBadBlock(genesis, engine, types.Transactions{sponsoredTx}, &chainConfig)
+	_, err = chain.InsertChain(types.Blocks{block})
+	if err == nil || !errors.Is(err, ErrInsufficientPayerFunds) {
+		t.Fatalf("Expect error %s, get %s", ErrInsufficientPayerFunds, err)
+	}
+
+	// 5. Sender does not have sufficient fund
+	gasFee := new(big.Int).Mul(innerTx.GasFeeCap, new(big.Int).SetUint64(innerTx.Gas))
+	blocks, _ := GenerateChain(&chainConfig, genesis, engine, db, 1, func(i int, bg *BlockGen) {
+		tx, err := types.SignTx(types.NewTransaction(0, payerAddr, gasFee, params.TxGas, bg.header.BaseFee, nil), mikoSigner, adminKey)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		bg.AddTx(tx)
+	}, true)
+	_, err = chain.InsertChain(blocks)
+	if err != nil {
+		t.Fatalf("Failed to insert blocks, err %s", err)
+	}
+
+	block = GenerateBadBlock(blocks[0], engine, types.Transactions{sponsoredTx}, &chainConfig)
+	_, err = chain.InsertChain(types.Blocks{block})
+	if err == nil || !errors.Is(err, ErrInsufficientSenderFunds) {
+		t.Fatalf("Expect error %s, get %s", ErrInsufficientSenderFunds, err)
+	}
+
+	// 5. Successfully add tx
+	blocks, _ = GenerateChain(&chainConfig, blocks[0], engine, db, 1, func(i int, bg *BlockGen) {
+		tx, err := types.SignTx(types.NewTransaction(1, senderAddr, innerTx.Value, params.TxGas, bg.header.BaseFee, nil), mikoSigner, adminKey)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		bg.AddTx(tx)
+		bg.AddTx(sponsoredTx)
+	}, true)
+	_, err = chain.InsertChain(blocks)
+	if err != nil {
+		t.Fatalf("Failed to insert blocks, err %s", err)
+	}
+
+	statedb, _ := chain.State()
+	// Check sender's balance after sponsored tx
+	have := statedb.GetBalance(senderAddr)
+	want := common.Big0
+	if have.Cmp(want) != 0 {
+		t.Fatalf("Expect sender's balance %d, get %d", want.Uint64(), have.Uint64())
+	}
+	// Check payer's balance after sponsored tx
+	// Transfer tx costs 21000 gas so 9000 gas is refunded
+	want = new(big.Int).Mul(innerTx.GasFeeCap, big.NewInt(9000))
+	have = statedb.GetBalance(payerAddr)
+	if have.Cmp(want) != 0 {
+		t.Fatalf("Expect sender's balance %d, get %d", want.Uint64(), have.Uint64())
 	}
 }

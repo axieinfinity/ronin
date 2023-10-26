@@ -61,6 +61,9 @@ var (
 	// ErrInvalidSender is returned if the transaction contains an invalid signature.
 	ErrInvalidSender = errors.New("invalid sender")
 
+	// ErrInvalidPayer is returned if the transaction contains an invalid payer signature.
+	ErrInvalidPayer = errors.New("invalid payer")
+
 	// ErrUnderpriced is returned if a transaction's gas price is below the minimum
 	// configured for the transaction pool.
 	ErrUnderpriced = errors.New("transaction underpriced")
@@ -247,11 +250,13 @@ type TxPool struct {
 	mu          sync.RWMutex
 
 	istanbul bool // Fork indicator whether we are in the istanbul stage.
-	eip2718  bool // Fork indicator whether we are using EIP-2718 type transactions.
+	berlin   bool // Fork indicator whether we are using access list type transactions.
 	eip1559  bool // Fork indicator whether we are using EIP-1559 type transactions.
 	odysseus bool // Fork indicator whether we are in the Odysseus stage.
 	antenna  bool // Fork indicator whether we are in Antenna stage.
+	miko     bool // Fork indicator whether we are using sponsored trnasactions.
 
+	currentTime   uint64         // Current block time in blockchain head
 	currentState  *state.StateDB // Current state in the blockchain head
 	pendingNonces *txNoncer      // Pending state tracking virtual nonces
 	currentMaxGas uint64         // Current gas limit for transaction caps
@@ -592,12 +597,16 @@ func (pool *TxPool) local() map[common.Address]types.Transactions {
 // validateTx checks whether a transaction is valid according to the consensus
 // rules and adheres to some heuristic limits of the local node (price and size).
 func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
-	// Accept only legacy transactions until EIP-2718/2930 activates.
-	if !pool.eip2718 && tx.Type() != types.LegacyTxType {
+	// Reject access list transactions until Berlin activates.
+	if !pool.berlin && tx.Type() == types.AccessListTxType {
 		return ErrTxTypeNotSupported
 	}
 	// Reject dynamic fee transactions until EIP-1559 activates.
 	if !pool.eip1559 && tx.Type() == types.DynamicFeeTxType {
+		return ErrTxTypeNotSupported
+	}
+	// Reject sponsored transactions until Miko hardfork.
+	if !pool.miko && tx.Type() == types.SponsoredTxType {
 		return ErrTxTypeNotSupported
 	}
 	// Reject transactions over defined size to prevent DOS attacks
@@ -642,10 +651,46 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	if pool.currentState.GetNonce(from) > tx.Nonce() {
 		return ErrNonceTooLow
 	}
-	// Transactor should have enough funds to cover the costs
-	// cost == V + GP * GL
-	if pool.currentState.GetBalance(from).Cmp(tx.Cost()) < 0 {
-		return ErrInsufficientFunds
+	payer := from
+	if tx.Type() == types.SponsoredTxType {
+		// Currently, these 2 fields must be the same in sponsored transaction.
+		// We create 2 separate fields to reserve for the future, in case we
+		// decide to support dynamic fee transaction.
+		if tx.GasFeeCap().Cmp(tx.GasTipCap()) != 0 {
+			return ErrDifferentFeeCapTipCap
+		}
+
+		// Ensure sponsored transaction is not expired
+		if tx.ExpiredTime() <= pool.currentTime {
+			return ErrExpiredSponsoredTx
+		}
+
+		addr, err := types.Payer(pool.signer, tx)
+		if err != nil {
+			return ErrInvalidPayer
+		}
+		payer = addr
+		// Ensure payer is different from sender
+		if payer == from {
+			return types.ErrSamePayerSenderSponsoredTx
+		}
+
+		// Ensure payer can pay for the gas fee == gas fee cap * gas limit
+		gasFee := new(big.Int).Mul(tx.GasFeeCap(), new(big.Int).SetUint64(tx.Gas()))
+		if pool.currentState.GetBalance(payer).Cmp(gasFee) < 0 {
+			return ErrInsufficientPayerFunds
+		}
+
+		// Ensure sender can pay for the value
+		if pool.currentState.GetBalance(from).Cmp(tx.Value()) < 0 {
+			return ErrInsufficientSenderFunds
+		}
+	} else {
+		// Sender should have enough funds to cover the costs
+		// cost == V + GP * GL
+		if pool.currentState.GetBalance(from).Cmp(tx.Cost()) < 0 {
+			return ErrInsufficientFunds
+		}
 	}
 	// Ensure the transaction has more gas than the basic tx fee.
 	intrGas, err := IntrinsicGas(tx.Data(), tx.AccessList(), tx.To() == nil, true, pool.istanbul)
@@ -663,7 +708,7 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 			whitelisted = state.IsWhitelistedDeployerV2(
 				pool.currentState,
 				from,
-				pool.chain.CurrentBlock().Time(),
+				pool.currentTime,
 				pool.chainconfig.WhiteListDeployerContractV2Address,
 			)
 		} else {
@@ -677,7 +722,9 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	// Check if sender and recipient are blacklisted
 	if pool.chainconfig.Consortium != nil && pool.odysseus {
 		contractAddr := pool.chainconfig.BlacklistContractAddress
-		if state.IsAddressBlacklisted(pool.currentState, contractAddr, &from) || state.IsAddressBlacklisted(pool.currentState, contractAddr, tx.To()) {
+		if state.IsAddressBlacklisted(pool.currentState, contractAddr, &from) ||
+			state.IsAddressBlacklisted(pool.currentState, contractAddr, tx.To()) ||
+			state.IsAddressBlacklisted(pool.currentState, contractAddr, &payer) {
 			return ErrAddressBlacklisted
 		}
 	}
@@ -796,7 +843,7 @@ func (pool *TxPool) enqueueTx(hash common.Hash, tx *types.Transaction, local boo
 	// Try to insert the transaction into the future queue
 	from, _ := types.Sender(pool.signer, tx) // already validated
 	if pool.queue[from] == nil {
-		pool.queue[from] = newTxList(false)
+		pool.queue[from] = newTxList(false, pool.signer)
 	}
 	inserted, old := pool.queue[from].Add(tx, pool.config.PriceBump)
 	if !inserted {
@@ -848,7 +895,7 @@ func (pool *TxPool) journalTx(from common.Address, tx *types.Transaction) {
 func (pool *TxPool) promoteTx(addr common.Address, hash common.Hash, tx *types.Transaction) bool {
 	// Try to insert the transaction into the pending queue
 	if pool.pending[addr] == nil {
-		pool.pending[addr] = newTxList(true)
+		pool.pending[addr] = newTxList(true, pool.signer)
 	}
 	list := pool.pending[addr]
 
@@ -1333,6 +1380,7 @@ func (pool *TxPool) reset(oldHead, newHead *types.Header) {
 		log.Error("Failed to reset txpool state", "err", err)
 		return
 	}
+	pool.currentTime = newHead.Time
 	pool.currentState = statedb
 	pool.pendingNonces = newTxNoncer(statedb)
 	pool.currentMaxGas = newHead.GasLimit
@@ -1345,10 +1393,11 @@ func (pool *TxPool) reset(oldHead, newHead *types.Header) {
 	// Update all fork indicator by next pending block number.
 	next := new(big.Int).Add(newHead.Number, big.NewInt(1))
 	pool.istanbul = pool.chainconfig.IsIstanbul(next)
-	pool.eip2718 = pool.chainconfig.IsBerlin(next)
+	pool.berlin = pool.chainconfig.IsBerlin(next)
 	pool.eip1559 = pool.chainconfig.IsLondon(next)
 	pool.odysseus = pool.chainconfig.IsOdysseus(next)
 	pool.antenna = pool.chainconfig.IsAntenna(next)
+	pool.miko = pool.chainconfig.IsMiko(next)
 }
 
 // promoteExecutables moves transactions that have become processable from the
@@ -1371,8 +1420,14 @@ func (pool *TxPool) promoteExecutables(accounts []common.Address) []*types.Trans
 			pool.all.Remove(hash)
 		}
 		log.Trace("Removed old queued transactions", "count", len(forwards))
+		payers := list.Payers()
+		payerCostLimit := make(map[common.Address]*big.Int)
+		for _, payer := range payers {
+			payerCostLimit[payer] = pool.currentState.GetBalance(payer)
+		}
+
 		// Drop all transactions that are too costly (low balance or out of gas)
-		drops, _ := list.Filter(pool.currentState.GetBalance(addr), pool.currentMaxGas)
+		drops, _ := list.Filter(pool.currentState.GetBalance(addr), pool.currentMaxGas, payerCostLimit, pool.currentTime)
 		for _, tx := range drops {
 			hash := tx.Hash()
 			pool.all.Remove(hash)
@@ -1568,8 +1623,14 @@ func (pool *TxPool) demoteUnexecutables() {
 			pool.all.Remove(hash)
 			log.Trace("Removed old pending transaction", "hash", hash)
 		}
+		payers := list.Payers()
+		payerCostLimit := make(map[common.Address]*big.Int)
+		for _, payer := range payers {
+			payerCostLimit[payer] = pool.currentState.GetBalance(payer)
+		}
+
 		// Drop all transactions that are too costly (low balance or out of gas), and queue any invalids back for later
-		drops, invalids := list.Filter(pool.currentState.GetBalance(addr), pool.currentMaxGas)
+		drops, invalids := list.Filter(pool.currentState.GetBalance(addr), pool.currentMaxGas, payerCostLimit, pool.currentTime)
 		for _, tx := range drops {
 			hash := tx.Hash()
 			log.Trace("Removed unpayable pending transaction", "hash", hash)
