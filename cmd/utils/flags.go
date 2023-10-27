@@ -1843,7 +1843,7 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 	}
 
 	if ctx.GlobalBool(MonitorFinalityVoteFlag.Name) {
-		cfg.EnableMonitorDoubleSign = true
+		cfg.EnableMonitorFinalityVote = true
 	}
 }
 
