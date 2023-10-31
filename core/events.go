@@ -18,6 +18,7 @@ package core
 
 import (
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
@@ -42,6 +43,11 @@ type ChainEvent struct {
 	Receipts             types.Receipts
 	FinalizedBlockNumber uint64
 	FinalizedBlockHash   common.Hash
+}
+
+type FinalizedBlockInfo struct {
+	FinalizedBlockNumber hexutil.Uint64      `json:"finalizedBlockNumber"`
+	FinalizedBlockHash   common.Hash `json:"finalizedBlockHash"`
 }
 
 type ChainSideEvent struct {

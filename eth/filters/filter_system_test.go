@@ -28,6 +28,7 @@ import (
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/bloombits"
@@ -155,6 +156,61 @@ func (b *testBackend) ServiceFilter(ctx context.Context, session *bloombits.Matc
 			}
 		}
 	}()
+}
+
+func TestFinalizedBlockSubscription(t *testing.T) {
+	t.Parallel()
+	var (
+		db          = rawdb.NewMemoryDatabase()
+		backend     = &testBackend{db: db}
+		api         = NewPublicFilterAPI(backend, false, deadline)
+		genesis     = (&core.Genesis{BaseFee: big.NewInt(params.InitialBaseFee)}).MustCommit(db)
+		chain, _    = core.GenerateChain(params.TestChainConfig, genesis, ethash.NewFaker(), db, 10, func(i int, gen *core.BlockGen) {}, true)
+		chainEvents = []core.ChainEvent{}
+	)
+	for _, blk := range chain {
+		chainEvents = append(chainEvents, core.ChainEvent{
+			Hash:                 blk.Hash(),
+			Block:                blk,
+			FinalizedBlockNumber: rand.Uint64(),
+			FinalizedBlockHash:   common.BigToHash(new(big.Int)),
+		})
+	}
+
+	chan0 := make(chan *core.FinalizedBlockInfo)
+	sub0 := api.events.SubscribeNewFinalizedBlocks(chan0)
+	chan1 := make(chan *core.FinalizedBlockInfo)
+	sub1 := api.events.SubscribeNewFinalizedBlocks(chan1)
+	go func() { // simulate client
+		i1, i2 := 0, 0
+		for i1 != len(chainEvents) || i2 != len(chainEvents) {
+			select {
+			case f := <-chan0:
+				if hexutil.Uint64(chainEvents[i1].FinalizedBlockNumber) != f.FinalizedBlockNumber {
+					t.Errorf("sub0 received invalid finalized block number on index %d, want %d, got %d",
+						i1, chainEvents[i1].FinalizedBlockNumber, f.FinalizedBlockNumber)
+				}
+				i1++
+			case f := <-chan1:
+				if hexutil.Uint64(chainEvents[i2].FinalizedBlockNumber) != f.FinalizedBlockNumber {
+					t.Errorf("sub1 received invalid finalized block number on index %d, want %d, got %d",
+						i2, chainEvents[i2].FinalizedBlockNumber, f.FinalizedBlockNumber)
+				}
+				i2++
+			}
+		}
+
+		sub0.Unsubscribe()
+		sub1.Unsubscribe()
+	}()
+
+	time.Sleep(1 * time.Second)
+	for _, e := range chainEvents {
+		backend.chainFeed.Send(e)
+	}
+
+	<-sub0.Err()
+	<-sub1.Err()
 }
 
 // TestBlockSubscription tests if a block subscription returns block hashes for posted chain events.
