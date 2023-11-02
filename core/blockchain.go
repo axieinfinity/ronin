@@ -1514,8 +1514,11 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 	}
 
 	if status == CanonStatTy {
-		// Always send chain event here
-		bc.sendNewBlockEvent(block, receipts, true, true)
+		if bc.enableAdditionalChainEvent {
+			bc.sendNewBlockEvent(block, receipts, true, true) 
+		} else {
+			bc.sendNewBlockEvent(block, receipts, false, false) 
+		}
 		if len(logs) > 0 {
 			bc.logsFeed.Send(logs)
 		}

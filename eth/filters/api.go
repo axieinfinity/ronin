@@ -28,6 +28,7 @@ import (
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
@@ -208,6 +209,35 @@ func (api *PublicFilterAPI) NewBlockFilter() rpc.ID {
 	}()
 
 	return headerSub.ID
+}
+
+// NewFinalizedBlock send a notification each time a new block is marked as "Finalized"
+func (api *PublicFilterAPI) NewFinalizedBlocks(ctx context.Context) (*rpc.Subscription, error) {
+	notifier, supported := rpc.NotifierFromContext(ctx)
+	if !supported {
+		return &rpc.Subscription{}, rpc.ErrNotificationsUnsupported
+	}
+
+	rpcSub := notifier.CreateSubscription()
+	go func() {
+		finalizer := make(chan *core.FinalizedBlockInfo)
+		fSub := api.events.SubscribeNewFinalizedBlocks(finalizer)
+
+		for {
+			select {
+			case f := <-finalizer:
+				notifier.Notify(rpcSub.ID, f)
+			case <-rpcSub.Err():
+				fSub.Unsubscribe()
+				return
+			case <-notifier.Closed():
+				fSub.Unsubscribe()
+				return
+			}
+		}
+	}()
+
+	return rpcSub, nil
 }
 
 // NewHeads send a notification each time a new (header) block is appended to the chain.

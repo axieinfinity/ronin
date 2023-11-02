@@ -26,6 +26,7 @@ import (
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -52,6 +53,8 @@ const (
 	PendingTransactionsSubscription
 	// BlocksSubscription queries hashes for blocks that are imported
 	BlocksSubscription
+	// FinalizedBlockSubscription
+	FinalizedBlockSubscription
 	// LastSubscription keeps track of the last index
 	LastIndexSubscription
 )
@@ -69,23 +72,25 @@ const (
 )
 
 type subscription struct {
-	id        rpc.ID
-	typ       Type
-	created   time.Time
-	logsCrit  ethereum.FilterQuery
-	logs      chan []*types.Log
-	hashes    chan []common.Hash
-	headers   chan *types.Header
-	installed chan struct{} // closed when the filter is installed
-	err       chan error    // closed when the filter is uninstalled
+	id         rpc.ID
+	typ        Type
+	created    time.Time
+	logsCrit   ethereum.FilterQuery
+	logs       chan []*types.Log
+	hashes     chan []common.Hash
+	headers    chan *types.Header
+	finalizers chan *core.FinalizedBlockInfo
+	installed  chan struct{} // closed when the filter is installed
+	err        chan error    // closed when the filter is uninstalled
 }
 
 // EventSystem creates subscriptions, processes events and broadcasts them to the
 // subscription which match the subscription criteria.
 type EventSystem struct {
-	backend   Backend
-	lightMode bool
-	lastHead  *types.Header
+	backend       Backend
+	lightMode     bool
+	lastHead      *types.Header
+	lastFinalized uint64 // last finalized block number
 
 	// Subscriptions
 	txsSub         event.Subscription // Subscription for new transaction event
@@ -227,15 +232,16 @@ func (es *EventSystem) SubscribeLogs(crit ethereum.FilterQuery, logs chan []*typ
 // pending logs that match the given criteria.
 func (es *EventSystem) subscribeMinedPendingLogs(crit ethereum.FilterQuery, logs chan []*types.Log) *Subscription {
 	sub := &subscription{
-		id:        rpc.NewID(),
-		typ:       MinedAndPendingLogsSubscription,
-		logsCrit:  crit,
-		created:   time.Now(),
-		logs:      logs,
-		hashes:    make(chan []common.Hash),
-		headers:   make(chan *types.Header),
-		installed: make(chan struct{}),
-		err:       make(chan error),
+		id:         rpc.NewID(),
+		typ:        MinedAndPendingLogsSubscription,
+		logsCrit:   crit,
+		created:    time.Now(),
+		logs:       logs,
+		hashes:     make(chan []common.Hash),
+		headers:    make(chan *types.Header),
+		finalizers: make(chan *core.FinalizedBlockInfo),
+		installed:  make(chan struct{}),
+		err:        make(chan error),
 	}
 	return es.subscribe(sub)
 }
@@ -244,15 +250,16 @@ func (es *EventSystem) subscribeMinedPendingLogs(crit ethereum.FilterQuery, logs
 // given criteria to the given logs channel.
 func (es *EventSystem) subscribeLogs(crit ethereum.FilterQuery, logs chan []*types.Log) *Subscription {
 	sub := &subscription{
-		id:        rpc.NewID(),
-		typ:       LogsSubscription,
-		logsCrit:  crit,
-		created:   time.Now(),
-		logs:      logs,
-		hashes:    make(chan []common.Hash),
-		headers:   make(chan *types.Header),
-		installed: make(chan struct{}),
-		err:       make(chan error),
+		id:         rpc.NewID(),
+		typ:        LogsSubscription,
+		logsCrit:   crit,
+		created:    time.Now(),
+		logs:       logs,
+		hashes:     make(chan []common.Hash),
+		headers:    make(chan *types.Header),
+		finalizers: make(chan *core.FinalizedBlockInfo),
+		installed:  make(chan struct{}),
+		err:        make(chan error),
 	}
 	return es.subscribe(sub)
 }
@@ -261,15 +268,33 @@ func (es *EventSystem) subscribeLogs(crit ethereum.FilterQuery, logs chan []*typ
 // transactions that enter the transaction pool.
 func (es *EventSystem) subscribePendingLogs(crit ethereum.FilterQuery, logs chan []*types.Log) *Subscription {
 	sub := &subscription{
-		id:        rpc.NewID(),
-		typ:       PendingLogsSubscription,
-		logsCrit:  crit,
-		created:   time.Now(),
-		logs:      logs,
-		hashes:    make(chan []common.Hash),
-		headers:   make(chan *types.Header),
-		installed: make(chan struct{}),
-		err:       make(chan error),
+		id:         rpc.NewID(),
+		typ:        PendingLogsSubscription,
+		logsCrit:   crit,
+		created:    time.Now(),
+		logs:       logs,
+		hashes:     make(chan []common.Hash),
+		headers:    make(chan *types.Header),
+		finalizers: make(chan *core.FinalizedBlockInfo),
+		installed:  make(chan struct{}),
+		err:        make(chan error),
+	}
+	return es.subscribe(sub)
+}
+
+// SubscribeNewFinalizedHeads creates a subscription that writes the block number of a block that is
+// imported in the chain.
+func (es *EventSystem) SubscribeNewFinalizedBlocks(finalizers chan *core.FinalizedBlockInfo) *Subscription {
+	sub := &subscription{
+		id:         rpc.NewID(),
+		typ:        FinalizedBlockSubscription,
+		created:    time.Now(),
+		logs:       make(chan []*types.Log),
+		hashes:     make(chan []common.Hash),
+		headers:    make(chan *types.Header),
+		finalizers: finalizers,
+		installed:  make(chan struct{}),
+		err:        make(chan error),
 	}
 	return es.subscribe(sub)
 }
@@ -278,14 +303,15 @@ func (es *EventSystem) subscribePendingLogs(crit ethereum.FilterQuery, logs chan
 // imported in the chain.
 func (es *EventSystem) SubscribeNewHeads(headers chan *types.Header) *Subscription {
 	sub := &subscription{
-		id:        rpc.NewID(),
-		typ:       BlocksSubscription,
-		created:   time.Now(),
-		logs:      make(chan []*types.Log),
-		hashes:    make(chan []common.Hash),
-		headers:   headers,
-		installed: make(chan struct{}),
-		err:       make(chan error),
+		id:         rpc.NewID(),
+		typ:        BlocksSubscription,
+		created:    time.Now(),
+		logs:       make(chan []*types.Log),
+		hashes:     make(chan []common.Hash),
+		headers:    headers,
+		finalizers: make(chan *core.FinalizedBlockInfo),
+		installed:  make(chan struct{}),
+		err:        make(chan error),
 	}
 	return es.subscribe(sub)
 }
@@ -294,14 +320,15 @@ func (es *EventSystem) SubscribeNewHeads(headers chan *types.Header) *Subscripti
 // transactions that enter the transaction pool.
 func (es *EventSystem) SubscribePendingTxs(hashes chan []common.Hash) *Subscription {
 	sub := &subscription{
-		id:        rpc.NewID(),
-		typ:       PendingTransactionsSubscription,
-		created:   time.Now(),
-		logs:      make(chan []*types.Log),
-		hashes:    hashes,
-		headers:   make(chan *types.Header),
-		installed: make(chan struct{}),
-		err:       make(chan error),
+		id:         rpc.NewID(),
+		typ:        PendingTransactionsSubscription,
+		created:    time.Now(),
+		logs:       make(chan []*types.Log),
+		hashes:     hashes,
+		headers:    make(chan *types.Header),
+		finalizers: make(chan *core.FinalizedBlockInfo),
+		installed:  make(chan struct{}),
+		err:        make(chan error),
 	}
 	return es.subscribe(sub)
 }
@@ -348,6 +375,19 @@ func (es *EventSystem) handleTxsEvent(filters filterIndex, ev core.NewTxsEvent) 
 	}
 	for _, f := range filters[PendingTransactionsSubscription] {
 		f.hashes <- hashes
+	}
+}
+
+func (es *EventSystem) handleFinalizedEvent(filters filterIndex, ev core.ChainEvent) {
+	if ev.FinalizedBlockNumber == 0 || es.lastFinalized == ev.FinalizedBlockNumber {
+		return
+	}
+	es.lastFinalized = ev.FinalizedBlockNumber
+	for _, f := range filters[FinalizedBlockSubscription] {
+		f.finalizers <- &core.FinalizedBlockInfo{
+			FinalizedBlockNumber: hexutil.Uint64(ev.FinalizedBlockNumber),
+			FinalizedBlockHash:   ev.FinalizedBlockHash,
+		}
 	}
 }
 
@@ -467,7 +507,7 @@ func (es *EventSystem) eventLoop() {
 			es.handlePendingLogs(index, ev)
 		case ev := <-es.chainCh:
 			es.handleChainEvent(index, ev)
-
+			es.handleFinalizedEvent(index, ev)
 		case f := <-es.install:
 			if f.typ == MinedAndPendingLogsSubscription {
 				// the type are logs and pending logs subscriptions
