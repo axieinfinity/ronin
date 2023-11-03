@@ -5,9 +5,10 @@ package blst
 import (
 	"bytes"
 	"errors"
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"testing"
 
 	"github.com/ethereum/go-ethereum/crypto/bls/common"
 )
@@ -291,7 +292,7 @@ func TestCopy(t *testing.T) {
 	key, ok := priv.(*bls12SecretKey)
 	require.Equal(t, true, ok)
 
-	signatureA := &Signature{s: new(blstSignature).Sign(key.p, []byte("foo"), dst)}
+	signatureA := &Signature{s: new(blstSignature).Sign(key.p, []byte("foo"), sigDst)}
 	signatureB, ok := signatureA.Copy().(*Signature)
 	require.Equal(t, true, ok)
 
@@ -304,6 +305,6 @@ func TestCopy(t *testing.T) {
 	}
 	assert.Equal(t, signatureA, signatureB)
 
-	signatureA.s.Sign(key.p, []byte("bar"), dst)
+	signatureA.s.Sign(key.p, []byte("bar"), sigDst)
 	assert.NotEqual(t, signatureA, signatureB)
 }
