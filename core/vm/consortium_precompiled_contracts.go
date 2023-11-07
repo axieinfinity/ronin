@@ -135,8 +135,17 @@ type consortiumPickValidatorSet struct {
 	evm    *EVM
 }
 
-func (c *consortiumPickValidatorSet) RequiredGas(_ []byte) uint64 {
-	return 0
+func (c *consortiumPickValidatorSet) RequiredGas(input []byte) uint64 {
+	// c.evm is nil in benchmark
+	if c.evm == nil || c.evm.chainRules.IsMiko {
+		// We approximate the number of validators by dividing the length of input by
+		// length of address (20). This is likely an overestimation because there are
+		// slices of weight, maxValidatorNumber and maxPrioritizedValidatorNumber in
+		// the input too.
+		return uint64((len(input) / common.AddressLength)) * params.ValidatorSortingBaseGas
+	} else {
+		return 0
+	}
 }
 
 func (c *consortiumPickValidatorSet) Run(input []byte) ([]byte, error) {
@@ -259,8 +268,16 @@ type consortiumValidatorSorting struct {
 	evm    *EVM
 }
 
-func (c *consortiumValidatorSorting) RequiredGas(_ []byte) uint64 {
-	return 0
+func (c *consortiumValidatorSorting) RequiredGas(input []byte) uint64 {
+	// c.evm is nil in benchmark
+	if c.evm == nil || c.evm.chainRules.IsMiko {
+		// We approximate the number of validators by dividing the length of input by
+		// length of address (20). This is likely an overestimation because there is
+		// a slice of weight in the input too.
+		return uint64((len(input) / common.AddressLength)) * params.ValidatorSortingBaseGas
+	} else {
+		return 0
+	}
 }
 
 func (c *consortiumValidatorSorting) Run(input []byte) ([]byte, error) {
@@ -409,7 +426,12 @@ type consortiumVerifyHeaders struct {
 }
 
 func (c *consortiumVerifyHeaders) RequiredGas(_ []byte) uint64 {
-	return 0
+	// c.evm is nil in benchmark
+	if c.evm == nil || c.evm.chainRules.IsMiko {
+		return params.VerifyFinalityHeadersProofGas
+	} else {
+		return 0
+	}
 }
 
 func (c *consortiumVerifyHeaders) Run(input []byte) ([]byte, error) {
@@ -480,7 +502,8 @@ func (c *consortiumVerifyHeaders) getSigner(header types.BlockHeader) (common.Ad
 func (c *consortiumVerifyHeaders) verify(consensusAddr common.Address, header1, header2 types.BlockHeader) bool {
 	var maxOffset *big.Int
 
-	if !c.evm.chainConfig.IsConsortiumV2(header1.Number) {
+	// c.evm s nil in benchmark, so we skip this check in benchmark
+	if c.evm != nil && !c.evm.chainConfig.IsConsortiumV2(header1.Number) {
 		return false
 	}
 	if header1.ToHeader().ParentHash.Hex() != header2.ToHeader().ParentHash.Hex() {
@@ -532,10 +555,13 @@ func (c *consortiumVerifyHeaders) verify(consensusAddr common.Address, header1, 
 		}
 	}
 
-	currentBlock := c.evm.Context.BlockNumber
-	// What if current block < header1.Number?
-	if currentBlock.Cmp(header1.Number) > 0 && new(big.Int).Sub(currentBlock, header1.Number).Cmp(maxOffset) > 0 {
-		return false
+	// c.evm is nil in benchmark, so we skip this check in benchmark
+	if c.evm != nil {
+		currentBlock := c.evm.Context.BlockNumber
+		// What if current block < header1.Number?
+		if currentBlock.Cmp(header1.Number) > 0 && new(big.Int).Sub(currentBlock, header1.Number).Cmp(maxOffset) > 0 {
+			return false
+		}
 	}
 
 	return signer1.Hex() == signer2.Hex() &&

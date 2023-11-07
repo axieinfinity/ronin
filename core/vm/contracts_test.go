@@ -71,6 +71,9 @@ var allPrecompiles = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{17}):   &bls12381MapG1{},
 	common.BytesToAddress([]byte{18}):   &bls12381MapG2{},
 	common.BytesToAddress([]byte{101}):  &consortiumLog{},
+	common.BytesToAddress([]byte{102}):  &consortiumValidatorSorting{},
+	common.BytesToAddress([]byte{103}):  &consortiumVerifyHeaders{test: true},
+	common.BytesToAddress([]byte{104}):  &consortiumPickValidatorSet{},
 	common.BytesToAddress([]byte{105}):  &consortiumValidateFinalityProof{},
 }
 
