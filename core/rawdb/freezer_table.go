@@ -201,7 +201,9 @@ func (t *freezerTable) repair() error {
 	}
 	// Ensure the index is a multiple of indexEntrySize bytes
 	if overflow := stat.Size() % indexEntrySize; overflow != 0 {
-		truncateFreezerFile(t.index, stat.Size()-overflow) // New file can't trigger this path
+		if err := truncateFreezerFile(t.index, stat.Size()-overflow); err != nil {
+			return err
+		} // New file can't trigger this path
 	}
 	// Retrieve the file sizes and prepare for truncation
 	if stat, err = t.index.Stat(); err != nil {
@@ -241,8 +243,8 @@ func (t *freezerTable) repair() error {
 	// Print an error log if the index is corrupted due to an incorrect
 	// last index item. While it is theoretically possible to have a zero offset
 	// by storing all zero-size items, it is highly unlikely to occur in practice.
-	if lastIndex.offset == 0 && offsetsSize%indexEntrySize > 1 {
-		log.Error("Corrupted index file detected", "lastOffset", lastIndex.offset, "items", offsetsSize%indexEntrySize-1)
+	if lastIndex.offset == 0 && offsetsSize/indexEntrySize > 1 {
+		log.Error("Corrupted index file detected", "lastOffset", lastIndex.offset, "indexes", offsetsSize/indexEntrySize)
 	}
 	t.head, err = t.openFile(lastIndex.filenum, openFreezerFileForAppend)
 	if err != nil {
@@ -378,6 +380,9 @@ func (t *freezerTable) truncateHead(items uint64) error {
 	if err := truncateFreezerFile(t.index, int64(length+1)*indexEntrySize); err != nil {
 		return err
 	}
+	if err := t.index.Sync(); err != nil {
+		return err
+	}
 	var expected indexEntry
 	if length == 0 {
 		expected = indexEntry{filenum: t.tailId, offset: 0}
@@ -400,11 +405,15 @@ func (t *freezerTable) truncateHead(items uint64) error {
 		// Release any files _after the current head -- both the previous head
 		// and any files which may have been opened for reading
 		t.releaseFilesAfter(expected.filenum, true)
+
 		// Set back the historic head
 		t.head = newHead
 		t.headId = expected.filenum
 	}
 	if err := truncateFreezerFile(t.head, int64(expected.offset)); err != nil {
+		return err
+	}
+	if err := t.head.Sync(); err != nil {
 		return err
 	}
 	// All data files truncated, set internal counters and return
