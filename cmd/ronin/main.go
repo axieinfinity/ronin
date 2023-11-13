@@ -233,6 +233,11 @@ var (
 		utils.PyroscopeBlockProfileRate,
 		utils.PyroscopeMutexProfileFraction,
 	}
+
+	mockFlags = []cli.Flag{
+		utils.MockValidatorsFlag,
+		utils.MockBlsPublicKeysFlag,
+	}
 )
 
 func init() {
@@ -281,6 +286,7 @@ func init() {
 	app.Flags = append(app.Flags, debug.Flags...)
 	app.Flags = append(app.Flags, metricsFlags...)
 	app.Flags = append(app.Flags, pyroscopeFlags...)
+	app.Flags = append(app.Flags, mockFlags...)
 
 	app.Before = func(ctx *cli.Context) error {
 		return debug.Setup(ctx)

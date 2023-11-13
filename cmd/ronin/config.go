@@ -20,13 +20,14 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/rawdb"
 	"math/big"
 	"os"
 	"reflect"
 	"unicode"
 
+	"github.com/ethereum/go-ethereum/common"
+	consortiumCommon "github.com/ethereum/go-ethereum/consensus/consortium/common"
+	"github.com/ethereum/go-ethereum/core/rawdb"
 	"gopkg.in/urfave/cli.v1"
 
 	"github.com/ethereum/go-ethereum/accounts/external"
@@ -88,10 +89,10 @@ type ethstatsConfig struct {
 }
 
 type gethConfig struct {
-	Eth      ethconfig.Config
-	Node     node.Config
-	Ethstats ethstatsConfig
-	Metrics  metrics.Config
+	Eth        ethconfig.Config
+	Node       node.Config
+	Ethstats   ethstatsConfig
+	Metrics    metrics.Config
 }
 
 func loadConfig(file string, cfg *gethConfig) error {
@@ -151,6 +152,14 @@ func makeConfigNode(ctx *cli.Context) (*node.Node, gethConfig) {
 		cfg.Ethstats.URL = ctx.GlobalString(utils.EthStatsURLFlag.Name)
 	}
 	applyMetricConfig(ctx, &cfg)
+
+	// setup mock config
+	if ctx.GlobalIsSet(utils.MockValidatorsFlag.Name) && ctx.GlobalIsSet(utils.MockBlsPublicKeysFlag.Name) {
+		err = consortiumCommon.SetMockValidators(ctx.GlobalString(utils.MockValidatorsFlag.Name), ctx.GlobalString(utils.MockBlsPublicKeysFlag.Name))
+		if err != nil {
+			utils.Fatalf("failed on create mock validators %v", err)
+		}
+	}
 
 	return stack, cfg
 }
