@@ -27,7 +27,10 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 )
 
-var ErrInvalidChainId = errors.New("invalid chain id for signer")
+var (
+	ErrInvalidChainId    = errors.New("invalid chain id for signer")
+	errMissingPayerField = errors.New("transaction has no payer field")
+)
 
 // sigCache is used to cache the derived sender and contains
 // the signer used to derive it.
@@ -44,6 +47,8 @@ func MakeSigner(config *params.ChainConfig, blockNumber *big.Int) Signer {
 		signer = NewLondonSigner(config.GetChainID(blockNumber))
 	case config.IsBerlin(blockNumber):
 		signer = NewEIP2930Signer(config.GetChainID(blockNumber))
+	case config.IsMiko(blockNumber):
+		signer = NewMikoSigner(config.GetChainID(blockNumber))
 	case config.IsEIP155(blockNumber):
 		signer = NewEIP155Signer(config.GetChainID(blockNumber))
 	case config.IsHomestead(blockNumber):
@@ -68,6 +73,9 @@ func LatestSigner(config *params.ChainConfig) Signer {
 		}
 		if config.BerlinBlock != nil {
 			return NewEIP2930Signer(config.ChainID)
+		}
+		if config.MikoBlock != nil {
+			return NewMikoSigner(config.ChainID)
 		}
 		if config.EIP155Block != nil {
 			return NewEIP155Signer(config.ChainID)
@@ -111,6 +119,30 @@ func SignNewTx(prv *ecdsa.PrivateKey, s Signer, txdata TxData) (*Transaction, er
 	return tx.WithSignature(s, sig)
 }
 
+func PayerSign(prv *ecdsa.PrivateKey, signer Signer, sender common.Address, txdata TxData) (r, s, v *big.Int, err error) {
+	payerHash := rlpHash([]interface{}{
+		signer.ChainID(),
+		sender,
+		txdata.nonce(),
+		txdata.gasTipCap(),
+		txdata.gasFeeCap(),
+		txdata.gas(),
+		txdata.to(),
+		txdata.value(),
+		txdata.data(),
+		txdata.expiredTime(),
+	})
+
+	sig, err := crypto.Sign(payerHash[:], prv)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	r, s, _ = decodeSignature(sig)
+	v = big.NewInt(int64(sig[64]))
+	return r, s, v, nil
+}
+
 // MustSignNewTx creates a transaction and signs it.
 // This panics if the transaction cannot be signed.
 func MustSignNewTx(prv *ecdsa.PrivateKey, s Signer, txdata TxData) *Transaction {
@@ -147,6 +179,35 @@ func Sender(signer Signer, tx *Transaction) (common.Address, error) {
 	return addr, nil
 }
 
+// Payer returns the address derived from payer's signature in sponsored
+// transaction or nil in other transaction types.
+//
+// Payer may cache the address, allowing it to be used regardless of
+// signing method. The cache is invalidated if the cached signer does
+// not match the signer used in the current call.
+func Payer(signer Signer, tx *Transaction) (common.Address, error) {
+	if tx.Type() != SponsoredTxType {
+		return common.Address{}, errMissingPayerField
+	}
+
+	if sc := tx.payer.Load(); sc != nil {
+		sigCache := sc.(sigCache)
+		// If the signer used to derive from in a previous
+		// call is not the same as used current, invalidate
+		// the cache.
+		if sigCache.signer.Equal(signer) {
+			return sigCache.from, nil
+		}
+	}
+
+	addr, err := signer.Payer(tx)
+	if err != nil {
+		return common.Address{}, err
+	}
+	tx.payer.Store(sigCache{signer: signer, from: addr})
+	return addr, nil
+}
+
 // Signer encapsulates transaction signature handling. The name of this type is slightly
 // misleading because Signers don't actually sign, they're just for validating and
 // processing of signatures.
@@ -168,6 +229,9 @@ type Signer interface {
 
 	// Equal returns true if the given signer is the same as the receiver.
 	Equal(Signer) bool
+
+	// Payer returns the payer address of sponsored transaction
+	Payer(tx *Transaction) (common.Address, error)
 }
 
 type londonSigner struct{ eip2930Signer }
@@ -175,10 +239,11 @@ type londonSigner struct{ eip2930Signer }
 // NewLondonSigner returns a signer that accepts
 // - EIP-1559 dynamic fee transactions
 // - EIP-2930 access list transactions,
+// - Sponsored transactions,
 // - EIP-155 replay protected transactions, and
 // - legacy Homestead transactions.
 func NewLondonSigner(chainId *big.Int) Signer {
-	return londonSigner{eip2930Signer{NewEIP155Signer(chainId)}}
+	return londonSigner{eip2930Signer{MikoSigner{NewEIP155Signer(chainId)}}}
 }
 
 func (s londonSigner) Sender(tx *Transaction) (common.Address, error) {
@@ -236,12 +301,16 @@ func (s londonSigner) Hash(tx *Transaction) common.Hash {
 		})
 }
 
-type eip2930Signer struct{ EIP155Signer }
+func (s londonSigner) Payer(tx *Transaction) (common.Address, error) {
+	return payerInternal(s, tx)
+}
+
+type eip2930Signer struct{ MikoSigner }
 
 // NewEIP2930Signer returns a signer that accepts EIP-2930 access list transactions,
 // EIP-155 replay protected transactions, and legacy Homestead transactions.
 func NewEIP2930Signer(chainId *big.Int) Signer {
-	return eip2930Signer{NewEIP155Signer(chainId)}
+	return eip2930Signer{MikoSigner{NewEIP155Signer(chainId)}}
 }
 
 func (s eip2930Signer) ChainID() *big.Int {
@@ -256,12 +325,8 @@ func (s eip2930Signer) Equal(s2 Signer) bool {
 func (s eip2930Signer) Sender(tx *Transaction) (common.Address, error) {
 	V, R, S := tx.RawSignatureValues()
 	switch tx.Type() {
-	case LegacyTxType:
-		if !tx.Protected() {
-			return HomesteadSigner{}.Sender(tx)
-		}
-		V = new(big.Int).Sub(V, s.chainIdMul)
-		V.Sub(V, big8)
+	case LegacyTxType, SponsoredTxType:
+		return s.MikoSigner.Sender(tx)
 	case AccessListTxType:
 		// AL txs are defined to use 0 and 1 as their recovery
 		// id, add 27 to become equivalent to unprotected Homestead signatures.
@@ -277,8 +342,8 @@ func (s eip2930Signer) Sender(tx *Transaction) (common.Address, error) {
 
 func (s eip2930Signer) SignatureValues(tx *Transaction, sig []byte) (R, S, V *big.Int, err error) {
 	switch txdata := tx.inner.(type) {
-	case *LegacyTx:
-		return s.EIP155Signer.SignatureValues(tx, sig)
+	case *LegacyTx, *SponsoredTx:
+		return s.MikoSigner.SignatureValues(tx, sig)
 	case *AccessListTx:
 		// Check that chain ID of tx matches the signer. We also accept ID zero here,
 		// because it indicates that the chain ID was not specified in the tx.
@@ -320,6 +385,8 @@ func (s eip2930Signer) Hash(tx *Transaction) common.Hash {
 				tx.Data(),
 				tx.AccessList(),
 			})
+	case SponsoredTxType:
+		return s.MikoSigner.Hash(tx)
 	default:
 		// This _should_ not happen, but in case someone sends in a bad
 		// json struct via RPC, it's probably more prudent to return an
@@ -327,6 +394,124 @@ func (s eip2930Signer) Hash(tx *Transaction) common.Hash {
 		//panic("Unsupported transaction type: %d", tx.typ)
 		return common.Hash{}
 	}
+}
+
+// eip2930Signer and londonSigner must define Payer instead of using
+// the same Payer defined in base MikoSigner because internally, Payer
+// calls to Sender(signer, tx) which supports caching the recovered
+// sender if the signer matches. So if we let the MikoSigner.Payer be
+// called, the signer passed to Sender(signer, tx) is MikoSigner not
+// eip2930Signer/londonSigner which unmatches with signer in cached
+// recovered address. As a result, the sender must be recovered again
+// which wastes CPU.
+func (s eip2930Signer) Payer(tx *Transaction) (common.Address, error) {
+	return payerInternal(s, tx)
+}
+
+type MikoSigner struct {
+	EIP155Signer
+}
+
+func NewMikoSigner(chainId *big.Int) MikoSigner {
+	return MikoSigner{NewEIP155Signer(chainId)}
+}
+
+func (s MikoSigner) Equal(s2 Signer) bool {
+	miko, ok := s2.(MikoSigner)
+	return ok && miko.chainId.Cmp(s.chainId) == 0
+}
+
+func (s MikoSigner) Sender(tx *Transaction) (common.Address, error) {
+	switch tx.Type() {
+	case LegacyTxType:
+		return s.EIP155Signer.Sender(tx)
+	case SponsoredTxType:
+		if tx.ChainId().Cmp(s.chainId) != 0 {
+			return common.Address{}, ErrInvalidChainId
+		}
+		// V in sponsored signature is {0, 1}, but the recoverPlain expects
+		// {0, 1} + 27, so we need to add 27 to V
+		V, R, S := tx.RawSignatureValues()
+		V = new(big.Int).Add(V, big.NewInt(27))
+		return recoverPlain(s.Hash(tx), R, S, V, true)
+	default:
+		return common.Address{}, ErrTxTypeNotSupported
+	}
+}
+
+func (s MikoSigner) SignatureValues(tx *Transaction, sig []byte) (R, S, V *big.Int, err error) {
+	switch tx.Type() {
+	case LegacyTxType:
+		return s.EIP155Signer.SignatureValues(tx, sig)
+	case SponsoredTxType:
+		// V in sponsored signature is {0, 1}, get it directly from raw signature
+		// because decodeSignature returns {0, 1} + 27
+		R, S, _ := decodeSignature(sig)
+		V := big.NewInt(int64(sig[64]))
+		return R, S, V, nil
+	default:
+		return nil, nil, nil, ErrTxTypeNotSupported
+	}
+}
+
+func (s MikoSigner) Hash(tx *Transaction) common.Hash {
+	switch tx.Type() {
+	case LegacyTxType:
+		return s.EIP155Signer.Hash(tx)
+	case SponsoredTxType:
+		payerV, payerR, payerS := tx.RawPayerSignatureValues()
+		return prefixedRlpHash(
+			tx.Type(),
+			[]interface{}{
+				s.chainId,
+				tx.Nonce(),
+				tx.GasTipCap(),
+				tx.GasFeeCap(),
+				tx.Gas(),
+				tx.To(),
+				tx.Value(),
+				tx.Data(),
+				tx.ExpiredTime(),
+				payerV, payerR, payerS,
+			},
+		)
+	default:
+		return common.Hash{}
+	}
+}
+
+func payerInternal(s Signer, tx *Transaction) (common.Address, error) {
+	if tx.Type() != SponsoredTxType {
+		return common.Address{}, ErrInvalidTxType
+	}
+
+	sender, err := Sender(s, tx)
+	if err != nil {
+		return common.Address{}, err
+	}
+
+	payerV, payerR, payerS := tx.RawPayerSignatureValues()
+	payerHash := rlpHash([]interface{}{
+		tx.ChainId(), // The chainId is checked in Sender already
+		sender,
+		tx.Nonce(),
+		tx.GasTipCap(),
+		tx.GasFeeCap(),
+		tx.Gas(),
+		tx.To(),
+		tx.Value(),
+		tx.Data(),
+		tx.ExpiredTime(),
+	})
+
+	// V in payer signature is {0, 1}, but the recoverPlain expects
+	// {0, 1} + 27, so we need to add 27 to V
+	payerV = new(big.Int).Add(payerV, big.NewInt(27))
+	return recoverPlain(payerHash, payerR, payerS, payerV, true)
+}
+
+func (s MikoSigner) Payer(tx *Transaction) (common.Address, error) {
+	return payerInternal(s, tx)
 }
 
 // EIP155Signer implements Signer using the EIP-155 rules. This accepts transactions which
@@ -400,6 +585,10 @@ func (s EIP155Signer) Hash(tx *Transaction) common.Hash {
 	})
 }
 
+func (s EIP155Signer) Payer(tx *Transaction) (common.Address, error) {
+	return common.Address{}, ErrInvalidTxType
+}
+
 // HomesteadTransaction implements TransactionInterface using the
 // homestead rules.
 type HomesteadSigner struct{ FrontierSigner }
@@ -467,6 +656,10 @@ func (fs FrontierSigner) Hash(tx *Transaction) common.Hash {
 		tx.Value(),
 		tx.Data(),
 	})
+}
+
+func (fs FrontierSigner) Payer(tx *Transaction) (common.Address, error) {
+	return common.Address{}, ErrInvalidTxType
 }
 
 func decodeSignature(sig []byte) (r, s, v *big.Int) {

@@ -34,6 +34,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/event"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/trie"
 )
@@ -53,6 +54,7 @@ func init() {
 
 	cpy := *params.TestChainConfig
 	eip1559Config = &cpy
+	eip1559Config.MikoBlock = common.Big0
 	eip1559Config.BerlinBlock = common.Big0
 	eip1559Config.LondonBlock = common.Big0
 }
@@ -2428,15 +2430,70 @@ func BenchmarkPendingDemotion1000(b *testing.B)  { benchmarkPendingDemotion(b, 1
 func BenchmarkPendingDemotion10000(b *testing.B) { benchmarkPendingDemotion(b, 10000) }
 
 func benchmarkPendingDemotion(b *testing.B, size int) {
+	log.Root().SetHandler(log.DiscardHandler())
+	// Add a batch of transactions to a pool one by one
+	pool, key := setupTxPool()
+	defer pool.Stop()
+
+	account := crypto.PubkeyToAddress(key.PublicKey)
+	testAddBalance(pool, account, big.NewInt(100100))
+
+	for i := 0; i < size; i++ {
+		tx := transaction(uint64(i), 100000, key)
+		pool.promoteTx(account, tx.Hash(), tx)
+	}
+	// Benchmark the speed of pool validation
+	for i := 0; i < b.N; i++ {
+		// Force the txList filter to loop through the whole list
+		pool.pending[account].costcap = big.NewInt(200000)
+		pool.demoteUnexecutables()
+	}
+}
+
+func BenchmarkPendingSponsoredTxDemotion100(b *testing.B) {
+	benchmarkPendingSponsoredTxDemotion(b, 100)
+}
+func BenchmarkPendingSponsoredTxDemotion1000(b *testing.B) {
+	benchmarkPendingSponsoredTxDemotion(b, 1000)
+}
+func BenchmarkPendingSponsoredTxDemotion10000(b *testing.B) {
+	benchmarkPendingSponsoredTxDemotion(b, 10000)
+}
+
+func benchmarkPendingSponsoredTxDemotion(b *testing.B, size int) {
+	log.Root().SetHandler(log.DiscardHandler())
 	// Add a batch of transactions to a pool one by one
 	pool, key := setupTxPool()
 	defer pool.Stop()
 
 	account := crypto.PubkeyToAddress(key.PublicKey)
 	testAddBalance(pool, account, big.NewInt(1000000))
+	mikoSigner := types.NewMikoSigner(common.Big1)
 
 	for i := 0; i < size; i++ {
-		tx := transaction(uint64(i), 100000, key)
+		// create different payer for every transaction, worst case scenario
+		payerKey, _ := crypto.GenerateKey()
+		testAddBalance(pool, crypto.PubkeyToAddress(payerKey.PublicKey), big.NewInt(1000000))
+
+		innerTx := types.SponsoredTx{
+			ChainID:     common.Big1,
+			Nonce:       uint64(i),
+			GasTipCap:   common.Big1,
+			GasFeeCap:   common.Big1,
+			Gas:         21000,
+			To:          &account,
+			ExpiredTime: 100,
+		}
+		var err error
+		innerTx.PayerR, innerTx.PayerS, innerTx.PayerV, err = types.PayerSign(payerKey, mikoSigner, account, &innerTx)
+		if err != nil {
+			b.Fatal(err)
+		}
+
+		tx, err := types.SignNewTx(key, mikoSigner, &innerTx)
+		if err != nil {
+			b.Fatal(err)
+		}
 		pool.promoteTx(account, tx.Hash(), tx)
 	}
 	// Benchmark the speed of pool validation
@@ -2481,6 +2538,7 @@ func BenchmarkPoolBatchLocalInsert1000(b *testing.B)  { benchmarkPoolBatchInsert
 func BenchmarkPoolBatchLocalInsert10000(b *testing.B) { benchmarkPoolBatchInsert(b, 10000, true) }
 
 func benchmarkPoolBatchInsert(b *testing.B, size int, local bool) {
+	log.Root().SetHandler(log.DiscardHandler())
 	// Generate a batch of transactions to enqueue into the pool
 	pool, key := setupTxPool()
 	defer pool.Stop()
@@ -2503,6 +2561,64 @@ func benchmarkPoolBatchInsert(b *testing.B, size int, local bool) {
 		} else {
 			pool.AddRemotes(batch)
 		}
+	}
+}
+
+func BenchmarkPoolBatchInsertSponsoredTx100(b *testing.B) {
+	benchmarkPoolBatchInsertSponsoredTx(b, 100)
+}
+func BenchmarkPoolBatchInsertSponsoredTx1000(b *testing.B) {
+	benchmarkPoolBatchInsertSponsoredTx(b, 1000)
+}
+func BenchmarkPoolBatchInsertSponsoredTx10000(b *testing.B) {
+	benchmarkPoolBatchInsertSponsoredTx(b, 10000)
+}
+
+func benchmarkPoolBatchInsertSponsoredTx(b *testing.B, size int) {
+	log.Root().SetHandler(log.DiscardHandler())
+	// Add a batch of transactions to a pool one by one
+	pool, key := setupTxPool()
+	defer pool.Stop()
+
+	account := crypto.PubkeyToAddress(key.PublicKey)
+	testAddBalance(pool, account, big.NewInt(1000000))
+	mikoSigner := types.NewMikoSigner(common.Big1)
+
+	batches := make([]types.Transactions, b.N)
+	for i := 0; i < b.N; i++ {
+		batches[i] = make(types.Transactions, size)
+		for j := 0; j < size; j++ {
+			// create different payer for every transaction, worst case scenario
+			payerKey, _ := crypto.GenerateKey()
+			testAddBalance(pool, crypto.PubkeyToAddress(payerKey.PublicKey), big.NewInt(1000000))
+
+			innerTx := types.SponsoredTx{
+				ChainID:     common.Big1,
+				Nonce:       uint64(i),
+				GasTipCap:   common.Big1,
+				GasFeeCap:   common.Big1,
+				Gas:         21000,
+				To:          &account,
+				ExpiredTime: 100,
+			}
+			var err error
+			innerTx.PayerR, innerTx.PayerS, innerTx.PayerV, err = types.PayerSign(payerKey, mikoSigner, account, &innerTx)
+			if err != nil {
+				b.Fatal(err)
+			}
+
+			tx, err := types.SignNewTx(key, mikoSigner, &innerTx)
+			if err != nil {
+				b.Fatal(err)
+			}
+			batches[i][j] = tx
+		}
+	}
+
+	// Benchmark the speed of pool validation
+	b.ResetTimer()
+	for _, batch := range batches {
+		pool.AddRemotes(batch)
 	}
 }
 
@@ -2559,5 +2675,416 @@ func BenchmarkPoolMultiAccountBatchInsert(b *testing.B) {
 	b.ResetTimer()
 	for _, tx := range batches {
 		pool.AddRemotesSync([]*types.Transaction{tx})
+	}
+}
+
+func TestSponsoredTxBeforeMiko(t *testing.T) {
+	var chainConfig params.ChainConfig
+
+	chainConfig.EIP155Block = common.Big0
+	chainConfig.ChainID = big.NewInt(2020)
+
+	recipient := common.HexToAddress("1000000000000000000000000000000000000001")
+	txpool, senderKey := setupTxPoolWithConfig(&chainConfig)
+	defer txpool.Stop()
+
+	payerKey, err := crypto.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	innerTx := types.SponsoredTx{
+		ChainID:     big.NewInt(2020),
+		Nonce:       1,
+		GasTipCap:   big.NewInt(100000),
+		GasFeeCap:   big.NewInt(100000),
+		Gas:         1000,
+		To:          &recipient,
+		Value:       big.NewInt(10),
+		Data:        []byte("abcd"),
+		ExpiredTime: 100000,
+	}
+
+	mikoSigner := types.NewMikoSigner(big.NewInt(2020))
+	innerTx.PayerR, innerTx.PayerS, innerTx.PayerV, err = types.PayerSign(
+		payerKey,
+		mikoSigner,
+		crypto.PubkeyToAddress(senderKey.PublicKey),
+		&innerTx,
+	)
+	if err != nil {
+		t.Fatalf("Payer fails to sign transaction, err %s", err)
+	}
+
+	tx, err := types.SignNewTx(senderKey, mikoSigner, &innerTx)
+	if err != nil {
+		t.Fatalf("Fail to sign transaction, err %s", err)
+	}
+
+	err = txpool.AddRemote(tx)
+	if err == nil || !errors.Is(err, ErrInvalidSender) {
+		t.Fatalf("Expect error %s, get %s", ErrInvalidSender, err)
+	}
+}
+
+func TestExpiredTimeAndGasCheckSponsoredTx(t *testing.T) {
+	var chainConfig params.ChainConfig
+
+	chainConfig.EIP155Block = common.Big0
+	chainConfig.MikoBlock = common.Big0
+	chainConfig.ChainID = big.NewInt(2020)
+
+	recipient := common.HexToAddress("1000000000000000000000000000000000000001")
+	statedb, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
+	blockchain := &testBlockChain{10000000, statedb, new(event.Feed)}
+
+	txpool := NewTxPool(testTxPoolConfig, &chainConfig, blockchain)
+	defer txpool.Stop()
+
+	senderKey, err := crypto.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	payerKey, err := crypto.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	innerTx := types.SponsoredTx{
+		ChainID:     big.NewInt(2020),
+		Nonce:       1,
+		GasTipCap:   big.NewInt(100000),
+		GasFeeCap:   big.NewInt(200000),
+		Gas:         22000,
+		To:          &recipient,
+		Value:       big.NewInt(10),
+		Data:        []byte("abcd"),
+		ExpiredTime: 100,
+	}
+
+	mikoSigner := types.NewMikoSigner(big.NewInt(2020))
+	innerTx.PayerR, innerTx.PayerS, innerTx.PayerV, err = types.PayerSign(
+		payerKey,
+		mikoSigner,
+		crypto.PubkeyToAddress(senderKey.PublicKey),
+		&innerTx,
+	)
+	if err != nil {
+		t.Fatalf("Payer fails to sign transaction, err %s", err)
+	}
+
+	tx, err := types.SignNewTx(senderKey, mikoSigner, &innerTx)
+	if err != nil {
+		t.Fatalf("Fail to sign transaction, err %s", err)
+	}
+
+	// 1. Failed when gas tip cap and gas tip cap are different
+	err = txpool.addRemoteSync(tx)
+	if err == nil || !errors.Is(err, ErrDifferentFeeCapTipCap) {
+		t.Fatalf("Expect error %s, get %s", ErrDifferentFeeCapTipCap, err)
+	}
+
+	// 2. Failed when tx is expired
+	txpool.currentTime = 2000
+	innerTx.GasFeeCap = innerTx.GasTipCap
+	innerTx.PayerR, innerTx.PayerS, innerTx.PayerV, err = types.PayerSign(
+		payerKey,
+		mikoSigner,
+		crypto.PubkeyToAddress(senderKey.PublicKey),
+		&innerTx,
+	)
+	if err != nil {
+		t.Fatalf("Payer fails to sign transaction, err %s", err)
+	}
+
+	tx, err = types.SignNewTx(senderKey, mikoSigner, &innerTx)
+	if err != nil {
+		t.Fatalf("Fail to sign transaction, err %s", err)
+	}
+
+	err = txpool.addRemoteSync(tx)
+	if err == nil || !errors.Is(err, ErrExpiredSponsoredTx) {
+		t.Fatalf("Expect error %s, get %s", ErrExpiredSponsoredTx, err)
+	}
+
+	// 3. Failed when sponsored tx has the same payer and sender
+	innerTx.ExpiredTime = 3000
+	innerTx.PayerR, innerTx.PayerS, innerTx.PayerV, err = types.PayerSign(
+		payerKey,
+		mikoSigner,
+		crypto.PubkeyToAddress(payerKey.PublicKey),
+		&innerTx,
+	)
+	if err != nil {
+		t.Fatalf("Payer fails to sign transaction, err %s", err)
+	}
+
+	tx, err = types.SignNewTx(payerKey, mikoSigner, &innerTx)
+	if err != nil {
+		t.Fatalf("Fail to sign transaction, err %s", err)
+	}
+
+	err = txpool.addRemoteSync(tx)
+	if err == nil || !errors.Is(err, types.ErrSamePayerSenderSponsoredTx) {
+		t.Fatalf("Expect error %s, get %s", types.ErrSamePayerSenderSponsoredTx, err)
+	}
+
+	// 4. Failed when payer does not have sufficient fund for gas fee
+	innerTx.PayerR, innerTx.PayerS, innerTx.PayerV, err = types.PayerSign(
+		payerKey,
+		mikoSigner,
+		crypto.PubkeyToAddress(senderKey.PublicKey),
+		&innerTx,
+	)
+	if err != nil {
+		t.Fatalf("Payer fails to sign transaction, err %s", err)
+	}
+
+	tx, err = types.SignNewTx(senderKey, mikoSigner, &innerTx)
+	if err != nil {
+		t.Fatalf("Fail to sign transaction, err %s", err)
+	}
+
+	err = txpool.addRemoteSync(tx)
+	if err == nil || !errors.Is(err, ErrInsufficientPayerFunds) {
+		t.Fatalf("Expect error %s, get %s", ErrInsufficientPayerFunds, err)
+	}
+
+	// 5. Failed when sender does not have sufficient fund for msg.value
+	statedb.SetBalance(crypto.PubkeyToAddress(payerKey.PublicKey), new(big.Int).Mul(big.NewInt(100000), big.NewInt(22000)))
+	err = txpool.addRemoteSync(tx)
+	if err == nil || !errors.Is(err, ErrInsufficientSenderFunds) {
+		t.Fatalf("Expect error %s, get %s", ErrInsufficientSenderFunds, err)
+	}
+
+	// 6. Successfully add tx
+	statedb.SetBalance(crypto.PubkeyToAddress(senderKey.PublicKey), big.NewInt(10))
+	err = txpool.addRemoteSync(tx)
+	if err != nil {
+		t.Fatalf("Expect successfully add tx, get %s", err)
+	}
+}
+
+// TestSponsoredTxInTxPoolQueue tests that sponsored tx is removed from
+// txpool's queue when balance of payer/sender is insufficient or tx
+// is expired
+func TestSponsoredTxInTxPoolQueue(t *testing.T) {
+	var chainConfig params.ChainConfig
+
+	chainConfig.EIP155Block = common.Big0
+	chainConfig.MikoBlock = common.Big0
+	chainConfig.ChainID = big.NewInt(2020)
+
+	recipient := common.HexToAddress("1000000000000000000000000000000000000001")
+	statedb, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
+	blockchain := &testBlockChain{10000000, statedb, new(event.Feed)}
+
+	txpool := NewTxPool(testTxPoolConfig, &chainConfig, blockchain)
+	defer txpool.Stop()
+
+	senderKey, err := crypto.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	senderAddr := crypto.PubkeyToAddress(senderKey.PublicKey)
+
+	payerKey, err := crypto.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	payerAddr := crypto.PubkeyToAddress(payerKey.PublicKey)
+
+	sponsoredTx1 := types.SponsoredTx{
+		ChainID:     big.NewInt(2020),
+		Nonce:       0,
+		GasTipCap:   big.NewInt(100000),
+		GasFeeCap:   big.NewInt(100000),
+		Gas:         30000,
+		To:          &recipient,
+		Value:       big.NewInt(10),
+		ExpiredTime: 100,
+	}
+	sponsoredTx2 := types.SponsoredTx{
+		ChainID:     big.NewInt(2020),
+		Nonce:       2,
+		GasTipCap:   big.NewInt(100000),
+		GasFeeCap:   big.NewInt(100000),
+		Gas:         30000,
+		To:          &recipient,
+		Value:       big.NewInt(10),
+		ExpiredTime: 100,
+	}
+	gasFee := new(big.Int).Mul(sponsoredTx1.GasFeeCap, new(big.Int).SetUint64(sponsoredTx1.Gas))
+	statedb.SetBalance(payerAddr, gasFee)
+	statedb.SetBalance(senderAddr, sponsoredTx1.Value)
+
+	mikoSigner := types.NewMikoSigner(big.NewInt(2020))
+	sponsoredTx1.PayerR, sponsoredTx1.PayerS, sponsoredTx1.PayerV, err = types.PayerSign(
+		payerKey,
+		mikoSigner,
+		crypto.PubkeyToAddress(senderKey.PublicKey),
+		&sponsoredTx1,
+	)
+	if err != nil {
+		t.Fatalf("Payer fails to sign transaction, err %s", err)
+	}
+
+	tx1, err := types.SignNewTx(senderKey, mikoSigner, &sponsoredTx1)
+	if err != nil {
+		t.Fatalf("Fail to sign transaction, err %s", err)
+	}
+
+	sponsoredTx2.PayerR, sponsoredTx2.PayerS, sponsoredTx2.PayerV, err = types.PayerSign(
+		payerKey,
+		mikoSigner,
+		crypto.PubkeyToAddress(senderKey.PublicKey),
+		&sponsoredTx2,
+	)
+	if err != nil {
+		t.Fatalf("Payer fails to sign transaction, err %s", err)
+	}
+
+	tx2, err := types.SignNewTx(senderKey, mikoSigner, &sponsoredTx2)
+	if err != nil {
+		t.Fatalf("Fail to sign transaction, err %s", err)
+	}
+
+	errs := txpool.AddRemotesSync([]*types.Transaction{tx1, tx2})
+	for _, err := range errs {
+		if err != nil {
+			t.Fatalf("Fail to add tx to pool, err %s", err)
+		}
+	}
+
+	pending, queued := txpool.Stats()
+	if pending != 1 {
+		t.Fatalf("Pending txpool, expect %d get %d", 1, pending)
+	}
+	if queued != 1 {
+		t.Fatalf("Queued txpool, expect %d get %d", 1, queued)
+	}
+
+	// 1. Payer fund is insufficient, 2 txs are removed from pending and queued
+	statedb.SubBalance(payerAddr, common.Big1)
+	<-txpool.requestReset(nil, nil)
+	pending, queued = txpool.Stats()
+	if pending != 0 {
+		t.Fatalf("Pending txpool, expect %d get %d", 0, pending)
+	}
+	if queued != 0 {
+		t.Fatalf("Queued txpool, expect %d get %d", 0, queued)
+	}
+
+	// 2. Sender fund is insufficient, 2 txs are removed from pending and queued
+	statedb.AddBalance(payerAddr, common.Big1)
+	errs = txpool.AddRemotesSync([]*types.Transaction{tx1, tx2})
+	for _, err := range errs {
+		if err != nil {
+			t.Fatalf("Fail to add tx to pool, err %s", err)
+		}
+	}
+
+	pending, queued = txpool.Stats()
+	if pending != 1 {
+		t.Fatalf("Pending txpool, expect %d get %d", 1, pending)
+	}
+	if queued != 1 {
+		t.Fatalf("Queued txpool, expect %d get %d", 1, queued)
+	}
+
+	statedb.SubBalance(senderAddr, common.Big1)
+	<-txpool.requestReset(nil, nil)
+	pending, queued = txpool.Stats()
+	if pending != 0 {
+		t.Fatalf("Pending txpool, expect %d get %d", 0, pending)
+	}
+	if queued != 0 {
+		t.Fatalf("Queued txpool, expect %d get %d", 0, queued)
+	}
+
+	// 3. Payer fund is insufficient, 2 txs with the same payer in a queue
+	statedb.AddBalance(senderAddr, common.Big1)
+	sponsoredTx3 := types.SponsoredTx{
+		ChainID:     big.NewInt(2020),
+		Nonce:       3,
+		GasTipCap:   big.NewInt(100000),
+		GasFeeCap:   big.NewInt(100000),
+		Gas:         21000,
+		To:          &recipient,
+		Value:       big.NewInt(10),
+		ExpiredTime: 100,
+	}
+
+	sponsoredTx3.PayerR, sponsoredTx3.PayerS, sponsoredTx3.PayerV, err = types.PayerSign(
+		payerKey,
+		mikoSigner,
+		crypto.PubkeyToAddress(senderKey.PublicKey),
+		&sponsoredTx3,
+	)
+	if err != nil {
+		t.Fatalf("Payer fails to sign transaction, err %s", err)
+	}
+
+	tx3, err := types.SignNewTx(senderKey, mikoSigner, &sponsoredTx3)
+	if err != nil {
+		t.Fatalf("Fail to sign transaction, err %s", err)
+	}
+
+	errs = txpool.AddRemotesSync([]*types.Transaction{tx2, tx3})
+	for _, err := range errs {
+		if err != nil {
+			t.Fatalf("Fail to add tx to pool, err %s", err)
+		}
+	}
+
+	_, queued = txpool.Stats()
+	if queued != 2 {
+		t.Fatalf("Queued txpool, expect %d get %d", 2, queued)
+	}
+
+	gasFee = new(big.Int).Mul(sponsoredTx3.GasFeeCap, new(big.Int).SetUint64(sponsoredTx3.Gas))
+	statedb.SetBalance(payerAddr, gasFee)
+	<-txpool.requestReset(nil, nil)
+
+	// tx2 must be removed from queue but not tx3
+	_, queued = txpool.Stats()
+	if queued != 1 {
+		t.Fatalf("Queued txpool, expect %d get %d", 1, queued)
+	}
+
+	statedb.SubBalance(payerAddr, common.Big1)
+	<-txpool.requestReset(nil, nil)
+	// tx3 must be removed now
+	_, queued = txpool.Stats()
+	if queued != 0 {
+		t.Fatalf("Queued txpool, expect %d get %d", 0, queued)
+	}
+
+	// 4. Expired txs are removed from pending and queued
+	gasFee = new(big.Int).Mul(sponsoredTx1.GasFeeCap, new(big.Int).SetUint64(sponsoredTx1.Gas))
+	statedb.SetBalance(payerAddr, gasFee)
+	errs = txpool.AddRemotesSync([]*types.Transaction{tx1, tx2})
+	for _, err := range errs {
+		if err != nil {
+			t.Fatalf("Fail to add tx to pool, err %s", err)
+		}
+	}
+
+	pending, queued = txpool.Stats()
+	if pending != 1 {
+		t.Fatalf("Pending txpool, expect %d get %d", 1, pending)
+	}
+	if queued != 1 {
+		t.Fatalf("Queued txpool, expect %d get %d", 1, queued)
+	}
+
+	<-txpool.requestReset(nil, types.CopyHeader(&types.Header{Time: 200}))
+	pending, queued = txpool.Stats()
+	if pending != 0 {
+		t.Fatalf("Pending txpool, expect %d get %d", 0, pending)
+	}
+	if queued != 0 {
+		t.Fatalf("Queued txpool, expect %d get %d", 0, queued)
 	}
 }
