@@ -18,9 +18,10 @@ package core
 
 import (
 	"fmt"
-	"github.com/ethereum/go-ethereum/consensus"
 	"math"
 	"math/big"
+
+	"github.com/ethereum/go-ethereum/consensus"
 
 	"github.com/ethereum/go-ethereum/common"
 	cmath "github.com/ethereum/go-ethereum/common/math"
@@ -78,6 +79,12 @@ type Message interface {
 	IsFake() bool
 	Data() []byte
 	AccessList() types.AccessList
+
+	// In legacy transaction, this is the same as From.
+	// In sponsored transaction, this is the payer's
+	// address recovered from the payer's signature.
+	Payer() common.Address
+	ExpiredTime() uint64
 }
 
 // ExecutionResult includes all output after executing given evm
@@ -191,24 +198,40 @@ func (st *StateTransition) to() common.Address {
 }
 
 func (st *StateTransition) buyGas() error {
-	mgval := new(big.Int).SetUint64(st.msg.Gas())
-	mgval = mgval.Mul(mgval, st.gasPrice)
-	balanceCheck := mgval
-	if st.gasFeeCap != nil {
-		balanceCheck = new(big.Int).SetUint64(st.msg.Gas())
-		balanceCheck = balanceCheck.Mul(balanceCheck, st.gasFeeCap)
-		balanceCheck.Add(balanceCheck, st.value)
+	gas := new(big.Int).SetUint64(st.msg.Gas())
+	// In transaction types other than dynamic fee transaction,
+	// effectiveGasFee is the same as maxGasFee. In dynamic fee
+	// transaction, st.gasPrice is the already calculated gas
+	// price based on block base fee, gas fee cap and gas tip cap
+	effectiveGasFee := new(big.Int).Mul(gas, st.gasPrice)
+	maxGasFee := new(big.Int).Mul(gas, st.gasFeeCap)
+
+	if st.msg.Payer() != st.msg.From() {
+		// This is sponsored transaction, check gas fee with payer's balance and msg.value with sender's balance
+		if have, want := st.state.GetBalance(st.msg.Payer()), maxGasFee; have.Cmp(want) < 0 {
+			return fmt.Errorf("%w: address %v have %v want %v", ErrInsufficientPayerFunds, st.msg.Payer().Hex(), have, want)
+		}
+
+		if have, want := st.state.GetBalance(st.msg.From()), st.value; have.Cmp(want) < 0 {
+			return fmt.Errorf("%w: address %v have %v want %v", ErrInsufficientSenderFunds, st.msg.From().Hex(), have, want)
+		}
+	} else {
+		gasFeeAndValue := new(big.Int).Add(maxGasFee, st.value)
+		if have, want := st.state.GetBalance(st.msg.From()), gasFeeAndValue; have.Cmp(want) < 0 {
+			return fmt.Errorf("%w: address %v have %v want %v", ErrInsufficientFunds, st.msg.From().Hex(), have, want)
+		}
 	}
-	if have, want := st.state.GetBalance(st.msg.From()), balanceCheck; have.Cmp(want) < 0 {
-		return fmt.Errorf("%w: address %v have %v want %v", ErrInsufficientFunds, st.msg.From().Hex(), have, want)
-	}
+
 	if err := st.gp.SubGas(st.msg.Gas()); err != nil {
 		return err
 	}
 	st.gas += st.msg.Gas()
 
 	st.initialGas = st.msg.Gas()
-	st.state.SubBalance(st.msg.From(), mgval)
+
+	// Subtract the gas fee from balance of the fee payer,
+	// the msg.value is transfered to the recipient in later step.
+	st.state.SubBalance(st.msg.Payer(), effectiveGasFee)
 	return nil
 }
 
@@ -257,6 +280,19 @@ func (st *StateTransition) preCheck() error {
 			}
 		}
 	}
+
+	// Check expired time, gas fee cap and tip cap in sponsored transaction
+	if st.msg.Payer() != st.msg.From() {
+		if st.msg.ExpiredTime() <= st.evm.Context.Time {
+			return fmt.Errorf("%w: expiredTime: %d, blockTime: %d", ErrExpiredSponsoredTx,
+				st.msg.ExpiredTime(), st.evm.Context.Time)
+		}
+
+		if st.msg.GasTipCap().Cmp(st.msg.GasFeeCap()) != 0 {
+			return ErrDifferentFeeCapTipCap
+		}
+	}
+
 	return st.buyGas()
 }
 
@@ -278,7 +314,8 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	// applying the message. The rules include these clauses
 	//
 	// 1. the nonce of the message caller is correct
-	// 2. caller has enough balance to cover transaction fee(gaslimit * gasprice)
+	// 2. payer has enough balance to cover transaction fee(gaslimit * gasprice)
+	// payer signature is not expired
 	// 3. the amount of gas required is available in the block
 	// 4. the purchased gas is enough to cover intrinsic usage
 	// 5. there is no overflow when calculating intrinsic gas
@@ -376,7 +413,7 @@ func (st *StateTransition) refundGas(refundQuotient uint64) {
 
 	// Return ETH for remaining gas, exchanged at the original rate.
 	remaining := new(big.Int).Mul(new(big.Int).SetUint64(st.gas), st.gasPrice)
-	st.state.AddBalance(st.msg.From(), remaining)
+	st.state.AddBalance(st.msg.Payer(), remaining)
 
 	// Also return remaining gas to the block gas counter so it is
 	// available for the next transaction.

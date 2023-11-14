@@ -32,12 +32,13 @@ import (
 )
 
 var (
-	ErrInvalidSig           = errors.New("invalid transaction v, r, s values")
-	ErrUnexpectedProtection = errors.New("transaction type does not supported EIP-155 protected signatures")
-	ErrInvalidTxType        = errors.New("transaction type not valid in this context")
-	ErrTxTypeNotSupported   = errors.New("transaction type not supported")
-	ErrGasFeeCapTooLow      = errors.New("fee cap less than base fee")
-	errEmptyTypedTx         = errors.New("empty typed transaction bytes")
+	ErrInvalidSig                 = errors.New("invalid transaction v, r, s values")
+	ErrUnexpectedProtection       = errors.New("transaction type does not supported EIP-155 protected signatures")
+	ErrInvalidTxType              = errors.New("transaction type not valid in this context")
+	ErrTxTypeNotSupported         = errors.New("transaction type not supported")
+	ErrGasFeeCapTooLow            = errors.New("fee cap less than base fee")
+	ErrSamePayerSenderSponsoredTx = errors.New("payer = sender in sponsored transaction")
+	errEmptyTypedTx               = errors.New("empty typed transaction bytes")
 )
 
 // Transaction types.
@@ -45,6 +46,7 @@ const (
 	LegacyTxType = iota
 	AccessListTxType
 	DynamicFeeTxType
+	SponsoredTxType = 100
 )
 
 // Transaction is an Ethereum transaction.
@@ -53,9 +55,10 @@ type Transaction struct {
 	time  time.Time // Time first seen locally (spam avoidance)
 
 	// caches
-	hash atomic.Value
-	size atomic.Value
-	from atomic.Value
+	hash  atomic.Value
+	size  atomic.Value
+	from  atomic.Value
+	payer atomic.Value
 }
 
 // NewTx creates a new transaction.
@@ -67,7 +70,7 @@ func NewTx(inner TxData) *Transaction {
 
 // TxData is the underlying data of a transaction.
 //
-// This is implemented by DynamicFeeTx, LegacyTx and AccessListTx.
+// This is implemented by DynamicFeeTx, LegacyTx, SponsoredTx and AccessListTx.
 type TxData interface {
 	txType() byte // returns the type ID
 	copy() TxData // creates a deep copy and initializes all fields
@@ -82,7 +85,9 @@ type TxData interface {
 	value() *big.Int
 	nonce() uint64
 	to() *common.Address
+	expiredTime() uint64
 
+	rawPayerSignatureValues() (v, r, s *big.Int)
 	rawSignatureValues() (v, r, s *big.Int)
 	setSignatureValues(chainID, v, r, s *big.Int)
 }
@@ -186,6 +191,10 @@ func (tx *Transaction) decodeTyped(b []byte) (TxData, error) {
 		var inner DynamicFeeTx
 		err := rlp.DecodeBytes(b[1:], &inner)
 		return &inner, err
+	case SponsoredTxType:
+		var inner SponsoredTx
+		err := rlp.DecodeBytes(b[1:], &inner)
+		return &inner, err
 	default:
 		return nil, ErrTxTypeNotSupported
 	}
@@ -287,11 +296,22 @@ func (tx *Transaction) To() *common.Address {
 	return copyAddressPtr(tx.inner.to())
 }
 
+// ExpiredTime returns the expired time of the sponsored transaction
+func (tx *Transaction) ExpiredTime() uint64 {
+	return tx.inner.expiredTime()
+}
+
 // Cost returns gas * gasPrice + value.
 func (tx *Transaction) Cost() *big.Int {
 	total := new(big.Int).Mul(tx.GasPrice(), new(big.Int).SetUint64(tx.Gas()))
 	total.Add(total, tx.Value())
 	return total
+}
+
+// RawSignatureValues returns the V, R, S payer signature values of the transaction.
+// The return values should not be modified by the caller.
+func (tx *Transaction) RawPayerSignatureValues() (v, r, s *big.Int) {
+	return tx.inner.rawPayerSignatureValues()
 }
 
 // RawSignatureValues returns the V, R, S signature values of the transaction.
@@ -567,48 +587,64 @@ func (t *TransactionsByPriceAndNonce) Size() int {
 //
 // NOTE: In a future PR this will be removed.
 type Message struct {
-	to         *common.Address
-	from       common.Address
-	nonce      uint64
-	amount     *big.Int
-	gasLimit   uint64
-	gasPrice   *big.Int
-	gasFeeCap  *big.Int
-	gasTipCap  *big.Int
-	data       []byte
-	accessList AccessList
-	isFake     bool
+	to          *common.Address
+	from        common.Address
+	nonce       uint64
+	amount      *big.Int
+	gasLimit    uint64
+	gasPrice    *big.Int
+	gasFeeCap   *big.Int
+	gasTipCap   *big.Int
+	data        []byte
+	accessList  AccessList
+	isFake      bool
+	payer       common.Address
+	expiredTime uint64
 }
 
-func NewMessage(from common.Address, to *common.Address, nonce uint64, amount *big.Int, gasLimit uint64, gasPrice, gasFeeCap, gasTipCap *big.Int, data []byte, accessList AccessList, isFake bool) Message {
+// Create a new message with payer is the same as from, expired time = 0
+func NewMessage(
+	from common.Address,
+	to *common.Address,
+	nonce uint64,
+	amount *big.Int,
+	gasLimit uint64,
+	gasPrice, gasFeeCap, gasTipCap *big.Int,
+	data []byte,
+	accessList AccessList,
+	isFake bool,
+) Message {
 	return Message{
-		from:       from,
-		to:         to,
-		nonce:      nonce,
-		amount:     amount,
-		gasLimit:   gasLimit,
-		gasPrice:   gasPrice,
-		gasFeeCap:  gasFeeCap,
-		gasTipCap:  gasTipCap,
-		data:       data,
-		accessList: accessList,
-		isFake:     isFake,
+		from:        from,
+		to:          to,
+		nonce:       nonce,
+		amount:      amount,
+		gasLimit:    gasLimit,
+		gasPrice:    gasPrice,
+		gasFeeCap:   gasFeeCap,
+		gasTipCap:   gasTipCap,
+		data:        data,
+		accessList:  accessList,
+		isFake:      isFake,
+		payer:       from,
+		expiredTime: 0,
 	}
 }
 
 // AsMessage returns the transaction as a core.Message.
 func (tx *Transaction) AsMessage(s Signer, baseFee *big.Int) (Message, error) {
 	msg := Message{
-		nonce:      tx.Nonce(),
-		gasLimit:   tx.Gas(),
-		gasPrice:   new(big.Int).Set(tx.GasPrice()),
-		gasFeeCap:  new(big.Int).Set(tx.GasFeeCap()),
-		gasTipCap:  new(big.Int).Set(tx.GasTipCap()),
-		to:         tx.To(),
-		amount:     tx.Value(),
-		data:       tx.Data(),
-		accessList: tx.AccessList(),
-		isFake:     false,
+		nonce:       tx.Nonce(),
+		gasLimit:    tx.Gas(),
+		gasPrice:    new(big.Int).Set(tx.GasPrice()),
+		gasFeeCap:   new(big.Int).Set(tx.GasFeeCap()),
+		gasTipCap:   new(big.Int).Set(tx.GasTipCap()),
+		to:          tx.To(),
+		amount:      tx.Value(),
+		data:        tx.Data(),
+		accessList:  tx.AccessList(),
+		isFake:      false,
+		expiredTime: tx.ExpiredTime(),
 	}
 	// If baseFee provided, set gasPrice to effectiveGasPrice.
 	if baseFee != nil {
@@ -616,7 +652,25 @@ func (tx *Transaction) AsMessage(s Signer, baseFee *big.Int) (Message, error) {
 	}
 	var err error
 	msg.from, err = Sender(s, tx)
-	return msg, err
+	if err != nil {
+		return Message{}, err
+	}
+
+	if tx.Type() == SponsoredTxType {
+		msg.payer, err = Payer(s, tx)
+		if err != nil {
+			return Message{}, err
+		}
+
+		if msg.payer == msg.from {
+			// Reject sponsored transaction with identical payer and sender
+			return Message{}, ErrSamePayerSenderSponsoredTx
+		}
+		return msg, nil
+	} else {
+		msg.payer = msg.from
+		return msg, nil
+	}
 }
 
 func (m Message) From() common.Address   { return m.from }
@@ -630,6 +684,8 @@ func (m Message) Nonce() uint64          { return m.nonce }
 func (m Message) Data() []byte           { return m.data }
 func (m Message) AccessList() AccessList { return m.accessList }
 func (m Message) IsFake() bool           { return m.isFake }
+func (m Message) Payer() common.Address  { return m.payer }
+func (m Message) ExpiredTime() uint64    { return m.expiredTime }
 
 // copyAddressPtr copies an address.
 func copyAddressPtr(a *common.Address) *common.Address {

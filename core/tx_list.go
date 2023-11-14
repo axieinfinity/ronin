@@ -253,17 +253,21 @@ type txList struct {
 	strict bool         // Whether nonces are strictly continuous or not
 	txs    *txSortedMap // Heap indexed sorted hash map of the transactions
 
-	costcap *big.Int // Price of the highest costing transaction (reset only if exceeds balance)
-	gascap  uint64   // Gas limit of the highest spending transaction (reset only if exceeds block limit)
+	costcap *big.Int               // Price of the highest costing transaction (reset only if exceeds balance)
+	gascap  uint64                 // Gas limit of the highest spending transaction (reset only if exceeds block limit)
+	signer  types.Signer           // The signer of the transaction pool
+	payers  map[common.Address]int // The reference count of payers
 }
 
 // newTxList create a new transaction list for maintaining nonce-indexable fast,
 // gapped, sortable transaction lists.
-func newTxList(strict bool) *txList {
+func newTxList(strict bool, signer types.Signer) *txList {
 	return &txList{
 		strict:  strict,
 		txs:     newTxSortedMap(),
 		costcap: new(big.Int),
+		signer:  signer,
+		payers:  make(map[common.Address]int),
 	}
 }
 
@@ -310,14 +314,34 @@ func (l *txList) Add(tx *types.Transaction, priceBump uint64) (bool, *types.Tran
 	if gas := tx.Gas(); l.gascap < gas {
 		l.gascap = gas
 	}
+	payer, err := types.Payer(l.signer, tx)
+	if err == nil {
+		l.payers[payer]++
+	}
 	return true, old
+}
+
+// removePayer decrease the reference count of payers in the list
+// and remove the payer if the reference count reaches 0
+func (l *txList) removePayer(removed types.Transactions) {
+	for _, removedTx := range removed {
+		payer, err := types.Payer(l.signer, removedTx)
+		if err == nil {
+			l.payers[payer]--
+			if l.payers[payer] == 0 {
+				delete(l.payers, payer)
+			}
+		}
+	}
 }
 
 // Forward removes all transactions from the list with a nonce lower than the
 // provided threshold. Every removed transaction is returned for any post-removal
 // maintenance.
 func (l *txList) Forward(threshold uint64) types.Transactions {
-	return l.txs.Forward(threshold)
+	removed := l.txs.Forward(threshold)
+	l.removePayer(removed)
+	return removed
 }
 
 // Filter removes all transactions from the list with a cost or gas limit higher
@@ -329,17 +353,35 @@ func (l *txList) Forward(threshold uint64) types.Transactions {
 // a point in calculating all the costs or if the balance covers all. If the threshold
 // is lower than the costgas cap, the caps will be reset to a new high after removing
 // the newly invalidated transactions.
-func (l *txList) Filter(costLimit *big.Int, gasLimit uint64) (types.Transactions, types.Transactions) {
+func (l *txList) Filter(
+	costLimit *big.Int,
+	gasLimit uint64,
+	payerCostLimit map[common.Address]*big.Int,
+	currentTime uint64,
+) (types.Transactions, types.Transactions) {
 	// If all transactions are below the threshold, short circuit
-	if l.costcap.Cmp(costLimit) <= 0 && l.gascap <= gasLimit {
+	if l.costcap.Cmp(costLimit) <= 0 && l.gascap <= gasLimit && len(payerCostLimit) == 0 {
 		return nil, nil
 	}
 	l.costcap = new(big.Int).Set(costLimit) // Lower the caps to the thresholds
 	l.gascap = gasLimit
 
-	// Filter out all the transactions above the account's funds
-	removed := l.txs.Filter(func(tx *types.Transaction) bool {
-		return tx.Gas() > gasLimit || tx.Cost().Cmp(costLimit) > 0
+	// Filter out all the transactions above block gas limit, above
+	// the payer's or sender's fund
+	removed := l.txs.filter(func(tx *types.Transaction) bool {
+		if tx.Gas() > gasLimit {
+			return true
+		}
+
+		if tx.Type() == types.SponsoredTxType {
+			payer, _ := types.Payer(l.signer, tx)
+			gasFee := new(big.Int).Mul(tx.GasPrice(), new(big.Int).SetUint64(tx.Gas()))
+			return gasFee.Cmp(payerCostLimit[payer]) > 0 ||
+				tx.Value().Cmp(costLimit) > 0 ||
+				tx.ExpiredTime() <= currentTime
+		} else {
+			return tx.Cost().Cmp(costLimit) > 0
+		}
 	})
 
 	if len(removed) == 0 {
@@ -357,13 +399,17 @@ func (l *txList) Filter(costLimit *big.Int, gasLimit uint64) (types.Transactions
 		invalids = l.txs.filter(func(tx *types.Transaction) bool { return tx.Nonce() > lowest })
 	}
 	l.txs.reheap()
+	l.removePayer(removed)
+	l.removePayer(invalids)
 	return removed, invalids
 }
 
 // Cap places a hard limit on the number of items, returning all transactions
 // exceeding that limit.
 func (l *txList) Cap(threshold int) types.Transactions {
-	return l.txs.Cap(threshold)
+	removed := l.txs.Cap(threshold)
+	l.removePayer(removed)
+	return removed
 }
 
 // Remove deletes a transaction from the maintained list, returning whether the
@@ -371,14 +417,20 @@ func (l *txList) Cap(threshold int) types.Transactions {
 // the deletion (strict mode only).
 func (l *txList) Remove(tx *types.Transaction) (bool, types.Transactions) {
 	// Remove the transaction from the set
+	var removed types.Transactions
 	nonce := tx.Nonce()
 	if removed := l.txs.Remove(nonce); !removed {
 		return false, nil
 	}
+	removed = append(removed, tx)
 	// In strict mode, filter out non-executable transactions
 	if l.strict {
-		return true, l.txs.Filter(func(tx *types.Transaction) bool { return tx.Nonce() > nonce })
+		filteredTx := l.txs.Filter(func(tx *types.Transaction) bool { return tx.Nonce() > nonce })
+		removed = append(removed, filteredTx...)
+		l.removePayer(removed)
+		return true, filteredTx
 	}
+	l.removePayer(removed)
 	return true, nil
 }
 
@@ -414,6 +466,17 @@ func (l *txList) Flatten() types.Transactions {
 // transaction with the highest nonce
 func (l *txList) LastElement() *types.Transaction {
 	return l.txs.LastElement()
+}
+
+func (l *txList) Payers() []common.Address {
+	payers := make([]common.Address, len(l.payers))
+	i := 0
+	for payer := range l.payers {
+		payers[i] = payer
+		i++
+	}
+
+	return payers
 }
 
 // priceHeap is a heap.Interface implementation over transactions for retrieving

@@ -144,9 +144,12 @@ func applyTransaction(
 	from := msg.From()
 
 	// Check if sender and recipient are blacklisted
+	payer := msg.Payer()
 	if config.Consortium != nil && config.IsOdysseus(blockNumber) {
 		contractAddr := config.BlacklistContractAddress
-		if state.IsAddressBlacklisted(statedb, contractAddr, &from) || state.IsAddressBlacklisted(statedb, contractAddr, msg.To()) {
+		if state.IsAddressBlacklisted(statedb, contractAddr, &from) ||
+			state.IsAddressBlacklisted(statedb, contractAddr, msg.To()) ||
+			state.IsAddressBlacklisted(statedb, contractAddr, &payer) {
 			return nil, nil, ErrAddressBlacklisted
 		}
 	}

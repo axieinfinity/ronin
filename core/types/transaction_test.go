@@ -419,7 +419,7 @@ func TestTransactionCoding(t *testing.T) {
 	)
 	for i := uint64(0); i < 500; i++ {
 		var txdata TxData
-		switch i % 5 {
+		switch i % 6 {
 		case 0:
 			// Legacy tx.
 			txdata = &LegacyTx{
@@ -466,6 +466,23 @@ func TestTransactionCoding(t *testing.T) {
 				Gas:        123457,
 				GasPrice:   big.NewInt(10),
 				AccessList: accesses,
+			}
+		case 5:
+			// Sponsored tx
+			itx := SponsoredTx{
+				ChainID:     big.NewInt(1),
+				Nonce:       i,
+				To:          &recipient,
+				Gas:         123457,
+				GasTipCap:   big.NewInt(10),
+				GasFeeCap:   big.NewInt(10),
+				Data:        []byte("abcdef"),
+				ExpiredTime: 100000,
+			}
+			txdata = &itx
+			itx.PayerR, itx.PayerS, itx.PayerV, err = PayerSign(key, signer, crypto.PubkeyToAddress(key.PublicKey), txdata)
+			if err != nil {
+				t.Fatal(err)
 			}
 		}
 		tx, err := SignNewTx(key, signer, txdata)

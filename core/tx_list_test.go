@@ -21,6 +21,7 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 )
@@ -36,7 +37,7 @@ func TestStrictTxListAdd(t *testing.T) {
 		txs[i] = transaction(uint64(i), 0, key)
 	}
 	// Insert the transactions in a random order
-	list := newTxList(true)
+	list := newTxList(true, types.NewEIP155Signer(common.Big1))
 	for _, v := range rand.Perm(len(txs)) {
 		list.Add(txs[v], DefaultTxPoolConfig.PriceBump)
 	}
@@ -63,10 +64,10 @@ func BenchmarkTxListAdd(b *testing.B) {
 	priceLimit := big.NewInt(int64(DefaultTxPoolConfig.PriceLimit))
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		list := newTxList(true)
+		list := newTxList(true, types.NewEIP155Signer(common.Big1))
 		for _, v := range rand.Perm(len(txs)) {
 			list.Add(txs[v], DefaultTxPoolConfig.PriceBump)
-			list.Filter(priceLimit, DefaultTxPoolConfig.PriceBump)
+			list.Filter(priceLimit, DefaultTxPoolConfig.PriceBump, make(map[common.Address]*big.Int), 0)
 		}
 	}
 }

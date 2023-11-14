@@ -274,6 +274,10 @@ var (
 		PuffyBlock:        big.NewInt(0),
 		BubaBlock:         big.NewInt(0),
 		OlekBlock:         big.NewInt(24935500),
+		ShillinBlock:      big.NewInt(28825400),
+		AntennaBlock:      big.NewInt(28825400),
+		// TODO: Fill this
+		MikoBlock: nil,
 	}
 
 	RoninTestnetBlacklistContract             = common.HexToAddress("0xF53EED5210c9cF308abFe66bA7CF14884c95A8aC")
@@ -318,6 +322,8 @@ var (
 		OlekBlock:         big.NewInt(16849000),
 		ShillinBlock:      big.NewInt(20268000),
 		AntennaBlock:      big.NewInt(20737258),
+		// TODO: Fill this
+		MikoBlock: nil,
 	}
 
 	// GoerliTrustedCheckpoint contains the light client trusted checkpoint for the Görli test network.
@@ -360,6 +366,7 @@ var (
 		PetersburgBlock:               big.NewInt(0),
 		IstanbulBlock:                 big.NewInt(0),
 		MuirGlacierBlock:              big.NewInt(0),
+		MikoBlock:                     big.NewInt(0),
 		BerlinBlock:                   big.NewInt(0),
 		LondonBlock:                   big.NewInt(0),
 		ArrowGlacierBlock:             nil,
@@ -395,6 +402,7 @@ var (
 		PetersburgBlock:               big.NewInt(0),
 		IstanbulBlock:                 big.NewInt(0),
 		MuirGlacierBlock:              big.NewInt(0),
+		MikoBlock:                     big.NewInt(0),
 		BerlinBlock:                   big.NewInt(0),
 		LondonBlock:                   big.NewInt(0),
 		ArrowGlacierBlock:             nil,
@@ -425,6 +433,7 @@ var (
 		PetersburgBlock:               big.NewInt(0),
 		IstanbulBlock:                 big.NewInt(0),
 		MuirGlacierBlock:              big.NewInt(0),
+		MikoBlock:                     big.NewInt(0),
 		BerlinBlock:                   big.NewInt(0),
 		LondonBlock:                   big.NewInt(0),
 		ArrowGlacierBlock:             nil,
@@ -531,7 +540,10 @@ type ChainConfig struct {
 	// Shillin hardfork introduces fast finality
 	ShillinBlock *big.Int `json:"shillinBlock,omitempty"` // Shillin switch block (nil = no fork, 0 = already on activated)
 
-	AntennaBlock                       *big.Int        `json:"antennaBlock,omitempty"`                       // AntennaBlock switch block (nil = no fork, 0 = already on activated)
+	AntennaBlock *big.Int `json:"antennaBlock,omitempty"` // AntennaBlock switch block (nil = no fork, 0 = already on activated)
+	// Miko hardfork introduces sponsored transactions
+	MikoBlock *big.Int `json:"mikoBlock,omitempty"` // Miko switch block (nil = no fork, 0 = already on activated)
+
 	BlacklistContractAddress           *common.Address `json:"blacklistContractAddress,omitempty"`           // Address of Blacklist Contract (nil = no blacklist)
 	FenixValidatorContractAddress      *common.Address `json:"fenixValidatorContractAddress,omitempty"`      // Address of Ronin Contract in the Fenix hardfork (nil = no blacklist)
 	WhiteListDeployerContractV2Address *common.Address `json:"whiteListDeployerContractV2Address,omitempty"` // Address of Whitelist Ronin Contract V2 (nil = no blacklist)
@@ -642,7 +654,7 @@ func (c *ChainConfig) String() string {
 	chainConfigFmt += "Petersburg: %v Istanbul: %v, Odysseus: %v, Fenix: %v, Muir Glacier: %v, Berlin: %v, London: %v, Arrow Glacier: %v, "
 	chainConfigFmt += "Engine: %v, Blacklist Contract: %v, Fenix Validator Contract: %v, ConsortiumV2: %v, ConsortiumV2.RoninValidatorSet: %v, "
 	chainConfigFmt += "ConsortiumV2.SlashIndicator: %v, ConsortiumV2.StakingContract: %v, Puffy: %v, Buba: %v, Olek: %v, Shillin: %v, Antenna: %v, "
-	chainConfigFmt += "ConsortiumV2.ProfileContract: %v, ConsortiumV2.FinalityTracking: %v, whiteListDeployerContractV2Address: %v}"
+	chainConfigFmt += "ConsortiumV2.ProfileContract: %v, ConsortiumV2.FinalityTracking: %v, whiteListDeployerContractV2Address: %v, Miko: %v}"
 
 	return fmt.Sprintf(chainConfigFmt,
 		c.ChainID,
@@ -677,6 +689,7 @@ func (c *ChainConfig) String() string {
 		profileContract.Hex(),
 		finalityTrackingContract.Hex(),
 		whiteListDeployerContractV2Address.Hex(),
+		c.MikoBlock,
 	)
 }
 
@@ -798,6 +811,11 @@ func (c *ChainConfig) IsAntenna(num *big.Int) bool {
 // IsShillin returns whether the num is equals to or larger than the shillin fork block.
 func (c *ChainConfig) IsShillin(num *big.Int) bool {
 	return isForked(c.ShillinBlock, num)
+}
+
+// IsMiko returns whether the num is equals to or larger than the miko fork block.
+func (c *ChainConfig) IsMiko(num *big.Int) bool {
+	return isForked(c.MikoBlock, num)
 }
 
 // CheckCompatible checks whether scheduled fork transitions have been imported
@@ -937,6 +955,9 @@ func (c *ChainConfig) checkCompatible(newcfg *ChainConfig, head *big.Int) *Confi
 	if isForkIncompatible(c.AntennaBlock, newcfg.AntennaBlock, head) {
 		return newCompatError("Antenna fork block", c.AntennaBlock, newcfg.AntennaBlock)
 	}
+	if isForkIncompatible(c.MikoBlock, newcfg.MikoBlock, head) {
+		return newCompatError("Miko fork block", c.MikoBlock, newcfg.MikoBlock)
+	}
 	return nil
 }
 
@@ -1006,6 +1027,7 @@ type Rules struct {
 	IsByzantium, IsConstantinople, IsPetersburg, IsIstanbul bool
 	IsBerlin, IsLondon                                      bool
 	IsOdysseusFork, IsFenix, IsConsortiumV2, IsAntenna      bool
+	IsMiko                                                  bool
 }
 
 // Rules ensures c's ChainID is not nil.
@@ -1030,5 +1052,6 @@ func (c *ChainConfig) Rules(num *big.Int) Rules {
 		IsFenix:          c.IsFenix(num),
 		IsConsortiumV2:   c.IsConsortiumV2(num),
 		IsAntenna:        c.IsAntenna(num),
+		IsMiko:           c.IsMiko(num),
 	}
 }
