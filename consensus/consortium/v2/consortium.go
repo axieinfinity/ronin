@@ -404,11 +404,20 @@ func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, 
 			break
 		}
 
+		// this case is only happened in mock mode
+		if number == 0 {
+			validators, err := c.contract.GetValidators(common.Big0)
+			if err != nil {
+				return nil, err
+			}
+			snap = newSnapshot(c.chainConfig, c.config, c.signatures, number, hash, validators, nil, c.ethAPI)
+			break
+		}
+
 		// init snapshot if it is at forkedBlock
 		if number == c.forkedBlock-1 {
 			var (
-				err        error
-				validators []common.Address
+				err error
 			)
 			snap, err = loadSnapshot(c.config, c.signatures, c.db, hash, c.ethAPI, c.chainConfig)
 			if err == nil {
@@ -418,11 +427,12 @@ func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, 
 
 			// get validators set from number
 			_, _, _, contract := c.readSignerAndContract()
-			validators, err = contract.GetValidators(big.NewInt(0).SetUint64(number))
+			validators, err := contract.GetValidators(big.NewInt(0).SetUint64(number))
 			if err != nil {
 				log.Error("Load validators at the beginning failed", "err", err)
 				return nil, err
 			}
+
 			snap = newSnapshot(c.chainConfig, c.config, c.signatures, number, hash, validators, nil, c.ethAPI)
 
 			// load v1 recent list to prevent recent producing-block-validators produce block again
@@ -500,6 +510,7 @@ func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, 
 		}
 		log.Trace("Stored snapshot to disk", "number", snap.Number, "hash", snap.Hash)
 	}
+	log.Trace("Checking snapshot data", "number", snap.Number, "validators", snap.validators())
 	return snap, err
 }
 
@@ -1098,13 +1109,13 @@ func CalcDifficulty(snap *Snapshot, signer common.Address) *big.Int {
 
 // initContract creates NewContractIntegrator instance
 func (c *Consortium) initContract(coinbase common.Address, signTxFn consortiumCommon.SignerTxFn) error {
-	contract, err := consortiumCommon.NewContractIntegrator(c.chainConfig, consortiumCommon.NewConsortiumBackend(c.ethAPI), signTxFn, coinbase)
-	if err != nil {
-		return err
+	if consortiumCommon.Validators != nil {
+		c.contract = &consortiumCommon.MockContract{}
+		return nil
 	}
-	c.contract = contract
-
-	return nil
+	var err error
+	c.contract, err = consortiumCommon.NewContractIntegrator(c.chainConfig, consortiumCommon.NewConsortiumBackend(c.ethAPI), signTxFn, coinbase)
+	return err
 }
 
 func (c *Consortium) readSignerAndContract() (

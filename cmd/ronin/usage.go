@@ -264,6 +264,13 @@ var AppHelpFlagGroups = []flags.FlagGroup{
 			utils.BlsWalletPath,
 		},
 	},
+	{
+		Name: "MOCK",
+		Flags: []cli.Flag{
+			utils.MockValidatorsFlag,
+			utils.MockBlsPublicKeysFlag,
+		},
+	},
 }
 
 func init() {

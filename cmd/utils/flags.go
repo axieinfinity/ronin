@@ -913,6 +913,16 @@ var (
 		Name:  "additionalchainevent.enable",
 		Usage: "Enable additional chain event",
 	}
+
+	MockValidatorsFlag = cli.StringFlag{
+		Name: "mock.validators",
+		Usage: "List of mock validators",
+	}
+
+	MockBlsPublicKeysFlag = cli.StringFlag{
+		Name: "mock.blspublickeys",
+		Usage: "List of mock bls public keys which are reflect 1:1 with mock.validators",
+	}
 )
 
 // MakeDataDir retrieves the currently requested data directory, terminating
