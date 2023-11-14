@@ -92,11 +92,11 @@ var Defaults = Config{
 		BlockProduceLeftOver: 200 * time.Millisecond,
 		BlockSizeReserve:     500000,
 	},
-	TxPool:        core.DefaultTxPoolConfig,
-	RPCGasCap:     50000000,
-	RPCEVMTimeout: 5 * time.Second,
-	GPO:           FullNodeGPO,
-	RPCTxFeeCap:   1, // 1 ether
+	TxPool:         core.DefaultTxPoolConfig,
+	RPCGasCap:      50000000,
+	RPCEVMTimeout:  5 * time.Second,
+	GPO:            FullNodeGPO,
+	RPCTxFeeCap:    1, // 1 ether
 }
 
 func init() {

@@ -8,6 +8,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
+	consortiumCommon "github.com/ethereum/go-ethereum/consensus/consortium/common"
 	v1 "github.com/ethereum/go-ethereum/consensus/consortium/v1"
 	"github.com/ethereum/go-ethereum/consensus/consortium/v2/finality"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -64,11 +65,13 @@ func newSnapshot(
 		Number:      number,
 		Hash:        hash,
 		Recents:     make(map[uint64]common.Address),
-		Validators:  make(map[common.Address]struct{}),
 	}
 
-	for _, v := range validators {
-		snap.Validators[v] = struct{}{}
+	if validators != nil {
+		snap.Validators = make(map[common.Address]struct{})
+		for _, v := range validators {
+			snap.Validators[v] = struct{}{}
+		}
 	}
 
 	if valWithBlsPub != nil {
@@ -227,33 +230,42 @@ func (s *Snapshot) apply(headers []*types.Header, chain consensus.ChainHeaderRea
 				return nil, consensus.ErrUnknownAncestor
 			}
 
-			isShillin := chain.Config().IsShillin(checkpointHeader.Number)
-			// Get validator set from headers and use that for new validator set
-			extraData, err := finality.DecodeExtra(checkpointHeader.Extra, isShillin)
-			if err != nil {
-				return nil, err
-			}
-
-			oldLimit := len(snap.validators())/2 + 1
-			newLimit := len(extraData.CheckpointValidators)/2 + 1
-			if newLimit < oldLimit {
-				for i := 0; i < oldLimit-newLimit; i++ {
-					delete(snap.Recents, number-uint64(newLimit)-uint64(i))
-				}
-			}
-
-			if isShillin {
-				// The validator information in checkpoint header is already sorted,
-				// we don't need to sort here
-				snap.ValidatorsWithBlsPub = make([]finality.ValidatorWithBlsPub, len(extraData.CheckpointValidators))
-				copy(snap.ValidatorsWithBlsPub, extraData.CheckpointValidators)
-				snap.Validators = nil
-			} else {
+			// this case is only happened in mock mode
+			if checkpointHeader.Number.Cmp(common.Big0) == 0 {
 				snap.Validators = make(map[common.Address]struct{})
-				for _, validator := range extraData.CheckpointValidators {
-					snap.Validators[validator.Address] = struct{}{}
+				for _, validator := range consortiumCommon.Validators.GetValidators() {
+					snap.Validators[validator] = struct{}{}
 				}
 				snap.ValidatorsWithBlsPub = nil
+			} else {
+				isShillin := chain.Config().IsShillin(checkpointHeader.Number)
+				// Get validator set from headers and use that for new validator set
+				extraData, err := finality.DecodeExtra(checkpointHeader.Extra, isShillin)
+				if err != nil {
+					return nil, err
+				}
+
+				oldLimit := len(snap.validators())/2 + 1
+				newLimit := len(extraData.CheckpointValidators)/2 + 1
+				if newLimit < oldLimit {
+					for i := 0; i < oldLimit-newLimit; i++ {
+						delete(snap.Recents, number-uint64(newLimit)-uint64(i))
+					}
+				}
+
+				if isShillin {
+					// The validator information in checkpoint header is already sorted,
+					// we don't need to sort here
+					snap.ValidatorsWithBlsPub = make([]finality.ValidatorWithBlsPub, len(extraData.CheckpointValidators))
+					copy(snap.ValidatorsWithBlsPub, extraData.CheckpointValidators)
+					snap.Validators = nil
+				} else {
+					snap.Validators = make(map[common.Address]struct{})
+					for _, validator := range extraData.CheckpointValidators {
+						snap.Validators[validator.Address] = struct{}{}
+					}
+					snap.ValidatorsWithBlsPub = nil
+				}
 			}
 		}
 	}
