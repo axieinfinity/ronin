@@ -376,9 +376,10 @@ func (l *txList) Filter(
 		if tx.Type() == types.SponsoredTxType {
 			payer, _ := types.Payer(l.signer, tx)
 			gasFee := new(big.Int).Mul(tx.GasPrice(), new(big.Int).SetUint64(tx.Gas()))
+			expiredTime := tx.ExpiredTime()
 			return gasFee.Cmp(payerCostLimit[payer]) > 0 ||
 				tx.Value().Cmp(costLimit) > 0 ||
-				tx.ExpiredTime() <= currentTime
+				(expiredTime != 0 && expiredTime <= currentTime)
 		} else {
 			return tx.Cost().Cmp(costLimit) > 0
 		}

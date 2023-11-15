@@ -661,7 +661,8 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 		}
 
 		// Ensure sponsored transaction is not expired
-		if tx.ExpiredTime() <= pool.currentTime {
+		expiredTime := tx.ExpiredTime()
+		if expiredTime != 0 && expiredTime <= pool.currentTime {
 			return ErrExpiredSponsoredTx
 		}
 

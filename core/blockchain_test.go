@@ -3574,7 +3574,23 @@ func TestSponsoredTxTransition(t *testing.T) {
 		t.Fatalf("Expect error %s, get %s", ErrInsufficientSenderFunds, err)
 	}
 
-	// 5. Successfully add tx
+	// 5. Successfully add tx, sponsored tx with expired time = 0 is accepted
+	innerTx.ExpiredTime = 0
+	innerTx.PayerR, innerTx.PayerS, innerTx.PayerV, err = types.PayerSign(
+		payerKey,
+		mikoSigner,
+		crypto.PubkeyToAddress(senderKey.PublicKey),
+		&innerTx,
+	)
+	if err != nil {
+		t.Fatalf("Payer fails to sign transaction, err %s", err)
+	}
+
+	sponsoredTx, err = types.SignNewTx(senderKey, mikoSigner, &innerTx)
+	if err != nil {
+		t.Fatalf("Fail to sign transaction, err %s", err)
+	}
+
 	blocks, _ = GenerateChain(&chainConfig, blocks[0], engine, db, 1, func(i int, bg *BlockGen) {
 		tx, err := types.SignTx(types.NewTransaction(1, senderAddr, innerTx.Value, params.TxGas, bg.header.BaseFee, nil), mikoSigner, adminKey)
 		if err != nil {

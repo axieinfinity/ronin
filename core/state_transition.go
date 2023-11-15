@@ -283,7 +283,8 @@ func (st *StateTransition) preCheck() error {
 
 	// Check expired time, gas fee cap and tip cap in sponsored transaction
 	if st.msg.Payer() != st.msg.From() {
-		if st.msg.ExpiredTime() <= st.evm.Context.Time {
+		expiredTime := st.msg.ExpiredTime()
+		if expiredTime != 0 && expiredTime <= st.evm.Context.Time {
 			return fmt.Errorf("%w: expiredTime: %d, blockTime: %d", ErrExpiredSponsoredTx,
 				st.msg.ExpiredTime(), st.evm.Context.Time)
 		}

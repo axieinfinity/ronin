@@ -2864,6 +2864,29 @@ func TestExpiredTimeAndGasCheckSponsoredTx(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expect successfully add tx, get %s", err)
 	}
+
+	// 7. Sponsored tx with expired time == 0 is accepted
+	innerTx.ExpiredTime = 0
+	innerTx.Nonce = 2
+	innerTx.PayerR, innerTx.PayerS, innerTx.PayerV, err = types.PayerSign(
+		payerKey,
+		mikoSigner,
+		crypto.PubkeyToAddress(senderKey.PublicKey),
+		&innerTx,
+	)
+	if err != nil {
+		t.Fatalf("Payer fails to sign transaction, err %s", err)
+	}
+
+	tx, err = types.SignNewTx(senderKey, mikoSigner, &innerTx)
+	if err != nil {
+		t.Fatalf("Fail to sign transaction, err %s", err)
+	}
+
+	err = txpool.addRemoteSync(tx)
+	if err != nil {
+		t.Fatalf("Expect successfully add tx, get %s", err)
+	}
 }
 
 // TestSponsoredTxInTxPoolQueue tests that sponsored tx is removed from
@@ -3086,5 +3109,43 @@ func TestSponsoredTxInTxPoolQueue(t *testing.T) {
 	}
 	if queued != 0 {
 		t.Fatalf("Queued txpool, expect %d get %d", 0, queued)
+	}
+
+	// 5. Sponsored tx with expired time == 0 is not removed
+	<-txpool.requestReset(nil, types.CopyHeader(&types.Header{Time: 200, GasLimit: blockchain.gasLimit}))
+
+	sponsoredTx1.ExpiredTime = 0
+	sponsoredTx1.PayerR, sponsoredTx1.PayerS, sponsoredTx1.PayerV, err = types.PayerSign(
+		payerKey,
+		mikoSigner,
+		crypto.PubkeyToAddress(senderKey.PublicKey),
+		&sponsoredTx1,
+	)
+	if err != nil {
+		t.Fatalf("Payer fails to sign transaction, err %s", err)
+	}
+
+	tx1, err = types.SignNewTx(senderKey, mikoSigner, &sponsoredTx1)
+	if err != nil {
+		t.Fatalf("Fail to sign transaction, err %s", err)
+	}
+
+	errs = txpool.AddRemotesSync([]*types.Transaction{tx1})
+	for _, err := range errs {
+		if err != nil {
+			t.Fatalf("Fail to add tx to pool, err %s", err)
+		}
+	}
+
+	pending, _ = txpool.Stats()
+	if pending != 1 {
+		t.Fatalf("Pending txpool, expect %d get %d", 1, pending)
+	}
+
+	<-txpool.requestReset(nil, types.CopyHeader(&types.Header{Time: 200, GasLimit: blockchain.gasLimit}))
+
+	pending, _ = txpool.Stats()
+	if pending != 1 {
+		t.Fatalf("Pending txpool, expect %d get %d", 1, pending)
 	}
 }
