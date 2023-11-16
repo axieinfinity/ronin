@@ -271,6 +271,16 @@ func newTxList(strict bool, signer types.Signer) *txList {
 	}
 }
 
+// Signer returns the signer of txlist
+func (l *txList) Signer() types.Signer {
+	return l.signer
+}
+
+// The txpool's signer has changed, we need to update the signer of txlist
+func (l *txList) UpdateSigner(signer types.Signer) {
+	l.signer = signer
+}
+
 // Overlaps returns whether the transaction specified has the same nonce as one
 // already contained within the list.
 func (l *txList) Overlaps(tx *types.Transaction) bool {
@@ -374,7 +384,10 @@ func (l *txList) Filter(
 		}
 
 		if tx.Type() == types.SponsoredTxType {
-			payer, _ := types.Payer(l.signer, tx)
+			payer, err := types.Payer(l.signer, tx)
+			if err != nil {
+				return false
+			}
 			gasFee := new(big.Int).Mul(tx.GasPrice(), new(big.Int).SetUint64(tx.Gas()))
 			expiredTime := tx.ExpiredTime()
 			return gasFee.Cmp(payerCostLimit[payer]) > 0 ||
