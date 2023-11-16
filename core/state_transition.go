@@ -204,7 +204,12 @@ func (st *StateTransition) buyGas() error {
 	// transaction, st.gasPrice is the already calculated gas
 	// price based on block base fee, gas fee cap and gas tip cap
 	effectiveGasFee := new(big.Int).Mul(gas, st.gasPrice)
-	maxGasFee := new(big.Int).Mul(gas, st.gasFeeCap)
+	var maxGasFee *big.Int
+	if st.gasFeeCap != nil {
+		maxGasFee = new(big.Int).Mul(gas, st.gasFeeCap)
+	} else {
+		maxGasFee = new(big.Int).Mul(gas, st.gasPrice)
+	}
 
 	if st.msg.Payer() != st.msg.From() {
 		// This is sponsored transaction, check gas fee with payer's balance and msg.value with sender's balance
