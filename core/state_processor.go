@@ -27,6 +27,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -74,6 +75,10 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 
 	blockContext := NewEVMBlockContext(header, p.bc, nil, publishEvents...)
 	vmenv := vm.NewEVM(blockContext, vm.TxContext{}, statedb, p.config, cfg)
+	if evmHook := p.bc.GetHook(); evmHook != nil {
+		log.Debug("set hook function for testnet")
+		vmenv.SetHook(evmHook)
+	}
 
 	txNum := len(block.Transactions())
 	commonTxs := make([]*types.Transaction, 0, txNum)
