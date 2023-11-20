@@ -661,7 +661,8 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 		}
 
 		// Ensure sponsored transaction is not expired
-		if tx.ExpiredTime() <= pool.currentTime {
+		expiredTime := tx.ExpiredTime()
+		if expiredTime != 0 && expiredTime <= pool.currentTime {
 			return ErrExpiredSponsoredTx
 		}
 
@@ -794,6 +795,10 @@ func (pool *TxPool) add(tx *types.Transaction, local bool) (replaced bool, err e
 	// Try to replace an existing transaction in the pending pool
 	from, _ := types.Sender(pool.signer, tx) // already validated
 	if list := pool.pending[from]; list != nil && list.Overlaps(tx) {
+		if !pool.signer.Equal(pool.pending[from].Signer()) {
+			pool.pending[from].UpdateSigner(pool.signer)
+		}
+
 		// Nonce already pending, check if required price bump is met
 		inserted, old := list.Add(tx, pool.config.PriceBump)
 		if !inserted {
@@ -844,6 +849,8 @@ func (pool *TxPool) enqueueTx(hash common.Hash, tx *types.Transaction, local boo
 	from, _ := types.Sender(pool.signer, tx) // already validated
 	if pool.queue[from] == nil {
 		pool.queue[from] = newTxList(false, pool.signer)
+	} else if !pool.signer.Equal(pool.queue[from].Signer()) {
+		pool.queue[from].UpdateSigner(pool.signer)
 	}
 	inserted, old := pool.queue[from].Add(tx, pool.config.PriceBump)
 	if !inserted {
@@ -896,6 +903,8 @@ func (pool *TxPool) promoteTx(addr common.Address, hash common.Hash, tx *types.T
 	// Try to insert the transaction into the pending queue
 	if pool.pending[addr] == nil {
 		pool.pending[addr] = newTxList(true, pool.signer)
+	} else if !pool.signer.Equal(pool.pending[addr].Signer()) {
+		pool.pending[addr].UpdateSigner(pool.signer)
 	}
 	list := pool.pending[addr]
 
