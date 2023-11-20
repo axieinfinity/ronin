@@ -225,6 +225,7 @@ type BlockChain struct {
 	shouldPreserve             func(*types.Block) bool // Function used to determine whether should preserve the given block.
 	shouldStoreInternalTxs     bool
 	enableAdditionalChainEvent bool
+	evmHook                    vm.EVMHook
 }
 
 // NewBlockChain returns a fully initialised block chain using information
@@ -425,6 +426,14 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 	bc.loadLatestDirtyAccounts()
 
 	return bc, nil
+}
+
+func (bc *BlockChain) SetHook(evmHook vm.EVMHook) {
+	bc.evmHook = evmHook
+}
+
+func (bc *BlockChain) GetHook() vm.EVMHook {
+	return bc.evmHook
 }
 
 func (bc *BlockChain) loadLatestDirtyAccounts() {
@@ -1515,9 +1524,9 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 
 	if status == CanonStatTy {
 		if bc.enableAdditionalChainEvent {
-			bc.sendNewBlockEvent(block, receipts, true, true) 
+			bc.sendNewBlockEvent(block, receipts, true, true)
 		} else {
-			bc.sendNewBlockEvent(block, receipts, false, false) 
+			bc.sendNewBlockEvent(block, receipts, false, false)
 		}
 		if len(logs) > 0 {
 			bc.logsFeed.Send(logs)
