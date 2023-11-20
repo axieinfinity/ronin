@@ -960,6 +960,9 @@ func (pool *LegacyPool) AddRemote(tx *types.Transaction) error {
 
 // Add attempts to queue a batch of transactions if they are valid.
 func (pool *LegacyPool) Add(txs []*types.Transaction, local, sync bool) []error {
+	// Do not treat as local if local transactions have been disabled
+	local = local && !pool.config.NoLocals
+
 	// Filter out known ones without obtaining the pool lock or recovering signatures
 	var (
 		errs = make([]error, len(txs))
