@@ -1333,6 +1333,7 @@ type RPCTransaction struct {
 	V                *hexutil.Big      `json:"v"`
 	R                *hexutil.Big      `json:"r"`
 	S                *hexutil.Big      `json:"s"`
+	Payer            *common.Address   `json:"payer,omitempty"`
 	ExpiredTime      *hexutil.Uint64   `json:"expiredTime,omitempty"`
 	PayerV           *hexutil.Big      `json:"payerV,omitempty"`
 	PayerR           *hexutil.Big      `json:"payerR,omitempty"`
@@ -1384,6 +1385,7 @@ func newRPCTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber
 			result.GasPrice = (*hexutil.Big)(tx.GasFeeCap())
 		}
 	case types.SponsoredTxType:
+		payer, _ := types.Payer(signer, tx)
 		result.ChainID = (*hexutil.Big)(tx.ChainId())
 		result.GasFeeCap = (*hexutil.Big)(tx.GasFeeCap())
 		result.GasTipCap = (*hexutil.Big)(tx.GasTipCap())
@@ -1401,6 +1403,7 @@ func newRPCTransaction(tx *types.Transaction, blockHash common.Hash, blockNumber
 		result.PayerR = (*hexutil.Big)(r)
 		result.PayerS = (*hexutil.Big)(s)
 		result.PayerV = (*hexutil.Big)(v)
+		result.Payer = &payer
 	}
 	return result
 }
