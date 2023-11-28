@@ -52,6 +52,10 @@ import (
 
 var ErrMethodNotSupport = errors.New("method is not supported")
 
+// estimateGasErrorRatio is the amount of overestimation eth_estimateGas is
+// allowed to produce in order to speed up calculations.
+const estimateGasErrorRatio = 0.015
+
 // PublicEthereumAPI provides an API to access Ethereum related information.
 // It offers only methods that operate on public data that is freely available to anyone.
 type PublicEthereumAPI struct {
@@ -1111,10 +1115,11 @@ func DoEstimateGas(ctx context.Context, b Backend, args TransactionArgs, blockNr
 	}
 	// Construct the gas estimator option from the user input
 	opts := &gasestimator.Options{
-		Config: b.ChainConfig(),
-		Chain:  NewChainContext(ctx, b),
-		Header: header,
-		State:  state,
+		Config:     b.ChainConfig(),
+		Chain:      NewChainContext(ctx, b),
+		Header:     header,
+		State:      state,
+		ErrorRatio: estimateGasErrorRatio,
 	}
 	// Run the gas estimation andwrap any revertals into a custom return
 	call, err := args.ToMessage(gasCap, header.BaseFee)
