@@ -1237,3 +1237,127 @@ func TestKnownBlockReorg(t *testing.T) {
 		t.Fatalf("Expect head header to have difficulty %d, got %d", 3, header.Difficulty.Uint64())
 	}
 }
+
+func TestUpgradeRoninTrustedOrg(t *testing.T) {
+	db := rawdb.NewMemoryDatabase()
+	blsSecretKey, err := blst.RandKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	secretKey, err := crypto.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	validatorAddr := crypto.PubkeyToAddress(secretKey.PublicKey)
+
+	chainConfig := params.ChainConfig{
+		ChainID:           big.NewInt(2021),
+		HomesteadBlock:    common.Big0,
+		EIP150Block:       common.Big0,
+		EIP155Block:       common.Big0,
+		EIP158Block:       common.Big0,
+		ConsortiumV2Block: common.Big0,
+		MikoBlock:         common.Big3,
+		Consortium: &params.ConsortiumConfig{
+			EpochV2: 200,
+		},
+		RoninTrustedOrgUpgrade: &params.ContractUpgrade{
+			ProxyAddress:          common.Address{0x10},
+			ImplementationAddress: common.Address{0x20},
+		},
+	}
+
+	genesis := (&core.Genesis{
+		Config: &chainConfig,
+		Alloc: core.GenesisAlloc{
+			// Make proxy address non-empty to avoid being deleted
+			common.Address{0x10}: core.GenesisAccount{Balance: common.Big1},
+		},
+	}).MustCommit(db)
+
+	mock := &mockContract{
+		validators: map[common.Address]blsCommon.PublicKey{
+			validatorAddr: blsSecretKey.PublicKey(),
+		},
+	}
+	recents, _ := lru.NewARC(inmemorySnapshots)
+	signatures, _ := lru.NewARC(inmemorySignatures)
+
+	v2 := Consortium{
+		chainConfig: &chainConfig,
+		contract:    mock,
+		recents:     recents,
+		signatures:  signatures,
+		config: &params.ConsortiumConfig{
+			EpochV2: 200,
+		},
+	}
+
+	chain, _ := core.NewBlockChain(db, nil, &chainConfig, &v2, vm.Config{}, nil, nil)
+	extraData := [consortiumCommon.ExtraVanity + consortiumCommon.ExtraSeal]byte{}
+
+	parent := genesis
+	for i := 0; i < 5; i++ {
+		block, _ := core.GenerateChain(
+			&chainConfig,
+			parent,
+			&v2,
+			db,
+			1,
+			func(i int, bg *core.BlockGen) {
+				bg.SetCoinbase(validatorAddr)
+				bg.SetExtra(extraData[:])
+				bg.SetDifficulty(big.NewInt(7))
+			},
+			true,
+		)
+
+		header := block[0].Header()
+		hash := calculateSealHash(header, big.NewInt(2021))
+		sig, err := crypto.Sign(hash[:], secretKey)
+		if err != nil {
+			t.Fatalf("Failed to sign block, err %s", err)
+		}
+
+		copy(header.Extra[len(header.Extra)-consortiumCommon.ExtraSeal:], sig)
+		block[0] = block[0].WithSeal(header)
+		parent = block[0]
+
+		if i == int(chainConfig.MikoBlock.Int64()-1) {
+			statedb, err := chain.State()
+			if err != nil {
+				t.Fatalf("Failed to get statedb, err %s", err)
+			}
+
+			implementationAddr := statedb.GetState(v2.chainConfig.RoninTrustedOrgUpgrade.ProxyAddress, implementationSlot)
+			if implementationAddr != (common.Hash{}) {
+				t.Fatalf(
+					"Implementation slot mismatches, exp: {%x} got {%x}",
+					common.Hash{},
+					implementationAddr,
+				)
+			}
+		}
+
+		_, err = chain.InsertChain(block)
+		if err != nil {
+			t.Fatalf("Failed to insert chain, err %s", err)
+		}
+
+		if i == int(chainConfig.MikoBlock.Int64()-1) {
+			statedb, err := chain.State()
+			if err != nil {
+				t.Fatalf("Failed to get statedb, err %s", err)
+			}
+
+			implementationAddr := statedb.GetState(v2.chainConfig.RoninTrustedOrgUpgrade.ProxyAddress, implementationSlot)
+			if implementationAddr != v2.chainConfig.RoninTrustedOrgUpgrade.ImplementationAddress.Hash() {
+				t.Fatalf(
+					"Implementation slot mismatches, exp: {%x} got {%x}",
+					v2.chainConfig.RoninTrustedOrgUpgrade.ImplementationAddress.Hash(),
+					implementationAddr,
+				)
+			}
+		}
+	}
+}
