@@ -590,10 +590,7 @@ func TestConsortiumValidatorSorting_Run(t *testing.T) {
 		statedb, _ = state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
 	)
 
-	smcAbi, err := abi.JSON(strings.NewReader(consortiumSortValidatorAbi))
-	if err != nil {
-		t.Fatal(err)
-	}
+	smcAbi := *unmarshalledABIs[SortValidator]
 
 	input, err := smcAbi.Pack(sortValidatorsMethod, addressesTest, weightsTest)
 
@@ -732,10 +729,7 @@ func TestConsortiumVerifyHeaders_Run(t *testing.T) {
 	var (
 		statedb, _ = state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
 	)
-	smcAbi, err := abi.JSON(strings.NewReader(consortiumVerifyHeadersAbi))
-	if err != nil {
-		t.Fatal(err)
-	}
+	smcAbi := *unmarshalledABIs[VerifyHeaders]
 	evm, err := newEVM(caller, statedb)
 	if err != nil {
 		t.Fatal(err)
@@ -744,11 +738,11 @@ func TestConsortiumVerifyHeaders_Run(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	encodedHeader1, err := types.FromHeader(header1, big1).Bytes(consortiumVerifyHeadersAbi, getHeader)
+	encodedHeader1, err := types.FromHeader(header1, big1).Bytes(rawConsortiumVerifyHeadersAbi, getHeader)
 	if err != nil {
 		t.Fatal(err)
 	}
-	encodedHeader2, err := types.FromHeader(header2, big1).Bytes(consortiumVerifyHeadersAbi, getHeader)
+	encodedHeader2, err := types.FromHeader(header2, big1).Bytes(rawConsortiumVerifyHeadersAbi, getHeader)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -827,11 +821,11 @@ func TestConsortiumVerifyHeaders_Run2(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	encodedHeader1, err := types.FromHeader(header1, big1).Bytes(consortiumVerifyHeadersAbi, getHeader)
+	encodedHeader1, err := types.FromHeader(header1, big1).Bytes(rawConsortiumVerifyHeadersAbi, getHeader)
 	if err != nil {
 		t.Fatal(err)
 	}
-	encodedHeader2, err := types.FromHeader(header2, big1).Bytes(consortiumVerifyHeadersAbi, getHeader)
+	encodedHeader2, err := types.FromHeader(header2, big1).Bytes(rawConsortiumVerifyHeadersAbi, getHeader)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1197,10 +1191,7 @@ func TestArrangeValidatorCandidates_TrustedNodesAtBeginningArray(t *testing.T) {
 func TestConsortiumPickValidatorSet_Run(t *testing.T) {
 	statedb, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
 
-	smcAbi, err := abi.JSON(strings.NewReader(consortiumPickValidatorSetAbi))
-	if err != nil {
-		t.Fatal(err)
-	}
+	smcAbi := *unmarshalledABIs[PickValidatorSet]
 	scenarios := getTestScenarios()
 	candidates := getAddresses(scenarios)
 	weights := getWeights(scenarios)
@@ -1271,10 +1262,7 @@ func TestConsortiumPickValidatorSet_Run(t *testing.T) {
 func TestConsortiumPickValidatorSet_Run2(t *testing.T) {
 	statedb, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
 
-	smcAbi, err := abi.JSON(strings.NewReader(consortiumPickValidatorSetAbi))
-	if err != nil {
-		t.Fatal(err)
-	}
+	smcAbi := *unmarshalledABIs[PickValidatorSet]
 	scenarios := getTestScenarios()
 	candidates := getAddresses(scenarios)[:15]
 	weights := getWeights(scenarios)[:15]
@@ -1341,10 +1329,7 @@ func TestConsortiumPickValidatorSet_Run2(t *testing.T) {
 func TestConsortiumPickValidatorSet_Run3(t *testing.T) {
 	statedb, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
 
-	smcAbi, err := abi.JSON(strings.NewReader(consortiumPickValidatorSetAbi))
-	if err != nil {
-		t.Fatal(err)
-	}
+	smcAbi := *unmarshalledABIs[PickValidatorSet]
 	scenarios := getTestScenarios()
 	scenarios = append(scenarios, []TestScenario{
 		{
@@ -1442,10 +1427,7 @@ func TestConsortiumPickValidatorSet_Run3(t *testing.T) {
 func TestConsortiumPickValidatorSet_Run4(t *testing.T) {
 	statedb, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
 
-	smcAbi, err := abi.JSON(strings.NewReader(consortiumPickValidatorSetAbi))
-	if err != nil {
-		t.Fatal(err)
-	}
+	smcAbi := *unmarshalledABIs[PickValidatorSet]
 	scenarios := getTestScenarios()
 	scenarios = append(scenarios, []TestScenario{
 		{
@@ -1731,12 +1713,12 @@ func addressesToByte(addresses []common.Address) [][]byte {
 func TestValidateFinalityVoteProof(t *testing.T) {
 	contract := consortiumValidateFinalityProof{}
 
-	contractAbi, err := abi.JSON(strings.NewReader(validateFinalityVoteProofAbi))
-	if err != nil {
-		t.Fatalf("Failed to parse ABI, err %s", err)
-	}
+	contractAbi := *unmarshalledABIs[ValidateFinalityVoteProof]
 
-	var secretKey [3]blsCommon.SecretKey
+	var (
+		secretKey [3]blsCommon.SecretKey
+		err       error
+	)
 	for i := 0; i < 3; i++ {
 		secretKey[i], err = blst.RandKey()
 		if err != nil {
@@ -1891,10 +1873,7 @@ func TestValidateFinalityVoteProof(t *testing.T) {
 }
 
 func BenchmarkPrecompiledValidateFinalityVoteProof(b *testing.B) {
-	contractAbi, err := abi.JSON(strings.NewReader(validateFinalityVoteProofAbi))
-	if err != nil {
-		b.Fatalf("Failed to parse ABI, err %s", err)
-	}
+	contractAbi := *unmarshalledABIs[ValidateFinalityVoteProof]
 
 	var secretKeys []blsCommon.SecretKey
 	for i := 0; i < 200; i++ {

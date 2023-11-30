@@ -326,7 +326,7 @@ func TestPrecompiledConsortiumLog(t *testing.T) {
 		pAbi abi.ABI
 		err  error
 	)
-	if pAbi, err = abi.JSON(strings.NewReader(consortiumLogAbi)); err != nil {
+	if pAbi, err = abi.JSON(strings.NewReader(rawConsortiumLogAbi)); err != nil {
 		t.Fatal(err)
 	}
 	data, err := pAbi.Pack("log", "hello world")

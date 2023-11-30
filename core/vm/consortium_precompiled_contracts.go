@@ -24,13 +24,34 @@ import (
 	"golang.org/x/crypto/sha3"
 )
 
+const (
+	LogContract = iota
+	SortValidator
+	VerifyHeaders
+	PickValidatorSet
+	GetDoubleSignSlashingConfig
+	ValidateFinalityVoteProof
+	NumOfAbis
+)
+
 var (
-	consortiumLogAbi                = `[{"inputs":[{"internalType":"string","name":"message","type":"string"}],"name":"log","outputs":[],"stateMutability":"nonpayable","type":"function"}]`
-	consortiumSortValidatorAbi      = `[{"inputs":[],"stateMutability":"nonpayable","type":"constructor"},{"inputs":[{"internalType":"address[]","name":"validators","type":"address[]"},{"internalType":"uint256[]","name":"weights","type":"uint256[]"}],"name":"sortValidators","outputs":[{"internalType":"address[]","name":"_validators","type":"address[]"}],"stateMutability":"view","type":"function"}]`
-	consortiumVerifyHeadersAbi      = `[{"outputs":[],"name":"getHeader","inputs":[{"internalType":"uint256","name":"chainId","type":"uint256"},{"internalType":"bytes32","name":"parentHash","type":"bytes32"},{"internalType":"bytes32","name":"ommersHash","type":"bytes32"},{"internalType":"address","name":"coinbase","type":"address"},{"internalType":"bytes32","name":"stateRoot","type":"bytes32"},{"internalType":"bytes32","name":"transactionsRoot","type":"bytes32"},{"internalType":"bytes32","name":"receiptsRoot","type":"bytes32"},{"internalType":"uint8[256]","name":"logsBloom","type":"uint8[256]"},{"internalType":"uint256","name":"difficulty","type":"uint256"},{"internalType":"uint256","name":"number","type":"uint256"},{"internalType":"uint64","name":"gasLimit","type":"uint64"},{"internalType":"uint64","name":"gasUsed","type":"uint64"},{"internalType":"uint64","name":"timestamp","type":"uint64"},{"internalType":"bytes","name":"extraData","type":"bytes"},{"internalType":"bytes32","name":"mixHash","type":"bytes32"},{"internalType":"uint64","name":"nonce","type":"uint64"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"consensusAddr","type":"address"},{"internalType":"bytes","name":"header1","type":"bytes"},{"internalType":"bytes","name":"header2","type":"bytes"}],"name":"validatingDoubleSignProof","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"view","type":"function"}]`
-	consortiumPickValidatorSetAbi   = `[{"inputs":[],"stateMutability":"nonpayable","type":"constructor"},{"inputs":[{"internalType":"address[]","name":"_candidates","type":"address[]"},{"internalType":"uint256[]","name":"_weights","type":"uint256[]"},{"internalType":"uint256[]","name":"_trustedWeights","type":"uint256[]"},{"internalType":"uint256","name":"_maxValidatorNumber","type":"uint256"},{"internalType":"uint256","name":"_maxPrioritizedValidatorNumber","type":"uint256"}],"name":"pickValidatorSet","outputs":[{"internalType":"address[]","name":"_validators","type":"address[]"}],"stateMutability":"view","type":"function"}]`
-	getDoubleSignSlashingConfigsAbi = `[{"inputs":[],"name":"getDoubleSignSlashingConfigs","outputs":[{"internalType":"uint256","name":"","type":"uint256"},{"internalType":"uint256","name":"","type":"uint256"},{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"}]`
-	validateFinalityVoteProofAbi    = `[{"inputs":[{"internalType":"bytes","name":"voterPublicKey","type":"bytes"},{"internalType":"uint256","name":"targetBlockNumber","type":"uint256"},{"internalType":"bytes32[2]","name":"targetBlockHash","type":"bytes32[2]"},{"internalType":"bytes[][2]","name":"listOfPublicKey","type":"bytes[][2]"},{"internalType":"bytes[2]","name":"aggregatedSignature","type":"bytes[2]"}],"name":"validateFinalityVoteProof","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"view","type":"function"}]`
+	rawConsortiumLogAbi                = `[{"inputs":[{"internalType":"string","name":"message","type":"string"}],"name":"log","outputs":[],"stateMutability":"nonpayable","type":"function"}]`
+	rawConsortiumSortValidatorAbi      = `[{"inputs":[],"stateMutability":"nonpayable","type":"constructor"},{"inputs":[{"internalType":"address[]","name":"validators","type":"address[]"},{"internalType":"uint256[]","name":"weights","type":"uint256[]"}],"name":"sortValidators","outputs":[{"internalType":"address[]","name":"_validators","type":"address[]"}],"stateMutability":"view","type":"function"}]`
+	rawConsortiumVerifyHeadersAbi      = `[{"outputs":[],"name":"getHeader","inputs":[{"internalType":"uint256","name":"chainId","type":"uint256"},{"internalType":"bytes32","name":"parentHash","type":"bytes32"},{"internalType":"bytes32","name":"ommersHash","type":"bytes32"},{"internalType":"address","name":"coinbase","type":"address"},{"internalType":"bytes32","name":"stateRoot","type":"bytes32"},{"internalType":"bytes32","name":"transactionsRoot","type":"bytes32"},{"internalType":"bytes32","name":"receiptsRoot","type":"bytes32"},{"internalType":"uint8[256]","name":"logsBloom","type":"uint8[256]"},{"internalType":"uint256","name":"difficulty","type":"uint256"},{"internalType":"uint256","name":"number","type":"uint256"},{"internalType":"uint64","name":"gasLimit","type":"uint64"},{"internalType":"uint64","name":"gasUsed","type":"uint64"},{"internalType":"uint64","name":"timestamp","type":"uint64"},{"internalType":"bytes","name":"extraData","type":"bytes"},{"internalType":"bytes32","name":"mixHash","type":"bytes32"},{"internalType":"uint64","name":"nonce","type":"uint64"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"consensusAddr","type":"address"},{"internalType":"bytes","name":"header1","type":"bytes"},{"internalType":"bytes","name":"header2","type":"bytes"}],"name":"validatingDoubleSignProof","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"view","type":"function"}]`
+	rawConsortiumPickValidatorSetAbi   = `[{"inputs":[],"stateMutability":"nonpayable","type":"constructor"},{"inputs":[{"internalType":"address[]","name":"_candidates","type":"address[]"},{"internalType":"uint256[]","name":"_weights","type":"uint256[]"},{"internalType":"uint256[]","name":"_trustedWeights","type":"uint256[]"},{"internalType":"uint256","name":"_maxValidatorNumber","type":"uint256"},{"internalType":"uint256","name":"_maxPrioritizedValidatorNumber","type":"uint256"}],"name":"pickValidatorSet","outputs":[{"internalType":"address[]","name":"_validators","type":"address[]"}],"stateMutability":"view","type":"function"}]`
+	rawGetDoubleSignSlashingConfigsAbi = `[{"inputs":[],"name":"getDoubleSignSlashingConfigs","outputs":[{"internalType":"uint256","name":"","type":"uint256"},{"internalType":"uint256","name":"","type":"uint256"},{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"}]`
+	rawValidateFinalityVoteProofAbi    = `[{"inputs":[{"internalType":"bytes","name":"voterPublicKey","type":"bytes"},{"internalType":"uint256","name":"targetBlockNumber","type":"uint256"},{"internalType":"bytes32[2]","name":"targetBlockHash","type":"bytes32[2]"},{"internalType":"bytes[][2]","name":"listOfPublicKey","type":"bytes[][2]"},{"internalType":"bytes[2]","name":"aggregatedSignature","type":"bytes[2]"}],"name":"validateFinalityVoteProof","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"view","type":"function"}]`
+
+	rawABIs = [NumOfAbis]string{
+		LogContract:                 rawConsortiumLogAbi,
+		SortValidator:               rawConsortiumSortValidatorAbi,
+		VerifyHeaders:               rawConsortiumVerifyHeadersAbi,
+		PickValidatorSet:            rawConsortiumPickValidatorSetAbi,
+		GetDoubleSignSlashingConfig: rawGetDoubleSignSlashingConfigsAbi,
+		ValidateFinalityVoteProof:   rawValidateFinalityVoteProofAbi,
+	}
+
+	unmarshalledABIs = [NumOfAbis]*abi.ABI{}
 )
 
 const (
@@ -47,6 +68,17 @@ const (
 	validateFinalityVoteProof = "validateFinalityVoteProof"
 	maxBlsPublicKeyListLength = 100
 )
+
+func init() {
+	for i, rawABI := range rawABIs {
+		unmarshalledABI, err := abi.JSON(strings.NewReader(rawABI))
+		if err != nil {
+			log.Error("Failed to unmarshalled precompiled ABI", "num", i)
+		} else {
+			unmarshalledABIs[i] = &unmarshalledABI
+		}
+	}
+}
 
 func PrecompiledContractsConsortium(caller ContractRef, evm *EVM) map[common.Address]PrecompiledContract {
 	return map[common.Address]PrecompiledContract{
@@ -68,7 +100,7 @@ func (c *consortiumLog) Run(input []byte) ([]byte, error) {
 	if os.Getenv("DEBUG") != "true" {
 		return input, nil
 	}
-	_, method, args, err := loadMethodAndArgs(consortiumLogAbi, input)
+	_, method, args, err := loadMethodAndArgs(LogContract, input)
 	if err != nil {
 		return nil, err
 	}
@@ -84,6 +116,20 @@ func (c *consortiumLog) Run(input []byte) ([]byte, error) {
 	return input, nil
 }
 
+func isSystemContractCaller(caller ContractRef, evm *EVM) error {
+	// These 2 fields are nil in benchmark only
+	if caller != nil && evm != nil {
+		if evm.ChainConfig().ConsortiumV2Contracts == nil {
+			return errors.New("cannot find consortium v2 contracts")
+		}
+		if !evm.ChainConfig().ConsortiumV2Contracts.IsSystemContract(caller.Address()) {
+			return errors.New("unauthorized sender")
+		}
+	}
+
+	return nil
+}
+
 type consortiumPickValidatorSet struct {
 	caller ContractRef
 	evm    *EVM
@@ -94,14 +140,11 @@ func (c *consortiumPickValidatorSet) RequiredGas(_ []byte) uint64 {
 }
 
 func (c *consortiumPickValidatorSet) Run(input []byte) ([]byte, error) {
-	if c.evm.ChainConfig().ConsortiumV2Contracts == nil {
-		return nil, errors.New("cannot find consortium v2 contracts")
-	}
-	if !c.evm.ChainConfig().ConsortiumV2Contracts.IsSystemContract(c.caller.Address()) {
-		return nil, errors.New("unauthorized sender")
+	if err := isSystemContractCaller(c.caller, c.evm); err != nil {
+		return nil, err
 	}
 	// get method, args from abi
-	_, method, args, err := loadMethodAndArgs(consortiumPickValidatorSetAbi, input)
+	_, method, args, err := loadMethodAndArgs(PickValidatorSet, input)
 	if err != nil {
 		return nil, err
 	}
@@ -221,14 +264,11 @@ func (c *consortiumValidatorSorting) RequiredGas(_ []byte) uint64 {
 }
 
 func (c *consortiumValidatorSorting) Run(input []byte) ([]byte, error) {
-	if c.evm.ChainConfig().ConsortiumV2Contracts == nil {
-		return nil, errors.New("cannot find consortium v2 contracts")
-	}
-	if !c.evm.ChainConfig().ConsortiumV2Contracts.IsSystemContract(c.caller.Address()) {
-		return nil, errors.New("unauthorized sender")
+	if err := isSystemContractCaller(c.caller, c.evm); err != nil {
+		return nil, err
 	}
 	// get method, args from abi
-	_, method, args, err := loadMethodAndArgs(consortiumSortValidatorAbi, input)
+	_, method, args, err := loadMethodAndArgs(SortValidator, input)
 	if err != nil {
 		return nil, err
 	}
@@ -271,8 +311,12 @@ func (s *SortableValidators) Len() int {
 
 func (s *SortableValidators) Less(i, j int) bool {
 	cmp := s.weights[i].Cmp(s.weights[j])
-	addrsCmp := big.NewInt(0).SetBytes(s.validators[i].Bytes()).Cmp(big.NewInt(0).SetBytes(s.validators[j].Bytes())) > 0
-	return cmp > 0 || (cmp == 0 && addrsCmp)
+
+	if cmp == 0 {
+		return new(big.Int).SetBytes(s.validators[i].Bytes()).Cmp(new(big.Int).SetBytes(s.validators[j].Bytes())) > 0
+	}
+
+	return cmp > 0
 }
 
 func (s *SortableValidators) Swap(i, j int) {
@@ -335,16 +379,17 @@ func staticCall(evm *EVM, smcAbi abi.ABI, method string, contract, sender common
 	return out, nil
 }
 
-func loadMethodAndArgs(smcAbi string, input []byte) (abi.ABI, *abi.Method, []interface{}, error) {
+func loadMethodAndArgs(contractIndex int, input []byte) (abi.ABI, *abi.Method, []interface{}, error) {
 	var (
 		pAbi   abi.ABI
 		err    error
 		method *abi.Method
 		args   []interface{}
 	)
-	if pAbi, err = abi.JSON(strings.NewReader(smcAbi)); err != nil {
-		return abi.ABI{}, nil, nil, err
+	if contractIndex < 0 || contractIndex >= len(unmarshalledABIs) || unmarshalledABIs[contractIndex] == nil {
+		return abi.ABI{}, nil, nil, errors.New("invalid contract index")
 	}
+	pAbi = *unmarshalledABIs[contractIndex]
 	if method, err = pAbi.MethodById(input); err != nil {
 		return abi.ABI{}, nil, nil, err
 	}
@@ -368,14 +413,11 @@ func (c *consortiumVerifyHeaders) RequiredGas(_ []byte) uint64 {
 }
 
 func (c *consortiumVerifyHeaders) Run(input []byte) ([]byte, error) {
-	if c.evm.ChainConfig().ConsortiumV2Contracts == nil {
-		return nil, errors.New("cannot find consortium v2 contracts")
-	}
-	if !c.evm.ChainConfig().ConsortiumV2Contracts.IsSystemContract(c.caller.Address()) {
-		return nil, errors.New("unauthorized sender")
+	if err := isSystemContractCaller(c.caller, c.evm); err != nil {
+		return nil, err
 	}
 	// get method, args from abi
-	smcAbi, method, args, err := loadMethodAndArgs(consortiumVerifyHeadersAbi, input)
+	smcAbi, method, args, err := loadMethodAndArgs(VerifyHeaders, input)
 	if err != nil {
 		return nil, err
 	}
@@ -460,7 +502,10 @@ func (c *consortiumVerifyHeaders) verify(consensusAddr common.Address, header1, 
 		log.Trace("[consortiumVerifyHeaders][verify] error while getting signer from header2", "err", err)
 		return false
 	}
-	methodAbi, _ := abi.JSON(strings.NewReader(getDoubleSignSlashingConfigsAbi))
+	if unmarshalledABIs[GetDoubleSignSlashingConfig] == nil {
+		return false
+	}
+	methodAbi := *unmarshalledABIs[GetDoubleSignSlashingConfig]
 
 	if c.test {
 		maxOffset = big.NewInt(doubleSigningOffsetTest)
@@ -540,17 +585,10 @@ func (contract *consortiumValidateFinalityProof) RequiredGas(input []byte) uint6
 }
 
 func (contract *consortiumValidateFinalityProof) Run(input []byte) ([]byte, error) {
-	// These 2 fields are nil in testing only
-	if contract.caller != nil && contract.evm != nil {
-		if contract.evm.ChainConfig().ConsortiumV2Contracts == nil {
-			return nil, errors.New("cannot find consortium v2 contracts")
-		}
-		if !contract.evm.ChainConfig().ConsortiumV2Contracts.IsSystemContract(contract.caller.Address()) {
-			return nil, errors.New("unauthorized sender")
-		}
+	if err := isSystemContractCaller(contract.caller, contract.evm); err != nil {
+		return nil, err
 	}
-
-	_, method, args, err := loadMethodAndArgs(validateFinalityVoteProofAbi, input)
+	_, method, args, err := loadMethodAndArgs(ValidateFinalityVoteProof, input)
 	if err != nil {
 		return nil, err
 	}
