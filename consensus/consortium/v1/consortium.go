@@ -23,6 +23,7 @@ import (
 	"io"
 	"math/big"
 	"math/rand"
+	"os"
 	"sync"
 	"time"
 
@@ -52,7 +53,8 @@ const (
 	inmemorySnapshots  = 128  // Number of recent vote snapshots to keep in memory
 	inmemorySignatures = 4096 // Number of recent block signatures to keep in memory
 
-	wiggleTime = 1000 * time.Millisecond // Random delay (per signer) to allow concurrent signers
+	wiggleTime  = 1000 * time.Millisecond // Random delay (per signer) to allow concurrent signers
+	FastSyncEnv = "FAST_SYNC"
 )
 
 // Consortium proof-of-authority protocol constants.
@@ -282,10 +284,15 @@ func (c *Consortium) verifyCascadingFields(chain consensus.ChainHeaderReader, he
 		return err
 	}
 
+	var fastSync bool
+	if os.Getenv(FastSyncEnv) == "1" {
+		fastSync = true
+	}
+
 	extraSuffix := len(header.Extra) - consortiumCommon.ExtraSeal
 	checkpointHeaders := consortiumCommon.ExtractAddressFromBytes(header.Extra[extraVanity:extraSuffix])
 	validSigners := consortiumCommon.CompareSignersLists(checkpointHeaders, signers)
-	if !validSigners {
+	if !fastSync && !validSigners {
 		log.Error("signers lists are different in checkpoint header and snapshot", "number", number, "signersHeader", checkpointHeaders, "signers", signers)
 		return consortiumCommon.ErrInvalidCheckpointSigners
 	}
@@ -716,9 +723,13 @@ func (c *Consortium) CalcDifficulty(chain consensus.ChainHeaderReader, time uint
 	return c.doCalcDifficulty(c.val, number, validators)
 }
 
-func (c *Consortium) GetSnapshot(chain consensus.ChainHeaderReader, number uint64, parents []*types.Header) *consortiumCommon.BaseSnapshot {
-	header := chain.GetHeaderByNumber(number)
-	snap, err := c.snapshot(chain, number, header.Hash(), parents)
+func (c *Consortium) GetSnapshot(
+	chain consensus.ChainHeaderReader,
+	number uint64,
+	hash common.Hash,
+	parents []*types.Header,
+) *consortiumCommon.BaseSnapshot {
+	snap, err := c.snapshot(chain, number, hash, parents)
 	if err != nil {
 		return nil
 	}

@@ -20,11 +20,13 @@ import (
 	"errors"
 	"math"
 	"math/big"
+	"os"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
+	v1 "github.com/ethereum/go-ethereum/consensus/consortium/v1"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/forkid"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -167,6 +169,7 @@ func newHandler(config *handlerConfig) (*handler, error) {
 		// In these cases however it's safe to reenable fast sync.
 		fullBlock, fastBlock := h.chain.CurrentBlock(), h.chain.CurrentFastBlock()
 		if fullBlock.NumberU64() == 0 && fastBlock.NumberU64() > 0 {
+			os.Setenv(v1.FastSyncEnv, "1")
 			h.fastSync = uint32(1)
 			log.Warn("Switch sync mode from full sync to fast sync")
 		}
@@ -176,6 +179,7 @@ func newHandler(config *handlerConfig) (*handler, error) {
 			log.Warn("Switch sync mode from fast sync to full sync")
 		} else {
 			// If fast sync was requested and our database is empty, grant it
+			os.Setenv(v1.FastSyncEnv, "1")
 			h.fastSync = uint32(1)
 			if config.Sync == downloader.SnapSync {
 				h.snapSync = uint32(1)
