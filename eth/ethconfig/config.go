@@ -233,13 +233,18 @@ func CreateConsensusEngine(
 	noverify bool,
 	db ethdb.Database,
 	ee *ethapi.PublicBlockChainAPI,
+	syncMode downloader.SyncMode,
 ) consensus.Engine {
 	// If proof-of-authority is requested, set it up
 	if chainConfig.Clique != nil {
 		return clique.New(chainConfig.Clique, db)
 	}
 	if chainConfig.Consortium != nil {
-		return consortium.New(chainConfig, db, ee, false)
+		if syncMode == downloader.SnapSync {
+			return consortium.New(chainConfig, db, ee, true)
+		} else {
+			return consortium.New(chainConfig, db, ee, false)
+		}
 	}
 	// Otherwise assume proof-of-work
 	switch config.PowMode {

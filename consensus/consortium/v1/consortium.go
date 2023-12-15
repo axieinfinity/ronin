@@ -721,9 +721,13 @@ func (c *Consortium) CalcDifficulty(chain consensus.ChainHeaderReader, time uint
 	return c.doCalcDifficulty(c.val, number, validators)
 }
 
-func (c *Consortium) GetSnapshot(chain consensus.ChainHeaderReader, number uint64, parents []*types.Header) *consortiumCommon.BaseSnapshot {
-	header := chain.GetHeaderByNumber(number)
-	snap, err := c.snapshot(chain, number, header.Hash(), parents)
+func (c *Consortium) GetSnapshot(
+	chain consensus.ChainHeaderReader,
+	number uint64,
+	hash common.Hash,
+	parents []*types.Header,
+) *consortiumCommon.BaseSnapshot {
+	snap, err := c.snapshot(chain, number, hash, parents)
 	if err != nil {
 		return nil
 	}
