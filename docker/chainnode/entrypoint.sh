@@ -132,6 +132,16 @@ if [[ ! -z $PRIVATE_KEY ]]; then
   fi
   rm ./private_key
   unset PRIVATE_KEY
+
+  account=$(
+    ronin account list --datadir $datadir --keystore $KEYSTORE_DIR \
+    2> /dev/null \
+    | head -n 1 \
+    | cut -d"{" -f 2 | cut -d"}" -f 1
+  )
+  echo "Using account $account"
+  params="$params --unlock $account"
+
 elif [[ "$mine" = "true" ]]; then
   echo "Warning: A mining node is started without private key environment provided"
 fi
@@ -198,17 +208,6 @@ if [[ "$ENABLE_FAST_FINALITY_SIGN" = "true" ]]; then
   )
 
   echo "Using BLS account $blsAccount"
-fi
-
-if [[ $accountsCount -gt 0 ]]; then
-  account=$(
-    ronin account list --datadir $datadir  --keystore $KEYSTORE_DIR \
-    2> /dev/null \
-    | head -n 1 \
-    | cut -d"{" -f 2 | cut -d"}" -f 1
-  )
-  echo "Using account $account"
-  params="$params --unlock $account"
 fi
 
 # bootnodes
