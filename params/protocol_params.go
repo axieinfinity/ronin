@@ -155,7 +155,9 @@ const (
 	Bls12381MapG1Gas          uint64 = 5500   // Gas price for BLS12-381 mapping field element to G1 operation
 	Bls12381MapG2Gas          uint64 = 110000 // Gas price for BLS12-381 mapping field element to G2 operation
 
-	ValidateFinalityProofGas uint64 = 200000 // Gas for validating finality proof
+	ValidatorSortingBaseGas       uint64 = 30                     // Base gas for validator sorting and picking validator set
+	VerifyFinalityHeadersProofGas uint64 = EcrecoverGas*2 + 15000 // Gas for verifying finality headers proof
+	ValidateFinalityProofGas      uint64 = 200000                 // Gas for validating finality proof
 
 	// The Refund Quotient is the cap on how much of the used gas can be refunded. Before EIP-3529,
 	// up to half the consumed gas could be refunded. Redefined as 1/5th in EIP-3529

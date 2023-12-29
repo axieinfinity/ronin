@@ -71,6 +71,9 @@ var allPrecompiles = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{17}):   &bls12381MapG1{},
 	common.BytesToAddress([]byte{18}):   &bls12381MapG2{},
 	common.BytesToAddress([]byte{101}):  &consortiumLog{},
+	common.BytesToAddress([]byte{102}):  &consortiumValidatorSorting{},
+	common.BytesToAddress([]byte{103}):  &consortiumVerifyHeaders{test: true},
+	common.BytesToAddress([]byte{104}):  &consortiumPickValidatorSet{},
 	common.BytesToAddress([]byte{105}):  &consortiumValidateFinalityProof{},
 }
 
@@ -326,7 +329,7 @@ func TestPrecompiledConsortiumLog(t *testing.T) {
 		pAbi abi.ABI
 		err  error
 	)
-	if pAbi, err = abi.JSON(strings.NewReader(consortiumLogAbi)); err != nil {
+	if pAbi, err = abi.JSON(strings.NewReader(rawConsortiumLogAbi)); err != nil {
 		t.Fatal(err)
 	}
 	data, err := pAbi.Pack("log", "hello world")
