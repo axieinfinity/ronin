@@ -31,10 +31,11 @@
     "olekBlock": 16849000,
     "shillinBlock": 20268000,
     "antennaBlock": 20737258,
+    "mikoBlock": 23694400,
     "whiteListDeployerContractV2Address": "0x50a7e07Aa75eB9C04281713224f50403cA79851F",
     "roninTrustedOrgUpgrade": {
       "proxyAddress": "0x7507dc433a98E1fE105d69f19f3B40E4315A4F32",
-      "implementationAddress": ""
+      "implementationAddress": "0x6A51C2B073a6daDBeCAC1A420AFcA7788C81612f"
     }
   },
   "alloc": {
