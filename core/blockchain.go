@@ -1665,7 +1665,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, er
 		)
 		for block != nil && bc.skipBlock(err, it) {
 			externTd = new(big.Int).Add(externTd, block.Difficulty())
-			if localTd.Cmp(externTd) < 0 {
+			if bc.reorgNeeded(current, localTd, block, externTd) {
 				break
 			}
 			log.Debug("Ignoring already known block", "number", block.Number(), "hash", block.Hash())
@@ -1734,7 +1734,19 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, er
 		}
 	}()
 
-	for ; block != nil && err == nil || errors.Is(err, ErrKnownBlock); block, err = it.next() {
+	var (
+		current  = bc.CurrentBlock()
+		localTd  = bc.GetTd(current.Hash(), current.NumberU64())
+		externTd = common.Big0
+	)
+
+	if block != nil {
+		externTd = bc.GetTd(block.ParentHash(), block.NumberU64()-1)
+	}
+
+	for ; (block != nil && err == nil) || errors.Is(err, ErrKnownBlock); block, err = it.next() {
+		// err == ErrknownBlock means block != nil
+		externTd = new(big.Int).Add(externTd, block.Difficulty())
 		// If the chain is terminating, stop processing blocks
 		if bc.insertStopped() {
 			log.Debug("Abort during block processing")
@@ -1751,7 +1763,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, er
 		// just skip the block (we already validated it once fully (and crashed), since
 		// its header and body was already in the database). But if the corresponding
 		// snapshot layer is missing, forcibly rerun the execution to build it.
-		if bc.skipBlock(err, it) {
+		if bc.skipBlock(err, it) && bc.reorgNeeded(current, localTd, block, externTd) {
 			logger := log.Debug
 			if bc.chainConfig.Clique == nil {
 				logger = log.Warn
