@@ -19,16 +19,45 @@
 package geth
 
 import (
-	"os"
-	"runtime"
+	"context"
+	"time"
 
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 )
 
-func init() {
-	// Initialize the logger
-	log.Root().SetHandler(log.LvlFilterHandler(log.LvlInfo, log.StreamHandler(os.Stderr, log.TerminalFormat(false))))
+type api struct {
+	sim *SimulatedBeacon
+}
 
-	// Initialize the goroutine count
-	runtime.GOMAXPROCS(runtime.NumCPU())
+func (a *api) loop() {
+	var (
+		newTxs = make(chan core.NewTxsEvent)
+		sub    = a.sim.eth.TxPool().SubscribeTransactions(newTxs, true)
+	)
+	defer sub.Unsubscribe()
+
+	for {
+		select {
+		case <-a.sim.shutdownCh:
+			return
+		case w := <-a.sim.withdrawals.pending:
+			withdrawals := append(a.sim.withdrawals.gatherPending(9), w)
+			if err := a.sim.sealBlock(withdrawals, uint64(time.Now().Unix())); err != nil {
+				log.Warn("Error performing sealing work", "err", err)
+			}
+		case <-newTxs:
+			a.sim.Commit()
+		}
+	}
+}
+
+func (a *api) AddWithdrawal(ctx context.Context, withdrawal *types.Withdrawal) error {
+	return a.sim.withdrawals.add(withdrawal)
+}
+
+func (a *api) SetFeeRecipient(ctx context.Context, feeRecipient common.Address) {
+	a.sim.setFeeRecipient(feeRecipient)
 }
