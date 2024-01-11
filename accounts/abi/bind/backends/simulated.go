@@ -847,12 +847,8 @@ func (fb *filterBackend) GetReceipts(ctx context.Context, hash common.Hash) (typ
 	return rawdb.ReadReceipts(fb.db, hash, *number, fb.bc.Config()), nil
 }
 
-func (fb *filterBackend) GetLogs(ctx context.Context, hash common.Hash) ([][]*types.Log, error) {
-	number := rawdb.ReadHeaderNumber(fb.db, hash)
-	if number == nil {
-		return nil, nil
-	}
-	receipts := rawdb.ReadReceipts(fb.db, hash, *number, fb.bc.Config())
+func (fb *filterBackend) GetLogs(ctx context.Context, hash common.Hash, blockNumber uint64) ([][]*types.Log, error) {
+	receipts := rawdb.ReadReceipts(fb.db, hash, blockNumber, fb.bc.Config())
 	if receipts == nil {
 		return nil, nil
 	}
