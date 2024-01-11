@@ -195,13 +195,9 @@ func (b *EthAPIBackend) GetReceipts(ctx context.Context, hash common.Hash) (type
 	return b.eth.blockchain.GetReceiptsByHash(hash), nil
 }
 
-func (b *EthAPIBackend) GetLogs(ctx context.Context, hash common.Hash) ([][]*types.Log, error) {
+func (b *EthAPIBackend) GetLogs(ctx context.Context, hash common.Hash, blockNumber uint64) ([][]*types.Log, error) {
 	db := b.eth.ChainDb()
-	number := rawdb.ReadHeaderNumber(db, hash)
-	if number == nil {
-		return nil, errors.New("failed to get block number from hash")
-	}
-	logs := rawdb.ReadLogs(db, hash, *number, b.eth.blockchain.Config())
+	logs := rawdb.ReadLogs(db, hash, blockNumber, b.eth.blockchain.Config())
 	if logs == nil {
 		return nil, errors.New("failed to get logs for block")
 	}
