@@ -33,6 +33,9 @@ var (
 	ErrNoGenesis = errors.New("genesis not found in chain")
 
 	errSideChainReceipts = errors.New("side blocks can't be accepted as ancient chain data")
+
+	// ErrOutOfOrderSystemTx is returned when a system transaction is followed by a common transaction
+	ErrOutOfOrderSystemTx = errors.New("out-of-order system transaction detected")
 )
 
 // List of evm-call-message pre-checking errors. All state transition messages will

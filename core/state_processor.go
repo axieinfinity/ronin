@@ -91,14 +91,21 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 	defer bloomProcessors.Close()
 
 	// Iterate over and process the individual transactions
+	// All system transactions must be at the end of block
+	isSystemTxsSection := false
 	for i, tx := range block.Transactions() {
 		if isPoSA {
 			if isSystemTx, err := posa.IsSystemTransaction(tx, block.Header()); err != nil {
 				return nil, nil, nil, 0, err
 			} else if isSystemTx {
+				isSystemTxsSection = true
 				systemTxs = append(systemTxs, tx)
 				continue
 			}
+		}
+
+		if isSystemTxsSection {
+			return nil, nil, nil, 0, ErrOutOfOrderSystemTx
 		}
 
 		// set current transaction in block context to each transaction
