@@ -22,6 +22,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto/bls/blst"
 	blsCommon "github.com/ethereum/go-ethereum/crypto/bls/common"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/trie"
 	lru "github.com/hashicorp/golang-lru"
 )
 
@@ -681,18 +682,30 @@ type mockContract struct {
 }
 
 func (contract *mockContract) WrapUpEpoch(opts *consortiumCommon.ApplyTransactOpts) error {
+	if opts.ReceivedTxs != nil && len(*opts.ReceivedTxs) != 0 {
+		*opts.ReceivedTxs = (*opts.ReceivedTxs)[1:]
+	}
 	return nil
 }
 
 func (contract *mockContract) SubmitBlockReward(opts *consortiumCommon.ApplyTransactOpts) error {
+	if opts.ReceivedTxs != nil && len(*opts.ReceivedTxs) != 0 {
+		*opts.ReceivedTxs = (*opts.ReceivedTxs)[1:]
+	}
 	return nil
 }
 
 func (contract *mockContract) Slash(opts *consortiumCommon.ApplyTransactOpts, spoiledValidator common.Address) error {
+	if opts.ReceivedTxs != nil && len(*opts.ReceivedTxs) != 0 {
+		*opts.ReceivedTxs = (*opts.ReceivedTxs)[1:]
+	}
 	return nil
 }
 
 func (contract *mockContract) FinalityReward(opts *consortiumCommon.ApplyTransactOpts, votedValidators []common.Address) error {
+	if opts.ReceivedTxs != nil && len(*opts.ReceivedTxs) != 0 {
+		*opts.ReceivedTxs = (*opts.ReceivedTxs)[1:]
+	}
 	return nil
 }
 
@@ -1359,5 +1372,144 @@ func TestUpgradeRoninTrustedOrg(t *testing.T) {
 				)
 			}
 		}
+	}
+}
+
+func TestSystemTransactionOrder(t *testing.T) {
+	db := rawdb.NewMemoryDatabase()
+	blsSecretKey, err := blst.RandKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	secretKey, err := crypto.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	validatorAddr := crypto.PubkeyToAddress(secretKey.PublicKey)
+
+	userKey, err := crypto.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	chainConfig := params.ChainConfig{
+		ChainID:           big.NewInt(2021),
+		HomesteadBlock:    common.Big0,
+		EIP150Block:       common.Big0,
+		EIP155Block:       common.Big0,
+		EIP158Block:       common.Big0,
+		ConsortiumV2Block: common.Big0,
+		MikoBlock:         common.Big0,
+		Consortium: &params.ConsortiumConfig{
+			EpochV2: 200,
+		},
+		ConsortiumV2Contracts: &params.ConsortiumV2Contracts{
+			RoninValidatorSet: common.HexToAddress("0xaa"),
+		},
+	}
+
+	genesis := (&core.Genesis{
+		Config: &chainConfig,
+		Alloc: core.GenesisAlloc{
+			// Make proxy address non-empty to avoid being deleted
+			common.Address{0x10}: core.GenesisAccount{Balance: common.Big1},
+		},
+	}).MustCommit(db)
+
+	mock := &mockContract{
+		validators: map[common.Address]blsCommon.PublicKey{
+			validatorAddr: blsSecretKey.PublicKey(),
+		},
+	}
+	recents, _ := lru.NewARC(inmemorySnapshots)
+	signatures, _ := lru.NewARC(inmemorySignatures)
+
+	v2 := Consortium{
+		chainConfig: &chainConfig,
+		contract:    mock,
+		recents:     recents,
+		signatures:  signatures,
+		config: &params.ConsortiumConfig{
+			EpochV2: 200,
+		},
+	}
+
+	chain, _ := core.NewBlockChain(db, nil, &chainConfig, &v2, vm.Config{}, nil, nil)
+	extraData := [consortiumCommon.ExtraVanity + consortiumCommon.ExtraSeal]byte{}
+
+	signer := types.NewEIP155Signer(big.NewInt(2021))
+	normalTx, err := types.SignTx(
+		types.NewTransaction(
+			0,
+			common.Address{},
+			new(big.Int),
+			21000,
+			new(big.Int),
+			nil,
+		),
+		signer,
+		userKey,
+	)
+	if err != nil {
+		t.Fatalf("Failed to sign transaction, err %s", err)
+	}
+
+	systemTx, err := types.SignTx(
+		types.NewTransaction(
+			0,
+			chainConfig.ConsortiumV2Contracts.RoninValidatorSet,
+			new(big.Int),
+			21000,
+			new(big.Int),
+			nil,
+		),
+		signer,
+		secretKey,
+	)
+	if err != nil {
+		t.Fatalf("Failed to sign transaction, err %s", err)
+	}
+
+	blocks, receipts := core.GenerateConsortiumChain(
+		&chainConfig,
+		genesis,
+		&v2,
+		db,
+		1,
+		func(i int, bg *core.BlockGen) {
+			bg.SetCoinbase(validatorAddr)
+			bg.SetExtra(extraData[:])
+			bg.SetDifficulty(big.NewInt(7))
+			bg.AddTx(normalTx)
+		},
+		true,
+		func(i int, bg *core.BlockGen) {
+			header := bg.Header()
+			hash := calculateSealHash(header, big.NewInt(2021))
+			sig, err := crypto.Sign(hash[:], secretKey)
+			if err != nil {
+				t.Fatalf("Failed to sign block, err %s", err)
+			}
+			copy(header.Extra[len(header.Extra)-consortiumCommon.ExtraSeal:], sig)
+			bg.SetExtra(header.Extra)
+		},
+	)
+
+	// Mock contract does not create system transaction so right now len(block.transactions) == 1.
+	// Add the system transaction before normal transaction.
+	block := types.NewBlock(blocks[0].Header(), []*types.Transaction{systemTx, normalTx}, nil, receipts[0], trie.NewStackTrie(nil))
+	header := block.Header()
+	hash := calculateSealHash(header, big.NewInt(2021))
+	sig, err := crypto.Sign(hash[:], secretKey)
+	if err != nil {
+		t.Fatalf("Failed to sign block, err %s", err)
+	}
+	copy(header.Extra[len(header.Extra)-consortiumCommon.ExtraSeal:], sig)
+	block = types.NewBlockWithHeader(header)
+	block = types.NewBlock(block.Header(), []*types.Transaction{systemTx, normalTx}, nil, receipts[0], trie.NewStackTrie(nil))
+
+	_, err = chain.InsertChain(types.Blocks{block})
+	if !errors.Is(err, core.ErrOutOfOrderSystemTx) {
+		t.Fatalf("Expected err: %s, got %s", core.ErrOutOfOrderSystemTx, err)
 	}
 }
