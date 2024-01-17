@@ -764,7 +764,7 @@ func (c *Consortium) processSystemTransactions(chain consensus.ChainHeaderReader
 
 	// If the parent's block includes the finality votes, distribute reward for the voters
 	if c.chainConfig.IsShillin(new(big.Int).Sub(header.Number, common.Big1)) {
-		parentHeader := chain.GetHeaderByHash(header.ParentHash)
+		parentHeader := chain.GetHeader(header.ParentHash, header.Number.Uint64()-1)
 		extraData, err := finality.DecodeExtra(parentHeader.Extra, true)
 		if err != nil {
 			return err
