@@ -170,6 +170,16 @@ func (c *Consortium) IsSystemMessage(msg core.Message, header *types.Header) boo
 	return false
 }
 
+// In normal case, IsSystemTransaction in consortium/main.go is used instead of this function. This function
+// is only used in testing when we create standalone consortium v2 engine without the v1
+func (c *Consortium) IsSystemTransaction(tx *types.Transaction, header *types.Header) (bool, error) {
+	msg, err := tx.AsMessage(types.MakeSigner(c.chainConfig, header.Number), header.BaseFee)
+	if err != nil {
+		return false, err
+	}
+	return c.IsSystemMessage(msg, header), nil
+}
+
 // IsSystemContract implements consensus.PoSA, checking whether a contract is a system
 // contract or not
 // A system contract is a contract is defined in params.ConsortiumV2Contracts
@@ -191,10 +201,22 @@ func (c *Consortium) VerifyHeader(chain consensus.ChainHeaderReader, header *typ
 }
 
 // VerifyHeaders implements consensus.Engine, always returning an empty abort and results channels.
-// This method will be handled consortium/main.go instead
+// In normal case, VerifyHeaders in consortium/main.go is used instead of this function. This function
+// is only used in testing when we create standalone consortium v2 engine without the v1
 func (c *Consortium) VerifyHeaders(chain consensus.ChainHeaderReader, headers []*types.Header, seals []bool) (chan<- struct{}, <-chan error) {
 	abort := make(chan struct{})
 	results := make(chan error, len(headers))
+
+	go func() {
+		for i, header := range headers {
+			err := c.VerifyHeaderAndParents(chain, header, headers[:i])
+			select {
+			case <-abort:
+				return
+			case results <- err:
+			}
+		}
+	}()
 
 	return abort, results
 }
@@ -742,7 +764,7 @@ func (c *Consortium) processSystemTransactions(chain consensus.ChainHeaderReader
 
 	// If the parent's block includes the finality votes, distribute reward for the voters
 	if c.chainConfig.IsShillin(new(big.Int).Sub(header.Number, common.Big1)) {
-		parentHeader := chain.GetHeaderByHash(header.ParentHash)
+		parentHeader := chain.GetHeader(header.ParentHash, header.Number.Uint64()-1)
 		extraData, err := finality.DecodeExtra(parentHeader.Extra, true)
 		if err != nil {
 			return err
