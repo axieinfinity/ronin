@@ -185,6 +185,23 @@ func (b *BlockGen) OffsetTime(seconds int64) {
 	b.header.Difficulty = b.engine.CalcDifficulty(chainreader, b.header.Time, b.parent.Header())
 }
 
+func (b *BlockGen) Header() *types.Header {
+	return types.CopyHeader(b.header)
+}
+
+func GenerateConsortiumChain(
+	config *params.ChainConfig,
+	parent *types.Block,
+	engine consensus.Engine,
+	db ethdb.Database,
+	n int,
+	gen func(int, *BlockGen),
+	flushDisk bool,
+	postFinalize func(int, *BlockGen),
+) ([]*types.Block, []types.Receipts) {
+	return generateChain(config, parent, engine, db, n, gen, flushDisk, postFinalize)
+}
+
 // GenerateChain creates a chain of n blocks. The first block's
 // parent will be the provided parent. db is used to store
 // intermediate states and should contain the parent's state trie.
@@ -206,11 +223,24 @@ func GenerateChain(
 	gen func(int, *BlockGen),
 	flushDisk bool,
 ) ([]*types.Block, []types.Receipts) {
+	return generateChain(config, parent, engine, db, n, gen, flushDisk, nil)
+}
+
+func generateChain(
+	config *params.ChainConfig,
+	parent *types.Block,
+	engine consensus.Engine,
+	db ethdb.Database,
+	n int,
+	gen func(int, *BlockGen),
+	flushDisk bool,
+	postFinalize func(int, *BlockGen),
+) ([]*types.Block, []types.Receipts) {
 	if config == nil {
 		config = params.TestChainConfig
 	}
 	blocks, receipts := make(types.Blocks, n), make([]types.Receipts, n)
-	chainreader := &fakeChainReader{config: config}
+	chainreader := newFakeChainReader(config, db)
 	genblock := func(i int, parent *types.Block, statedb *state.StateDB) (*types.Block, types.Receipts) {
 		b := &BlockGen{i: i, chain: blocks, parent: parent, statedb: statedb, config: config, engine: engine}
 		b.header = makeHeader(chainreader, parent, statedb, b.engine)
@@ -256,6 +286,14 @@ func GenerateChain(
 				panic(err)
 			}
 
+			// Execute any user modifications to the block
+			if config.Consortium != nil && postFinalize != nil {
+				b := &BlockGen{i: i, chain: blocks, parent: parent, statedb: statedb, config: config, engine: engine}
+				b.header = block.Header()
+				postFinalize(i, b)
+				block = types.NewBlockWithHeader(b.header)
+			}
+
 			// Write state changes to db
 			root, err := statedb.Commit(config.IsEIP158(b.header.Number))
 			if err != nil {
@@ -281,6 +319,7 @@ func GenerateChain(
 		blocks[i] = block
 		receipts[i] = receipt
 		parent = block
+		chainreader.addHeader(block.Hash(), block.Header())
 	}
 	return blocks, receipts
 }
@@ -348,7 +387,21 @@ func makeBlockChain(parent *types.Block, n int, engine consensus.Engine, db ethd
 }
 
 type fakeChainReader struct {
-	config *params.ChainConfig
+	config  *params.ChainConfig
+	db      ethdb.Database
+	headers map[common.Hash]*types.Header
+}
+
+func newFakeChainReader(config *params.ChainConfig, db ethdb.Database) *fakeChainReader {
+	return &fakeChainReader{
+		config:  config,
+		db:      db,
+		headers: make(map[common.Hash]*types.Header),
+	}
+}
+
+func (cr *fakeChainReader) addHeader(hash common.Hash, header *types.Header) {
+	cr.headers[hash] = header
 }
 
 // Config returns the chain configuration.
@@ -356,11 +409,20 @@ func (cr *fakeChainReader) Config() *params.ChainConfig {
 	return cr.config
 }
 
-func (cr *fakeChainReader) CurrentHeader() *types.Header                            { return nil }
-func (cr *fakeChainReader) GetHeaderByNumber(number uint64) *types.Header           { return nil }
-func (cr *fakeChainReader) GetHeaderByHash(hash common.Hash) *types.Header          { return nil }
-func (cr *fakeChainReader) GetHeader(hash common.Hash, number uint64) *types.Header { return nil }
-func (cr *fakeChainReader) GetBlock(hash common.Hash, number uint64) *types.Block   { return nil }
-func (cr *fakeChainReader) DB() ethdb.Database                                      { return nil }
-func (cr *fakeChainReader) StateCache() state.Database                              { return nil }
-func (cr *fakeChainReader) OpEvents() []*vm.PublishEvent                            { return nil }
+func (cr *fakeChainReader) CurrentHeader() *types.Header                   { return nil }
+func (cr *fakeChainReader) GetHeaderByNumber(number uint64) *types.Header  { return nil }
+func (cr *fakeChainReader) GetHeaderByHash(hash common.Hash) *types.Header { return nil }
+func (cr *fakeChainReader) GetHeader(hash common.Hash, number uint64) *types.Header {
+	if cr.db != nil {
+		if header, ok := cr.headers[hash]; ok {
+			return header
+		}
+
+		return rawdb.ReadHeader(cr.db, hash, number)
+	}
+	return nil
+}
+func (cr *fakeChainReader) GetBlock(hash common.Hash, number uint64) *types.Block { return nil }
+func (cr *fakeChainReader) DB() ethdb.Database                                    { return nil }
+func (cr *fakeChainReader) StateCache() state.Database                            { return nil }
+func (cr *fakeChainReader) OpEvents() []*vm.PublishEvent                          { return nil }
