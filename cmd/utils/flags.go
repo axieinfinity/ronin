@@ -231,6 +231,11 @@ var (
 		Usage: "Number of recent blocks to maintain transactions index for (default = about one year, 0 = entire chain)",
 		Value: ethconfig.Defaults.TxLookupLimit,
 	}
+	TriesInMemoryFlag = cli.IntFlag{
+		Name:  "triesinmemory",
+		Usage: "The number of tries is kept in memory before pruning (default = 128)",
+		Value: 128,
+	}
 	MonitorDoubleSign = cli.BoolFlag{
 		Name:  "monitor.doublesign",
 		Usage: "Enable double sign monitoring",
@@ -1730,6 +1735,7 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 	if ctx.GlobalIsSet(CacheFlag.Name) || ctx.GlobalIsSet(CacheSnapshotFlag.Name) {
 		cfg.SnapshotCache = ctx.GlobalInt(CacheFlag.Name) * ctx.GlobalInt(CacheSnapshotFlag.Name) / 100
 	}
+	cfg.TriesInMemory = ctx.GlobalInt(TriesInMemoryFlag.Name)
 	if !ctx.GlobalBool(SnapshotFlag.Name) {
 		// If snap-sync is requested, this flag is also required
 		if cfg.SyncMode == downloader.SnapSync {
