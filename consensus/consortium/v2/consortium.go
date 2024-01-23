@@ -308,33 +308,6 @@ func (c *Consortium) VerifyHeaderAndParents(chain consensus.ChainHeaderReader, h
 	if header.Number == nil {
 		return consortiumCommon.ErrUnknownBlock
 	}
-	number := header.Number.Uint64()
-
-	isShillin := c.chainConfig.IsShillin(header.Number)
-	extraData, err := finality.DecodeExtra(header.Extra, isShillin)
-	if err != nil {
-		return err
-	}
-
-	// Check extra data
-	isEpoch := number%c.config.EpochV2 == 0 || c.chainConfig.IsOnConsortiumV2(header.Number)
-
-	if !isEpoch && len(extraData.CheckpointValidators) != 0 {
-		return consortiumCommon.ErrExtraValidators
-	}
-
-	if isShillin && extraData.HasFinalityVote == 1 {
-		if err := c.verifyFinalitySignatures(
-			chain,
-			extraData.FinalityVotedValidators,
-			extraData.AggregatedFinalityVotes,
-			header.Number.Uint64()-1,
-			header.ParentHash,
-			parents,
-		); err != nil {
-			return err
-		}
-	}
 
 	// Ensure that the mix digest is zero as we don't have fork protection currently
 	if header.MixDigest != (common.Hash{}) {
@@ -345,7 +318,7 @@ func (c *Consortium) VerifyHeaderAndParents(chain consensus.ChainHeaderReader, h
 		return consortiumCommon.ErrInvalidUncleHash
 	}
 	// Ensure that the block's difficulty is meaningful (may not be correct at this point)
-	if number > 0 {
+	if header.Number.Uint64() > 0 {
 		if header.Difficulty == nil {
 			return consortiumCommon.ErrInvalidDifficulty
 		}
@@ -378,6 +351,33 @@ func (c *Consortium) verifyCascadingFields(chain consensus.ChainHeaderReader, he
 
 	if parent == nil || parent.Number.Uint64() != number-1 || parent.Hash() != header.ParentHash {
 		return consensus.ErrUnknownAncestor
+	}
+
+	// Check extra data
+	isShillin := c.chainConfig.IsShillin(header.Number)
+	extraData, err := finality.DecodeExtra(header.Extra, isShillin)
+	if err != nil {
+		return err
+	}
+
+	// Check extra data
+	isEpoch := number%c.config.EpochV2 == 0 || c.chainConfig.IsOnConsortiumV2(header.Number)
+
+	if !isEpoch && len(extraData.CheckpointValidators) != 0 {
+		return consortiumCommon.ErrExtraValidators
+	}
+
+	if isShillin && extraData.HasFinalityVote == 1 {
+		if err := c.verifyFinalitySignatures(
+			chain,
+			extraData.FinalityVotedValidators,
+			extraData.AggregatedFinalityVotes,
+			header.Number.Uint64()-1,
+			header.ParentHash,
+			parents,
+		); err != nil {
+			return err
+		}
 	}
 
 	// Verify that the gas limit is <= 2^63-1
@@ -501,7 +501,7 @@ func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, 
 		} else {
 			// No explicit parents (or no more left), reach out to the database
 			header = chain.GetHeader(hash, number)
-			if header == nil {
+			if header == nil || header.Hash() != hash || header.Number.Uint64() != number {
 				return nil, consensus.ErrUnknownAncestor
 			}
 		}
