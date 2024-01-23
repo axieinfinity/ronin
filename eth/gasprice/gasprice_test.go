@@ -75,8 +75,8 @@ func (b *testBackend) BlockByNumber(ctx context.Context, number rpc.BlockNumber)
 	return b.chain.GetBlockByNumber(uint64(number)), nil
 }
 
-func (b *testBackend) GetReceipts(ctx context.Context, hash common.Hash) (types.Receipts, error) {
-	return b.chain.GetReceiptsByHash(hash), nil
+func (b *testBackend) GetReceipts(ctx context.Context, hash common.Hash, number uint64) (types.Receipts, error) {
+	return b.chain.GetReceiptsByHashAndNumber(hash, number), nil
 }
 
 func (b *testBackend) PendingBlockAndReceipts() (*types.Block, types.Receipts) {

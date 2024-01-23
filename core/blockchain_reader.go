@@ -204,11 +204,24 @@ func (bc *BlockChain) GetReceiptsByHash(hash common.Hash) types.Receipts {
 	if receipts, ok := bc.receiptsCache.Get(hash); ok {
 		return receipts.(types.Receipts)
 	}
-	number := rawdb.ReadHeaderNumber(bc.db, hash)
+	number := bc.hc.GetBlockNumber(hash)
 	if number == nil {
 		return nil
 	}
 	receipts := rawdb.ReadReceipts(bc.db, hash, *number, bc.chainConfig)
+	if receipts == nil {
+		return nil
+	}
+	bc.receiptsCache.Add(hash, receipts)
+	return receipts
+}
+
+// GetReceiptsByHashAndNumber is the same as GetReceiptsByHash with extra block number parameter
+func (bc *BlockChain) GetReceiptsByHashAndNumber(hash common.Hash, number uint64) types.Receipts {
+	if receipts, ok := bc.receiptsCache.Get(hash); ok {
+		return receipts.(types.Receipts)
+	}
+	receipts := rawdb.ReadReceipts(bc.db, hash, number, bc.chainConfig)
 	if receipts == nil {
 		return nil
 	}

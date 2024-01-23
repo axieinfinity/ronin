@@ -38,7 +38,7 @@ type Backend interface {
 	ChainDb() ethdb.Database
 	HeaderByNumber(ctx context.Context, blockNr rpc.BlockNumber) (*types.Header, error)
 	HeaderByHash(ctx context.Context, blockHash common.Hash) (*types.Header, error)
-	GetReceipts(ctx context.Context, blockHash common.Hash) (types.Receipts, error)
+	GetReceipts(ctx context.Context, blockHash common.Hash, number uint64) (types.Receipts, error)
 	GetLogs(ctx context.Context, blockHash common.Hash) ([][]*types.Log, error)
 
 	SubscribeNewTxsEvent(chan<- core.NewTxsEvent) event.Subscription
@@ -283,7 +283,7 @@ func (f *Filter) checkMatches(ctx context.Context, header *types.Header) (logs [
 	if len(logs) > 0 {
 		// We have matching logs, check if we need to resolve full logs via the light client
 		if logs[0].TxHash == (common.Hash{}) {
-			receipts, err := f.backend.GetReceipts(ctx, header.Hash())
+			receipts, err := f.backend.GetReceipts(ctx, header.Hash(), header.Number.Uint64())
 			if err != nil {
 				return nil, err
 			}

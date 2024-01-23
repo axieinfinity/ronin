@@ -836,12 +836,8 @@ func (fb *filterBackend) HeaderByHash(ctx context.Context, hash common.Hash) (*t
 	return fb.bc.GetHeaderByHash(hash), nil
 }
 
-func (fb *filterBackend) GetReceipts(ctx context.Context, hash common.Hash) (types.Receipts, error) {
-	number := rawdb.ReadHeaderNumber(fb.db, hash)
-	if number == nil {
-		return nil, nil
-	}
-	return rawdb.ReadReceipts(fb.db, hash, *number, fb.bc.Config()), nil
+func (fb *filterBackend) GetReceipts(ctx context.Context, hash common.Hash, number uint64) (types.Receipts, error) {
+	return rawdb.ReadReceipts(fb.db, hash, number, fb.bc.Config()), nil
 }
 
 func (fb *filterBackend) GetLogs(ctx context.Context, hash common.Hash) ([][]*types.Log, error) {

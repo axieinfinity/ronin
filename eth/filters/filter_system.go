@@ -460,7 +460,7 @@ func (es *EventSystem) lightFilterLogs(header *types.Header, addresses []common.
 		logs := filterLogs(unfiltered, nil, nil, addresses, topics)
 		if len(logs) > 0 && logs[0].TxHash == (common.Hash{}) {
 			// We have matching but non-derived logs
-			receipts, err := es.backend.GetReceipts(ctx, header.Hash())
+			receipts, err := es.backend.GetReceipts(ctx, header.Hash(), header.Number.Uint64())
 			if err != nil {
 				return nil
 			}

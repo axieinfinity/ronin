@@ -1677,7 +1677,7 @@ func (s *PublicTransactionPoolAPI) GetTransactionReceipt(ctx context.Context, ha
 	if err != nil || tx == nil {
 		return nil, nil
 	}
-	receipts, err := s.b.GetReceipts(ctx, blockHash)
+	receipts, err := s.b.GetReceipts(ctx, blockHash, blockNumber)
 	if err != nil {
 		return nil, err
 	}

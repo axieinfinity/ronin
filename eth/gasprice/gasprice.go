@@ -53,7 +53,7 @@ type Config struct {
 type OracleBackend interface {
 	HeaderByNumber(ctx context.Context, number rpc.BlockNumber) (*types.Header, error)
 	BlockByNumber(ctx context.Context, number rpc.BlockNumber) (*types.Block, error)
-	GetReceipts(ctx context.Context, hash common.Hash) (types.Receipts, error)
+	GetReceipts(ctx context.Context, hash common.Hash, number uint64) (types.Receipts, error)
 	PendingBlockAndReceipts() (*types.Block, types.Receipts)
 	ChainConfig() *params.ChainConfig
 	SubscribeChainHeadEvent(ch chan<- core.ChainHeadEvent) event.Subscription

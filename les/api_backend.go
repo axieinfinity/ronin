@@ -19,9 +19,10 @@ package les
 import (
 	"context"
 	"errors"
-	"github.com/ethereum/go-ethereum/eth/tracers"
 	"math/big"
 	"time"
+
+	"github.com/ethereum/go-ethereum/eth/tracers"
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts"
@@ -162,11 +163,8 @@ func (b *LesApiBackend) StateAndHeaderByNumberOrHash(ctx context.Context, blockN
 	return nil, nil, errors.New("invalid arguments; neither block nor hash specified")
 }
 
-func (b *LesApiBackend) GetReceipts(ctx context.Context, hash common.Hash) (types.Receipts, error) {
-	if number := rawdb.ReadHeaderNumber(b.eth.chainDb, hash); number != nil {
-		return light.GetBlockReceipts(ctx, b.eth.odr, hash, *number)
-	}
-	return nil, nil
+func (b *LesApiBackend) GetReceipts(ctx context.Context, hash common.Hash, number uint64) (types.Receipts, error) {
+	return light.GetBlockReceipts(ctx, b.eth.odr, hash, number)
 }
 
 func (b *LesApiBackend) GetLogs(ctx context.Context, hash common.Hash) ([][]*types.Log, error) {

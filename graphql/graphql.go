@@ -531,15 +531,11 @@ func (b *Block) resolveHeader(ctx context.Context) (*types.Header, error) {
 // if necessary.
 func (b *Block) resolveReceipts(ctx context.Context) ([]*types.Receipt, error) {
 	if b.receipts == nil {
-		hash := b.hash
-		if hash == (common.Hash{}) {
-			header, err := b.resolveHeader(ctx)
-			if err != nil {
-				return nil, err
-			}
-			hash = header.Hash()
+		header, err := b.resolveHeader(ctx)
+		if err != nil {
+			return nil, err
 		}
-		receipts, err := b.backend.GetReceipts(ctx, hash)
+		receipts, err := b.backend.GetReceipts(ctx, header.Hash(), header.Number.Uint64())
 		if err != nil {
 			return nil, err
 		}

@@ -86,11 +86,8 @@ func (b *testBackend) HeaderByHash(ctx context.Context, hash common.Hash) (*type
 	return rawdb.ReadHeader(b.db, hash, *number), nil
 }
 
-func (b *testBackend) GetReceipts(ctx context.Context, hash common.Hash) (types.Receipts, error) {
-	if number := rawdb.ReadHeaderNumber(b.db, hash); number != nil {
-		return rawdb.ReadReceipts(b.db, hash, *number, params.TestChainConfig), nil
-	}
-	return nil, nil
+func (b *testBackend) GetReceipts(ctx context.Context, hash common.Hash, number uint64) (types.Receipts, error) {
+	return rawdb.ReadReceipts(b.db, hash, number, params.TestChainConfig), nil
 }
 
 func (b *testBackend) GetLogs(ctx context.Context, hash common.Hash) ([][]*types.Log, error) {
