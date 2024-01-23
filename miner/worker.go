@@ -872,17 +872,25 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 		return true
 	}
 
+	var reservedGas uint64 = 0
+	if w.chainConfig.Consortium != nil {
+		if w.current.header.Number.Uint64()%w.chainConfig.Consortium.EpochV2 == w.chainConfig.Consortium.EpochV2-1 {
+			reservedGas = params.ReservedGasForCheckpointSystemTransactions
+		} else {
+			reservedGas = params.ReservedGasForNormalSystemTransactions
+		}
+	}
 	gasLimit := w.current.header.GasLimit
 	if w.current.gasPool == nil {
 		w.current.gasPool = new(core.GasPool).AddGas(gasLimit)
 
 		// If the gas pool is newly created, reserve some gas for system transactions
 		if w.chainConfig.Consortium != nil {
-			if err := w.current.gasPool.SubGas(params.ReservedGasForSystemTransactions); err != nil {
+			if err := w.current.gasPool.SubGas(reservedGas); err != nil {
 				log.Error(
 					"Failed to reserve gas for system transactions",
 					"pool", w.current.gasPool,
-					"reserve", params.ReservedGasForSystemTransactions,
+					"reserve", reservedGas,
 					"error", err,
 				)
 				return true
