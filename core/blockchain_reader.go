@@ -27,6 +27,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/event"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
 )
@@ -199,6 +200,50 @@ func (bc *BlockChain) GetBlocksFromHash(hash common.Hash, n int) (blocks []*type
 	return
 }
 
+// GetTransaction is the same as rawdb.ReadTransaction but uses bc.GetBody to read the block body,
+// this helps to utilize the caching mechanism in blockchain reader before reading from database.
+func (bc *BlockChain) GetTransaction(hash common.Hash) (*types.Transaction, common.Hash, uint64, uint64) {
+	blockNumber := rawdb.ReadTxLookupEntry(bc.db, hash)
+	if blockNumber == nil {
+		return nil, common.Hash{}, 0, 0
+	}
+	blockHash := rawdb.ReadCanonicalHash(bc.db, *blockNumber)
+	if blockHash == (common.Hash{}) {
+		return nil, common.Hash{}, 0, 0
+	}
+	body := bc.GetBody(blockHash)
+	if body == nil {
+		log.Error("Transaction referenced missing", "number", *blockNumber, "hash", blockHash)
+		return nil, common.Hash{}, 0, 0
+	}
+	for txIndex, tx := range body.Transactions {
+		if tx.Hash() == hash {
+			return tx, blockHash, *blockNumber, uint64(txIndex)
+		}
+	}
+	log.Error("Transaction not found", "number", *blockNumber, "hash", blockHash, "txhash", hash)
+	return nil, common.Hash{}, 0, 0
+}
+
+// readReceipts is the same as rawdb.ReadReceipts but uses bc.GetBody to read the block body,
+// this helps to utilize the caching mechanism in blockchain reader before reading from database.
+func (bc *BlockChain) readReceipts(hash common.Hash, number uint64) types.Receipts {
+	receipts := rawdb.ReadRawReceipts(bc.db, hash, number)
+	if receipts == nil {
+		return nil
+	}
+	body := bc.GetBody(hash)
+	if body == nil {
+		log.Error("Missing body but have receipt", "hash", hash, "number", number)
+		return nil
+	}
+	if err := receipts.DeriveFields(bc.chainConfig, hash, number, body.Transactions); err != nil {
+		log.Error("Failed to derive block receipts fields", "hash", hash, "number", number, "err", err)
+		return nil
+	}
+	return receipts
+}
+
 // GetReceiptsByHash retrieves the receipts for all transactions in a given block.
 func (bc *BlockChain) GetReceiptsByHash(hash common.Hash) types.Receipts {
 	if receipts, ok := bc.receiptsCache.Get(hash); ok {
@@ -208,7 +253,7 @@ func (bc *BlockChain) GetReceiptsByHash(hash common.Hash) types.Receipts {
 	if number == nil {
 		return nil
 	}
-	receipts := rawdb.ReadReceipts(bc.db, hash, *number, bc.chainConfig)
+	receipts := bc.readReceipts(hash, *number)
 	if receipts == nil {
 		return nil
 	}
@@ -221,7 +266,7 @@ func (bc *BlockChain) GetReceiptsByHashAndNumber(hash common.Hash, number uint64
 	if receipts, ok := bc.receiptsCache.Get(hash); ok {
 		return receipts.(types.Receipts)
 	}
-	receipts := rawdb.ReadReceipts(bc.db, hash, number, bc.chainConfig)
+	receipts := bc.readReceipts(hash, number)
 	if receipts == nil {
 		return nil
 	}
