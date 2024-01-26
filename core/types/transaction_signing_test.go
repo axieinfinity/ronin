@@ -152,7 +152,7 @@ func TestSponsoredTransactionSigner(t *testing.T) {
 	}
 	payerAddr := crypto.PubkeyToAddress(payer.PublicKey)
 
-	mikoSigner := NewMikoSigner(big.NewInt(2020))
+	enaSigner := NewEnaSigner(big.NewInt(2020))
 	eip155Signer := NewEIP155Signer(big.NewInt(2020))
 	latestSigner := LatestSignerForChainID(big.NewInt(2020))
 
@@ -168,7 +168,7 @@ func TestSponsoredTransactionSigner(t *testing.T) {
 		ExpiredTime: 100000,
 	}
 
-	innerTx.PayerR, innerTx.PayerS, innerTx.PayerV, err = PayerSign(payer, mikoSigner, senderAddr, &innerTx)
+	innerTx.PayerR, innerTx.PayerS, innerTx.PayerV, err = PrefixedPayerSign(payer, enaSigner, senderAddr, &innerTx)
 	if err != nil {
 		t.Fatalf("Payer fails to sign, err %s", err)
 	}
@@ -191,7 +191,7 @@ func TestSponsoredTransactionSigner(t *testing.T) {
 		innerTx.PayerS,
 	})
 
-	hash := mikoSigner.Hash(tx)
+	hash := enaSigner.Hash(tx)
 	if hash != expectedHash {
 		t.Fatalf("Tx hash mismatches, get %s expect %s", hash, expectedHash)
 	}
@@ -201,7 +201,7 @@ func TestSponsoredTransactionSigner(t *testing.T) {
 		t.Fatalf("Tx hash mismatches, get %s expect %s", hash, expectedHash)
 	}
 
-	tx, err = SignTx(tx, mikoSigner, sender)
+	tx, err = SignTx(tx, enaSigner, sender)
 	if err != nil {
 		t.Fatalf("Failed to sign tx, err %s", err)
 	}
@@ -228,7 +228,7 @@ func TestSponsoredTransactionSigner(t *testing.T) {
 	}
 
 	// 2. Check sender
-	tx, err = SignTx(tx, mikoSigner, sender)
+	tx, err = SignTx(tx, enaSigner, sender)
 	if err != nil {
 		t.Fatalf("Failed to sign tx, err %s", err)
 	}
@@ -238,7 +238,7 @@ func TestSponsoredTransactionSigner(t *testing.T) {
 		t.Fatalf("V is expected to be {0, 1}, get %d", v.Uint64())
 	}
 
-	recoveredSender, err := Sender(mikoSigner, tx)
+	recoveredSender, err := Sender(enaSigner, tx)
 	if err != nil {
 		t.Fatalf("Failed to recover sender, err %s", err)
 	}
@@ -268,7 +268,7 @@ func TestSponsoredTransactionSigner(t *testing.T) {
 	if payerV.Cmp(big.NewInt(0)) != 0 && payerV.Cmp(big.NewInt(1)) != 0 {
 		t.Fatalf("payerV is expected to be {0, 1}, get %d", v.Uint64())
 	}
-	recoveredPayerAddr, err := Payer(mikoSigner, tx)
+	recoveredPayerAddr, err := Payer(enaSigner, tx)
 	if err != nil {
 		t.Fatalf("Failed to recover payer, err %s", err)
 	}
@@ -293,7 +293,7 @@ func TestSponsoredTransactionSigner(t *testing.T) {
 	innerTx.ChainID = big.NewInt(1000)
 	tx = NewTx(&innerTx)
 
-	_, err = Sender(mikoSigner, tx)
+	_, err = Sender(enaSigner, tx)
 	if err == nil || !errors.Is(err, ErrInvalidChainId) {
 		t.Fatalf("Expect %s, get %s", ErrInvalidChainId, err)
 	}

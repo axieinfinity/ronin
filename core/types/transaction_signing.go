@@ -47,6 +47,8 @@ func MakeSigner(config *params.ChainConfig, blockNumber *big.Int) Signer {
 		signer = NewLondonSigner(config.ChainID)
 	case config.IsBerlin(blockNumber):
 		signer = NewEIP2930Signer(config.ChainID)
+	case config.IsEna(blockNumber):
+		signer = NewEnaSigner(config.ChainID)
 	case config.IsMiko(blockNumber):
 		signer = NewMikoSigner(config.ChainID)
 	case config.IsEIP155(blockNumber):
@@ -132,6 +134,33 @@ func PayerSign(prv *ecdsa.PrivateKey, signer Signer, sender common.Address, txda
 		txdata.data(),
 		txdata.expiredTime(),
 	})
+
+	sig, err := crypto.Sign(payerHash[:], prv)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	r, s, _ = decodeSignature(sig)
+	v = big.NewInt(int64(sig[64]))
+	return r, s, v, nil
+}
+
+func PrefixedPayerSign(prv *ecdsa.PrivateKey, signer Signer, sender common.Address, txdata TxData) (r, s, v *big.Int, err error) {
+	payerHash := prefixedRlpHash(
+		PayerInternalTxType,
+		[]interface{}{
+			signer.ChainID(),
+			sender,
+			txdata.nonce(),
+			txdata.gasTipCap(),
+			txdata.gasFeeCap(),
+			txdata.gas(),
+			txdata.to(),
+			txdata.value(),
+			txdata.data(),
+			txdata.expiredTime(),
+		},
+	)
 
 	sig, err := crypto.Sign(payerHash[:], prv)
 	if err != nil {
@@ -302,7 +331,7 @@ func (s londonSigner) Hash(tx *Transaction) common.Hash {
 }
 
 func (s londonSigner) Payer(tx *Transaction) (common.Address, error) {
-	return payerInternal(s, tx)
+	return prefixedPayerInternal(s, tx)
 }
 
 type eip2930Signer struct{ MikoSigner }
@@ -405,7 +434,7 @@ func (s eip2930Signer) Hash(tx *Transaction) common.Hash {
 // recovered address. As a result, the sender must be recovered again
 // which wastes CPU.
 func (s eip2930Signer) Payer(tx *Transaction) (common.Address, error) {
-	return payerInternal(s, tx)
+	return prefixedPayerInternal(s, tx)
 }
 
 type MikoSigner struct {
@@ -514,6 +543,117 @@ func (s MikoSigner) Payer(tx *Transaction) (common.Address, error) {
 	return payerInternal(s, tx)
 }
 
+type EnaSigner struct {
+	EIP155Signer
+}
+
+func NewEnaSigner(chainId *big.Int) EnaSigner {
+	return EnaSigner{NewEIP155Signer(chainId)}
+}
+
+func (s EnaSigner) Equal(s2 Signer) bool {
+	ena, ok := s2.(EnaSigner)
+	return ok && ena.chainId.Cmp(s.chainId) == 0
+}
+
+func (s EnaSigner) Sender(tx *Transaction) (common.Address, error) {
+	switch tx.Type() {
+	case LegacyTxType:
+		return s.EIP155Signer.Sender(tx)
+	case SponsoredTxType:
+		if tx.ChainId().Cmp(s.chainId) != 0 {
+			return common.Address{}, ErrInvalidChainId
+		}
+		// V in sponsored signature is {0, 1}, but the recoverPlain expects
+		// {0, 1} + 27, so we need to add 27 to V
+		V, R, S := tx.RawSignatureValues()
+		V = new(big.Int).Add(V, big.NewInt(27))
+		return recoverPlain(s.Hash(tx), R, S, V, true)
+	default:
+		return common.Address{}, ErrTxTypeNotSupported
+	}
+}
+
+func (s EnaSigner) SignatureValues(tx *Transaction, sig []byte) (R, S, V *big.Int, err error) {
+	switch tx.Type() {
+	case LegacyTxType:
+		return s.EIP155Signer.SignatureValues(tx, sig)
+	case SponsoredTxType:
+		// V in sponsored signature is {0, 1}, get it directly from raw signature
+		// because decodeSignature returns {0, 1} + 27
+		R, S, _ := decodeSignature(sig)
+		V := big.NewInt(int64(sig[64]))
+		return R, S, V, nil
+	default:
+		return nil, nil, nil, ErrTxTypeNotSupported
+	}
+}
+
+func (s EnaSigner) Hash(tx *Transaction) common.Hash {
+	switch tx.Type() {
+	case LegacyTxType:
+		return s.EIP155Signer.Hash(tx)
+	case SponsoredTxType:
+		payerV, payerR, payerS := tx.RawPayerSignatureValues()
+		return prefixedRlpHash(
+			tx.Type(),
+			[]interface{}{
+				s.chainId,
+				tx.Nonce(),
+				tx.GasTipCap(),
+				tx.GasFeeCap(),
+				tx.Gas(),
+				tx.To(),
+				tx.Value(),
+				tx.Data(),
+				tx.ExpiredTime(),
+				payerV, payerR, payerS,
+			},
+		)
+	default:
+		return common.Hash{}
+	}
+}
+
+// updated version of payerInternal
+// a prefix is added to rlp encoded payer's signed data to avoid rlp encoding collision
+func prefixedPayerInternal(s Signer, tx *Transaction) (common.Address, error) {
+	if tx.Type() != SponsoredTxType {
+		return common.Address{}, ErrInvalidTxType
+	}
+
+	sender, err := Sender(s, tx)
+	if err != nil {
+		return common.Address{}, err
+	}
+
+	payerV, payerR, payerS := tx.RawPayerSignatureValues()
+	payerHash := prefixedRlpHash(
+		PayerInternalTxType,
+		[]interface{}{
+			tx.ChainId(), // The chainId is checked in Sender already
+			sender,
+			tx.Nonce(),
+			tx.GasTipCap(),
+			tx.GasFeeCap(),
+			tx.Gas(),
+			tx.To(),
+			tx.Value(),
+			tx.Data(),
+			tx.ExpiredTime(),
+		},
+	)
+
+	// V in payer signature is {0, 1}, but the recoverPlain expects
+	// {0, 1} + 27, so we need to add 27 to V
+	payerV = new(big.Int).Add(payerV, big.NewInt(27))
+	return recoverPlain(payerHash, payerR, payerS, payerV, true)
+}
+
+func (s EnaSigner) Payer(tx *Transaction) (common.Address, error) {
+	return prefixedPayerInternal(s, tx)
+}
+
 // EIP155Signer implements Signer using the EIP-155 rules. This accepts transactions which
 // are replay-protected as well as unprotected homestead transactions.
 type EIP155Signer struct {
@@ -581,7 +721,9 @@ func (s EIP155Signer) Hash(tx *Transaction) common.Hash {
 		tx.To(),
 		tx.Value(),
 		tx.Data(),
-		s.chainId, uint(0), uint(0),
+		s.chainId,
+		uint(0),
+		uint(0),
 	})
 }
 

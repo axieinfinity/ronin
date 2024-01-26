@@ -543,6 +543,7 @@ type ChainConfig struct {
 	AntennaBlock *big.Int `json:"antennaBlock,omitempty"` // AntennaBlock switch block (nil = no fork, 0 = already on activated)
 	// Miko hardfork introduces sponsored transactions
 	MikoBlock *big.Int `json:"mikoBlock,omitempty"` // Miko switch block (nil = no fork, 0 = already on activated)
+	EnaBlock  *big.Int `json:"enaBlock,omitempty"`  // Ena switch block (nil = no fork, 0 = already on activated)
 
 	BlacklistContractAddress           *common.Address `json:"blacklistContractAddress,omitempty"`           // Address of Blacklist Contract (nil = no blacklist)
 	FenixValidatorContractAddress      *common.Address `json:"fenixValidatorContractAddress,omitempty"`      // Address of Ronin Contract in the Fenix hardfork (nil = no blacklist)
@@ -816,6 +817,11 @@ func (c *ChainConfig) IsShillin(num *big.Int) bool {
 // IsMiko returns whether the num is equals to or larger than the miko fork block.
 func (c *ChainConfig) IsMiko(num *big.Int) bool {
 	return isForked(c.MikoBlock, num)
+}
+
+// IsEna returns whether the num is equals to or larger than the Ena fork block.
+func (c *ChainConfig) IsEna(num *big.Int) bool {
+	return isForked(c.EnaBlock, num)
 }
 
 // CheckCompatible checks whether scheduled fork transitions have been imported
