@@ -92,6 +92,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 
 	// Iterate over and process the individual transactions
 	// System transactions should be placed at the end of a block
+	isMiko := p.config.IsMiko(blockNumber)
 	isSystemTxsSection := false
 
 	for i, tx := range block.Transactions() {
@@ -105,7 +106,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 			}
 
 			// Common tx cannot appear after a system tx
-			if isSystemTxsSection {
+			if isMiko && isSystemTxsSection {
 				return nil, nil, nil, 0, ErrOutOfOrderSystemTx
 			}
 		}
