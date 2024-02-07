@@ -210,6 +210,12 @@ if [[ "$ENABLE_FAST_FINALITY_SIGN" = "true" ]]; then
   echo "Using BLS account $blsAccount"
 fi
 
+if [[ "$GENERATE_BLS_PROOF" = "true" ]]; then
+  ronin account generate-bls-proof \
+    --finality.blspasswordpath $BLS_PASSWORD_FILE \
+    --finality.blswalletpath $BLS_PRIVATE_KEY_DIR
+fi
+
 # bootnodes
 if [[ ! -z $BOOTNODES ]]; then
   params="$params --bootnodes $BOOTNODES"

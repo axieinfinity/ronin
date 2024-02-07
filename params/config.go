@@ -240,26 +240,30 @@ var (
 		},
 	}
 
-	RoninMainnetBlacklistContract             = common.HexToAddress("0x313b24994c93FA0471CB4D7aB796b07467041806")
-	RoninMainnetFenixValidatorContractAddress = common.HexToAddress("0x7f13232Bdc3a010c3f749a1c25bF99f1C053CE70")
-	RoninMainnetRoninValidatorSetAddress      = common.HexToAddress("0x617c5d73662282EA7FfD231E020eCa6D2B0D552f")
-	RoninMainnetSlashIndicatorAddress         = common.HexToAddress("0xEBFFF2b32fA0dF9C5C8C5d5AAa7e8b51d5207bA3")
-	RoninMainnetStakingContractAddress        = common.HexToAddress("0x545edb750eB8769C868429BE9586F5857A768758")
+	RoninMainnetBlacklistContract                  = common.HexToAddress("0x313b24994c93FA0471CB4D7aB796b07467041806")
+	RoninMainnetFenixValidatorContractAddress      = common.HexToAddress("0x7f13232Bdc3a010c3f749a1c25bF99f1C053CE70")
+	RoninMainnetRoninValidatorSetAddress           = common.HexToAddress("0x617c5d73662282EA7FfD231E020eCa6D2B0D552f")
+	RoninMainnetSlashIndicatorAddress              = common.HexToAddress("0xEBFFF2b32fA0dF9C5C8C5d5AAa7e8b51d5207bA3")
+	RoninMainnetStakingContractAddress             = common.HexToAddress("0x545edb750eB8769C868429BE9586F5857A768758")
+	RoninMainnetProfileContractAddress             = common.HexToAddress("0x840EBf1CA767CB690029E91856A357a43B85d035")
+	RoninMainnetFinalityTrackingAddress            = common.HexToAddress("0xA30B2932CD8b8A89E34551Cdfa13810af38dA576")
+	RoninMainnetWhiteListDeployerContractV2Address = common.HexToAddress("0xc1876d5C4BFAF0eE325E4226B2bdf216D9896AE1")
 
 	RoninMainnetChainConfig = &ChainConfig{
-		ChainID:                       big.NewInt(2020),
-		HomesteadBlock:                big.NewInt(0),
-		EIP150Block:                   big.NewInt(0),
-		EIP155Block:                   big.NewInt(0),
-		EIP158Block:                   big.NewInt(0),
-		ByzantiumBlock:                big.NewInt(0),
-		ConstantinopleBlock:           big.NewInt(0),
-		PetersburgBlock:               big.NewInt(0),
-		IstanbulBlock:                 big.NewInt(4977778),
-		OdysseusBlock:                 big.NewInt(10301597),
-		FenixBlock:                    big.NewInt(14938103),
-		BlacklistContractAddress:      &RoninMainnetBlacklistContract,
-		FenixValidatorContractAddress: &RoninMainnetFenixValidatorContractAddress,
+		ChainID:                            big.NewInt(2020),
+		HomesteadBlock:                     big.NewInt(0),
+		EIP150Block:                        big.NewInt(0),
+		EIP155Block:                        big.NewInt(0),
+		EIP158Block:                        big.NewInt(0),
+		ByzantiumBlock:                     big.NewInt(0),
+		ConstantinopleBlock:                big.NewInt(0),
+		PetersburgBlock:                    big.NewInt(0),
+		IstanbulBlock:                      big.NewInt(4977778),
+		OdysseusBlock:                      big.NewInt(10301597),
+		FenixBlock:                         big.NewInt(14938103),
+		BlacklistContractAddress:           &RoninMainnetBlacklistContract,
+		FenixValidatorContractAddress:      &RoninMainnetFenixValidatorContractAddress,
+		WhiteListDeployerContractV2Address: &RoninMainnetWhiteListDeployerContractV2Address,
 		Consortium: &ConsortiumConfig{
 			Period:  3,
 			Epoch:   600,
@@ -269,6 +273,8 @@ var (
 			RoninValidatorSet: RoninMainnetRoninValidatorSetAddress,
 			SlashIndicator:    RoninMainnetSlashIndicatorAddress,
 			StakingContract:   RoninMainnetStakingContractAddress,
+			ProfileContract:   RoninMainnetProfileContractAddress,
+			FinalityTracking:  RoninMainnetFinalityTrackingAddress,
 		},
 		ConsortiumV2Block: big.NewInt(23155200),
 		PuffyBlock:        big.NewInt(0),
@@ -276,18 +282,21 @@ var (
 		OlekBlock:         big.NewInt(24935500),
 		ShillinBlock:      big.NewInt(28825400),
 		AntennaBlock:      big.NewInt(28825400),
-		// TODO: Fill this
-		MikoBlock: nil,
+		MikoBlock:         big.NewInt(32367400),
+		RoninTrustedOrgUpgrade: &ContractUpgrade{
+			ProxyAddress:          common.HexToAddress("0x98D0230884448B3E2f09a177433D60fb1E19C090"),
+			ImplementationAddress: common.HexToAddress("0x59646258Ec25CC329f5ce93223e0A50ccfA3e885"),
+		},
 	}
 
-	RoninTestnetBlacklistContract             = common.HexToAddress("0xF53EED5210c9cF308abFe66bA7CF14884c95A8aC")
-	RoninTestnetFenixValidatorContractAddress = common.HexToAddress("0x1454cAAd1637b662432Bb795cD5773d21281eDAb")
-	RoninTestnetRoninValidatorSetAddress      = common.HexToAddress("0x54B3AC74a90E64E8dDE60671b6fE8F8DDf18eC9d")
-	RoninTestnetSlashIndicatorAddress         = common.HexToAddress("0xF7837778b6E180Df6696C8Fa986d62f8b6186752")
-	RoninTestnetStakingContractAddress        = common.HexToAddress("0x9C245671791834daf3885533D24dce516B763B28")
-	RoninTestnetProfileContractAddress        = common.HexToAddress("0x3b67c8D22a91572a6AB18acC9F70787Af04A4043")
-	RoninTestnetFinalityTrackingAddress       = common.HexToAddress("0x41aCDFe786171824a037f2Cd6224c5916A58969a")
-	RoninWhiteListDeployerContractV2Address   = common.HexToAddress("0x50a7e07Aa75eB9C04281713224f50403cA79851F")
+	RoninTestnetBlacklistContract                  = common.HexToAddress("0xF53EED5210c9cF308abFe66bA7CF14884c95A8aC")
+	RoninTestnetFenixValidatorContractAddress      = common.HexToAddress("0x1454cAAd1637b662432Bb795cD5773d21281eDAb")
+	RoninTestnetRoninValidatorSetAddress           = common.HexToAddress("0x54B3AC74a90E64E8dDE60671b6fE8F8DDf18eC9d")
+	RoninTestnetSlashIndicatorAddress              = common.HexToAddress("0xF7837778b6E180Df6696C8Fa986d62f8b6186752")
+	RoninTestnetStakingContractAddress             = common.HexToAddress("0x9C245671791834daf3885533D24dce516B763B28")
+	RoninTestnetProfileContractAddress             = common.HexToAddress("0x3b67c8D22a91572a6AB18acC9F70787Af04A4043")
+	RoninTestnetFinalityTrackingAddress            = common.HexToAddress("0x41aCDFe786171824a037f2Cd6224c5916A58969a")
+	RoninTestnetWhiteListDeployerContractV2Address = common.HexToAddress("0x50a7e07Aa75eB9C04281713224f50403cA79851F")
 
 	RoninTestnetChainConfig = &ChainConfig{
 		ChainID:                            big.NewInt(2021),
@@ -303,7 +312,7 @@ var (
 		FenixBlock:                         big.NewInt(6770400),
 		BlacklistContractAddress:           &RoninTestnetBlacklistContract,
 		FenixValidatorContractAddress:      &RoninTestnetFenixValidatorContractAddress,
-		WhiteListDeployerContractV2Address: &RoninWhiteListDeployerContractV2Address,
+		WhiteListDeployerContractV2Address: &RoninTestnetWhiteListDeployerContractV2Address,
 		Consortium: &ConsortiumConfig{
 			Period:  3,
 			Epoch:   30,
@@ -322,8 +331,11 @@ var (
 		OlekBlock:         big.NewInt(16849000),
 		ShillinBlock:      big.NewInt(20268000),
 		AntennaBlock:      big.NewInt(20737258),
-		// TODO: Fill this
-		MikoBlock: nil,
+		MikoBlock:         big.NewInt(23694400),
+		RoninTrustedOrgUpgrade: &ContractUpgrade{
+			ProxyAddress:          common.HexToAddress("0x7507dc433a98E1fE105d69f19f3B40E4315A4F32"),
+			ImplementationAddress: common.HexToAddress("0x6A51C2B073a6daDBeCAC1A420AFcA7788C81612f"),
+		},
 	}
 
 	// GoerliTrustedCheckpoint contains the light client trusted checkpoint for the Görli test network.
@@ -552,10 +564,16 @@ type ChainConfig struct {
 	TerminalTotalDifficulty *big.Int `json:"terminalTotalDifficulty,omitempty"`
 
 	// Various consensus engines
-	Ethash                *EthashConfig          `json:"ethash,omitempty"`
-	Clique                *CliqueConfig          `json:"clique,omitempty"`
-	Consortium            *ConsortiumConfig      `json:"consortium,omitempty"`
-	ConsortiumV2Contracts *ConsortiumV2Contracts `json:"consortiumV2Contracts"`
+	Ethash                 *EthashConfig          `json:"ethash,omitempty"`
+	Clique                 *CliqueConfig          `json:"clique,omitempty"`
+	Consortium             *ConsortiumConfig      `json:"consortium,omitempty"`
+	ConsortiumV2Contracts  *ConsortiumV2Contracts `json:"consortiumV2Contracts"`
+	RoninTrustedOrgUpgrade *ContractUpgrade       `json:"roninTrustedOrgUpgrade"`
+}
+
+type ContractUpgrade struct {
+	ProxyAddress          common.Address `json:"proxyAddress"`
+	ImplementationAddress common.Address `json:"implementationAddress"`
 }
 
 func (c *ChainConfig) GetChainID(blockNumber *big.Int) *big.Int {

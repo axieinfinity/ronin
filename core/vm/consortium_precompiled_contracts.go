@@ -31,6 +31,7 @@ const (
 	PickValidatorSet
 	GetDoubleSignSlashingConfig
 	ValidateFinalityVoteProof
+	ValidateProofOfPossession
 	NumOfAbis
 )
 
@@ -41,6 +42,7 @@ var (
 	rawConsortiumPickValidatorSetAbi   = `[{"inputs":[],"stateMutability":"nonpayable","type":"constructor"},{"inputs":[{"internalType":"address[]","name":"_candidates","type":"address[]"},{"internalType":"uint256[]","name":"_weights","type":"uint256[]"},{"internalType":"uint256[]","name":"_trustedWeights","type":"uint256[]"},{"internalType":"uint256","name":"_maxValidatorNumber","type":"uint256"},{"internalType":"uint256","name":"_maxPrioritizedValidatorNumber","type":"uint256"}],"name":"pickValidatorSet","outputs":[{"internalType":"address[]","name":"_validators","type":"address[]"}],"stateMutability":"view","type":"function"}]`
 	rawGetDoubleSignSlashingConfigsAbi = `[{"inputs":[],"name":"getDoubleSignSlashingConfigs","outputs":[{"internalType":"uint256","name":"","type":"uint256"},{"internalType":"uint256","name":"","type":"uint256"},{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"}]`
 	rawValidateFinalityVoteProofAbi    = `[{"inputs":[{"internalType":"bytes","name":"voterPublicKey","type":"bytes"},{"internalType":"uint256","name":"targetBlockNumber","type":"uint256"},{"internalType":"bytes32[2]","name":"targetBlockHash","type":"bytes32[2]"},{"internalType":"bytes[][2]","name":"listOfPublicKey","type":"bytes[][2]"},{"internalType":"bytes[2]","name":"aggregatedSignature","type":"bytes[2]"}],"name":"validateFinalityVoteProof","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"view","type":"function"}]`
+	rawValidateProofOfPossessionAbi    = `[{"inputs":[{"internalType":"bytes","name":"publicKey","type":"bytes"},{"internalType":"bytes","name":"signature","type":"bytes"}],"name":"validateProofOfPossession","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"view","type":"function"}]`
 
 	rawABIs = [NumOfAbis]string{
 		LogContract:                 rawConsortiumLogAbi,
@@ -49,6 +51,7 @@ var (
 		PickValidatorSet:            rawConsortiumPickValidatorSetAbi,
 		GetDoubleSignSlashingConfig: rawGetDoubleSignSlashingConfigsAbi,
 		ValidateFinalityVoteProof:   rawValidateFinalityVoteProofAbi,
+		ValidateProofOfPossession:   rawValidateProofOfPossessionAbi,
 	}
 
 	unmarshalledABIs = [NumOfAbis]*abi.ABI{}
@@ -66,6 +69,7 @@ const (
 	extraVanity                  = 32
 
 	validateFinalityVoteProof = "validateFinalityVoteProof"
+	validateProofOfPossession = "validateProofOfPossession"
 	maxBlsPublicKeyListLength = 100
 )
 
@@ -88,6 +92,12 @@ func PrecompiledContractsConsortium(caller ContractRef, evm *EVM) map[common.Add
 		common.BytesToAddress([]byte{104}): &consortiumPickValidatorSet{caller: caller, evm: evm},
 		common.BytesToAddress([]byte{105}): &consortiumValidateFinalityProof{caller: caller, evm: evm},
 	}
+}
+
+func PrecompiledContractsConsortiumMiko(caller ContractRef, evm *EVM) map[common.Address]PrecompiledContract {
+	contracts := PrecompiledContractsConsortium(caller, evm)
+	contracts[common.BytesToAddress([]byte{106})] = &consortiumValidateProofOfPossession{caller: caller, evm: evm}
+	return contracts
 }
 
 type consortiumLog struct{}
@@ -708,6 +718,57 @@ func (contract *consortiumValidateFinalityProof) Run(input []byte) ([]byte, erro
 		if !aggregatedSignature[block].FastAggregateVerify(listOfPublicKey[block], digest) {
 			return nil, errors.New("failed to verify signature")
 		}
+	}
+
+	return method.Outputs.Pack(true)
+}
+
+type consortiumValidateProofOfPossession struct {
+	caller ContractRef
+	evm    *EVM
+}
+
+func (contract *consortiumValidateProofOfPossession) RequiredGas(input []byte) uint64 {
+	return params.ValidateProofOfPossession
+}
+
+func (contract *consortiumValidateProofOfPossession) Run(input []byte) ([]byte, error) {
+	if err := isSystemContractCaller(contract.caller, contract.evm); err != nil {
+		return nil, err
+	}
+	_, method, args, err := loadMethodAndArgs(ValidateProofOfPossession, input)
+	if err != nil {
+		return nil, err
+	}
+	if method.Name != validateProofOfPossession {
+		return nil, errors.New("invalid method")
+	}
+	if len(args) != 2 {
+		return nil, fmt.Errorf("invalid arguments, expect 2 got %d", len(args))
+	}
+
+	rawPublicKey, ok := args[0].([]byte)
+	if !ok {
+		return nil, errors.New("invalid voter public key")
+	}
+
+	rawSignature, ok := args[1].([]byte)
+	if !ok {
+		return nil, errors.New("invalid proof signature")
+	}
+
+	blsPublicKey, err := blst.PublicKeyFromBytes(rawPublicKey)
+	if err != nil {
+		return nil, errors.New("malformed voter public key")
+	}
+
+	blsSignature, err := blst.SignatureFromBytes(rawSignature)
+	if err != nil {
+		return nil, errors.New("malformed proof signature")
+	}
+
+	if !blsSignature.VerifyProof(blsPublicKey, rawPublicKey) {
+		return nil, errors.New("invalid possession proof")
 	}
 
 	return method.Outputs.Pack(true)

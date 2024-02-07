@@ -5,6 +5,7 @@ package blst
 import (
 	"crypto/subtle"
 	"fmt"
+
 	"github.com/ethereum/go-ethereum/crypto/bls/common"
 	"github.com/ethereum/go-ethereum/crypto/rand"
 	"github.com/ethereum/go-ethereum/params"
@@ -72,7 +73,13 @@ func IsZero(sKey []byte) bool {
 // In Ethereum proof of stake specification:
 // def Sign(SK: int, message: Bytes) -> BLSSignature
 func (s *bls12SecretKey) Sign(msg []byte) common.Signature {
-	signature := new(blstSignature).Sign(s.p, msg, dst)
+	signature := new(blstSignature).Sign(s.p, msg, sigDst)
+	return &Signature{s: signature}
+}
+
+// SignProof is the same as Sign but use different domain separation tag
+func (s *bls12SecretKey) SignProof(msg []byte) common.Signature {
+	signature := new(blstSignature).Sign(s.p, msg, pubDst)
 	return &Signature{s: signature}
 }
 

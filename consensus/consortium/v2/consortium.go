@@ -58,6 +58,10 @@ var (
 
 	diffInTurn = big.NewInt(7) // Block difficulty for in-turn signatures
 	diffNoTurn = big.NewInt(3) // Block difficulty for out-of-turn signatures
+
+	// The proxy contract's implementation slot
+	// https://github.com/OpenZeppelin/openzeppelin-contracts-upgradeable/blob/v4.7.3/contracts/proxy/ERC1967/ERC1967UpgradeUpgradeable.sol#L34
+	implementationSlot = common.HexToHash("360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc")
 )
 
 var (
@@ -840,6 +844,17 @@ func (c *Consortium) processSystemTransactions(chain consensus.ChainHeaderReader
 	return nil
 }
 
+func (c *Consortium) upgradeRoninTrustedOrg(blockNumber *big.Int, state *state.StateDB) {
+	// The upgrade only happens in 1 block: Miko hardfork block
+	if c.chainConfig.MikoBlock != nil && c.chainConfig.MikoBlock.Cmp(blockNumber) == 0 {
+		state.SetState(
+			c.chainConfig.RoninTrustedOrgUpgrade.ProxyAddress,
+			implementationSlot,
+			c.chainConfig.RoninTrustedOrgUpgrade.ImplementationAddress.Hash(),
+		)
+	}
+}
+
 // Finalize implements consensus.Engine that calls three methods from smart contracts:
 // - WrapUpEpoch at epoch to distribute rewards and sort the validators set
 // - Slash the validator who does not sign if it is in-turn
@@ -901,6 +916,7 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 	if err := c.processSystemTransactions(chain, header, transactOpts, false); err != nil {
 		return err
 	}
+	c.upgradeRoninTrustedOrg(header.Number, state)
 	if len(*transactOpts.EVMContext.InternalTransactions) > 0 {
 		*internalTxs = append(*internalTxs, *transactOpts.EVMContext.InternalTransactions...)
 	}
@@ -946,6 +962,7 @@ func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, head
 	if err := c.processSystemTransactions(chain, header, transactOpts, true); err != nil {
 		return nil, nil, err
 	}
+	c.upgradeRoninTrustedOrg(header.Number, state)
 
 	// should not happen. Once happen, stop the node is better than broadcast the block
 	if header.GasLimit < header.GasUsed {

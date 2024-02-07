@@ -75,6 +75,7 @@ var allPrecompiles = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{103}):  &consortiumVerifyHeaders{test: true},
 	common.BytesToAddress([]byte{104}):  &consortiumPickValidatorSet{},
 	common.BytesToAddress([]byte{105}):  &consortiumValidateFinalityProof{},
+	common.BytesToAddress([]byte{106}):  &consortiumValidateProofOfPossession{},
 }
 
 // EIP-152 test vectors
