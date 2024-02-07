@@ -5,8 +5,9 @@ package blst
 import (
 	"bytes"
 	"fmt"
-	"github.com/ethereum/go-ethereum/params"
 	"sync"
+
+	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum/go-ethereum/crypto/bls/common"
 	"github.com/ethereum/go-ethereum/crypto/rand"
@@ -14,7 +15,10 @@ import (
 	blst "github.com/supranational/blst/bindings/go"
 )
 
-var dst = []byte("BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_POP_")
+var (
+	sigDst = []byte("BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_POP_")
+	pubDst = []byte("BLS_POP_BLS12381G2_XMD:SHA-256_SSWU_RO_POP_")
+)
 
 const scalarBytes = 32
 const randBitsEntropy = 64
@@ -93,7 +97,13 @@ func MultipleSignaturesFromBytes(multiSigs [][]byte) ([]common.Signature, error)
 // def Verify(PK: BLSPubkey, message: Bytes, signature: BLSSignature) -> bool
 func (s *Signature) Verify(pubKey common.PublicKey, msg []byte) bool {
 	// Signature and PKs are assumed to have been validated upon decompression!
-	return s.s.Verify(false, pubKey.(*PublicKey).p, false, msg, dst)
+	return s.s.Verify(false, pubKey.(*PublicKey).p, false, msg, sigDst)
+}
+
+// VerifyProof is the same as Verify but use different domain separation tag
+func (s *Signature) VerifyProof(pubKey common.PublicKey, msg []byte) bool {
+	// Signature and PKs are assumed to have been validated upon decompression!
+	return s.s.Verify(false, pubKey.(*PublicKey).p, false, msg, pubDst)
 }
 
 // AggregateVerify verifies each public key against its respective message. This is vulnerable to
@@ -129,7 +139,7 @@ func (s *Signature) AggregateVerify(pubKeys []common.PublicKey, msgs [][32]byte)
 		rawKeys[i] = pubKeys[i].(*PublicKey).p
 	}
 	// Signature and PKs are assumed to have been validated upon decompression!
-	return s.s.AggregateVerify(false, rawKeys, false, msgSlices, dst)
+	return s.s.AggregateVerify(false, rawKeys, false, msgSlices, sigDst)
 }
 
 // FastAggregateVerify verifies all the provided public keys with their aggregated signature.
@@ -151,7 +161,7 @@ func (s *Signature) FastAggregateVerify(pubKeys []common.PublicKey, msg [32]byte
 	for i := 0; i < len(pubKeys); i++ {
 		rawKeys[i] = pubKeys[i].(*PublicKey).p
 	}
-	return s.s.FastAggregateVerify(true, rawKeys, msg[:], dst)
+	return s.s.FastAggregateVerify(true, rawKeys, msg[:], sigDst)
 }
 
 // Eth2FastAggregateVerify implements a wrapper on top of bls's FastAggregateVerify. It accepts G2_POINT_AT_INFINITY signature
@@ -175,7 +185,7 @@ func (s *Signature) Eth2FastAggregateVerify(pubKeys []common.PublicKey, msg [32]
 
 // NewAggregateSignature creates a blank aggregate signature.
 func NewAggregateSignature() common.Signature {
-	sig := blst.HashToG2([]byte{'m', 'o', 'c', 'k'}, dst).ToAffine()
+	sig := blst.HashToG2([]byte{'m', 'o', 'c', 'k'}, sigDst).ToAffine()
 	return &Signature{s: sig}
 }
 
@@ -247,7 +257,7 @@ func VerifyMultipleSignatures(sigs [][]byte, msgs [][32]byte, pubKeys []common.P
 	dummySig := new(blstSignature)
 
 	// Validate signatures since we uncompress them here. Public keys should already be validated.
-	return dummySig.MultipleAggregateVerify(rawSigs, true, mulP1Aff, false, rawMsgs, dst, randFunc, randBitsEntropy), nil
+	return dummySig.MultipleAggregateVerify(rawSigs, true, mulP1Aff, false, rawMsgs, sigDst, randFunc, randBitsEntropy), nil
 }
 
 // Marshal a signature into a LittleEndian byte slice.
@@ -265,5 +275,5 @@ func (s *Signature) Copy() common.Signature {
 // are valid from the message provided.
 func VerifyCompressed(signature, pub, msg []byte) bool {
 	// Validate signature and PKs since we will uncompress them here
-	return new(blstSignature).VerifyCompressed(signature, true, pub, true, msg, dst)
+	return new(blstSignature).VerifyCompressed(signature, true, pub, true, msg, sigDst)
 }

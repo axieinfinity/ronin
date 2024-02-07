@@ -260,6 +260,24 @@ The keyfile is assumed to contain an unencrypted private key in hexadecimal form
 				},
 				Description: `ronin account generatebls [--secret]`,
 			},
+			{
+				Name:   "generate-bls-proof",
+				Usage:  "Generate BLS proof of possession",
+				Action: utils.MigrateFlags(blsProofGenerate),
+				Flags: []cli.Flag{
+					utils.BlsWalletPath,
+					utils.BlsPasswordPath,
+				},
+				ArgsUsage: "[keyFile]",
+				Description: `
+    ronin account generate-bls-proof [keyFile] [--finality.blswalletpath walletpath] [--finality.blspasswordpath passwordpath]
+
+Generate proof from keyfile or stored encrypted wallet
+
+The keyfile is assumed to contain an unencrypted private key in hexadecimal format.
+You must input either keyfile or a pair of walletpath and passwordpath.
+`,
+			},
 		},
 	}
 )
@@ -490,7 +508,7 @@ func loadKeyManager(ctx *cli.Context) (*bls.KeyManager, []blsCommon.PublicKey, e
 func loadBlsSecretKey(ctx *cli.Context) (blsCommon.SecretKey, error) {
 	keyfile := ctx.Args().First()
 	if len(keyfile) == 0 {
-		utils.Fatalf("keyfile must be given as argument")
+		return nil, fmt.Errorf("keyfile must be given as argument")
 	}
 
 	secretKeyHex, err := ioutil.ReadFile(keyfile)
@@ -623,6 +641,43 @@ func blsAccountGenerate(ctx *cli.Context) error {
 
 	if ctx.Bool("secret") {
 		fmt.Printf("Secret key: {%x}\n", secretKey.Marshal())
+	}
+
+	return nil
+}
+
+func blsProofGenerate(ctx *cli.Context) error {
+	var (
+		keyManager *bls.KeyManager
+		secretKeys []blsCommon.SecretKey
+	)
+
+	secretKey, err := loadBlsSecretKey(ctx)
+	if err != nil {
+		keyManager, _, err = loadKeyManager(ctx)
+		if err != nil {
+			utils.Fatalf("Either keyfile or path to wallet must be provided, err: %s", err)
+		}
+		rawSecretKeys, err := keyManager.FetchValidatingSecretKeys(context.Background())
+		if err != nil {
+			utils.Fatalf("Failed to fetch BLS secret key, err %s", err)
+		}
+		for _, rawSecretKey := range rawSecretKeys {
+			secretKey, err := blst.SecretKeyFromBytes(rawSecretKey[:])
+			if err != nil {
+				utils.Fatalf("Failed to decode BLS secret key, err %s", err)
+			}
+			secretKeys = append(secretKeys, secretKey)
+		}
+	} else {
+		secretKeys = append(secretKeys, secretKey)
+	}
+
+	for i, secretKey := range secretKeys {
+		rawPublicKey := secretKey.PublicKey().Marshal()
+		proof := secretKey.SignProof(rawPublicKey)
+		fmt.Printf("BLS public key #%d: {%x}\n", i, rawPublicKey)
+		fmt.Printf("BLS proof #%d: {%x}\n", i, proof.Marshal())
 	}
 
 	return nil
