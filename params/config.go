@@ -282,11 +282,10 @@ var (
 		OlekBlock:         big.NewInt(24935500),
 		ShillinBlock:      big.NewInt(28825400),
 		AntennaBlock:      big.NewInt(28825400),
-		// TODO: Fill this
-		MikoBlock: nil,
+		MikoBlock:         big.NewInt(32367400),
 		RoninTrustedOrgUpgrade: &ContractUpgrade{
 			ProxyAddress:          common.HexToAddress("0x98D0230884448B3E2f09a177433D60fb1E19C090"),
-			ImplementationAddress: common.HexToAddress(""),
+			ImplementationAddress: common.HexToAddress("0x59646258Ec25CC329f5ce93223e0A50ccfA3e885"),
 		},
 	}
 
@@ -332,11 +331,10 @@ var (
 		OlekBlock:         big.NewInt(16849000),
 		ShillinBlock:      big.NewInt(20268000),
 		AntennaBlock:      big.NewInt(20737258),
-		// TODO: Fill this
-		MikoBlock: nil,
+		MikoBlock:         big.NewInt(23694400),
 		RoninTrustedOrgUpgrade: &ContractUpgrade{
 			ProxyAddress:          common.HexToAddress("0x7507dc433a98E1fE105d69f19f3B40E4315A4F32"),
-			ImplementationAddress: common.HexToAddress(""),
+			ImplementationAddress: common.HexToAddress("0x6A51C2B073a6daDBeCAC1A420AFcA7788C81612f"),
 		},
 	}
 
