@@ -177,6 +177,7 @@ var (
 		utils.BlsWalletPath,
 		utils.DisableRoninProtocol,
 		utils.AdditionalChainEventFlag,
+		utils.DBEngineFlag,
 	}
 
 	rpcFlags = []cli.Flag{
