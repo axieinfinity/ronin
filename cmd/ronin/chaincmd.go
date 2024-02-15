@@ -49,6 +49,7 @@ var (
 		ArgsUsage: "<genesisPath>",
 		Flags: []cli.Flag{
 			utils.DataDirFlag,
+			utils.DBEngineFlag,
 			utils.ForceOverrideChainConfigFlag,
 		},
 		Category: "BLOCKCHAIN COMMANDS",
@@ -82,6 +83,7 @@ The dumpgenesis command dumps the genesis block configuration in JSON format to 
 		ArgsUsage: "<filename> (<filename 2> ... <filename N>) ",
 		Flags: []cli.Flag{
 			utils.DataDirFlag,
+			utils.DBEngineFlag,
 			utils.CacheFlag,
 			utils.SyncModeFlag,
 			utils.GCModeFlag,
@@ -119,6 +121,7 @@ processing will proceed even if an individual RLP-file import failure occurs.`,
 		ArgsUsage: "<filename> [<blockNumFirst> <blockNumLast>]",
 		Flags: []cli.Flag{
 			utils.DataDirFlag,
+			utils.DBEngineFlag,
 			utils.CacheFlag,
 			utils.SyncModeFlag,
 		},
@@ -137,6 +140,7 @@ be gzipped.`,
 		ArgsUsage: "<datafile>",
 		Flags: []cli.Flag{
 			utils.DataDirFlag,
+			utils.DBEngineFlag,
 			utils.CacheFlag,
 			utils.SyncModeFlag,
 		},
@@ -153,6 +157,7 @@ It's deprecated, please use "geth db import" instead.
 		ArgsUsage: "<dumpfile>",
 		Flags: []cli.Flag{
 			utils.DataDirFlag,
+			utils.DBEngineFlag,
 			utils.CacheFlag,
 			utils.SyncModeFlag,
 		},
@@ -169,6 +174,7 @@ It's deprecated, please use "geth db export" instead.
 		ArgsUsage: "[? <blockHash> | <blockNum>]",
 		Flags: []cli.Flag{
 			utils.DataDirFlag,
+			utils.DBEngineFlag,
 			utils.CacheFlag,
 			utils.IterativeOutputFlag,
 			utils.ExcludeCodeFlag,

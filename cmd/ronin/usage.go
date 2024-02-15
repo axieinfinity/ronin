@@ -61,6 +61,7 @@ var AppHelpFlagGroups = []flags.FlagGroup{
 			utils.StoreInternalTransactions,
 			utils.DisableRoninProtocol,
 			utils.AdditionalChainEventFlag,
+			utils.DBEngineFlag,
 		},
 	},
 	{

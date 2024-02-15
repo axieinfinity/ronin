@@ -207,6 +207,8 @@ type Config struct {
 	// The path of password and encrypted BLS secret key used for fast finality voting
 	BlsPasswordPath string
 	BlsWalletPath   string
+
+	DBEngine string `toml:",omitempty"`
 }
 
 // IPCEndpoint resolves an IPC endpoint based on a configured value, taking into
