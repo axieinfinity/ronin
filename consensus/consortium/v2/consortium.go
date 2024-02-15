@@ -398,8 +398,15 @@ func (c *Consortium) verifyCascadingFields(chain consensus.ChainHeaderReader, he
 		return err
 	}
 
-	// Retrieve the snapshot needed to verify this header and cache it
-	snap, err := c.snapshot(chain, number-1, header.ParentHash, parents)
+	var (
+		snap *Snapshot
+		err  error
+	)
+	if number == c.forkedBlock {
+		snap, err = c.snapshotAtConsortiumFork(chain, number-1, header.ParentHash, header, parents)
+	} else {
+		snap, err = c.snapshot(chain, number-1, header.ParentHash, parents)
+	}
 	if err != nil {
 		return err
 	}
@@ -409,6 +416,53 @@ func (c *Consortium) verifyCascadingFields(chain consensus.ChainHeaderReader, he
 
 	// All basic checks passed, verify the seal and return
 	return c.verifySeal(chain, header, parents, snap)
+}
+
+// snapshotAtConsortiumFork is expected to have to the same
+// behavior as snapshot. However, the validator list is read from
+// header instead of statedb to support snap sync. We try to keep
+// the snapshot function unchanged to minimize the changing effect.
+func (c *Consortium) snapshotAtConsortiumFork(
+	chain consensus.ChainHeaderReader,
+	number uint64,
+	hash common.Hash,
+	forkedHeader *types.Header,
+	parents []*types.Header,
+) (*Snapshot, error) {
+	var validators []common.Address
+
+	snap, err := loadSnapshot(c.config, c.signatures, c.db, hash, c.ethAPI, c.chainConfig)
+	if err == nil {
+		log.Trace("Loaded snapshot from disk", "number", number, "hash", hash.Hex())
+		return snap, nil
+	}
+
+	extraData, err := finality.DecodeExtra(forkedHeader.Extra, false)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, validator := range extraData.CheckpointValidators {
+		validators = append(validators, validator.Address)
+	}
+
+	snap = newSnapshot(c.chainConfig, c.config, c.signatures, number, hash, validators, nil, c.ethAPI)
+
+	// load v1 recent list to prevent recent producing-block-validators produce block again
+	snapV1 := c.v1.GetSnapshot(chain, number, hash, parents)
+	if snapV1 == nil {
+		return nil, errors.New("snapshot v1 is not available")
+	}
+
+	snap.Recents = consortiumCommon.RemoveOutdatedRecents(snapV1.Recents, number)
+
+	if err := snap.store(c.db); err != nil {
+		return nil, err
+	}
+	log.Info("Stored checkpoint snapshot to disk", "number", number, "hash", hash)
+	figure.NewColorFigure("Welcome to DPOS", "", "green", true).Print()
+
+	return snap, nil
 }
 
 // snapshot retrieves the authorization snapshot at a given point in time.
@@ -462,7 +516,7 @@ func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, 
 			snap = newSnapshot(c.chainConfig, c.config, c.signatures, number, hash, validators, nil, c.ethAPI)
 
 			// load v1 recent list to prevent recent producing-block-validators produce block again
-			snapV1 := c.v1.GetSnapshot(chain, number, parents)
+			snapV1 := c.v1.GetSnapshot(chain, number, hash, parents)
 
 			// NOTE(linh): In version 1, the snapshot is not used correctly, so we must clean up
 			// 	incorrect data in the recent list before going to version 2
