@@ -297,7 +297,7 @@ func ApplyTransaction(msg types.Message, opts *ApplyTransactOpts) (err error) {
 
 	signer := opts.Signer
 	signTxFn := opts.SignTxFn
-	miner := opts.Header.Coinbase
+	coinbase := opts.Header.Coinbase
 	mining := opts.Mining
 	chainConfig := opts.ChainConfig
 	receivedTxs := opts.ReceivedTxs
@@ -316,7 +316,11 @@ func ApplyTransaction(msg types.Message, opts *ApplyTransactOpts) (err error) {
 		return fmt.Errorf("%w: address %v, codehash: %s", core.ErrSenderNoEOA, sender.Hex(), codeHash)
 	}
 
-	if msg.From() == miner && mining {
+	if sender != coinbase {
+		return fmt.Errorf("sender of system transaction is not coinbase, sender: %s, coinbase: %s", sender, coinbase)
+	}
+
+	if mining {
 		expectedTx, err = signTxFn(accounts.Account{Address: msg.From()}, expectedTx, chainConfig.ChainID)
 		if err != nil {
 			return err
