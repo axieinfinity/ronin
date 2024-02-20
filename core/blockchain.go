@@ -1675,7 +1675,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, er
 		)
 		for block != nil && bc.skipBlock(err, it) {
 			externTd = new(big.Int).Add(externTd, block.Difficulty())
-			if bc.reorgNeeded(current, localTd, block, externTd) {
+			if localTd.Cmp(externTd) < 0 && bc.reorgNeeded(current, localTd, block, externTd) {
 				break
 			}
 			log.Debug("Ignoring already known block", "number", block.Number(), "hash", block.Hash())
