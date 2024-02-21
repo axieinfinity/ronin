@@ -27,6 +27,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 // nonceHeap is a heap.Interface implementation over 64bit unsigned integers for
@@ -258,18 +259,24 @@ type txList struct {
 	totalcost *big.Int               // Total cost of all transactions in the list
 	signer    types.Signer           // The signer of the transaction pool
 	payers    map[common.Address]int // The reference count of payers
+
+	// This is only used in pending txList. This is a pointer to txpool's
+	// total cost of all pending transactions for each payer (sum of all
+	// txlist's payercost)
+	txpoolPayerCost map[common.Address]*big.Int
 }
 
 // newTxList create a new transaction list for maintaining nonce-indexable fast,
 // gapped, sortable transaction lists.
-func newTxList(strict bool, signer types.Signer) *txList {
+func newTxList(strict bool, signer types.Signer, txpoolPayerCost map[common.Address]*big.Int) *txList {
 	return &txList{
-		strict:    strict,
-		txs:       newTxSortedMap(),
-		costcap:   new(big.Int),
-		totalcost: new(big.Int),
-		signer:    signer,
-		payers:    make(map[common.Address]int),
+		strict:          strict,
+		txs:             newTxSortedMap(),
+		costcap:         new(big.Int),
+		totalcost:       new(big.Int),
+		signer:          signer,
+		payers:          make(map[common.Address]int),
+		txpoolPayerCost: txpoolPayerCost,
 	}
 }
 
@@ -318,11 +325,8 @@ func (l *txList) Add(tx *types.Transaction, priceBump uint64) (bool, *types.Tran
 			return false, nil
 		}
 		// Old is being replaced, subtract old cost
-		l.subTotalCost([]*types.Transaction{old})
-		l.removePayer([]*types.Transaction{old})
+		l.removeTx([]*types.Transaction{old})
 	}
-	// Add new tx cost to totalcost
-	l.totalcost.Add(l.totalcost, tx.Cost())
 	// Otherwise overwrite the old transaction with the current one
 	l.txs.Put(tx)
 	if cost := tx.Cost(); l.costcap.Cmp(cost) < 0 {
@@ -331,22 +335,56 @@ func (l *txList) Add(tx *types.Transaction, priceBump uint64) (bool, *types.Tran
 	if gas := tx.Gas(); l.gascap < gas {
 		l.gascap = gas
 	}
-	payer, err := types.Payer(l.signer, tx)
-	if err == nil {
-		l.payers[payer]++
+	if tx.Type() == types.SponsoredTxType {
+		payer, err := types.Payer(l.signer, tx)
+		if err != nil {
+			log.Error("Failed to get payer from sponsored transaction", "err", err)
+		} else {
+			l.payers[payer]++
+			if l.txpoolPayerCost != nil {
+				gasFee := new(big.Int).Mul(tx.GasFeeCap(), new(big.Int).SetUint64(tx.Gas()))
+				if l.txpoolPayerCost[payer] != nil {
+					l.txpoolPayerCost[payer].Add(l.txpoolPayerCost[payer], gasFee)
+				} else {
+					l.txpoolPayerCost[payer] = gasFee
+				}
+			}
+
+			// Add new tx value to sender's total cost
+			l.totalcost.Add(l.totalcost, tx.Value())
+		}
+	} else {
+		// Add new tx cost to totalcost
+		l.totalcost.Add(l.totalcost, tx.Cost())
 	}
+
 	return true, old
+}
+
+// removeTx updates the tracking fields in txList after
+// removing those transactions
+func (l *txList) removeTx(removed types.Transactions) {
+	l.removePayer(removed)
+	l.subTotalCost(removed)
 }
 
 // removePayer decrease the reference count of payers in the list
 // and remove the payer if the reference count reaches 0
 func (l *txList) removePayer(removed types.Transactions) {
 	for _, removedTx := range removed {
-		payer, err := types.Payer(l.signer, removedTx)
-		if err == nil {
+		if removedTx.Type() == types.SponsoredTxType {
+			payer, _ := types.Payer(l.signer, removedTx)
 			l.payers[payer]--
 			if l.payers[payer] == 0 {
 				delete(l.payers, payer)
+			}
+
+			if l.txpoolPayerCost != nil {
+				gasFee := new(big.Int).Mul(removedTx.GasFeeCap(), new(big.Int).SetUint64(removedTx.Gas()))
+				balance := l.txpoolPayerCost[payer].Sub(l.txpoolPayerCost[payer], gasFee)
+				if balance.Cmp(common.Big0) == 0 {
+					delete(l.txpoolPayerCost, payer)
+				}
 			}
 		}
 	}
@@ -357,8 +395,7 @@ func (l *txList) removePayer(removed types.Transactions) {
 // maintenance.
 func (l *txList) Forward(threshold uint64) types.Transactions {
 	removed := l.txs.Forward(threshold)
-	l.removePayer(removed)
-	l.subTotalCost(removed)
+	l.removeTx(removed)
 	return removed
 }
 
@@ -421,11 +458,9 @@ func (l *txList) Filter(
 		invalids = l.txs.filter(func(tx *types.Transaction) bool { return tx.Nonce() > lowest })
 	}
 	// Reset total cost
-	l.subTotalCost(removed)
-	l.subTotalCost(invalids)
+	l.removeTx(removed)
+	l.removeTx(invalids)
 	l.txs.reheap()
-	l.removePayer(removed)
-	l.removePayer(invalids)
 	return removed, invalids
 }
 
@@ -433,8 +468,7 @@ func (l *txList) Filter(
 // exceeding that limit.
 func (l *txList) Cap(threshold int) types.Transactions {
 	removed := l.txs.Cap(threshold)
-	l.removePayer(removed)
-	l.subTotalCost(removed)
+	l.removeTx(removed)
 	return removed
 }
 
@@ -453,12 +487,10 @@ func (l *txList) Remove(tx *types.Transaction) (bool, types.Transactions) {
 	if l.strict {
 		filteredTx := l.txs.Filter(func(tx *types.Transaction) bool { return tx.Nonce() > nonce })
 		removed = append(removed, filteredTx...)
-		l.removePayer(removed)
-		l.subTotalCost(removed)
+		l.removeTx(removed)
 		return true, filteredTx
 	}
-	l.removePayer(removed)
-	l.subTotalCost(removed)
+	l.removeTx(removed)
 	return true, nil
 }
 
@@ -471,8 +503,7 @@ func (l *txList) Remove(tx *types.Transaction) (bool, types.Transactions) {
 // happen but better to be self correcting than failing!
 func (l *txList) Ready(start uint64) types.Transactions {
 	removed := l.txs.Ready(start)
-	l.removePayer(removed)
-	l.subTotalCost(removed)
+	l.removeTx(removed)
 	return removed
 }
 
@@ -514,7 +545,12 @@ func (l *txList) Payers() []common.Address {
 // total cost of all transactions.
 func (l *txList) subTotalCost(txs []*types.Transaction) {
 	for _, tx := range txs {
-		l.totalcost.Sub(l.totalcost, tx.Cost())
+		if tx.Type() == types.SponsoredTxType {
+			// In sponsored transaction, only the msg.value is paid by sender
+			l.totalcost.Sub(l.totalcost, tx.Value())
+		} else {
+			l.totalcost.Sub(l.totalcost, tx.Cost())
+		}
 	}
 }
 

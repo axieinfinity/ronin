@@ -150,17 +150,38 @@ func TestTransactionZAttack(t *testing.T) {
 	blockchain := &testBlockChain{1000000, statedb, new(event.Feed)}
 	pool := NewTxPool(testTxPoolConfig, eip1559Config, blockchain)
 	defer pool.Stop()
+	mikoSigner := types.NewMikoSigner(common.Big1)
 	// Create a number of test accounts, fund them and make transactions
 	fillPool(t, pool)
 
 	countInvalidPending := func() int {
 		t.Helper()
-		var ivpendingNum int
+		var (
+			ivpendingNum int
+			payerBalance = make(map[common.Address]*big.Int)
+		)
 		pendingtxs, _ := pool.Content()
 		for account, txs := range pendingtxs {
 			cur_balance := new(big.Int).Set(pool.currentState.GetBalance(account))
 			for _, tx := range txs {
-				if cur_balance.Cmp(tx.Value()) <= 0 {
+				if tx.Type() == types.SponsoredTxType {
+					payer, err := types.Payer(mikoSigner, tx)
+					if err != nil {
+						t.Fatal(err)
+					}
+
+					if payerBalance[payer] == nil {
+						payerBalance[payer] = new(big.Int).Set(pool.currentState.GetBalance(payer))
+					}
+					gasFee := new(big.Int).Mul(tx.GasFeeCap(), new(big.Int).SetUint64(tx.Gas()))
+					if payerBalance[payer].Cmp(gasFee) < 0 {
+						ivpendingNum++
+					} else {
+						payerBalance[payer].Sub(payerBalance[payer], gasFee)
+					}
+				}
+
+				if cur_balance.Cmp(tx.Value()) < 0 {
 					ivpendingNum++
 				} else {
 					cur_balance.Sub(cur_balance, tx.Value())
@@ -206,7 +227,107 @@ func TestTransactionZAttack(t *testing.T) {
 
 	// Pending should not have been touched
 	if newIvPending != ivPending {
-		t.Errorf("Wrong invalid pending-count, have %d, want %d (GlobalSlots: %d, queued: %d)",
+		t.Fatalf("Wrong invalid pending-count, have %d, want %d (GlobalSlots: %d, queued: %d)",
+			newIvPending, ivPending, pool.config.GlobalSlots, newQueued)
+	}
+
+	payerKey, _ := crypto.GenerateKey()
+	payerAccount := crypto.PubkeyToAddress(payerKey.PublicKey)
+	pool.currentState.SetBalance(payerAccount, new(big.Int).SetUint64(1000*21000*pool.config.GlobalSlots))
+	overDraftSenderSponsoredTxs := types.Transactions{}
+	{
+		key, _ := crypto.GenerateKey()
+		pool.currentState.AddBalance(crypto.PubkeyToAddress(key.PublicKey), big.NewInt(100000000000))
+		for j := 0; j < int(pool.config.GlobalSlots); j++ {
+
+			innerTx := types.SponsoredTx{
+				ChainID:     common.Big1,
+				Nonce:       uint64(j),
+				GasTipCap:   big.NewInt(500),
+				GasFeeCap:   big.NewInt(500),
+				Gas:         21000,
+				Value:       big.NewInt(60000000000),
+				To:          &common.Address{},
+				ExpiredTime: 100,
+			}
+			var err error
+			innerTx.PayerR, innerTx.PayerS, innerTx.PayerV, err = types.PayerSign(payerKey, mikoSigner, crypto.PubkeyToAddress(key.PublicKey), &innerTx)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			tx, err := types.SignNewTx(key, mikoSigner, &innerTx)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			overDraftSenderSponsoredTxs = append(overDraftSenderSponsoredTxs, tx)
+		}
+	}
+	pool.AddRemotesSync(overDraftSenderSponsoredTxs)
+	pool.AddRemotesSync(overDraftSenderSponsoredTxs)
+	pool.AddRemotesSync(overDraftSenderSponsoredTxs)
+	pool.AddRemotesSync(overDraftSenderSponsoredTxs)
+	pool.AddRemotesSync(overDraftSenderSponsoredTxs)
+
+	newPending, newQueued = count(t, pool)
+	newIvPending = countInvalidPending()
+	t.Logf("pool.all.Slots(): %d\n", pool.all.Slots())
+	t.Logf("pending: %d queued: %d, all: %d\n", newPending, newQueued, pool.all.Slots())
+	t.Logf("invalid pending: %d\n", newIvPending)
+
+	// Pending should not have been touched
+	if newIvPending != ivPending {
+		t.Fatalf("Wrong invalid pending-count, have %d, want %d (GlobalSlots: %d, queued: %d)",
+			newIvPending, ivPending, pool.config.GlobalSlots, newQueued)
+	}
+
+	payerKey2, _ := crypto.GenerateKey()
+	payerAccount2 := crypto.PubkeyToAddress(payerKey2.PublicKey)
+	pool.currentState.SetBalance(payerAccount2, new(big.Int).SetUint64(21000*600))
+	overDraftPayerSponsoredTxs := types.Transactions{}
+	{
+		key, _ := crypto.GenerateKey()
+		for j := 0; j < int(pool.config.GlobalSlots); j++ {
+
+			innerTx := types.SponsoredTx{
+				ChainID:     common.Big1,
+				Nonce:       uint64(j),
+				GasTipCap:   big.NewInt(500),
+				GasFeeCap:   big.NewInt(500),
+				Gas:         21000,
+				To:          &common.Address{},
+				ExpiredTime: 100,
+			}
+			var err error
+			innerTx.PayerR, innerTx.PayerS, innerTx.PayerV, err = types.PayerSign(payerKey2, mikoSigner, crypto.PubkeyToAddress(key.PublicKey), &innerTx)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			tx, err := types.SignNewTx(key, mikoSigner, &innerTx)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			overDraftPayerSponsoredTxs = append(overDraftPayerSponsoredTxs, tx)
+		}
+	}
+	pool.AddRemotesSync(overDraftPayerSponsoredTxs)
+	pool.AddRemotesSync(overDraftPayerSponsoredTxs)
+	pool.AddRemotesSync(overDraftPayerSponsoredTxs)
+	pool.AddRemotesSync(overDraftPayerSponsoredTxs)
+	pool.AddRemotesSync(overDraftPayerSponsoredTxs)
+
+	newPending, newQueued = count(t, pool)
+	newIvPending = countInvalidPending()
+	t.Logf("pool.all.Slots(): %d\n", pool.all.Slots())
+	t.Logf("pending: %d queued: %d, all: %d\n", newPending, newQueued, pool.all.Slots())
+	t.Logf("invalid pending: %d\n", newIvPending)
+
+	// Pending should not have been touched
+	if newIvPending != ivPending {
+		t.Fatalf("Wrong invalid pending-count, have %d, want %d (GlobalSlots: %d, queued: %d)",
 			newIvPending, ivPending, pool.config.GlobalSlots, newQueued)
 	}
 }

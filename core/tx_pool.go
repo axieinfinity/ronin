@@ -289,6 +289,8 @@ type TxPool struct {
 	initDoneCh      chan struct{}  // is closed once the pool is initialized (for tests)
 
 	changesSinceReorg int // A counter for how many drops we've performed in-between reorg.
+
+	totalPendingPayerCost map[common.Address]*big.Int // The total cost of pending transactions for each payer
 }
 
 type txpoolResetRequest struct {
@@ -303,22 +305,23 @@ func NewTxPool(config TxPoolConfig, chainconfig *params.ChainConfig, chain block
 
 	// Create the transaction pool with its initial settings
 	pool := &TxPool{
-		config:          config,
-		chainconfig:     chainconfig,
-		chain:           chain,
-		signer:          types.LatestSigner(chainconfig),
-		pending:         make(map[common.Address]*txList),
-		queue:           make(map[common.Address]*txList),
-		beats:           make(map[common.Address]time.Time),
-		all:             newTxLookup(),
-		chainHeadCh:     make(chan ChainHeadEvent, chainHeadChanSize),
-		reqResetCh:      make(chan *txpoolResetRequest),
-		reqPromoteCh:    make(chan *accountSet),
-		queueTxEventCh:  make(chan *types.Transaction),
-		reorgDoneCh:     make(chan chan struct{}),
-		reorgShutdownCh: make(chan struct{}),
-		initDoneCh:      make(chan struct{}),
-		gasPrice:        new(big.Int).SetUint64(config.PriceLimit),
+		config:                config,
+		chainconfig:           chainconfig,
+		chain:                 chain,
+		signer:                types.LatestSigner(chainconfig),
+		pending:               make(map[common.Address]*txList),
+		queue:                 make(map[common.Address]*txList),
+		beats:                 make(map[common.Address]time.Time),
+		all:                   newTxLookup(),
+		chainHeadCh:           make(chan ChainHeadEvent, chainHeadChanSize),
+		reqResetCh:            make(chan *txpoolResetRequest),
+		reqPromoteCh:          make(chan *accountSet),
+		queueTxEventCh:        make(chan *types.Transaction),
+		reorgDoneCh:           make(chan chan struct{}),
+		reorgShutdownCh:       make(chan struct{}),
+		initDoneCh:            make(chan struct{}),
+		gasPrice:              new(big.Int).SetUint64(config.PriceLimit),
+		totalPendingPayerCost: make(map[common.Address]*big.Int),
 	}
 	pool.locals = newAccountSet(pool.signer)
 	for _, addr := range config.Locals {
@@ -602,6 +605,17 @@ func (pool *TxPool) local() map[common.Address]types.Transactions {
 	return txs
 }
 
+func (pool *TxPool) getAccountPendingCost(account common.Address) *big.Int {
+	pendingCost := new(big.Int)
+	if list := pool.pending[account]; list != nil {
+		pendingCost.Add(pendingCost, list.totalcost)
+	}
+	if cost := pool.totalPendingPayerCost[account]; cost != nil {
+		pendingCost.Add(pendingCost, cost)
+	}
+	return pendingCost
+}
+
 // validateTx checks whether a transaction is valid according to the consensus
 // rules and adheres to some heuristic limits of the local node (price and size).
 func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
@@ -688,16 +702,23 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 			return types.ErrSamePayerSenderSponsoredTx
 		}
 
-		// Ensure payer can pay for the gas fee == gas fee cap * gas limit
-		gasFee := new(big.Int).Mul(tx.GasFeeCap(), new(big.Int).SetUint64(tx.Gas()))
-		if pool.currentState.GetBalance(payer).Cmp(gasFee) < 0 {
+		totalGasFee := new(big.Int).Mul(tx.GasFeeCap(), new(big.Int).SetUint64(tx.Gas()))
+
+		senderCost := pool.getAccountPendingCost(from)
+		senderCost.Add(senderCost, tx.Value())
+		payerCost := pool.getAccountPendingCost(payer)
+		payerCost.Add(payerCost, totalGasFee)
+
+		// Ensure that transactions will not result in overdraft in payer account
+		if pool.currentState.GetBalance(payer).Cmp(payerCost) < 0 {
 			return ErrInsufficientPayerFunds
 		}
 
-		// Ensure sender can pay for the value
-		if pool.currentState.GetBalance(from).Cmp(tx.Value()) < 0 {
+		// Ensure that transactions will not result in overdraft in sender account
+		if pool.currentState.GetBalance(from).Cmp(senderCost) < 0 {
 			return ErrInsufficientSenderFunds
 		}
+
 	} else {
 		// Sender should have enough funds to cover the costs
 		// cost == V + GP * GL
@@ -709,7 +730,7 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 		// Verify that replacing transactions will not result in overdraft
 		list := pool.pending[from]
 		if list != nil { // Sender already has pending txs
-			sum := new(big.Int).Add(tx.Cost(), list.totalcost)
+			sum := new(big.Int).Add(tx.Cost(), pool.getAccountPendingCost(from))
 			if repl := list.txs.Get(tx.Nonce()); repl != nil {
 				// Deduct the cost of a transaction replaced by this
 				sum.Sub(sum, repl.Cost())
@@ -915,7 +936,7 @@ func (pool *TxPool) enqueueTx(hash common.Hash, tx *types.Transaction, local boo
 	// Try to insert the transaction into the future queue
 	from, _ := types.Sender(pool.signer, tx) // already validated
 	if pool.queue[from] == nil {
-		pool.queue[from] = newTxList(false, pool.signer)
+		pool.queue[from] = newTxList(false, pool.signer, nil)
 	} else if !pool.signer.Equal(pool.queue[from].Signer()) {
 		pool.queue[from].UpdateSigner(pool.signer)
 	}
@@ -969,7 +990,7 @@ func (pool *TxPool) journalTx(from common.Address, tx *types.Transaction) {
 func (pool *TxPool) promoteTx(addr common.Address, hash common.Hash, tx *types.Transaction) bool {
 	// Try to insert the transaction into the pending queue
 	if pool.pending[addr] == nil {
-		pool.pending[addr] = newTxList(true, pool.signer)
+		pool.pending[addr] = newTxList(true, pool.signer, pool.totalPendingPayerCost)
 	} else if !pool.signer.Equal(pool.pending[addr].Signer()) {
 		pool.pending[addr].UpdateSigner(pool.signer)
 	}
