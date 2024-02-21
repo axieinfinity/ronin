@@ -92,15 +92,13 @@ func (r *resultStore) AddFetch(header *types.Header, fastSync bool) (stale, thro
 }
 
 // GetDeliverySlot returns the fetchResult for the given header. If the 'stale' flag
-// is true, that means the header has already been delivered 'upstream'. This method
-// does not bubble up the 'throttle' flag, since it's moot at the point in time when
-// the item is downloaded and ready for delivery
-func (r *resultStore) GetDeliverySlot(headerNumber uint64) (*fetchResult, bool, error) {
+// is true, that means the header has already been delivered 'upstream'.
+func (r *resultStore) GetDeliverySlot(headerNumber uint64) (*fetchResult, bool, bool, error) {
 	r.lock.RLock()
 	defer r.lock.RUnlock()
 
-	res, _, stale, _, err := r.getFetchResult(headerNumber)
-	return res, stale, err
+	res, _, stale, throttle, err := r.getFetchResult(headerNumber)
+	return res, stale, throttle, err
 }
 
 // getFetchResult returns the fetchResult corresponding to the given item, and
