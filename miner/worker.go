@@ -513,6 +513,10 @@ func (w *worker) mainLoop() {
 			w.commitNewWork(req.interrupt, req.noempty, req.timestamp)
 
 		case ev := <-w.chainSideCh:
+			// Don't handle uncle logic in Consortium
+			if w.chainConfig.Consortium != nil {
+				continue
+			}
 			// Short circuit for duplicate side blocks
 			if _, exist := w.localUncles[ev.Block.Hash()]; exist {
 				continue
