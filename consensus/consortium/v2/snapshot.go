@@ -11,6 +11,7 @@ import (
 	consortiumCommon "github.com/ethereum/go-ethereum/consensus/consortium/common"
 	v1 "github.com/ethereum/go-ethereum/consensus/consortium/v1"
 	"github.com/ethereum/go-ethereum/consensus/consortium/v2/finality"
+	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
 	blsCommon "github.com/ethereum/go-ethereum/crypto/bls/common"
 	"github.com/ethereum/go-ethereum/ethdb"
@@ -111,7 +112,7 @@ func (s *Snapshot) store(db ethdb.Database) error {
 	if err != nil {
 		return err
 	}
-	return db.Put(append([]byte("consortium-"), s.Hash[:]...), blob)
+	return db.Put(append(rawdb.ConsortiumSnapshotPrefix, s.Hash[:]...), blob)
 }
 
 // copy creates a deep copy of the snapshot.
