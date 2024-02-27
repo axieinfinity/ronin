@@ -334,17 +334,17 @@ exec ronin $params \
   --syncmode $syncmode \
   --verbosity $VERBOSITY \
   --datadir $datadir \
-  --port $NETWORK_PORT \
+  --port $network_port \
   --txpool.globalqueue 10000 \
   --txpool.globalslots 10000 \
   --http \
   --http.corsdomain "*" \
   --http.addr 0.0.0.0 \
-  --http.port $HTTP_PORT \
+  --http.port $http_port \
   --http.vhosts "*" \
   --ws \
   --ws.addr 0.0.0.0 \
-  --ws.port $WS_PORT \
+  --ws.port $ws_port \
   --ws.origins "*" \
   --allow-insecure-unlock \
   --miner.gastarget "100000000" \
