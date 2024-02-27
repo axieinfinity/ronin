@@ -9,6 +9,9 @@
 # - NETWORK_ID (default to 2021)
 # - GASPRICE (default to 0)
 # - FORCE_INIT (default to 'true')
+# - NETWORK_PORT (default to 30303)
+# - HTTP_PORT (default to 8545)
+# - WS_PORT (default to 8546)
 
 # constants
 datadir="/ronin/data"
@@ -16,6 +19,9 @@ KEYSTORE_DIR="/ronin/keystore"
 PASSWORD_FILE="/ronin/password"
 BLS_PASSWORD_FILE="/ronin/bls_password"
 BLS_PRIVATE_KEY_DIR="/ronin/bls_keystore"
+network_port=30303
+http_port=8545
+ws_port=8546
 
 # variables
 genesisPath=""
@@ -28,6 +34,18 @@ set -e
 
 if [[ ! -z $DATA_DIR ]]; then
   datadir="$DATA_DIR"
+fi
+
+if [[ ! -z $NETWORK_PORT ]]; then
+  network_port="$NETWORK_PORT"
+fi
+
+if [[ ! -z $HTTP_PORT ]]; then
+  http_port="$HTTP_PORT"
+fi
+
+if [[ ! -z $WS_PORT ]]; then
+  ws_port="$WS_PORT"
 fi
 
 # networkid
@@ -316,17 +334,17 @@ exec ronin $params \
   --syncmode $syncmode \
   --verbosity $VERBOSITY \
   --datadir $datadir \
-  --port 30303 \
+  --port $NETWORK_PORT \
   --txpool.globalqueue 10000 \
   --txpool.globalslots 10000 \
   --http \
   --http.corsdomain "*" \
   --http.addr 0.0.0.0 \
-  --http.port 8545 \
+  --http.port $HTTP_PORT \
   --http.vhosts "*" \
   --ws \
   --ws.addr 0.0.0.0 \
-  --ws.port 8546 \
+  --ws.port $WS_PORT \
   --ws.origins "*" \
   --allow-insecure-unlock \
   --miner.gastarget "100000000" \
