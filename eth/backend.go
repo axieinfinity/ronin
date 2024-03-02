@@ -278,6 +278,7 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 		}
 	}
 	if eth.handler, err = newHandler(&handlerConfig{
+		NodeID:               eth.p2pServer.Self().ID(),
 		Database:             chainDb,
 		Chain:                eth.blockchain,
 		TxPool:               eth.txPool,
