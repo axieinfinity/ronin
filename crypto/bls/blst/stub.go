@@ -1,4 +1,4 @@
-//go:build blst_disabled
+//go:build !blst_enabled
 
 package blst
 

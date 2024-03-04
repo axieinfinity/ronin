@@ -234,6 +234,9 @@ func doInstall(cmdline []string) {
 	// Show packages during build.
 	gobuild.Args = append(gobuild.Args, "-v")
 
+	// Enable blst on Ronin build
+	gobuild.Args = append(gobuild.Args, "-tags=blst_enabled")
+
 	// Now we choose what we're even building.
 	// Default: collect all 'main' packages in cmd/ and build those.
 	packages := flag.Args()
@@ -309,6 +312,9 @@ func doTest(cmdline []string) {
 	if *race {
 		gotest.Args = append(gotest.Args, "-race")
 	}
+
+	// Enable blst on Ronin build
+	gotest.Args = append(gotest.Args, "-tags=blst_enabled")
 
 	packages := []string{"./..."}
 	if len(flag.CommandLine.Args()) > 0 {
