@@ -22,6 +22,11 @@ func (s SecretKey) Sign(_ []byte) common.Signature {
 	panic(err)
 }
 
+// SignProof -- stub
+func (s SecretKey) SignProof(_ []byte) common.Signature {
+	panic(err)
+}
+
 // Marshal -- stub
 func (s SecretKey) Marshal() []byte {
 	panic(err)
@@ -65,6 +70,11 @@ type Signature struct{}
 
 // Verify -- stub
 func (s Signature) Verify(_ common.PublicKey, _ []byte) bool {
+	panic(err)
+}
+
+// VerifyProof -- stub
+func (s Signature) VerifyProof(_ common.PublicKey, _ []byte) bool {
 	panic(err)
 }
 
@@ -130,6 +140,11 @@ func AggregateMultiplePubkeys(pubs []common.PublicKey) common.PublicKey {
 
 // AggregateCompressedSignatures -- stub
 func AggregateCompressedSignatures(multiSigs [][]byte) (common.Signature, error) {
+	panic(err)
+}
+
+// VerifySignature -- stub
+func VerifySignature(_ []byte, _ [32]byte, _ common.PublicKey) (bool, error) {
 	panic(err)
 }
 
