@@ -19,9 +19,11 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/consortium/generated_contracts/profile"
 	roninValidatorSet "github.com/ethereum/go-ethereum/consensus/consortium/generated_contracts/ronin_validator_set"
 	slashIndicator "github.com/ethereum/go-ethereum/consensus/consortium/generated_contracts/slash_indicator"
+	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/bls/blst"
 	blsCommon "github.com/ethereum/go-ethereum/crypto/bls/common"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
@@ -295,7 +297,7 @@ func ApplyTransaction(msg types.Message, opts *ApplyTransactOpts) (err error) {
 
 	signer := opts.Signer
 	signTxFn := opts.SignTxFn
-	miner := opts.Header.Coinbase
+	coinbase := opts.Header.Coinbase
 	mining := opts.Mining
 	chainConfig := opts.ChainConfig
 	receivedTxs := opts.ReceivedTxs
@@ -309,7 +311,16 @@ func ApplyTransaction(msg types.Message, opts *ApplyTransactOpts) (err error) {
 	expectedTx := types.NewTransaction(nonce, *msg.To(), msg.Value(), msg.Gas(), msg.GasPrice(), msg.Data())
 	expectedHash := signer.Hash(expectedTx)
 
-	if msg.From() == miner && mining {
+	sender := msg.From()
+	if codeHash := opts.State.GetCodeHash(sender); codeHash != crypto.Keccak256Hash(nil) {
+		return fmt.Errorf("%w: address %v, codehash: %s", core.ErrSenderNoEOA, sender.Hex(), codeHash)
+	}
+
+	if sender != coinbase {
+		return fmt.Errorf("sender of system transaction is not coinbase, sender: %s, coinbase: %s", sender, coinbase)
+	}
+
+	if mining {
 		expectedTx, err = signTxFn(accounts.Account{Address: msg.From()}, expectedTx, chainConfig.ChainID)
 		if err != nil {
 			return err
