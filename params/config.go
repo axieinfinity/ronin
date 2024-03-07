@@ -287,6 +287,8 @@ var (
 			ProxyAddress:          common.HexToAddress("0x98D0230884448B3E2f09a177433D60fb1E19C090"),
 			ImplementationAddress: common.HexToAddress("0x59646258Ec25CC329f5ce93223e0A50ccfA3e885"),
 		},
+		// TODO: fill this
+		TrippBlock: common.Big0,
 	}
 
 	RoninTestnetBlacklistContract                  = common.HexToAddress("0xF53EED5210c9cF308abFe66bA7CF14884c95A8aC")
@@ -336,6 +338,8 @@ var (
 			ProxyAddress:          common.HexToAddress("0x7507dc433a98E1fE105d69f19f3B40E4315A4F32"),
 			ImplementationAddress: common.HexToAddress("0x6A51C2B073a6daDBeCAC1A420AFcA7788C81612f"),
 		},
+		// TODO: fill this
+		TrippBlock: common.Big0,
 	}
 
 	// GoerliTrustedCheckpoint contains the light client trusted checkpoint for the Görli test network.
@@ -554,7 +558,8 @@ type ChainConfig struct {
 
 	AntennaBlock *big.Int `json:"antennaBlock,omitempty"` // AntennaBlock switch block (nil = no fork, 0 = already on activated)
 	// Miko hardfork introduces sponsored transactions
-	MikoBlock *big.Int `json:"mikoBlock,omitempty"` // Miko switch block (nil = no fork, 0 = already on activated)
+	MikoBlock  *big.Int `json:"mikoBlock,omitempty"`  // Miko switch block (nil = no fork, 0 = already on activated)
+	TrippBlock *big.Int `json:"trippBlock,omitempty"` // Tripp switch block (nil = no fork, 0 = already on activated)
 
 	BlacklistContractAddress           *common.Address `json:"blacklistContractAddress,omitempty"`           // Address of Blacklist Contract (nil = no blacklist)
 	FenixValidatorContractAddress      *common.Address `json:"fenixValidatorContractAddress,omitempty"`      // Address of Ronin Contract in the Fenix hardfork (nil = no blacklist)
@@ -672,7 +677,7 @@ func (c *ChainConfig) String() string {
 	chainConfigFmt += "Petersburg: %v Istanbul: %v, Odysseus: %v, Fenix: %v, Muir Glacier: %v, Berlin: %v, London: %v, Arrow Glacier: %v, "
 	chainConfigFmt += "Engine: %v, Blacklist Contract: %v, Fenix Validator Contract: %v, ConsortiumV2: %v, ConsortiumV2.RoninValidatorSet: %v, "
 	chainConfigFmt += "ConsortiumV2.SlashIndicator: %v, ConsortiumV2.StakingContract: %v, Puffy: %v, Buba: %v, Olek: %v, Shillin: %v, Antenna: %v, "
-	chainConfigFmt += "ConsortiumV2.ProfileContract: %v, ConsortiumV2.FinalityTracking: %v, whiteListDeployerContractV2Address: %v, Miko: %v}"
+	chainConfigFmt += "ConsortiumV2.ProfileContract: %v, ConsortiumV2.FinalityTracking: %v, whiteListDeployerContractV2Address: %v, Miko: %v, Tripp: %v}"
 
 	return fmt.Sprintf(chainConfigFmt,
 		c.ChainID,
@@ -708,6 +713,7 @@ func (c *ChainConfig) String() string {
 		finalityTrackingContract.Hex(),
 		whiteListDeployerContractV2Address.Hex(),
 		c.MikoBlock,
+		c.TrippBlock,
 	)
 }
 
@@ -834,6 +840,11 @@ func (c *ChainConfig) IsShillin(num *big.Int) bool {
 // IsMiko returns whether the num is equals to or larger than the miko fork block.
 func (c *ChainConfig) IsMiko(num *big.Int) bool {
 	return isForked(c.MikoBlock, num)
+}
+
+// IsTripp returns whether the num is equals to or larger than the tripp fork block.
+func (c *ChainConfig) IsTripp(num *big.Int) bool {
+	return isForked(c.TrippBlock, num)
 }
 
 // CheckCompatible checks whether scheduled fork transitions have been imported
@@ -975,6 +986,9 @@ func (c *ChainConfig) checkCompatible(newcfg *ChainConfig, head *big.Int) *Confi
 	}
 	if isForkIncompatible(c.MikoBlock, newcfg.MikoBlock, head) {
 		return newCompatError("Miko fork block", c.MikoBlock, newcfg.MikoBlock)
+	}
+	if isForkIncompatible(c.TrippBlock, newcfg.TrippBlock, head) {
+		return newCompatError("Tripp fork block", c.TrippBlock, newcfg.TrippBlock)
 	}
 	return nil
 }
