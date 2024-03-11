@@ -19,6 +19,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/consortium/generated_contracts/profile"
 	roninValidatorSet "github.com/ethereum/go-ethereum/consensus/consortium/generated_contracts/ronin_validator_set"
 	slashIndicator "github.com/ethereum/go-ethereum/consensus/consortium/generated_contracts/slash_indicator"
+	"github.com/ethereum/go-ethereum/consensus/consortium/generated_contracts/staking"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
@@ -61,6 +62,7 @@ type ContractInteraction interface {
 	Slash(opts *ApplyTransactOpts, spoiledValidator common.Address) error
 	FinalityReward(opts *ApplyTransactOpts, votedValidators []common.Address) error
 	GetBlsPublicKey(blockNumber *big.Int, validator common.Address) (blsCommon.PublicKey, error)
+	GetStakedAmount(blockNumber *big.Int, validators []common.Address) ([]*big.Int, error)
 }
 
 // ContractIntegrator is a contract facing to interact with smart contract that supports DPoS
@@ -71,6 +73,7 @@ type ContractIntegrator struct {
 	slashIndicatorSC    *slashIndicator.SlashIndicator
 	profileSC           *profile.Profile
 	finalityTrackingSC  *finalityTracking.FinalityTracking
+	stakingSC           *staking.Staking
 	signTxFn            SignerTxFn
 	coinbase            common.Address
 }
@@ -101,12 +104,19 @@ func NewContractIntegrator(config *chainParams.ChainConfig, backend bind.Contrac
 		return nil, err
 	}
 
+	// Create Staking contract instance
+	stakingSC, err := staking.NewStaking(config.ConsortiumV2Contracts.StakingContract, backend)
+	if err != nil {
+		return nil, err
+	}
+
 	return &ContractIntegrator{
 		chainId:             config.ChainID,
 		roninValidatorSetSC: roninValidatorSetSC,
 		slashIndicatorSC:    slashIndicatorSC,
 		profileSC:           profileSC,
 		finalityTrackingSC:  finalityTrackingSC,
+		stakingSC:           stakingSC,
 		signTxFn:            signTxFn,
 		signer:              types.LatestSignerForChainID(config.ChainID),
 		coinbase:            coinbase,
@@ -263,6 +273,19 @@ func (c *ContractIntegrator) GetBlsPublicKey(blockNumber *big.Int, validator com
 	}
 
 	return blsPublicKey, nil
+}
+
+func (c *ContractIntegrator) GetStakedAmount(blockNumber *big.Int, validators []common.Address) ([]*big.Int, error) {
+	callOpts := bind.CallOpts{
+		BlockNumber: blockNumber,
+	}
+
+	stakedAmount, err := c.stakingSC.GetManyStakingTotals(&callOpts, validators)
+	if err != nil {
+		return nil, err
+	}
+
+	return stakedAmount, nil
 }
 
 // ApplyMessageOpts is the collection of options to fine tune a contract call request.

@@ -7,8 +7,9 @@ import (
 )
 
 const (
-	ExtraSeal   = crypto.SignatureLength
-	ExtraVanity = 32
+	ExtraSeal                        = crypto.SignatureLength
+	ExtraVanity                      = 32
+	MaxFinalityVotePercentage uint16 = 10_000
 )
 
 var (

@@ -274,14 +274,10 @@ func (c *Consortium) verifyFinalitySignatures(
 	parentHash common.Hash,
 	parents []*types.Header,
 ) error {
+	isTripp := c.chainConfig.IsTripp(new(big.Int).SetUint64(parentNumber + 1))
 	snap, err := c.snapshot(chain, parentNumber, parentHash, parents)
 	if err != nil {
 		return err
-	}
-
-	votedValidatorPositions := finalityVotedValidators.Indices()
-	if len(votedValidatorPositions) < int(math.Floor(finalityRatio*float64(len(snap.ValidatorsWithBlsPub))))+1 {
-		return finality.ErrNotEnoughFinalityVote
 	}
 
 	voteData := types.VoteData{
@@ -291,13 +287,34 @@ func (c *Consortium) verifyFinalitySignatures(
 	digest := voteData.Hash()
 
 	// verify aggregated signature
-	var publicKeys []blsCommon.PublicKey
+	var (
+		publicKeys            []blsCommon.PublicKey
+		accumulatedVoteWeight int
+		finalityThreshold     int
+	)
+	votedValidatorPositions := finalityVotedValidators.Indices()
 	for _, position := range votedValidatorPositions {
 		if position >= len(snap.ValidatorsWithBlsPub) {
 			return finality.ErrInvalidFinalityVotedBitSet
 		}
 		publicKeys = append(publicKeys, snap.ValidatorsWithBlsPub[position].BlsPublicKey)
+		if isTripp {
+			accumulatedVoteWeight += int(snap.FinalityVoteWeight[position])
+		} else {
+			accumulatedVoteWeight += 1
+		}
 	}
+
+	if isTripp {
+		finalityThreshold = int(math.Floor(finalityRatio*float64(consortiumCommon.MaxFinalityVotePercentage))) + 1
+	} else {
+		finalityThreshold = int(math.Floor(finalityRatio*float64(len(snap.ValidatorsWithBlsPub)))) + 1
+	}
+
+	if accumulatedVoteWeight < finalityThreshold {
+		return finality.ErrNotEnoughFinalityVote
+	}
+
 	if !finalitySignatures.FastAggregateVerify(publicKeys, digest) {
 		return finality.ErrFinalitySignatureVerificationFailed
 	}
@@ -682,7 +699,10 @@ func (c *Consortium) getCheckpointValidatorsFromContract(
 	)
 
 	isShillin := c.chainConfig.IsShillin(header.Number)
-	if isShillin {
+	isTripp := c.chainConfig.IsTripp(header.Number)
+	// After Tripp, BLS key of validator is read at the start of new period,
+	// not the start of epoch anymore.
+	if isShillin && !isTripp {
 		// The filteredValidators shares the same underlying array with newValidators
 		// See more: https://github.com/golang/go/wiki/SliceTricks#filtering-without-allocating
 		filteredValidators = filteredValidators[:0]
@@ -699,7 +719,7 @@ func (c *Consortium) getCheckpointValidatorsFromContract(
 		validatorWithBlsPub := finality.ValidatorWithBlsPub{
 			Address: filteredValidators[i],
 		}
-		if isShillin {
+		if isShillin && !isTripp {
 			validatorWithBlsPub.BlsPublicKey = blsPublicKeys[i]
 		}
 
@@ -735,6 +755,7 @@ func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.He
 			return err
 		}
 		extraData.CheckpointValidators = checkpointValidator
+		// TODO: if is Tripp and new period, read all validator candidates and their amounts, appends to header
 	}
 
 	// After Shillin, extraData.hasFinalityVote = 0 here as we does
@@ -905,6 +926,7 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 		if err != nil {
 			return err
 		}
+		// TODO: if is Tripp and new period, read all validator candidates and their amounts, check with stored data in header
 		extraData, err := finality.DecodeExtraV2(header.Extra, c.chainConfig, header.Number)
 		if err != nil {
 			return err
@@ -1252,14 +1274,24 @@ func (c *Consortium) assembleFinalityVote(header *types.Header, snap *Snapshot) 
 		var (
 			signatures              []blsCommon.Signature
 			finalityVotedValidators finality.FinalityVoteBitSet
-			finalityThreshold       int = int(math.Floor(finalityRatio*float64(len(snap.ValidatorsWithBlsPub)))) + 1
+			finalityThreshold       int
+			accumulatedVoteWeight   int
 		)
+
+		isTripp := c.chainConfig.IsTripp(header.Number)
+		if isTripp {
+			finalityThreshold = int(math.Floor(finalityRatio*float64(consortiumCommon.MaxFinalityVotePercentage))) + 1
+		} else {
+			finalityThreshold = int(math.Floor(finalityRatio*float64(len(snap.ValidatorsWithBlsPub)))) + 1
+		}
 
 		// We assume the signature has been verified in vote pool
 		// so we do not verify signature here
 		if c.votePool != nil {
 			votes := c.votePool.FetchVoteByBlockHash(header.ParentHash)
-			if len(votes) >= finalityThreshold {
+			// Before Tripp (!isTripp), every vote has the same weight so if the number of votes
+			// is lower than threshold, we can short-circuit and skip all the checks
+			if isTripp || len(votes) >= finalityThreshold {
 				for _, vote := range votes {
 					publicKey, err := blst.PublicKeyFromBytes(vote.PublicKey[:])
 					if err != nil {
@@ -1269,14 +1301,22 @@ func (c *Consortium) assembleFinalityVote(header *types.Header, snap *Snapshot) 
 					authorized := false
 					for valPosition, validator := range snap.ValidatorsWithBlsPub {
 						if publicKey.Equals(validator.BlsPublicKey) {
+							authorized = true
 							signature, err := blst.SignatureFromBytes(vote.Signature[:])
 							if err != nil {
 								log.Warn("Malformed signature from vote pool", "err", err)
 								break
 							}
+							if finalityVotedValidators.GetBit(valPosition) != 0 {
+								log.Warn("More than 1 vote from validator", "address", validator.Address.Hex(),
+									"blockHash", header.Hash(), "blockNumber", header.Number)
+								break
+							}
 							signatures = append(signatures, signature)
 							finalityVotedValidators.SetBit(valPosition)
-							authorized = true
+							if isTripp {
+								accumulatedVoteWeight += int(snap.FinalityVoteWeight[valPosition])
+							}
 							break
 						}
 					}
@@ -1285,8 +1325,10 @@ func (c *Consortium) assembleFinalityVote(header *types.Header, snap *Snapshot) 
 					}
 				}
 
-				bitSetCount := len(finalityVotedValidators.Indices())
-				if bitSetCount >= finalityThreshold {
+				if !isTripp {
+					accumulatedVoteWeight = len(finalityVotedValidators.Indices())
+				}
+				if accumulatedVoteWeight >= finalityThreshold {
 					extraData, err := finality.DecodeExtraV2(header.Extra, c.chainConfig, header.Number)
 					if err != nil {
 						// This should not happen
@@ -1305,7 +1347,6 @@ func (c *Consortium) assembleFinalityVote(header *types.Header, snap *Snapshot) 
 			}
 		}
 	}
-
 }
 
 // GetFinalizedBlock gets the fast finality finalized block
