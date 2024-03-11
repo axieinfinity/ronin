@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto/bls/blst"
 	blsCommon "github.com/ethereum/go-ethereum/crypto/bls/common"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rlp"
 )
 
 const (
@@ -66,6 +67,12 @@ var (
 	// ErrInvalidTargetNumber is returned if the vote contains invalid
 	// target number
 	ErrInvalidTargetNumber = errors.New("invalid target number in vote")
+
+	// ErrNilAggregatedFinalityVotes is returned if the aggregated votes is nil
+	ErrNilAggregatedFinalityVotes = errors.New("aggregated finality votes is nil")
+
+	// ErrNilBlsPublicKey is returned if the bls public key is nil
+	ErrNilBlsPublicKey = errors.New("bls public key is nil")
 )
 
 type ValidatorWithBlsPub struct {
@@ -178,6 +185,87 @@ func (extraData *HeaderExtraData) Encode(isShillin bool) []byte {
 	rawBytes = append(rawBytes, extraData.Seal[:]...)
 
 	return rawBytes
+}
+
+type extraDataRLP struct {
+	Vanity                  [ExtraVanity]byte
+	HasFinalityVote         uint8
+	FinalityVotedValidators FinalityVoteBitSet
+	AggregatedFinalityVotes []byte
+	CheckpointValidators    []validatorWithBlsPubRLP
+	Seal                    [ExtraSeal]byte `rlp:"optional"`
+}
+
+type validatorWithBlsPubRLP struct {
+	Address      common.Address
+	BlsPublicKey []byte
+}
+
+func (extraData *HeaderExtraData) EncodeRLP() ([]byte, error) {
+	ext := &extraDataRLP{
+		Vanity:          extraData.Vanity,
+		HasFinalityVote: extraData.HasFinalityVote,
+		Seal:            extraData.Seal,
+	}
+	cp := make([]validatorWithBlsPubRLP, 0)
+	for _, val := range extraData.CheckpointValidators {
+		v := validatorWithBlsPubRLP{
+			Address: val.Address,
+		}
+		if val.BlsPublicKey == nil {
+			return nil, ErrNilBlsPublicKey
+		}
+		v.BlsPublicKey = val.BlsPublicKey.Marshal()
+		cp = append(cp, v)
+	}
+	ext.CheckpointValidators = cp
+	if extraData.HasFinalityVote != 0 && extraData.HasFinalityVote != 1 {
+		return nil, ErrInvalidHasFinalityVote
+	}
+	if extraData.HasFinalityVote == 1 {
+		ext.FinalityVotedValidators = extraData.FinalityVotedValidators
+		if extraData.AggregatedFinalityVotes == nil {
+			return nil, ErrNilAggregatedFinalityVotes
+		}
+		ext.AggregatedFinalityVotes = extraData.AggregatedFinalityVotes.Marshal()
+	}
+	return rlp.EncodeToBytes(ext)
+}
+
+func DecodeExtraRLP(enc []byte) (*HeaderExtraData, error) {
+	var err error
+	dec := &extraDataRLP{}
+	if err := rlp.DecodeBytes(enc, dec); err != nil {
+		return nil, err
+	}
+	ret := &HeaderExtraData{
+		Vanity:          dec.Vanity,
+		HasFinalityVote: dec.HasFinalityVote,
+		Seal:            dec.Seal,
+	}
+	cp := make([]ValidatorWithBlsPub, 0)
+	for _, val := range dec.CheckpointValidators {
+		v := ValidatorWithBlsPub{
+			Address: val.Address,
+		}
+		v.BlsPublicKey, err = blst.PublicKeyFromBytes(val.BlsPublicKey)
+		if err != nil {
+			return nil, err
+		}
+		cp = append(cp, v)
+	}
+	ret.CheckpointValidators = cp
+	if dec.HasFinalityVote != 1 && dec.HasFinalityVote != 0 {
+		return nil, ErrInvalidHasFinalityVote
+	}
+	if dec.HasFinalityVote == 1 {
+		ret.FinalityVotedValidators = dec.FinalityVotedValidators
+		ret.AggregatedFinalityVotes, err = blst.SignatureFromBytes(dec.AggregatedFinalityVotes)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return ret, nil
 }
 
 func DecodeExtra(rawBytes []byte, isShillin bool) (*HeaderExtraData, error) {
