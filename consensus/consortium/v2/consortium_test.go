@@ -637,6 +637,112 @@ func TestVerifyFinalitySignature(t *testing.T) {
 	}
 }
 
+func TestVerifyFinalitySignatureTripp(t *testing.T) {
+	const numValidator = 3
+	var err error
+
+	secretKey := make([]blsCommon.SecretKey, numValidator)
+	for i := 0; i < len(secretKey); i++ {
+		secretKey[i], err = blst.RandKey()
+		if err != nil {
+			t.Fatalf("Failed to generate secret key, err %s", err)
+		}
+	}
+
+	valWithBlsPub := make([]finality.ValidatorWithBlsPub, numValidator)
+	for i := 0; i < len(valWithBlsPub); i++ {
+		valWithBlsPub[i] = finality.ValidatorWithBlsPub{
+			Address:      common.BigToAddress(big.NewInt(int64(i))),
+			BlsPublicKey: secretKey[i].PublicKey(),
+		}
+	}
+
+	blockNumber := uint64(0)
+	blockHash := common.Hash{0x1}
+	vote := types.VoteData{
+		TargetNumber: blockNumber,
+		TargetHash:   blockHash,
+	}
+
+	digest := vote.Hash()
+	signature := make([]blsCommon.Signature, numValidator)
+	for i := 0; i < len(signature); i++ {
+		signature[i] = secretKey[i].Sign(digest[:])
+	}
+
+	snap := newSnapshot(nil, nil, nil, 10, common.Hash{}, nil, valWithBlsPub, nil)
+	snap.FinalityVoteWeight = make([]uint16, numValidator)
+	snap.FinalityVoteWeight[0] = 6666
+	snap.FinalityVoteWeight[1] = 1
+	snap.FinalityVoteWeight[2] = 3333
+
+	recents, _ := lru.NewARC(inmemorySnapshots)
+	c := Consortium{
+		chainConfig: &params.ChainConfig{
+			ShillinBlock: big.NewInt(0),
+			TrippBlock:   big.NewInt(0),
+		},
+		config: &params.ConsortiumConfig{
+			EpochV2: 300,
+		},
+		recents: recents,
+	}
+	snap.Hash = blockHash
+	c.recents.Add(snap.Hash, snap)
+
+	// 1 voter with vote weight 6666 does not reach the threshold
+	votedBitSet := finality.FinalityVoteBitSet(0)
+	votedBitSet.SetBit(0)
+	aggregatedSignature := blst.AggregateSignatures([]blsCommon.Signature{
+		signature[0],
+	})
+	err = c.verifyFinalitySignatures(nil, votedBitSet, aggregatedSignature, 0, snap.Hash, nil)
+	if !errors.Is(err, finality.ErrNotEnoughFinalityVote) {
+		t.Errorf("Expect error %v have %v", finality.ErrNotEnoughFinalityVote, err)
+	}
+
+	// 2 voters with total vote weight 3333 + 1 does not reach the threshold
+	votedBitSet = finality.FinalityVoteBitSet(0)
+	votedBitSet.SetBit(1)
+	votedBitSet.SetBit(2)
+	aggregatedSignature = blst.AggregateSignatures([]blsCommon.Signature{
+		signature[1],
+		signature[2],
+	})
+	err = c.verifyFinalitySignatures(nil, votedBitSet, aggregatedSignature, 0, snap.Hash, nil)
+	if !errors.Is(err, finality.ErrNotEnoughFinalityVote) {
+		t.Errorf("Expect error %v have %v", finality.ErrNotEnoughFinalityVote, err)
+	}
+
+	// 2 voters with total vote weight 6666 + 1 reach the threshold
+	votedBitSet = finality.FinalityVoteBitSet(0)
+	votedBitSet.SetBit(0)
+	votedBitSet.SetBit(1)
+	aggregatedSignature = blst.AggregateSignatures([]blsCommon.Signature{
+		signature[0],
+		signature[1],
+	})
+	err = c.verifyFinalitySignatures(nil, votedBitSet, aggregatedSignature, 0, snap.Hash, nil)
+	if err != nil {
+		t.Errorf("Expect successful verification have %v", err)
+	}
+
+	// All voters vote
+	votedBitSet = finality.FinalityVoteBitSet(0)
+	votedBitSet.SetBit(0)
+	votedBitSet.SetBit(1)
+	votedBitSet.SetBit(2)
+	aggregatedSignature = blst.AggregateSignatures([]blsCommon.Signature{
+		signature[0],
+		signature[1],
+		signature[2],
+	})
+	err = c.verifyFinalitySignatures(nil, votedBitSet, aggregatedSignature, 0, snap.Hash, nil)
+	if err != nil {
+		t.Errorf("Expect successful verification have %v", err)
+	}
+}
+
 func TestSnapshotValidatorWithBlsKey(t *testing.T) {
 	secretKey, err := blst.RandKey()
 	if err != nil {
@@ -727,6 +833,10 @@ func (contract *mockContract) GetBlsPublicKey(_ *big.Int, address common.Address
 	} else {
 		return nil, errors.New("address is not a validator")
 	}
+}
+
+func (contract *mockContract) GetStakedAmount(_ *big.Int, _ []common.Address) ([]*big.Int, error) {
+	return nil, nil
 }
 
 func TestGetCheckpointValidatorFromContract(t *testing.T) {
@@ -879,6 +989,11 @@ func TestAssembleFinalityVote(t *testing.T) {
 	if !bytes.Equal(aggregatedSignature.Marshal(), extraData.AggregatedFinalityVotes.Marshal()) {
 		t.Fatal("Mismatch signature")
 	}
+}
+
+// TODO: Add AssembleFinalityVoteTripp test
+func TestAssembleFinalityVoteTripp(t *testing.T) {
+
 }
 
 func TestVerifyVote(t *testing.T) {
