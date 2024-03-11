@@ -149,6 +149,14 @@ func (bitSet *FinalityVoteBitSet) Indices() []int {
 	return votedValidatorPositions
 }
 
+func (bitSet *FinalityVoteBitSet) GetBit(index int) int {
+	if index >= finalityVoteBitSetByteLength*8 {
+		return 0
+	}
+
+	return int((uint64(*bitSet) >> index) & 1)
+}
+
 func (bitSet *FinalityVoteBitSet) SetBit(index int) {
 	if index >= finalityVoteBitSetByteLength*8 {
 		return

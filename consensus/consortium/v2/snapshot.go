@@ -21,6 +21,7 @@ import (
 
 // Snapshot is the state of the authorization validators at a given point in time.
 type Snapshot struct {
+	// private fields are not json.Marshalled
 	chainConfig *params.ChainConfig
 	config      *params.ConsortiumConfig // Consensus engine parameters to fine tune behavior
 	ethAPI      *ethapi.PublicBlockChainAPI
@@ -32,7 +33,8 @@ type Snapshot struct {
 	Recents    map[uint64]common.Address   `json:"recents"`              // Set of recent validators for spam protections
 
 	// Finality additional fields
-	ValidatorsWithBlsPub []finality.ValidatorWithBlsPub `json:"validatorWithBlsPub,omitempty"`  // Array of sorted authorized validators and BLS public keys after Shillin
+	ValidatorsWithBlsPub []finality.ValidatorWithBlsPub `json:"validatorWithBlsPub,omitempty"` // Array of sorted authorized validators and BLS public keys after Shillin
+	FinalityVoteWeight   []uint16                       `json:"finalityVoteWeight,omitempty"`
 	JustifiedBlockNumber uint64                         `json:"justifiedBlockNumber,omitempty"` // The justified block number
 	JustifiedBlockHash   common.Hash                    `json:"justifiedBlockHash,omitempty"`   // The justified block hash
 }
@@ -239,6 +241,7 @@ func (s *Snapshot) apply(headers []*types.Header, chain consensus.ChainHeaderRea
 				snap.ValidatorsWithBlsPub = nil
 			} else {
 				isShillin := chain.Config().IsShillin(checkpointHeader.Number)
+				isTripp := chain.Config().IsTripp(checkpointHeader.Number)
 				// Get validator set from headers and use that for new validator set
 				extraData, err := finality.DecodeExtraV2(checkpointHeader.Extra, chain.Config(), checkpointHeader.Number)
 				if err != nil {
@@ -253,7 +256,11 @@ func (s *Snapshot) apply(headers []*types.Header, chain consensus.ChainHeaderRea
 					}
 				}
 
-				if isShillin {
+				if isTripp {
+					// TODO: if at the start of period, read BLS key, consensus and staked amount from header
+
+					// TODO: if at the start of epoch, read block producer's consensus address
+				} else if isShillin {
 					// The validator information in checkpoint header is already sorted,
 					// we don't need to sort here
 					snap.ValidatorsWithBlsPub = make([]finality.ValidatorWithBlsPub, len(extraData.CheckpointValidators))
