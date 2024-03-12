@@ -948,6 +948,7 @@ func TestAssembleFinalityVote(t *testing.T) {
 	c := Consortium{
 		chainConfig: &params.ChainConfig{
 			ShillinBlock: big.NewInt(0),
+			TrippBlock:   big.NewInt(100),
 		},
 		votePool: &mock,
 	}
@@ -962,12 +963,15 @@ func TestAssembleFinalityVote(t *testing.T) {
 
 	snap := newSnapshot(nil, nil, nil, 10, common.Hash{}, nil, validators, nil)
 
-	header := types.Header{Number: big.NewInt(5)}
+	header := types.Header{Number: big.NewInt(mrand.Int63n(int64(200)))}
 	extraData := &finality.HeaderExtraData{}
-	header.Extra = extraData.Encode(true)
+	header.Extra, err = extraData.EncodeV2(c.chainConfig, header.Number)
+	if err != nil {
+		t.Fatalf("Failed to encode extra data, err: %s", err)
+	}
 	c.assembleFinalityVote(&header, snap)
 
-	extraData, err = finality.DecodeExtra(header.Extra, true)
+	extraData, err = finality.DecodeExtraV2(header.Extra, c.chainConfig, header.Number)
 	if err != nil {
 		t.Fatalf("Failed to decode extra data, err: %s", err)
 	}
@@ -1230,7 +1234,11 @@ func TestKnownBlockReorg(t *testing.T) {
 			bg.SetCoinbase(validatorAddrs[0])
 			bg.SetDifficulty(big.NewInt(7))
 			extra.CheckpointValidators = checkpointValidators
-			bg.SetExtra(extra.Encode(true))
+			enc, err := extra.EncodeV2(&chainConfig, bg.Number())
+			if err != nil {
+				t.Fatalf("Failed to encode header extra data, err: %s", err)
+			}
+			bg.SetExtra(enc)
 		},
 		true,
 		func(i int, bg *core.BlockGen) {
@@ -1322,7 +1330,11 @@ func TestKnownBlockReorg(t *testing.T) {
 				}
 
 				extra.AggregatedFinalityVotes = blst.AggregateSignatures(signatures)
-				bg.SetExtra(extra.Encode(true))
+				enc, err := extra.EncodeV2(&chainConfig, bg.Number())
+				if err != nil {
+					t.Fatalf("Failed to encode header extra data, err: %s", err)
+				}
+				bg.SetExtra(enc)
 			}
 
 			bg.SetDifficulty(big.NewInt(3))

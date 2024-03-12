@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -68,11 +69,11 @@ var (
 	// target number
 	ErrInvalidTargetNumber = errors.New("invalid target number in vote")
 
-	// ErrNilAggregatedFinalityVotes is returned if the aggregated votes is nil
-	ErrNilAggregatedFinalityVotes = errors.New("aggregated finality votes is nil")
+	// ErrInvalidExtraData is returned if the bls public key is nil
+	ErrInvalidExtraData = errors.New("invalid header extra data")
 
-	// ErrNilBlsPublicKey is returned if the bls public key is nil
-	ErrNilBlsPublicKey = errors.New("bls public key is nil")
+	// ErrInvalidArgument  is returned if the chain config is nil
+	ErrInvalidArgument = errors.New("invalid argument")
 )
 
 type ValidatorWithBlsPub struct {
@@ -165,6 +166,26 @@ type HeaderExtraData struct {
 	Seal                    [ExtraSeal]byte       // the sealing block signature
 }
 
+func (extraData *HeaderExtraData) EncodeV2(chainConfig *params.ChainConfig, number *big.Int) ([]byte, error) {
+	if chainConfig == nil || number == nil {
+		return nil, ErrInvalidArgument
+	}
+	if chainConfig.IsTripp(number) {
+		return extraData.EncodeRLP()
+	}
+	return extraData.Encode(chainConfig.IsShillin(number)), nil
+}
+
+func DecodeExtraV2(enc []byte, chainConfig *params.ChainConfig, number *big.Int) (*HeaderExtraData, error) {
+	if chainConfig == nil || number == nil {
+		return nil, ErrInvalidArgument
+	}
+	if chainConfig.IsTripp(number) {
+		return DecodeExtraRLP(enc)
+	}
+	return DecodeExtra(enc, chainConfig.IsShillin(number))
+}
+
 func (extraData *HeaderExtraData) Encode(isShillin bool) []byte {
 	var rawBytes []byte
 
@@ -193,7 +214,7 @@ type extraDataRLP struct {
 	FinalityVotedValidators FinalityVoteBitSet
 	AggregatedFinalityVotes []byte
 	CheckpointValidators    []validatorWithBlsPubRLP
-	Seal                    [ExtraSeal]byte `rlp:"optional"`
+	Seal                    [ExtraSeal]byte
 }
 
 type validatorWithBlsPubRLP struct {
@@ -213,7 +234,7 @@ func (extraData *HeaderExtraData) EncodeRLP() ([]byte, error) {
 			Address: val.Address,
 		}
 		if val.BlsPublicKey == nil {
-			return nil, ErrNilBlsPublicKey
+			return nil, ErrInvalidExtraData
 		}
 		v.BlsPublicKey = val.BlsPublicKey.Marshal()
 		cp = append(cp, v)
@@ -225,7 +246,7 @@ func (extraData *HeaderExtraData) EncodeRLP() ([]byte, error) {
 	if extraData.HasFinalityVote == 1 {
 		ext.FinalityVotedValidators = extraData.FinalityVotedValidators
 		if extraData.AggregatedFinalityVotes == nil {
-			return nil, ErrNilAggregatedFinalityVotes
+			return nil, ErrInvalidExtraData
 		}
 		ext.AggregatedFinalityVotes = extraData.AggregatedFinalityVotes.Marshal()
 	}
