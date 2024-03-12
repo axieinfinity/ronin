@@ -3,7 +3,7 @@
 Official Golang execution layer implementation of the Ronin protocol. It is a fork of Go Ethereum -
 [https://github.com/ethereum/go-ethereum](https://github.com/ethereum/go-ethereum) and EVM compatible.
 
-Ronin consensus use Proof of Staked Authority, a combination of dPoS and PoA, to increase the level of decentralization and allows the token holders to join the network as validators
+Ronin consensus uses Proof of Staked Authority, a combination of dPoS and PoA, to increase the level of decentralization and allows the token holders to join the network as validators
 
 Check out the [whitepaper]() for more information.
 
@@ -87,7 +87,7 @@ configuration file via:
 $ ronin --config /path/to/your_config.toml
 ```
 
-To get an idea how the file should look like you can use the `dumpconfig` subcommand to
+To get an idea of how the file should look like you can use the `dumpconfig` subcommand to
 export your existing configuration:
 
 ```shell
@@ -145,7 +145,7 @@ APIs!**
   the more likely it is that you will be asked to resubmit as a series of self-contained and individually reviewable
   smaller PRs.
 - Maintainability: If the feature will require ongoing maintenance (eg support for a particular branch of database),
-  we nay ask you to accept responsibility for maintaining this feature
+  we may ask you to accept responsibility for maintaining this feature
 - Commit message: Commit messages of Ronin project follows [https://www.conventionalcommits.org/en/v1.0.0/](https://www.conventionalcommits.org/en/v1.0.0/)
 
 ### Submit an issue
