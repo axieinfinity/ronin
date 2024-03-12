@@ -621,7 +621,11 @@ func (pool *TxPool) validateTx(tx *types.Transaction, local bool) error {
 	// Ensure the transaction doesn't exceed the current block limit gas.
 	var reservedGas uint64 = 0
 	if pool.chainconfig.Consortium != nil {
-		reservedGas = params.ReservedGasForSystemTransactions
+		if pool.chain.CurrentBlock().NumberU64()%pool.chainconfig.Consortium.EpochV2 == pool.chainconfig.Consortium.EpochV2-1 {
+			reservedGas = params.ReservedGasForCheckpointSystemTransactions
+		} else {
+			reservedGas = params.ReservedGasForNormalSystemTransactions
+		}
 	}
 	if pool.currentMaxGas-reservedGas < tx.Gas() {
 		return ErrGasLimit

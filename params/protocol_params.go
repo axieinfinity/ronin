@@ -19,7 +19,8 @@ package params
 import "math/big"
 
 const (
-	ReservedGasForSystemTransactions uint64 = 10_000_000 // The reserved gas for system transactions in each block.
+	ReservedGasForCheckpointSystemTransactions uint64 = 10_000_000 // The reserved gas for system transactions in checkpoint blocks.
+	ReservedGasForNormalSystemTransactions     uint64 = 2_000_000  // The reserved gas for system transactions in normal blocks.
 
 	GasLimitBoundDivisor           uint64 = 1024 // The bound divisor of the gas limit, used in update calculations.
 	ConsortiumGasLimitBoundDivisor uint64 = 256
