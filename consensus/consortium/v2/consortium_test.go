@@ -7,7 +7,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"math/big"
-	mrand "math/rand"
 	"testing"
 	"time"
 
@@ -534,36 +533,27 @@ func TestExtraDataDecode(t *testing.T) {
 
 func mockExtraData(nVal int, bits uint32) *finality.HeaderExtraData {
 	var (
-		vanity                  = make([]byte, finality.ExtraVanity)
-		hasFinalityVote         uint8
 		finalityVotedValidators finality.FinalityVoteBitSet
 		aggregatedFinalityVotes blsCommon.Signature
-		checkpointValidators    = make([]finality.ValidatorWithBlsPub, 0, nVal)
+		checkpointValidators    []finality.ValidatorWithBlsPub
 		seal                    = make([]byte, finality.ExtraSeal)
+		ret                     = &finality.HeaderExtraData{}
 	)
-	ret := &finality.HeaderExtraData{}
-
-	hasFinalityVote = uint8(mrand.Intn(2))
-	ret.HasFinalityVote = hasFinalityVote
-
-	if ret.HasFinalityVote == 1 {
-		finalityVotedValidators = finality.FinalityVoteBitSet(mrand.Uint64())
-		ret.FinalityVotedValidators = finalityVotedValidators
-
-		delegated, _ := blst.RandKey()
-		msg := make([]byte, 64)
-		rand.Read(msg)
-		aggregatedFinalityVotes = delegated.Sign(msg)
-		ret.AggregatedFinalityVotes = aggregatedFinalityVotes
-	}
 
 	bits = bits % 7 // ensure bits can be represented by 3-bit integer
 	for i := 0; i < 3; i++ {
 		if bits&(1<<i) != 0 {
 			switch i {
 			case 0:
-				rand.Read(vanity)
-				ret.Vanity = [finality.ExtraVanity]byte(vanity)
+				ret.HasFinalityVote = 1
+				finalityVotedValidators = finality.FinalityVoteBitSet(uint64(8))
+				ret.FinalityVotedValidators = finalityVotedValidators
+
+				delegated, _ := blst.RandKey()
+				msg := make([]byte, 64)
+				rand.Read(msg)
+				aggregatedFinalityVotes = delegated.Sign(msg)
+				ret.AggregatedFinalityVotes = aggregatedFinalityVotes
 			case 1:
 				for i := 0; i < nVal; i++ {
 					s, _ := blst.RandKey()
@@ -577,6 +567,8 @@ func mockExtraData(nVal int, bits uint32) *finality.HeaderExtraData {
 				}
 				ret.CheckpointValidators = checkpointValidators
 			case 2:
+				// Even seal does not get assigned a random value, seal
+				// is still be zero-filled byte array of size ExtraSeal
 				rand.Read(seal)
 				ret.Seal = [finality.ExtraSeal]byte(seal)
 			}
@@ -589,9 +581,12 @@ func TestExtraDataEncodeRLP(t *testing.T) {
 	nVal := 22
 	for i := 0; i < 7; i++ {
 		ext := mockExtraData(nVal, uint32(i))
-		_, err := ext.EncodeRLP()
+		enc, err := ext.EncodeRLP()
 		if err != nil {
 			t.Errorf("encode rlp error: %v", err)
+		}
+		if len(enc) < finality.ExtraSeal {
+			t.Error("encode rlp error: invalid length of encoded data")
 		}
 	}
 }
@@ -611,9 +606,6 @@ func TestExtraDataDecodeRLP(t *testing.T) {
 		}
 		if !bytes.Equal(dec.Vanity[:], ext.Vanity[:]) {
 			t.Errorf("Mismatched decoded data")
-		}
-		if dec.HasFinalityVote != ext.HasFinalityVote {
-			t.Errorf("Mismatch decoded data")
 		}
 		if dec.FinalityVotedValidators != ext.FinalityVotedValidators {
 			t.Errorf("Mismatch decoded data")
@@ -910,6 +902,106 @@ func (votePool *mockVotePool) FetchVoteByBlockHash(hash common.Hash) []*types.Vo
 	return votePool.vote
 }
 
+func TestAssembleFinalityVoteV2(t *testing.T) {
+	nVoted := 9
+	var err error
+	secretKeys := make([]blsCommon.SecretKey, 10)
+	for i := 0; i < len(secretKeys); i++ {
+		secretKeys[i], err = blst.RandKey()
+		if err != nil {
+			t.Fatalf("Failed to generate secret key, err: %s", err)
+		}
+	}
+
+	voteData := types.VoteData{
+		TargetNumber: 4,
+		TargetHash:   common.Hash{0x1},
+	}
+	digest := voteData.Hash()
+
+	signatures := make([]blsCommon.Signature, 10)
+	for i := 0; i < len(signatures); i++ {
+		signatures[i] = secretKeys[i].Sign(digest[:])
+	}
+
+	var votes []*types.VoteEnvelope
+	for i := 0; i < 10; i++ {
+		votes = append(votes, &types.VoteEnvelope{
+			RawVoteEnvelope: types.RawVoteEnvelope{
+				PublicKey: types.BLSPublicKey(secretKeys[i].PublicKey().Marshal()),
+				Signature: types.BLSSignature(signatures[i].Marshal()),
+				Data:      &voteData,
+			},
+		})
+	}
+
+	c := Consortium{
+		chainConfig: &params.ChainConfig{
+			ShillinBlock: big.NewInt(0),
+			TrippBlock:   big.NewInt(10),
+		},
+		votePool: &mockVotePool{
+			vote: votes,
+		},
+	}
+
+	var validators []finality.ValidatorWithBlsPub
+	for i := 0; i < nVoted; i++ {
+		validators = append(validators, finality.ValidatorWithBlsPub{
+			Address:      common.BigToAddress(big.NewInt(int64(i))),
+			BlsPublicKey: secretKeys[i].PublicKey(),
+		})
+	}
+
+	snap := newSnapshot(nil, nil, nil, 10, common.Hash{}, nil, validators, nil)
+
+	// iterate through 3 blocks (ranging from 9-12, which corresponds to Tripp hardfork, at block 10)
+	// to ensure the reliability of the rlp switch after Tripp hardfork.
+	for i := 9; i < 12; i++ {
+		header := types.Header{Number: big.NewInt(int64(i))}
+		extraData := &finality.HeaderExtraData{}
+		header.Extra, err = extraData.EncodeV2(c.chainConfig, header.Number)
+		if err != nil {
+			t.Fatalf("Failed to encode rlp extra data, err: %s", err)
+		}
+	
+		c.assembleFinalityVote(&header, snap)
+	
+		extraData, err = finality.DecodeExtraV2(header.Extra, c.chainConfig, header.Number)
+		if err != nil {
+			t.Fatalf("Failed to decode extra data, err: %s", err)
+		}
+	
+		if extraData.HasFinalityVote != 1 {
+			t.Fatal("Missing finality vote in header")
+		}
+	
+		bitSet := finality.FinalityVoteBitSet(0)
+		for i := 0; i < nVoted; i++ {
+			bitSet.SetBit(i)
+		}
+	
+		if uint64(bitSet) != uint64(extraData.FinalityVotedValidators) {
+			t.Fatalf(
+				"Mismatch voted validator, expect %d have %d",
+				uint64(bitSet),
+				uint64(extraData.FinalityVotedValidators),
+			)
+		}
+	
+		var includedSignatures []blsCommon.Signature
+		for i := 0; i < nVoted; i++ {
+			includedSignatures = append(includedSignatures, signatures[i])
+		}
+	
+		aggregatedSignature := blst.AggregateSignatures(includedSignatures)
+	
+		if !bytes.Equal(aggregatedSignature.Marshal(), extraData.AggregatedFinalityVotes.Marshal()) {
+			t.Fatal("Mismatch signature")
+		}
+	}
+}
+
 func TestAssembleFinalityVote(t *testing.T) {
 	var err error
 	secretKeys := make([]blsCommon.SecretKey, 10)
@@ -948,7 +1040,6 @@ func TestAssembleFinalityVote(t *testing.T) {
 	c := Consortium{
 		chainConfig: &params.ChainConfig{
 			ShillinBlock: big.NewInt(0),
-			TrippBlock:   big.NewInt(100),
 		},
 		votePool: &mock,
 	}
@@ -963,15 +1054,13 @@ func TestAssembleFinalityVote(t *testing.T) {
 
 	snap := newSnapshot(nil, nil, nil, 10, common.Hash{}, nil, validators, nil)
 
-	header := types.Header{Number: big.NewInt(mrand.Int63n(int64(200)))}
+	header := types.Header{Number: big.NewInt(5)}
 	extraData := &finality.HeaderExtraData{}
-	header.Extra, err = extraData.EncodeV2(c.chainConfig, header.Number)
-	if err != nil {
-		t.Fatalf("Failed to encode extra data, err: %s", err)
-	}
+	header.Extra = extraData.Encode(true)
+
 	c.assembleFinalityVote(&header, snap)
 
-	extraData, err = finality.DecodeExtraV2(header.Extra, c.chainConfig, header.Number)
+	extraData, err = finality.DecodeExtra(header.Extra, true)
 	if err != nil {
 		t.Fatalf("Failed to decode extra data, err: %s", err)
 	}
