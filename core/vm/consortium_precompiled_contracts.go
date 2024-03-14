@@ -1094,7 +1094,7 @@ func pickNonRotatingValidator(
 
 func (contract *pickValidatorSetBeacon) requestSortValidator(method *abi.Method, args []interface{}) ([]byte, error) {
 	if len(args) != 8 {
-		return nil, fmt.Errorf("invalid arguments, expected 4 got %d", len(args))
+		return nil, fmt.Errorf("invalid arguments, expected 8 got %d", len(args))
 	}
 	beacon, ok := args[0].(*big.Int)
 	if !ok {
