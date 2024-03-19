@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"math/big"
+	"strconv"
 	"testing"
 	"time"
 
@@ -639,6 +640,54 @@ func TestExtraDataDecodeRLP(t *testing.T) {
 		if !bytes.Equal(dec.Seal[:], ext.Seal[:]) {
 			t.Errorf("Mismatch decoded data")
 		}
+	}
+}
+
+func TestEncodedSize(t *testing.T) {
+	nVal := 22
+	for i := 0; i < 7; i++ {
+		ext := mockExtraData(nVal, uint32(i))
+		old := ext.Encode(true)
+		new, _ := ext.EncodeRLP()
+		t.Logf("binary: %v, original: %v; new: %v", strconv.FormatInt(int64(i), 2), len(old), len(new))
+	}
+}
+
+func BenchmarkEncodeRLP(b *testing.B) {
+	nVal := 22
+	ext := mockExtraData(nVal, 7)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		ext.EncodeRLP()
+	}
+}
+
+func BenchmarkEncode(b *testing.B) {
+	nVal := 22
+	ext := mockExtraData(nVal, 7)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		ext.Encode(true)
+	}
+}
+
+func BenchmarkDecodeRLP(b *testing.B) {
+	nVal := 22
+	ext := mockExtraData(nVal, 7)
+	dec, _ := ext.EncodeRLP()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		finality.DecodeExtraRLP(dec)
+	}
+}
+
+func BenchmarkDecode(b *testing.B) {
+	nVal := 22
+	ext := mockExtraData(nVal, 7)
+	dec := ext.Encode(true)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		finality.DecodeExtra(dec, true)
 	}
 }
 
