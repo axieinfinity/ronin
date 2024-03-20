@@ -52,8 +52,7 @@ func (api *consortiumV2Api) GetFinalityVoteAtHash(hash common.Hash) (*finalityVo
 		return nil, consortiumCommon.ErrUnknownBlock
 	}
 
-	isShillin := api.consortium.chainConfig.IsShillin(header.Number)
-	extraData, err := finality.DecodeExtra(header.Extra, isShillin)
+	extraData, err := finality.DecodeExtraV2(header.Extra, api.consortium.chainConfig, header.Number)
 	if err != nil {
 		return nil, err
 	}
