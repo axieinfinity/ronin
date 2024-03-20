@@ -3,8 +3,10 @@ package v2
 import (
 	"bytes"
 	"crypto/ecdsa"
+	"crypto/rand"
 	"encoding/binary"
 	"errors"
+	"io"
 	"math/big"
 	"testing"
 	"time"
@@ -527,6 +529,173 @@ func TestExtraDataDecode(t *testing.T) {
 
 	if !decodedData.CheckpointValidators[0].BlsPublicKey.Equals(extraData.CheckpointValidators[0].BlsPublicKey) {
 		t.Errorf("Mismatch decoded data")
+	}
+}
+
+func mockExtraData(nVal int, bits uint32) *finality.HeaderExtraData {
+	var (
+		finalityVotedValidators finality.FinalityVoteBitSet
+		aggregatedFinalityVotes blsCommon.Signature
+		checkpointValidators    []finality.ValidatorWithBlsPub
+		seal                    = make([]byte, finality.ExtraSeal)
+		ret                     = &finality.HeaderExtraData{}
+	)
+
+	bits = bits % 7 // ensure bits can be represented by 3-bit integer
+	for i := 0; i < 3; i++ {
+		if bits&(1<<i) != 0 {
+			switch i {
+			case 0:
+				ret.HasFinalityVote = 1
+				finalityVotedValidators = finality.FinalityVoteBitSet(uint64(8))
+				ret.FinalityVotedValidators = finalityVotedValidators
+
+				delegated, _ := blst.RandKey()
+				msg := make([]byte, 64)
+				rand.Read(msg)
+				aggregatedFinalityVotes = delegated.Sign(msg)
+				ret.AggregatedFinalityVotes = aggregatedFinalityVotes
+			case 1:
+				for i := 0; i < nVal; i++ {
+					s, _ := blst.RandKey()
+					sk, _ := ecdsa.GenerateKey(crypto.S256(), rand.Reader)
+					addr := crypto.PubkeyToAddress(sk.PublicKey)
+					val := finality.ValidatorWithBlsPub{
+						Address:      addr,
+						BlsPublicKey: s.PublicKey(),
+					}
+					checkpointValidators = append(checkpointValidators, val)
+				}
+				ret.CheckpointValidators = checkpointValidators
+			case 2:
+				// Even seal does not get assigned a random value, seal
+				// is still be zero-filled byte array of size ExtraSeal
+				rand.Read(seal)
+				ret.Seal = [finality.ExtraSeal]byte(seal)
+			}
+		}
+	}
+	return ret
+}
+
+func TestExtraDataEncodeRLP(t *testing.T) {
+	nVal := 22
+	for i := 0; i < 7; i++ {
+		ext := mockExtraData(nVal, uint32(i))
+		enc, err := ext.EncodeRLP()
+		if err != nil {
+			t.Errorf("encode rlp error: %v", err)
+		}
+		if len(enc) < finality.ExtraSeal {
+			t.Error("encode rlp error: invalid length of encoded data")
+		}
+	}
+
+	var extraData finality.HeaderExtraData
+	extraData.HasFinalityVote = 2
+	_, err := extraData.EncodeRLP()
+	if !errors.Is(err, finality.ErrInvalidHasFinalityVote) {
+		t.Fatalf("Expect error: %s, got: %s", finality.ErrInvalidHasFinalityVote, err)
+	}
+}
+
+func TestExtraDataDecodeRLP(t *testing.T) {
+	nVals := 22
+	// loop 64 times, equivalent to 64 combinations of 6 bits
+	for i := 0; i < 7; i++ {
+		ext := mockExtraData(nVals, uint32(i))
+		enc, err := ext.EncodeRLP()
+		if err != nil {
+			t.Errorf("encode rlp error: %v", err)
+		}
+		dec, err := finality.DecodeExtraRLP(enc)
+		if err != nil {
+			t.Errorf("decode rlp error: %v", err)
+		}
+		if !bytes.Equal(dec.Vanity[:], ext.Vanity[:]) {
+			t.Errorf("Mismatched decoded data")
+		}
+		if dec.FinalityVotedValidators != ext.FinalityVotedValidators {
+			t.Errorf("Mismatch decoded data")
+		}
+		if (dec.AggregatedFinalityVotes != nil && ext.AggregatedFinalityVotes == nil) ||
+			(dec.AggregatedFinalityVotes == nil && ext.AggregatedFinalityVotes != nil) {
+			t.Errorf("Mismatch decoded data")
+		}
+		if dec.AggregatedFinalityVotes != nil &&
+			ext.AggregatedFinalityVotes != nil &&
+			!bytes.Equal(dec.AggregatedFinalityVotes.Marshal(), ext.AggregatedFinalityVotes.Marshal()) {
+			t.Errorf("Mismatch decoded data")
+		}
+		if len(dec.CheckpointValidators) != len(ext.CheckpointValidators) {
+			t.Errorf("Mismatch decoded data")
+		}
+		for i := 0; i < len(ext.CheckpointValidators); i++ {
+			if dec.CheckpointValidators[i].Address.Hex() != ext.CheckpointValidators[i].Address.Hex() {
+				t.Errorf("Mismatch decoded data")
+			}
+			if (dec.CheckpointValidators[i].BlsPublicKey == nil && ext.CheckpointValidators[i].BlsPublicKey != nil) ||
+				(dec.CheckpointValidators[i].BlsPublicKey != nil && ext.CheckpointValidators[i].BlsPublicKey == nil) {
+				t.Errorf("Mismatch decoded data")
+			}
+			if dec.CheckpointValidators[i].BlsPublicKey != nil &&
+				ext.CheckpointValidators[i].BlsPublicKey != nil &&
+				!bytes.Equal(dec.CheckpointValidators[i].BlsPublicKey.Marshal(), ext.CheckpointValidators[i].BlsPublicKey.Marshal()) {
+				t.Errorf("Mismatch decoded data")
+			}
+		}
+		if !bytes.Equal(dec.Seal[:], ext.Seal[:]) {
+			t.Errorf("Mismatch decoded data")
+		}
+	}
+
+	_, err := finality.DecodeExtraRLP([]byte{})
+	if !errors.Is(err, finality.ErrInvalidEncodedExtraData) {
+		t.Fatalf("Expect error: %s, got: %s", finality.ErrInvalidEncodedExtraData, err)
+	}
+
+	encodedData := [finality.ExtraSeal]byte{}
+	_, err = finality.DecodeExtraRLP(encodedData[:])
+	if !errors.Is(err, io.EOF) {
+		t.Fatalf("Expect error: %s, got: %s", io.EOF, err)
+	}
+}
+
+func BenchmarkEncodeRLP(b *testing.B) {
+	nVal := 22
+	ext := mockExtraData(nVal, 7)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		ext.EncodeRLP()
+	}
+}
+
+func BenchmarkEncode(b *testing.B) {
+	nVal := 22
+	ext := mockExtraData(nVal, 7)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		ext.Encode(true)
+	}
+}
+
+func BenchmarkDecodeRLP(b *testing.B) {
+	nVal := 22
+	ext := mockExtraData(nVal, 7)
+	dec, _ := ext.EncodeRLP()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		finality.DecodeExtraRLP(dec)
+	}
+}
+
+func BenchmarkDecode(b *testing.B) {
+	nVal := 22
+	ext := mockExtraData(nVal, 7)
+	dec := ext.Encode(true)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		finality.DecodeExtra(dec, true)
 	}
 }
 
