@@ -356,7 +356,7 @@ func (c *Consortium) verifyCascadingFields(chain consensus.ChainHeaderReader, he
 
 	// Check extra data
 	isShillin := c.chainConfig.IsShillin(header.Number)
-	extraData, err := finality.DecodeExtra(header.Extra, isShillin)
+	extraData, err := finality.DecodeExtraV2(header.Extra, c.chainConfig, header.Number)
 	if err != nil {
 		return err
 	}
@@ -723,7 +723,6 @@ func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.He
 	// Set the correct difficulty
 	header.Difficulty = CalcDifficulty(snap, coinbase)
 
-	isShillin := c.chainConfig.IsShillin(header.Number)
 	var extraData finality.HeaderExtraData
 
 	if number%c.config.EpochV2 == 0 || c.chainConfig.IsOnConsortiumV2(big.NewInt(int64(number))) {
@@ -738,7 +737,10 @@ func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.He
 	// not assemble finality vote yet. Let's wait some time for the
 	// finality votes to be broadcasted around the network. The
 	// finality votes are assembled later in Seal function.
-	header.Extra = extraData.Encode(isShillin)
+	header.Extra, err = extraData.EncodeV2(c.chainConfig, header.Number)
+	if err != nil {
+		return err
+	}
 
 	// Mix digest is reserved for now, set to empty
 	header.MixDigest = common.Hash{}
@@ -764,9 +766,10 @@ func (c *Consortium) processSystemTransactions(chain consensus.ChainHeaderReader
 	_, _, _, contract := c.readSignerAndContract()
 
 	// If the parent's block includes the finality votes, distribute reward for the voters
-	if c.chainConfig.IsShillin(new(big.Int).Sub(header.Number, common.Big1)) {
+	parentNumber := new(big.Int).Sub(header.Number, common.Big1)
+	if c.chainConfig.IsShillin(parentNumber) {
 		parentHeader := chain.GetHeader(header.ParentHash, header.Number.Uint64()-1)
-		extraData, err := finality.DecodeExtra(parentHeader.Extra, true)
+		extraData, err := finality.DecodeExtraV2(parentHeader.Extra, c.chainConfig, parentNumber)
 		if err != nil {
 			return err
 		}
@@ -888,7 +891,7 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 		if err != nil {
 			return err
 		}
-		extraData, err := finality.DecodeExtra(header.Extra, isShillin)
+		extraData, err := finality.DecodeExtraV2(header.Extra, c.chainConfig, header.Number)
 		if err != nil {
 			return err
 		}
@@ -1094,9 +1097,15 @@ func (c *Consortium) SealHash(header *types.Header) common.Hash {
 		// FinalizeAndAssemble call.
 		copyHeader := types.CopyHeader(header)
 
-		extraData, _ := finality.DecodeExtra(copyHeader.Extra, true)
+		extraData, err := finality.DecodeExtraV2(copyHeader.Extra, c.chainConfig, header.Number)
+		if err != nil {
+			log.Error("Failed to decode header extra data", "err", err)
+		}
 		extraData.HasFinalityVote = 0
-		copyHeader.Extra = extraData.Encode(true)
+		copyHeader.Extra, err = extraData.EncodeV2(c.chainConfig, header.Number)
+		if err != nil {
+			log.Error("Failed to encode header extra data", "err", err)
+		}
 		return calculateSealHash(copyHeader, c.chainConfig.ChainID)
 	} else {
 		return calculateSealHash(header, c.chainConfig.ChainID)
@@ -1260,7 +1269,7 @@ func (c *Consortium) assembleFinalityVote(header *types.Header, snap *Snapshot) 
 
 				bitSetCount := len(finalityVotedValidators.Indices())
 				if bitSetCount >= finalityThreshold {
-					extraData, err := finality.DecodeExtra(header.Extra, true)
+					extraData, err := finality.DecodeExtraV2(header.Extra, c.chainConfig, header.Number)
 					if err != nil {
 						// This should not happen
 						log.Error("Failed to decode header extra data", "err", err)
@@ -1269,7 +1278,11 @@ func (c *Consortium) assembleFinalityVote(header *types.Header, snap *Snapshot) 
 					extraData.HasFinalityVote = 1
 					extraData.FinalityVotedValidators = finalityVotedValidators
 					extraData.AggregatedFinalityVotes = blst.AggregateSignatures(signatures)
-					header.Extra = extraData.Encode(true)
+					header.Extra, err = extraData.EncodeV2(c.chainConfig, header.Number)
+					if err != nil {
+						log.Error("Failed to encode header extra data", "err", err)
+						return
+					}
 				}
 			}
 		}
