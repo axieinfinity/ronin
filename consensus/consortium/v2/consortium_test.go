@@ -6,8 +6,8 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"errors"
+	"io"
 	"math/big"
-	"strconv"
 	"testing"
 	"time"
 
@@ -590,6 +590,13 @@ func TestExtraDataEncodeRLP(t *testing.T) {
 			t.Error("encode rlp error: invalid length of encoded data")
 		}
 	}
+
+	var extraData finality.HeaderExtraData
+	extraData.HasFinalityVote = 2
+	_, err := extraData.EncodeRLP()
+	if !errors.Is(err, finality.ErrInvalidHasFinalityVote) {
+		t.Fatalf("Expect error: %s, got: %s", finality.ErrInvalidHasFinalityVote, err)
+	}
 }
 
 func TestExtraDataDecodeRLP(t *testing.T) {
@@ -641,15 +648,16 @@ func TestExtraDataDecodeRLP(t *testing.T) {
 			t.Errorf("Mismatch decoded data")
 		}
 	}
-}
 
-func TestEncodedSize(t *testing.T) {
-	nVal := 22
-	for i := 0; i < 7; i++ {
-		ext := mockExtraData(nVal, uint32(i))
-		old := ext.Encode(true)
-		new, _ := ext.EncodeRLP()
-		t.Logf("binary: %v, original: %v; new: %v", strconv.FormatInt(int64(i), 2), len(old), len(new))
+	_, err := finality.DecodeExtraRLP([]byte{})
+	if !errors.Is(err, finality.ErrInvalidEncodedExtraData) {
+		t.Fatalf("Expect error: %s, got: %s", finality.ErrInvalidEncodedExtraData, err)
+	}
+
+	encodedData := [finality.ExtraSeal]byte{}
+	_, err = finality.DecodeExtraRLP(encodedData[:])
+	if !errors.Is(err, io.EOF) {
+		t.Fatalf("Expect error: %s, got: %s", io.EOF, err)
 	}
 }
 
@@ -951,106 +959,6 @@ func (votePool *mockVotePool) FetchVoteByBlockHash(hash common.Hash) []*types.Vo
 	return votePool.vote
 }
 
-func TestAssembleFinalityVoteV2(t *testing.T) {
-	nVoted := 9
-	var err error
-	secretKeys := make([]blsCommon.SecretKey, 10)
-	for i := 0; i < len(secretKeys); i++ {
-		secretKeys[i], err = blst.RandKey()
-		if err != nil {
-			t.Fatalf("Failed to generate secret key, err: %s", err)
-		}
-	}
-
-	voteData := types.VoteData{
-		TargetNumber: 4,
-		TargetHash:   common.Hash{0x1},
-	}
-	digest := voteData.Hash()
-
-	signatures := make([]blsCommon.Signature, 10)
-	for i := 0; i < len(signatures); i++ {
-		signatures[i] = secretKeys[i].Sign(digest[:])
-	}
-
-	var votes []*types.VoteEnvelope
-	for i := 0; i < 10; i++ {
-		votes = append(votes, &types.VoteEnvelope{
-			RawVoteEnvelope: types.RawVoteEnvelope{
-				PublicKey: types.BLSPublicKey(secretKeys[i].PublicKey().Marshal()),
-				Signature: types.BLSSignature(signatures[i].Marshal()),
-				Data:      &voteData,
-			},
-		})
-	}
-
-	c := Consortium{
-		chainConfig: &params.ChainConfig{
-			ShillinBlock: big.NewInt(0),
-			TrippBlock:   big.NewInt(10),
-		},
-		votePool: &mockVotePool{
-			vote: votes,
-		},
-	}
-
-	var validators []finality.ValidatorWithBlsPub
-	for i := 0; i < nVoted; i++ {
-		validators = append(validators, finality.ValidatorWithBlsPub{
-			Address:      common.BigToAddress(big.NewInt(int64(i))),
-			BlsPublicKey: secretKeys[i].PublicKey(),
-		})
-	}
-
-	snap := newSnapshot(nil, nil, nil, 10, common.Hash{}, nil, validators, nil)
-
-	// iterate through 3 blocks (ranging from 9-12, which corresponds to Tripp hardfork, at block 10)
-	// to ensure the reliability of the rlp switch after Tripp hardfork.
-	for i := 9; i < 12; i++ {
-		header := types.Header{Number: big.NewInt(int64(i))}
-		extraData := &finality.HeaderExtraData{}
-		header.Extra, err = extraData.EncodeV2(c.chainConfig, header.Number)
-		if err != nil {
-			t.Fatalf("Failed to encode rlp extra data, err: %s", err)
-		}
-	
-		c.assembleFinalityVote(&header, snap)
-	
-		extraData, err = finality.DecodeExtraV2(header.Extra, c.chainConfig, header.Number)
-		if err != nil {
-			t.Fatalf("Failed to decode extra data, err: %s", err)
-		}
-	
-		if extraData.HasFinalityVote != 1 {
-			t.Fatal("Missing finality vote in header")
-		}
-	
-		bitSet := finality.FinalityVoteBitSet(0)
-		for i := 0; i < nVoted; i++ {
-			bitSet.SetBit(i)
-		}
-	
-		if uint64(bitSet) != uint64(extraData.FinalityVotedValidators) {
-			t.Fatalf(
-				"Mismatch voted validator, expect %d have %d",
-				uint64(bitSet),
-				uint64(extraData.FinalityVotedValidators),
-			)
-		}
-	
-		var includedSignatures []blsCommon.Signature
-		for i := 0; i < nVoted; i++ {
-			includedSignatures = append(includedSignatures, signatures[i])
-		}
-	
-		aggregatedSignature := blst.AggregateSignatures(includedSignatures)
-	
-		if !bytes.Equal(aggregatedSignature.Marshal(), extraData.AggregatedFinalityVotes.Marshal()) {
-			t.Fatal("Mismatch signature")
-		}
-	}
-}
-
 func TestAssembleFinalityVote(t *testing.T) {
 	var err error
 	secretKeys := make([]blsCommon.SecretKey, 10)
@@ -1106,7 +1014,6 @@ func TestAssembleFinalityVote(t *testing.T) {
 	header := types.Header{Number: big.NewInt(5)}
 	extraData := &finality.HeaderExtraData{}
 	header.Extra = extraData.Encode(true)
-
 	c.assembleFinalityVote(&header, snap)
 
 	extraData, err = finality.DecodeExtra(header.Extra, true)
@@ -1372,11 +1279,7 @@ func TestKnownBlockReorg(t *testing.T) {
 			bg.SetCoinbase(validatorAddrs[0])
 			bg.SetDifficulty(big.NewInt(7))
 			extra.CheckpointValidators = checkpointValidators
-			enc, err := extra.EncodeV2(&chainConfig, bg.Number())
-			if err != nil {
-				t.Fatalf("Failed to encode header extra data, err: %s", err)
-			}
-			bg.SetExtra(enc)
+			bg.SetExtra(extra.Encode(true))
 		},
 		true,
 		func(i int, bg *core.BlockGen) {
@@ -1468,11 +1371,7 @@ func TestKnownBlockReorg(t *testing.T) {
 				}
 
 				extra.AggregatedFinalityVotes = blst.AggregateSignatures(signatures)
-				enc, err := extra.EncodeV2(&chainConfig, bg.Number())
-				if err != nil {
-					t.Fatalf("Failed to encode header extra data, err: %s", err)
-				}
-				bg.SetExtra(enc)
+				bg.SetExtra(extra.Encode(true))
 			}
 
 			bg.SetDifficulty(big.NewInt(3))
