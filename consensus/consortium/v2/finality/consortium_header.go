@@ -69,18 +69,17 @@ var (
 	// target number
 	ErrInvalidTargetNumber = errors.New("invalid target number in vote")
 
-	// ErrInvalidExtraData is returned if the bls public key is nil
+	// ErrInvalidExtraData is returned if the ExtraData contains invalid fields
 	ErrInvalidExtraData = errors.New("invalid header extra data")
 
-	// ErrInvalidArgument is returned if the chain config is nil
-	ErrInvalidArgument = errors.New("invalid argument")
-
+	// ErrInvalidEncodedExtraData is returned if the encoded extra data is invalid.
 	ErrInvalidEncodedExtraData = errors.New("invalid encoded extra data")
 )
 
 type ValidatorWithBlsPub struct {
 	Address      common.Address
 	BlsPublicKey blsCommon.PublicKey
+	StakedAmount *big.Int
 }
 
 type savedValidatorWithBlsPub struct {
@@ -172,7 +171,8 @@ type HeaderExtraData struct {
 	HasFinalityVote         uint8                 // determine if the header extra has the finality vote
 	FinalityVotedValidators FinalityVoteBitSet    // the bit set of validators that vote for finality
 	AggregatedFinalityVotes blsCommon.Signature   // aggregated BLS signatures for finality vote
-	CheckpointValidators    []ValidatorWithBlsPub // validator addresses and BLS public key appended at checkpoint block
+	CheckpointValidators    []ValidatorWithBlsPub // validator addresses and BLS public key appended at period checkpoint block
+	BlockProducers          []common.Address      // block producer addresses at epoch checkpoint block
 	Seal                    [ExtraSeal]byte       // the sealing block signature
 }
 
@@ -268,17 +268,19 @@ func DecodeExtra(rawBytes []byte, isShillin bool) (*HeaderExtraData, error) {
 
 // extraDataRLP excludes vanity, hasFinalityVotes because vanity is not used in
 // Consortium and filled with zero by default; whereas hasFinalityVotes can be determined
-// by AggregatedFinalityVotes and FinalityVotedValidators. On the other hand, seal is 
+// by AggregatedFinalityVotes and FinalityVotedValidators. On the other hand, seal is
 // appended manually, enabling encodeSigHeader easily to exclude Seal before signing process
 type extraDataRLP struct {
 	FinalityVotedValidators FinalityVoteBitSet
 	AggregatedFinalityVotes []byte
 	CheckpointValidators    []validatorWithBlsPubRLP
+	BlockProducers          []common.Address `rlp:"optional"`
 }
 
 type validatorWithBlsPubRLP struct {
 	Address      common.Address
 	BlsPublicKey []byte
+	StakedAmount *big.Int `rlp:"optional"`
 }
 
 // EncodeRLP computes rlp-based encoding for HeaderExtraData before
@@ -305,9 +307,15 @@ func (extraData *HeaderExtraData) EncodeRLP() ([]byte, error) {
 		cp[i] = validatorWithBlsPubRLP{
 			Address:      val.Address,
 			BlsPublicKey: val.BlsPublicKey.Marshal(),
+			StakedAmount: val.StakedAmount,
 		}
 	}
 	ext.CheckpointValidators = cp
+
+	if extraData.BlockProducers != nil {
+		ext.BlockProducers = make([]common.Address, len(extraData.BlockProducers))
+		copy(ext.BlockProducers, extraData.BlockProducers)
+	}
 
 	enc, err := rlp.EncodeToBytes(ext)
 	if err != nil {
@@ -342,9 +350,15 @@ func DecodeExtraRLP(enc []byte) (*HeaderExtraData, error) {
 		cp[i] = ValidatorWithBlsPub{
 			Address:      val.Address,
 			BlsPublicKey: blsPublicKey,
+			StakedAmount: val.StakedAmount,
 		}
 	}
 	ret.CheckpointValidators = cp
+	if dec.BlockProducers != nil {
+		ret.BlockProducers = make([]common.Address, len(dec.BlockProducers))
+		copy(ret.BlockProducers, dec.BlockProducers)
+	}
+
 	if len(dec.AggregatedFinalityVotes) != 0 && len(dec.FinalityVotedValidators.Indices()) != 0 {
 		ret.HasFinalityVote = 1
 		ret.FinalityVotedValidators = dec.FinalityVotedValidators
@@ -360,7 +374,7 @@ func DecodeExtraRLP(enc []byte) (*HeaderExtraData, error) {
 // After Tripp, HeaderExtraData switches to use RLP encoding method
 func (extraData *HeaderExtraData) EncodeV2(chainConfig *params.ChainConfig, number *big.Int) ([]byte, error) {
 	if chainConfig == nil || number == nil {
-		return nil, ErrInvalidArgument
+		return nil, ErrInvalidExtraData
 	}
 	if chainConfig.IsTripp(number) {
 		return extraData.EncodeRLP()
@@ -371,7 +385,7 @@ func (extraData *HeaderExtraData) EncodeV2(chainConfig *params.ChainConfig, numb
 // After Tripp, HeaderExtraData switches to use RLP decoding method
 func DecodeExtraV2(enc []byte, chainConfig *params.ChainConfig, number *big.Int) (*HeaderExtraData, error) {
 	if chainConfig == nil || number == nil {
-		return nil, ErrInvalidArgument
+		return nil, ErrInvalidExtraData
 	}
 	if chainConfig.IsTripp(number) {
 		return DecodeExtraRLP(enc)

@@ -32,4 +32,5 @@ type Signature interface {
 	Eth2FastAggregateVerify(pubKeys []PublicKey, msg [32]byte) bool
 	Marshal() []byte
 	Copy() Signature
+	Equals(s2 Signature) bool
 }
