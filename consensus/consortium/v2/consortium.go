@@ -1502,3 +1502,19 @@ func encodeSigHeader(w io.Writer, header *types.Header, chainId *big.Int) {
 		panic("can't encode: " + err.Error())
 	}
 }
+
+// IsPeriodBlock returns indicator whether a block is a period checkpoint block or not,
+// which is the first checkpoint block (block % EpochV2 == 0) after 00:00 UTC everyday.
+func IsPeriodBlock(chain consensus.ChainHeaderReader, header *types.Header, EpochV2 uint64) bool {
+	number := header.Number.Uint64()
+	dateInSeconds := uint64(86400)
+	if number%EpochV2 != 0 || number < EpochV2 {
+		return false
+	}
+	ancient := chain.GetHeaderByNumber(number - EpochV2)
+	if ancient == nil {
+		log.Error("fail to get header by block number", "number", number-EpochV2)
+		return false
+	}
+	return header.Time/dateInSeconds-1 == ancient.Time/dateInSeconds
+}
