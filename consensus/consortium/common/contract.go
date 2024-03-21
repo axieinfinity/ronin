@@ -57,6 +57,7 @@ func getTransactionOpts(from common.Address, nonce uint64, chainId *big.Int, sig
 
 type ContractInteraction interface {
 	GetValidators(blockNumber *big.Int) ([]common.Address, error)
+	GetValidatorCandidates(blockNumber *big.Int) ([]common.Address, error)
 	WrapUpEpoch(opts *ApplyTransactOpts) error
 	SubmitBlockReward(opts *ApplyTransactOpts) error
 	Slash(opts *ApplyTransactOpts, spoiledValidator common.Address) error
@@ -129,6 +130,17 @@ func (c *ContractIntegrator) GetValidators(blockNumber *big.Int) ([]common.Addre
 		BlockNumber: blockNumber,
 	}
 	addresses, err := c.roninValidatorSetSC.GetBlockProducers(&callOpts)
+	if err != nil {
+		return nil, err
+	}
+	return addresses, nil
+}
+
+func (c *ContractIntegrator) GetValidatorCandidates(blockNumber *big.Int) ([]common.Address, error) {
+	callOpts := bind.CallOpts{
+		BlockNumber: blockNumber,
+	}
+	addresses, err := c.roninValidatorSetSC.GetValidatorCandidates(&callOpts)
 	if err != nil {
 		return nil, err
 	}

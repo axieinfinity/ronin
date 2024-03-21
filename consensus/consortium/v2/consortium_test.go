@@ -992,6 +992,10 @@ func (contract *mockContract) GetValidators(*big.Int) ([]common.Address, error) 
 	return validatorAddresses, nil
 }
 
+func (contract *mockContract) GetValidatorCandidates(blockNumber *big.Int) ([]common.Address, error) {
+	return nil, nil
+}
+
 func (contract *mockContract) GetBlsPublicKey(_ *big.Int, address common.Address) (blsCommon.PublicKey, error) {
 	if key, ok := contract.validators[address]; ok {
 		if key != nil {
