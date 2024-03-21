@@ -303,8 +303,14 @@ func TestCopy(t *testing.T) {
 	if signatureA.s == signatureB.s {
 		t.Fatalf("%#v expected not equal to %#v", signatureA.s, signatureB.s)
 	}
+	if !signatureA.Equals(signatureB) {
+		t.Fatalf("%#v expected equal to %#v", signatureA, signatureB)
+	}
 	assert.Equal(t, signatureA, signatureB)
 
 	signatureA.s.Sign(key.p, []byte("bar"), sigDst)
+	if signatureA.Equals(signatureB) {
+		t.Fatalf("%#v expected not equal to %#v", signatureA, signatureB)
+	}
 	assert.NotEqual(t, signatureA, signatureB)
 }

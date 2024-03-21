@@ -541,7 +541,7 @@ func mockExtraData(nVal int, bits uint32) *finality.HeaderExtraData {
 		ret                     = &finality.HeaderExtraData{}
 	)
 
-	bits = bits % 32
+	bits = bits % 32 
 	for i := 0; i < 5; i++ {
 		if bits&(1<<i) != 0 {
 			switch i {
@@ -572,6 +572,19 @@ func mockExtraData(nVal int, bits uint32) *finality.HeaderExtraData {
 				// is still be zero-filled byte array of size ExtraSeal
 				rand.Read(seal)
 				ret.Seal = [finality.ExtraSeal]byte(seal)
+
+			// cases 3,4 are used to test RLP encoding in both Shillin and Tripp blocks
+			// as before Tripp, StakedAmount and BlockProducers are empty.
+			case 3:
+				for i := range ret.CheckpointValidators {
+					ret.CheckpointValidators[i].StakedAmount = big.NewInt(333)
+				}
+			case 4:
+				ret.BlockProducers = []common.Address{
+					common.Address{0x11},
+					common.Address{0x22},
+					common.Address{0x33},
+				}
 			}
 		}
 	}
@@ -580,7 +593,7 @@ func mockExtraData(nVal int, bits uint32) *finality.HeaderExtraData {
 
 func TestExtraDataEncodeRLP(t *testing.T) {
 	nVal := 22
-	for i := 0; i < 7; i++ {
+	for i := 0; i < 32; i++ {
 		ext := mockExtraData(nVal, uint32(i))
 		enc, err := ext.EncodeRLP()
 		if err != nil {
@@ -601,8 +614,7 @@ func TestExtraDataEncodeRLP(t *testing.T) {
 
 func TestExtraDataDecodeRLP(t *testing.T) {
 	nVals := 22
-	// loop 64 times, equivalent to 64 combinations of 6 bits
-	for i := 0; i < 7; i++ {
+	for i := 0; i < 32; i++ {
 		ext := mockExtraData(nVals, uint32(i))
 		enc, err := ext.EncodeRLP()
 		if err != nil {
@@ -624,7 +636,7 @@ func TestExtraDataDecodeRLP(t *testing.T) {
 		}
 		if dec.AggregatedFinalityVotes != nil &&
 			ext.AggregatedFinalityVotes != nil &&
-			!bytes.Equal(dec.AggregatedFinalityVotes.Marshal(), ext.AggregatedFinalityVotes.Marshal()) {
+			!dec.AggregatedFinalityVotes.Equals(ext.AggregatedFinalityVotes) {
 			t.Errorf("Mismatch decoded data")
 		}
 		if len(dec.CheckpointValidators) != len(ext.CheckpointValidators) {
@@ -640,7 +652,23 @@ func TestExtraDataDecodeRLP(t *testing.T) {
 			}
 			if dec.CheckpointValidators[i].BlsPublicKey != nil &&
 				ext.CheckpointValidators[i].BlsPublicKey != nil &&
-				!bytes.Equal(dec.CheckpointValidators[i].BlsPublicKey.Marshal(), ext.CheckpointValidators[i].BlsPublicKey.Marshal()) {
+				!dec.CheckpointValidators[i].BlsPublicKey.Equals(ext.CheckpointValidators[i].BlsPublicKey) {
+				t.Errorf("Mismatch decoded data")
+			}
+			if (dec.CheckpointValidators[i].StakedAmount == nil && ext.CheckpointValidators[i].StakedAmount != nil) ||
+				(dec.CheckpointValidators[i].StakedAmount != nil && ext.CheckpointValidators[i].StakedAmount == nil) {
+				t.Error("Mismatch decoded data")
+			}
+			if dec.CheckpointValidators[i].StakedAmount != nil && ext.CheckpointValidators[i].StakedAmount != nil &&
+				dec.CheckpointValidators[i].StakedAmount.Cmp(ext.CheckpointValidators[i].StakedAmount) != 0 {
+				t.Error("Mismatch decoded data")
+			}
+		}
+		if len(dec.BlockProducers) != len(ext.BlockProducers) {
+			t.Errorf("Mismatch decoded data")
+		}
+		for i := 0; i < len(ext.BlockProducers); i++ {
+			if dec.BlockProducers[i].Hex() != ext.BlockProducers[i].Hex() {
 				t.Errorf("Mismatch decoded data")
 			}
 		}
