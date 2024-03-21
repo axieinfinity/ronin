@@ -541,8 +541,8 @@ func mockExtraData(nVal int, bits uint32) *finality.HeaderExtraData {
 		ret                     = &finality.HeaderExtraData{}
 	)
 
-	bits = bits % 7 // ensure bits can be represented by 3-bit integer
-	for i := 0; i < 3; i++ {
+	bits = bits % 32
+	for i := 0; i < 5; i++ {
 		if bits&(1<<i) != 0 {
 			switch i {
 			case 0:
@@ -1916,5 +1916,49 @@ func TestEnablePickValidatorSetWithBeacon(t *testing.T) {
 				t.Fatalf("Expect to get nonce: %d, got %d", 1, nonce)
 			}
 		}
+	}
+}
+
+func TestIsPeriodBlock(t *testing.T) {
+	EpochV2 := uint64(200)
+	db := rawdb.NewMemoryDatabase()
+	genesis := (&core.Genesis{
+		Config:  params.TestChainConfig,
+		BaseFee: big.NewInt(params.InitialBaseFee),
+	}).MustCommit(db)
+	chain, _ := core.NewBlockChain(db, nil, params.TestChainConfig, ethash.NewFullFaker(), vm.Config{}, nil, nil)
+
+	bs, _ := core.GenerateChain(params.TestChainConfig, genesis, ethash.NewFaker(), db, 10, nil, true)
+	if _, err := chain.InsertChain(bs[:]); err != nil {
+		panic(err)
+	}
+
+	header := &types.Header{Number: new(big.Int).SetUint64(5)}
+	if IsPeriodBlock(chain, header, EpochV2) {
+		t.Errorf("wrong period block")
+	}
+	header.Number = new(big.Int).SetUint64(0)
+	if IsPeriodBlock(chain, header, EpochV2) {
+		t.Errorf("wrong period block")
+	}
+
+	dateInSeconds := uint64(86400)
+	now := uint64(time.Now().Unix())
+	time := now - now%dateInSeconds
+	ancient := &types.Header{
+		Number: new(big.Int).SetUint64(1000),
+		Time:   uint64(time - 1),
+	}
+	header = &types.Header{
+		Number: new(big.Int).SetUint64(1200),
+		Time:   uint64(time + 2),
+	}
+	if header.Time/dateInSeconds-1 != ancient.Time/dateInSeconds {
+		t.Errorf("wrong period block logic")
+	}
+
+	ancient.Time = uint64(time + 1)
+	if header.Time/dateInSeconds != ancient.Time/dateInSeconds {
+		t.Errorf("wrong period block logic")
 	}
 }
