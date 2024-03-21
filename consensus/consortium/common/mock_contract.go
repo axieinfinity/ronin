@@ -57,6 +57,10 @@ func (contract *MockContract) GetValidators(*big.Int) ([]common.Address, error) 
 	return Validators.GetValidators(), nil
 }
 
+func (contract *MockContract) GetValidatorCandidates(*big.Int) ([]common.Address, error) {
+	return nil, nil
+}
+
 func (contract *MockContract) WrapUpEpoch(*ApplyTransactOpts) error {
 	log.Info("WrapUpEpoch")
 	return nil
