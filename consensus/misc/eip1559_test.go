@@ -59,8 +59,6 @@ func config() *params.ChainConfig {
 // TestBlockGasLimits tests the gasLimit checks for blocks both across
 // the EIP-1559 boundary and post-1559 blocks
 func TestBlockGasLimits(t *testing.T) {
-	initial := new(big.Int).SetUint64(params.InitialBaseFee)
-
 	for i, tc := range []struct {
 		pGasLimit uint64
 		pNum      int64
@@ -68,11 +66,11 @@ func TestBlockGasLimits(t *testing.T) {
 		ok        bool
 	}{
 		// Transitions from non-london to london
-		{10000000, 4, 20000000, true},  // No change
-		{10000000, 4, 20019530, true},  // Upper limit
-		{10000000, 4, 20019531, false}, // Upper +1
-		{10000000, 4, 19980470, true},  // Lower limit
-		{10000000, 4, 19980469, false}, // Lower limit -1
+		{10000000, 4, 10000000, true},  // No change
+		{10000000, 4, 10009764, true},  // Upper limit
+		{10000000, 4, 10009765, false}, // Upper +1
+		{10000000, 4, 9990236, true},   // Lower limit
+		{10000000, 4, 9990235, false},  // Lower limit -1
 		// London to London
 		{20000000, 5, 20000000, true},
 		{20000000, 5, 20019530, true},  // Upper limit
@@ -87,13 +85,13 @@ func TestBlockGasLimits(t *testing.T) {
 		parent := &types.Header{
 			GasUsed:  tc.pGasLimit / 2,
 			GasLimit: tc.pGasLimit,
-			BaseFee:  initial,
+			BaseFee:  common.Big0,
 			Number:   big.NewInt(tc.pNum),
 		}
 		header := &types.Header{
 			GasUsed:  tc.gasLimit / 2,
 			GasLimit: tc.gasLimit,
-			BaseFee:  initial,
+			BaseFee:  common.Big0,
 			Number:   big.NewInt(tc.pNum + 1),
 		}
 		err := VerifyEip1559Header(config(), parent, header)
@@ -105,6 +103,9 @@ func TestBlockGasLimits(t *testing.T) {
 		}
 	}
 }
+
+/*
+TODO: Enable this test when the basefee calculation logic is enabled again
 
 // TestCalcBaseFee assumes all blocks are 1559-blocks
 func TestCalcBaseFee(t *testing.T) {
@@ -130,3 +131,4 @@ func TestCalcBaseFee(t *testing.T) {
 		}
 	}
 }
+*/
