@@ -79,7 +79,7 @@ var (
 type ValidatorWithBlsPub struct {
 	Address      common.Address
 	BlsPublicKey blsCommon.PublicKey
-	StakedAmount *big.Int
+	Weight       uint16
 }
 
 type savedValidatorWithBlsPub struct {
@@ -280,7 +280,7 @@ type extraDataRLP struct {
 type validatorWithBlsPubRLP struct {
 	Address      common.Address
 	BlsPublicKey []byte
-	StakedAmount *big.Int `rlp:"optional"`
+	Weight       uint16 `rlp:"optional"`
 }
 
 // EncodeRLP computes rlp-based encoding for HeaderExtraData before
@@ -307,7 +307,7 @@ func (extraData *HeaderExtraData) EncodeRLP() ([]byte, error) {
 		cp[i] = validatorWithBlsPubRLP{
 			Address:      val.Address,
 			BlsPublicKey: val.BlsPublicKey.Marshal(),
-			StakedAmount: val.StakedAmount,
+			Weight:       val.Weight,
 		}
 	}
 	ext.CheckpointValidators = cp
@@ -350,7 +350,7 @@ func DecodeExtraRLP(enc []byte) (*HeaderExtraData, error) {
 		cp[i] = ValidatorWithBlsPub{
 			Address:      val.Address,
 			BlsPublicKey: blsPublicKey,
-			StakedAmount: val.StakedAmount,
+			Weight:       val.Weight,
 		}
 	}
 	ret.CheckpointValidators = cp

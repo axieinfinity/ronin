@@ -577,7 +577,7 @@ func mockExtraData(nVal int, bits uint32) *finality.HeaderExtraData {
 			// as before Tripp, StakedAmount and BlockProducers are empty.
 			case 3:
 				for i := range ret.CheckpointValidators {
-					ret.CheckpointValidators[i].StakedAmount = big.NewInt(333)
+					ret.CheckpointValidators[i].Weight = uint16(333)
 				}
 			case 4:
 				ret.BlockProducers = []common.Address{
@@ -655,12 +655,7 @@ func TestExtraDataDecodeRLP(t *testing.T) {
 				!dec.CheckpointValidators[i].BlsPublicKey.Equals(ext.CheckpointValidators[i].BlsPublicKey) {
 				t.Errorf("Mismatch decoded data")
 			}
-			if (dec.CheckpointValidators[i].StakedAmount == nil && ext.CheckpointValidators[i].StakedAmount != nil) ||
-				(dec.CheckpointValidators[i].StakedAmount != nil && ext.CheckpointValidators[i].StakedAmount == nil) {
-				t.Error("Mismatch decoded data")
-			}
-			if dec.CheckpointValidators[i].StakedAmount != nil && ext.CheckpointValidators[i].StakedAmount != nil &&
-				dec.CheckpointValidators[i].StakedAmount.Cmp(ext.CheckpointValidators[i].StakedAmount) != 0 {
+			if dec.CheckpointValidators[i].Weight != ext.CheckpointValidators[i].Weight {
 				t.Error("Mismatch decoded data")
 			}
 		}
@@ -1065,7 +1060,7 @@ func TestGetCheckpointValidatorFromContract(t *testing.T) {
 		contract: mock,
 	}
 
-	validatorWithPubs, err := c.getCheckpointValidatorsFromContract(&types.Header{Number: big.NewInt(3)})
+	validatorWithPubs, _, err := c.getCheckpointValidatorsFromContract(false, &types.Header{Number: big.NewInt(3)})
 	if err != nil {
 		t.Fatalf("Failed to get checkpoint validators from contract, err: %s", err)
 	}
