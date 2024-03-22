@@ -34,9 +34,13 @@ type Snapshot struct {
 
 	// Finality additional fields
 	ValidatorsWithBlsPub []finality.ValidatorWithBlsPub `json:"validatorWithBlsPub,omitempty"` // Array of sorted authorized validators and BLS public keys after Shillin
-	FinalityVoteWeight   []uint16                       `json:"finalityVoteWeight,omitempty"`
-	JustifiedBlockNumber uint64                         `json:"justifiedBlockNumber,omitempty"` // The justified block number
-	JustifiedBlockHash   common.Hash                    `json:"justifiedBlockHash,omitempty"`   // The justified block hash
+
+	// After Tripp, block producers are stored separately in a new field BlockProducers,
+	// differentiating from validator candidates, which are stored in ValidatorsWithBlsPub.
+	BlockProducers       []common.Address `json:"blockProducers,omitempty"` // Array of sorted block producers After Tripp.
+	FinalityVoteWeight   []uint16         `json:"finalityVoteWeight,omitempty"`
+	JustifiedBlockNumber uint64           `json:"justifiedBlockNumber,omitempty"` // The justified block number
+	JustifiedBlockHash   common.Hash      `json:"justifiedBlockHash,omitempty"`   // The justified block hash
 }
 
 // validatorsAscending implements the sort interface to allow sorting a list of addresses
@@ -142,6 +146,11 @@ func (s *Snapshot) copy() *Snapshot {
 		copy(cpy.ValidatorsWithBlsPub, s.ValidatorsWithBlsPub)
 	}
 
+	if s.BlockProducers != nil {
+		cpy.BlockProducers = make([]common.Address, len(s.BlockProducers))
+		copy(cpy.BlockProducers, s.BlockProducers)
+	}
+
 	for block, v := range s.Recents {
 		cpy.Recents[block] = v
 	}
@@ -240,7 +249,6 @@ func (s *Snapshot) apply(headers []*types.Header, chain consensus.ChainHeaderRea
 				}
 				snap.ValidatorsWithBlsPub = nil
 			} else {
-				isShillin := chain.Config().IsShillin(checkpointHeader.Number)
 				isTripp := chain.Config().IsTripp(checkpointHeader.Number)
 				// Get validator set from headers and use that for new validator set
 				extraData, err := finality.DecodeExtraV2(checkpointHeader.Extra, chain.Config(), checkpointHeader.Number)
@@ -249,7 +257,14 @@ func (s *Snapshot) apply(headers []*types.Header, chain consensus.ChainHeaderRea
 				}
 
 				oldLimit := len(snap.validators())/2 + 1
-				newLimit := len(extraData.CheckpointValidators)/2 + 1
+				var newLimit int
+				// After Tripp, list of block producers is retrieved from the
+				// field BlockProducer, instead of field CheckpointValidators.
+				if isTripp {
+					newLimit = len(extraData.BlockProducers)/2 + 1
+				} else {
+					newLimit = len(extraData.CheckpointValidators)/2 + 1
+				}
 				if newLimit < oldLimit {
 					for i := 0; i < oldLimit-newLimit; i++ {
 						delete(snap.Recents, number-uint64(newLimit)-uint64(i))
@@ -257,21 +272,28 @@ func (s *Snapshot) apply(headers []*types.Header, chain consensus.ChainHeaderRea
 				}
 
 				if isTripp {
-					// TODO: if at the start of period, read BLS key, consensus and staked amount from header
-
-					// TODO: if at the start of epoch, read block producer's consensus address
-				} else if isShillin {
+					// if at the start of period, read BLS key, consensus and staked amount from header
+					if IsPeriodBlock(chain, checkpointHeader, s.config.EpochV2) {
+						snap.ValidatorsWithBlsPub = make([]finality.ValidatorWithBlsPub, len(extraData.CheckpointValidators))
+						copy(snap.ValidatorsWithBlsPub, extraData.CheckpointValidators)
+					}
+					snap.BlockProducers = make([]common.Address, len(extraData.BlockProducers))
+					copy(snap.BlockProducers, extraData.BlockProducers)
+					snap.Validators = nil
+				} else if chain.Config().IsShillin(checkpointHeader.Number) {
 					// The validator information in checkpoint header is already sorted,
 					// we don't need to sort here
 					snap.ValidatorsWithBlsPub = make([]finality.ValidatorWithBlsPub, len(extraData.CheckpointValidators))
 					copy(snap.ValidatorsWithBlsPub, extraData.CheckpointValidators)
 					snap.Validators = nil
+					snap.BlockProducers = nil
 				} else {
 					snap.Validators = make(map[common.Address]struct{})
 					for _, validator := range extraData.CheckpointValidators {
 						snap.Validators[validator.Address] = struct{}{}
 					}
 					snap.ValidatorsWithBlsPub = nil
+					snap.BlockProducers = nil
 				}
 			}
 		}
@@ -283,6 +305,9 @@ func (s *Snapshot) apply(headers []*types.Header, chain consensus.ChainHeaderRea
 
 // validators retrieves the list of validators in ascending order.
 func (s *Snapshot) validators() []common.Address {
+	if s.BlockProducers != nil {
+		return s.BlockProducers
+	}
 	if s.Validators != nil {
 		validators := make([]common.Address, 0, len(s.Validators))
 		for v := range s.Validators {
@@ -299,6 +324,15 @@ func (s *Snapshot) validators() []common.Address {
 		}
 		return addresses
 	}
+}
+
+func (s *Snapshot) inVoterSet(address common.Address) bool {
+	for _, validator := range s.ValidatorsWithBlsPub {
+		if address == validator.Address {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Snapshot) inInValidatorSet(address common.Address) bool {
