@@ -1171,9 +1171,14 @@ func (c *Consortium) GetBestParentBlock(chain *core.BlockChain) (*types.Block, b
 		// Miner can create an inturn block which helps the chain to have
 		// greater diffculty
 		if snap.supposeValidator() == signer {
-			if !snap.IsRecentlySigned(signer) {
+			oldJustifiedBlockNumber, _ := c.GetJustifiedBlock(chain, currentBlock.NumberU64(), currentBlock.Hash())
+			newJustifiedBlockNumber, _ := c.GetJustifiedBlock(chain, prevBlock.NumberU64(), prevBlock.Hash())
+			// TODO: the case in which oldJustifiedBlockNumber - 1 == newJustifiedBlockNumber and the upcoming
+			// block is justified is not considered here
+			if !snap.IsRecentlySigned(signer) && oldJustifiedBlockNumber <= newJustifiedBlockNumber {
 				return prevBlock, true
 			}
+			return currentBlock, false
 		}
 
 		block = prevBlock
