@@ -394,8 +394,18 @@ func (c *Consortium) verifyCascadingFields(chain consensus.ChainHeaderReader, he
 		return fmt.Errorf("invalid gasUsed: have %d, gasLimit %d", header.GasUsed, header.GasLimit)
 	}
 
-	if err := misc.VerifyGaslimit(parent.GasLimit, header.GasLimit); err != nil {
-		return err
+	if !chain.Config().IsLondon(header.Number) {
+		// Verify BaseFee not present before EIP-1559 fork.
+		if header.BaseFee != nil {
+			return fmt.Errorf("invalid baseFee before fork: have %d, want <nil>", header.BaseFee)
+		}
+		if err := misc.VerifyGaslimit(parent.GasLimit, header.GasLimit); err != nil {
+			return err
+		}
+	} else {
+		if err := misc.VerifyEip1559Header(chain.Config(), parent, header); err != nil {
+			return err
+		}
 	}
 
 	// Retrieve the snapshot needed to verify this header and cache it
@@ -1426,7 +1436,7 @@ func consortiumRLP(header *types.Header, chainId *big.Int) []byte {
 // chainID was introduced in EIP-155 to prevent replay attacks between the main ETH and ETC chains,
 // which both have a networkID of 1
 func encodeSigHeader(w io.Writer, header *types.Header, chainId *big.Int) {
-	err := rlp.Encode(w, []interface{}{
+	enc := []interface{}{
 		chainId,
 		header.ParentHash,
 		header.UncleHash,
@@ -1443,8 +1453,11 @@ func encodeSigHeader(w io.Writer, header *types.Header, chainId *big.Int) {
 		header.Extra[:len(header.Extra)-consortiumCommon.ExtraSeal], // Yes, this will panic if extra is too short
 		header.MixDigest,
 		header.Nonce,
-	})
-	if err != nil {
+	}
+	if header.BaseFee != nil {
+		enc = append(enc, header.BaseFee)
+	}
+	if err := rlp.Encode(w, enc); err != nil {
 		panic("can't encode: " + err.Error())
 	}
 }

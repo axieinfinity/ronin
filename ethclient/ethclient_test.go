@@ -300,6 +300,8 @@ func TestEthClient(t *testing.T) {
 }
 
 func testHeader(t *testing.T, chain []*types.Block, client *rpc.Client) {
+	firstBlockHeader := chain[1].Header()
+	firstBlockHeader.BaseFee = big.NewInt(1).SetUint64(0)
 	tests := map[string]struct {
 		block   *big.Int
 		want    *types.Header
@@ -311,7 +313,7 @@ func testHeader(t *testing.T, chain []*types.Block, client *rpc.Client) {
 		},
 		"first_block": {
 			block: big.NewInt(1),
-			want:  chain[1].Header(),
+			want:  firstBlockHeader,
 		},
 		"future_block": {
 			block:   big.NewInt(1000000000),
@@ -502,9 +504,14 @@ func testStatusFunctions(t *testing.T, client *rpc.Client) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if gasTipCap.Cmp(big.NewInt(234375000)) != 0 {
+	if gasTipCap.Cmp(big.NewInt(1000000000)) != 0 {
 		t.Fatalf("unexpected gas tip cap: %v", gasTipCap)
 	}
+	/*
+		if gasTipCap.Cmp(big.NewInt(234375000)) != 0 {
+			t.Fatalf("unexpected gas tip cap: %v", gasTipCap)
+		}
+	*/
 }
 
 func testCallContract(t *testing.T, client *rpc.Client) {

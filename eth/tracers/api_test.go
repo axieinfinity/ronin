@@ -503,14 +503,14 @@ func TestTraceInternalsAndAccounts_BatchTransferAccounts(t *testing.T) {
 			// Batch send to this account:
 			// - "0x05ba56c60ceb54f53294bf60d606a919eea4282e"
 			data1 := common.FromHex("0x876e586100000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000100000000000000000000000005ba56c60ceb54f53294bf60d606a919eea4282e")
-			tx1, _ := types.SignTx(types.NewTransaction(uint64(0), accounts[0].addr, big.NewInt(0), 4*params.TxGas, b.BaseFee(), data1), signer, accounts[1].key)
+			tx1, _ := types.SignTx(types.NewTransaction(uint64(0), accounts[0].addr, big.NewInt(0), 4*params.TxGas, big.NewInt(0), data1), signer, accounts[1].key)
 			b.AddTx(tx1)
 
 			// Batch send to these accounts:
 			// - "0x359aef78ffa9807889258d0dd398172ca3b77eb1"
 			// - "0x45f60b415111e3e7abb4c79fc659d3dee430dff5"
 			data2 := common.FromHex("0x876e5861000000000000000000000000000000000000000000000000000000000000004000000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000002000000000000000000000000359aef78ffa9807889258d0dd398172ca3b77eb100000000000000000000000045f60b415111e3e7abb4c79fc659d3dee430dff5")
-			tx2, _ := types.SignTx(types.NewTransaction(uint64(1), accounts[0].addr, big.NewInt(0), 10*params.TxGas, b.BaseFee(), data2), signer, accounts[1].key)
+			tx2, _ := types.SignTx(types.NewTransaction(uint64(1), accounts[0].addr, big.NewInt(0), 10*params.TxGas, big.NewInt(0), data2), signer, accounts[1].key)
 			b.AddTx(tx2)
 		}
 	}))
@@ -565,7 +565,7 @@ func TestTraceInternalsAndAccounts_BatchTransferAccounts(t *testing.T) {
 	expectedDirtyAccounts[common.HexToAddress("0x05bA56C60ceb54f53294bF60d606a919eeA4282E")] = big.NewInt(1)
 	expectedDirtyAccounts[common.HexToAddress("0x359aEf78fFa9807889258D0DD398172CA3B77eB1")] = big.NewInt(1)
 	expectedDirtyAccounts[common.HexToAddress("0x45F60B415111e3E7aBB4c79FC659d3DeE430dfF5")] = big.NewInt(1)
-	expectedDirtyAccounts[accounts[1].addr] = big.NewInt(999879458468750000)
+	expectedDirtyAccounts[accounts[1].addr] = big.NewInt(1000000000000000000)
 	expectedDirtyAccounts[accounts[0].addr] = big.NewInt(999999999999999997)
 
 	for _, actual := range result.DirtyAccounts {
@@ -607,12 +607,12 @@ func TestTraceInternalsAndAccounts_CreateContract(t *testing.T) {
 		if i == 1 {
 			// Call `deploy` method to create a new contract
 			data1 := common.FromHex("0x775c300c")
-			tx1, _ := types.SignTx(types.NewTransaction(uint64(0), accounts[0].addr, big.NewInt(0), 100*params.TxGas, b.BaseFee(), data1), signer, accounts[1].key)
+			tx1, _ := types.SignTx(types.NewTransaction(uint64(0), accounts[0].addr, big.NewInt(0), 100*params.TxGas, big.NewInt(0), data1), signer, accounts[1].key)
 			b.AddTx(tx1)
 
 			// Call `deploy` method to create a new contract
 			data2 := common.FromHex("0x775c300c")
-			tx2, _ := types.SignTx(types.NewTransaction(uint64(1), accounts[0].addr, big.NewInt(0), 100*params.TxGas, b.BaseFee(), data2), signer, accounts[1].key)
+			tx2, _ := types.SignTx(types.NewTransaction(uint64(1), accounts[0].addr, big.NewInt(0), 100*params.TxGas, big.NewInt(0), data2), signer, accounts[1].key)
 			b.AddTx(tx2)
 		}
 	})
@@ -671,7 +671,7 @@ func TestTraceInternalsAndAccounts_CreateContract(t *testing.T) {
 	}
 
 	expectedDirtyAccounts := map[common.Address]*big.Int{}
-	expectedDirtyAccounts[accounts[1].addr] = big.NewInt(999898971187500000)
+	expectedDirtyAccounts[accounts[1].addr] = big.NewInt(1000000000000000000)
 	expectedDirtyAccounts[accounts[0].addr] = big.NewInt(1000000000000000000)
 
 	for _, actual := range result.DirtyAccounts {
@@ -713,12 +713,12 @@ func TestTraceInternalsAndAccounts_Create2Contract(t *testing.T) {
 		if i == 1 {
 			// Call `deploy` method to create a new contract
 			data1 := common.FromHex("0x2b85ba3800000000000000000000000000000000000000000000000000000000686f6c61")
-			tx1, _ := types.SignTx(types.NewTransaction(uint64(0), accounts[0].addr, big.NewInt(0), 100*params.TxGas, b.BaseFee(), data1), signer, accounts[1].key)
+			tx1, _ := types.SignTx(types.NewTransaction(uint64(0), accounts[0].addr, big.NewInt(0), 100*params.TxGas, big.NewInt(0), data1), signer, accounts[1].key)
 			b.AddTx(tx1)
 
 			// Call `deploy` method to create a new contract
 			data2 := common.FromHex("0x2b85ba3800000000000000000000000000000000000000000000000000000000686f6c62")
-			tx2, _ := types.SignTx(types.NewTransaction(uint64(1), accounts[0].addr, big.NewInt(0), 100*params.TxGas, b.BaseFee(), data2), signer, accounts[1].key)
+			tx2, _ := types.SignTx(types.NewTransaction(uint64(1), accounts[0].addr, big.NewInt(0), 100*params.TxGas, big.NewInt(0), data2), signer, accounts[1].key)
 			b.AddTx(tx2)
 		}
 	})
@@ -777,7 +777,7 @@ func TestTraceInternalsAndAccounts_Create2Contract(t *testing.T) {
 	}
 
 	expectedDirtyAccounts := map[common.Address]*big.Int{}
-	expectedDirtyAccounts[accounts[1].addr] = big.NewInt(999897929937500000)
+	expectedDirtyAccounts[accounts[1].addr] = big.NewInt(1000000000000000000)
 	expectedDirtyAccounts[accounts[0].addr] = big.NewInt(1000000000000000000)
 
 	for _, actual := range result.DirtyAccounts {
