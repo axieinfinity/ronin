@@ -24,7 +24,7 @@ require (
 	github.com/fjl/memsize v0.0.0-20190710130421-bcb5799ab5e5
 	github.com/gballet/go-libpcsclite v0.0.0-20191108122812-4678299bea08
 	github.com/go-stack/stack v1.8.1
-	github.com/golang/protobuf v1.5.3
+	github.com/golang/protobuf v1.5.4
 	github.com/golang/snappy v0.0.4
 	github.com/google/gofuzz v1.2.0
 	github.com/google/uuid v1.3.0
@@ -63,7 +63,7 @@ require (
 	golang.org/x/sys v0.15.0
 	golang.org/x/text v0.14.0
 	golang.org/x/time v0.0.0-20220922220347-f3bd1da661af
-	google.golang.org/protobuf v1.30.0 // indirect
+	google.golang.org/protobuf v1.33.0 // indirect
 	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce
 	gopkg.in/urfave/cli.v1 v1.20.0
 	gotest.tools v2.2.0+incompatible // indirect
