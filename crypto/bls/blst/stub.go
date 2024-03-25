@@ -1,4 +1,4 @@
-//go:build blst_disabled
+//go:build !blst_enabled
 
 package blst
 
@@ -19,6 +19,11 @@ func (s SecretKey) PublicKey() common.PublicKey {
 
 // Sign -- stub
 func (s SecretKey) Sign(_ []byte) common.Signature {
+	panic(err)
+}
+
+// SignProof -- stub
+func (s SecretKey) SignProof(_ []byte) common.Signature {
 	panic(err)
 }
 
@@ -65,6 +70,11 @@ type Signature struct{}
 
 // Verify -- stub
 func (s Signature) Verify(_ common.PublicKey, _ []byte) bool {
+	panic(err)
+}
+
+// VerifyProof -- stub
+func (s Signature) VerifyProof(_ common.PublicKey, _ []byte) bool {
 	panic(err)
 }
 
@@ -130,6 +140,11 @@ func AggregateMultiplePubkeys(pubs []common.PublicKey) common.PublicKey {
 
 // AggregateCompressedSignatures -- stub
 func AggregateCompressedSignatures(multiSigs [][]byte) (common.Signature, error) {
+	panic(err)
+}
+
+// VerifySignature -- stub
+func VerifySignature(_ []byte, _ [32]byte, _ common.PublicKey) (bool, error) {
 	panic(err)
 }
 

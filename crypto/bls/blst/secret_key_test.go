@@ -1,4 +1,4 @@
-//go:build ((linux && amd64) || (linux && arm64) || (darwin && amd64) || (darwin && arm64) || (windows && amd64)) && !blst_disabled
+//go:build ((linux && amd64) || (linux && arm64) || (darwin && amd64) || (darwin && arm64) || (windows && amd64)) && blst_enabled
 
 package blst_test
 
@@ -6,10 +6,11 @@ import (
 	"bytes"
 	"crypto/rand"
 	"errors"
+	"testing"
+
 	byteutil "github.com/ethereum/go-ethereum/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"testing"
 
 	"github.com/ethereum/go-ethereum/crypto/bls/blst"
 	"github.com/ethereum/go-ethereum/crypto/bls/common"

@@ -6,13 +6,7 @@ package bls
 import (
 	"github.com/ethereum/go-ethereum/crypto/bls/blst"
 	"github.com/ethereum/go-ethereum/crypto/bls/common"
-	"github.com/ethereum/go-ethereum/crypto/bls/herumi"
 )
-
-// Initialize herumi temporarily while we transition to blst for ethdo.
-func init() {
-	herumi.HerumiInit()
-}
 
 // SecretKeyFromBytes creates a BLS private key from a BigEndian byte slice.
 func SecretKeyFromBytes(privKey []byte) (SecretKey, error) {
