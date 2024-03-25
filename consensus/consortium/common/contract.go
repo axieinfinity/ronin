@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/consensus"
 	finalityTracking "github.com/ethereum/go-ethereum/consensus/consortium/generated_contracts/finality_tracking"
+	legacyProfile "github.com/ethereum/go-ethereum/consensus/consortium/generated_contracts/legacy_profile"
 	"github.com/ethereum/go-ethereum/consensus/consortium/generated_contracts/profile"
 	roninValidatorSet "github.com/ethereum/go-ethereum/consensus/consortium/generated_contracts/ronin_validator_set"
 	slashIndicator "github.com/ethereum/go-ethereum/consensus/consortium/generated_contracts/slash_indicator"
@@ -65,10 +66,11 @@ type ContractInteraction interface {
 
 // ContractIntegrator is a contract facing to interact with smart contract that supports DPoS
 type ContractIntegrator struct {
-	chainId             *big.Int
+	chainConfig         *chainParams.ChainConfig
 	signer              types.Signer
 	roninValidatorSetSC *roninValidatorSet.RoninValidatorSet
 	slashIndicatorSC    *slashIndicator.SlashIndicator
+	legacyProfileSC     *legacyProfile.Profile
 	profileSC           *profile.Profile
 	finalityTrackingSC  *finalityTracking.FinalityTracking
 	signTxFn            SignerTxFn
@@ -89,7 +91,12 @@ func NewContractIntegrator(config *chainParams.ChainConfig, backend bind.Contrac
 		return nil, err
 	}
 
-	// Create Profile contract instance
+	// Legacy profile and profile is the same contract with different ABI
+	legacyProfileSC, err := legacyProfile.NewProfile(config.ConsortiumV2Contracts.ProfileContract, backend)
+	if err != nil {
+		return nil, err
+	}
+
 	profileSC, err := profile.NewProfile(config.ConsortiumV2Contracts.ProfileContract, backend)
 	if err != nil {
 		return nil, err
@@ -102,9 +109,10 @@ func NewContractIntegrator(config *chainParams.ChainConfig, backend bind.Contrac
 	}
 
 	return &ContractIntegrator{
-		chainId:             config.ChainID,
+		chainConfig:         config,
 		roninValidatorSetSC: roninValidatorSetSC,
 		slashIndicatorSC:    slashIndicatorSC,
+		legacyProfileSC:     legacyProfileSC,
 		profileSC:           profileSC,
 		finalityTrackingSC:  finalityTrackingSC,
 		signTxFn:            signTxFn,
@@ -128,7 +136,7 @@ func (c *ContractIntegrator) GetValidators(blockNumber *big.Int) ([]common.Addre
 // WrapUpEpoch distributes rewards to validators and updates validators set
 func (c *ContractIntegrator) WrapUpEpoch(opts *ApplyTransactOpts) error {
 	nonce := opts.State.GetNonce(c.coinbase)
-	tx, err := c.roninValidatorSetSC.WrapUpEpoch(getTransactionOpts(c.coinbase, nonce, c.chainId, c.signTxFn))
+	tx, err := c.roninValidatorSetSC.WrapUpEpoch(getTransactionOpts(c.coinbase, nonce, c.chainConfig.ChainID, c.signTxFn))
 	if err != nil {
 		return err
 	}
@@ -163,7 +171,7 @@ func (c *ContractIntegrator) SubmitBlockReward(opts *ApplyTransactOpts) error {
 	opts.State.AddBalance(coinbase, balance)
 
 	nonce := opts.State.GetNonce(c.coinbase)
-	tx, err := c.roninValidatorSetSC.SubmitBlockReward(getTransactionOpts(c.coinbase, nonce, c.chainId, c.signTxFn))
+	tx, err := c.roninValidatorSetSC.SubmitBlockReward(getTransactionOpts(c.coinbase, nonce, c.chainConfig.ChainID, c.signTxFn))
 	if err != nil {
 		return err
 	}
@@ -195,7 +203,7 @@ func (c *ContractIntegrator) SubmitBlockReward(opts *ApplyTransactOpts) error {
 // and calls the slash method corresponding
 func (c *ContractIntegrator) Slash(opts *ApplyTransactOpts, spoiledValidator common.Address) error {
 	nonce := opts.State.GetNonce(c.coinbase)
-	tx, err := c.slashIndicatorSC.SlashUnavailability(getTransactionOpts(c.coinbase, nonce, c.chainId, c.signTxFn), spoiledValidator)
+	tx, err := c.slashIndicatorSC.SlashUnavailability(getTransactionOpts(c.coinbase, nonce, c.chainConfig.ChainID, c.signTxFn), spoiledValidator)
 	if err != nil {
 		return err
 	}
@@ -223,7 +231,7 @@ func (c *ContractIntegrator) Slash(opts *ApplyTransactOpts, spoiledValidator com
 
 func (c *ContractIntegrator) FinalityReward(opts *ApplyTransactOpts, votedValidators []common.Address) error {
 	nonce := opts.State.GetNonce(c.coinbase)
-	tx, err := c.finalityTrackingSC.RecordFinality(getTransactionOpts(c.coinbase, nonce, c.chainId, c.signTxFn), votedValidators)
+	tx, err := c.finalityTrackingSC.RecordFinality(getTransactionOpts(c.coinbase, nonce, c.chainConfig.ChainID, c.signTxFn), votedValidators)
 	if err != nil {
 		return err
 	}
@@ -253,16 +261,37 @@ func (c *ContractIntegrator) GetBlsPublicKey(blockNumber *big.Int, validator com
 	callOpts := bind.CallOpts{
 		BlockNumber: blockNumber,
 	}
-	validatorProfile, err := c.profileSC.GetId2Profile(&callOpts, validator)
-	if err != nil {
-		return nil, err
-	}
-	blsPublicKey, err := blst.PublicKeyFromBytes(validatorProfile.Pubkey)
-	if err != nil {
-		return nil, err
-	}
 
-	return blsPublicKey, nil
+	if c.chainConfig.IsTripp(blockNumber) {
+		profileId, err := c.profileSC.GetConsensus2Id(&callOpts, validator)
+		if err != nil {
+			log.Info("Failed to get profile id", "consensus", validator, "error", err)
+			return nil, err
+		}
+		rawKey, err := c.profileSC.GetId2PubKey(&callOpts, profileId)
+		if err != nil {
+			log.Info("Failed to get BLS public key", "consensus", validator, "error", err)
+			return nil, err
+		}
+		blsPublicKey, err := blst.PublicKeyFromBytes(rawKey)
+		if err != nil {
+			log.Info("Invalid BLS public key", "consensus", validator, "error", err, "raw key", hex.EncodeToString(rawKey))
+			return nil, err
+		}
+
+		return blsPublicKey, nil
+	} else {
+		validatorProfile, err := c.legacyProfileSC.GetId2Profile(&callOpts, validator)
+		if err != nil {
+			return nil, err
+		}
+		blsPublicKey, err := blst.PublicKeyFromBytes(validatorProfile.Pubkey)
+		if err != nil {
+			return nil, err
+		}
+
+		return blsPublicKey, nil
+	}
 }
 
 // ApplyMessageOpts is the collection of options to fine tune a contract call request.
