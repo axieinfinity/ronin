@@ -299,7 +299,7 @@ func (c *Consortium) verifyFinalitySignatures(
 		}
 		publicKeys = append(publicKeys, snap.ValidatorsWithBlsPub[position].BlsPublicKey)
 		if isTripp {
-			accumulatedVoteWeight += int(snap.FinalityVoteWeight[position])
+			accumulatedVoteWeight += int(snap.ValidatorsWithBlsPub[position].Weight)
 		} else {
 			accumulatedVoteWeight += 1
 		}
@@ -450,7 +450,7 @@ func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, 
 
 		// this case is only happened in mock mode
 		if number == 0 {
-			validators, err := c.contract.GetValidators(common.Big0)
+			validators, err := c.contract.GetBlockProducers(common.Big0)
 			if err != nil {
 				return nil, err
 			}
@@ -471,7 +471,7 @@ func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, 
 
 			// get validators set from number
 			_, _, _, contract := c.readSignerAndContract()
-			validators, err := contract.GetValidators(big.NewInt(0).SetUint64(number))
+			validators, err := contract.GetBlockProducers(big.NewInt(0).SetUint64(number))
 			if err != nil {
 				log.Error("Load validators at the beginning failed", "err", err)
 				return nil, err
@@ -688,7 +688,7 @@ func (c *Consortium) getCheckpointValidatorsFromContract(
 	parentBlockNumber := new(big.Int).Sub(header.Number, common.Big1)
 	_, _, _, contract := c.readSignerAndContract()
 
-	blockProducers, err := contract.GetValidators(parentBlockNumber)
+	blockProducers, err := contract.GetBlockProducers(parentBlockNumber)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -976,9 +976,6 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 				}
 			}
 			if isPeriodBlock {
-				if checkpointValidators == nil {
-					return errMismatchingValidators
-				}
 				if len(checkpointValidators) != len(extraData.CheckpointValidators) {
 					return errMismatchingValidators
 				}
@@ -1375,7 +1372,7 @@ func (c *Consortium) assembleFinalityVote(header *types.Header, snap *Snapshot) 
 							signatures = append(signatures, signature)
 							finalityVotedValidators.SetBit(valPosition)
 							if isTripp {
-								accumulatedVoteWeight += int(snap.FinalityVoteWeight[valPosition])
+								accumulatedVoteWeight += int(snap.ValidatorsWithBlsPub[valPosition].Weight)
 							}
 							break
 						}
@@ -1475,11 +1472,11 @@ func (c *Consortium) SetVotePool(votePool consensus.VotePool) {
 	c.votePool = votePool
 }
 
-// IsActiveValidatorAt is used to check if we can vote for header.Number (the vote
+// IsFinalityVoterAt is used to check if we can vote for header.Number (the vote
 // is included at header.Number + 1). As explained in assembleFinalityVote, the vote
 // for header.Number is verified by the validator set at snapshot at block.Number.
 // So here we get the snapshot at block.Number not at block.Number - 1
-func (c *Consortium) IsActiveValidatorAt(chain consensus.ChainHeaderReader, header *types.Header) bool {
+func (c *Consortium) IsFinalityVoterAt(chain consensus.ChainHeaderReader, header *types.Header) bool {
 	snap, err := c.snapshot(chain, header.Number.Uint64(), header.Hash(), nil)
 	if err != nil {
 		return false
@@ -1494,10 +1491,10 @@ func (c *Consortium) IsActiveValidatorAt(chain consensus.ChainHeaderReader, head
 	return snap.inInValidatorSet(nodeValidator)
 }
 
-// GetActiveValidatorAt gets the validator that can vote for block number
+// GetFinalityVoterAt gets the validator that can vote for block number
 // (the vote is included in block number + 1), so get the snapshot at
 // block number
-func (c *Consortium) GetActiveValidatorAt(
+func (c *Consortium) GetFinalityVoterAt(
 	chain consensus.ChainHeaderReader,
 	blockNumber uint64,
 	blockHash common.Hash,
