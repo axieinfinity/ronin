@@ -4,9 +4,11 @@ on:
   push:
     branches:
       - master
+      - feat/rotating-validator
   pull_request:
     branches:
       - master
+      - feat/rotating-validator
 
 concurrency:
   group: ${{ github.head_ref || github.run_id }}

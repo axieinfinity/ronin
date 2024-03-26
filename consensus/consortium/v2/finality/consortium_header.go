@@ -6,12 +6,14 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/bls/blst"
 	blsCommon "github.com/ethereum/go-ethereum/crypto/bls/common"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rlp"
 )
 
 const (
@@ -66,6 +68,14 @@ var (
 	// ErrInvalidTargetNumber is returned if the vote contains invalid
 	// target number
 	ErrInvalidTargetNumber = errors.New("invalid target number in vote")
+
+	// ErrInvalidExtraData is returned if the bls public key is nil
+	ErrInvalidExtraData = errors.New("invalid header extra data")
+
+	// ErrInvalidArgument is returned if the chain config is nil
+	ErrInvalidArgument = errors.New("invalid argument")
+
+	ErrInvalidEncodedExtraData = errors.New("invalid encoded extra data")
 )
 
 type ValidatorWithBlsPub struct {
@@ -246,6 +256,119 @@ func DecodeExtra(rawBytes []byte, isShillin bool) (*HeaderExtraData, error) {
 	copy(extraData.Seal[:], rawBytes[currentPosition:])
 
 	return &extraData, nil
+}
+
+// extraDataRLP excludes vanity, hasFinalityVotes because vanity is not used in
+// Consortium and filled with zero by default; whereas hasFinalityVotes can be determined
+// by AggregatedFinalityVotes and FinalityVotedValidators. On the other hand, seal is 
+// appended manually, enabling encodeSigHeader easily to exclude Seal before signing process
+type extraDataRLP struct {
+	FinalityVotedValidators FinalityVoteBitSet
+	AggregatedFinalityVotes []byte
+	CheckpointValidators    []validatorWithBlsPubRLP
+}
+
+type validatorWithBlsPubRLP struct {
+	Address      common.Address
+	BlsPublicKey []byte
+}
+
+// EncodeRLP computes rlp-based encoding for HeaderExtraData before
+// appending Seal manually, enabling encodeSigHeader easily to exclude
+// Seal before signing process.
+func (extraData *HeaderExtraData) EncodeRLP() ([]byte, error) {
+	var ext = &extraDataRLP{}
+	if extraData.HasFinalityVote != 0 && extraData.HasFinalityVote != 1 {
+		return nil, ErrInvalidHasFinalityVote
+	}
+	if extraData.HasFinalityVote == 1 {
+		if extraData.AggregatedFinalityVotes == nil || len(extraData.FinalityVotedValidators.Indices()) == 0 {
+			return nil, ErrInvalidExtraData
+		}
+		ext.FinalityVotedValidators = extraData.FinalityVotedValidators
+		ext.AggregatedFinalityVotes = extraData.AggregatedFinalityVotes.Marshal()
+	}
+
+	cp := make([]validatorWithBlsPubRLP, len(extraData.CheckpointValidators))
+	for i, val := range extraData.CheckpointValidators {
+		if val.BlsPublicKey == nil {
+			return nil, ErrInvalidExtraData
+		}
+		cp[i] = validatorWithBlsPubRLP{
+			Address:      val.Address,
+			BlsPublicKey: val.BlsPublicKey.Marshal(),
+		}
+	}
+	ext.CheckpointValidators = cp
+
+	enc, err := rlp.EncodeToBytes(ext)
+	if err != nil {
+		return nil, err
+	}
+	// Seal is appended at the end of the raw bytes data
+	rawBytes := append(enc, extraData.Seal[:]...)
+	return rawBytes, nil
+}
+
+// DecodeExtraRLP decodes HeaderExtraData from bytes. It is necessary to exclude
+// the last ExtraSeal bytes before rlp-decoding, as Seal is not rlp encoded.
+func DecodeExtraRLP(enc []byte) (*HeaderExtraData, error) {
+	var (
+		err error
+		dec = &extraDataRLP{}
+		ret = &HeaderExtraData{}
+	)
+	if len(enc) < ExtraSeal {
+		return nil, ErrInvalidEncodedExtraData
+	}
+	// Exclude the seal before rlp decoding.
+	if err := rlp.DecodeBytes(enc[:len(enc)-ExtraSeal], dec); err != nil {
+		return nil, err
+	}
+	cp := make([]ValidatorWithBlsPub, len(dec.CheckpointValidators))
+	for i, val := range dec.CheckpointValidators {
+		blsPublicKey, err := blst.PublicKeyFromBytes(val.BlsPublicKey)
+		if err != nil {
+			return nil, err
+		}
+		cp[i] = ValidatorWithBlsPub{
+			Address:      val.Address,
+			BlsPublicKey: blsPublicKey,
+		}
+	}
+	ret.CheckpointValidators = cp
+	if len(dec.AggregatedFinalityVotes) != 0 && len(dec.FinalityVotedValidators.Indices()) != 0 {
+		ret.HasFinalityVote = 1
+		ret.FinalityVotedValidators = dec.FinalityVotedValidators
+		ret.AggregatedFinalityVotes, err = blst.SignatureFromBytes(dec.AggregatedFinalityVotes)
+		if err != nil {
+			return nil, err
+		}
+	}
+	copy(ret.Seal[:], enc[len(enc)-ExtraSeal:])
+	return ret, nil
+}
+
+// After Tripp, HeaderExtraData switches to use RLP encoding method
+func (extraData *HeaderExtraData) EncodeV2(chainConfig *params.ChainConfig, number *big.Int) ([]byte, error) {
+	if chainConfig == nil || number == nil {
+		return nil, ErrInvalidArgument
+	}
+	if chainConfig.IsTripp(number) {
+		return extraData.EncodeRLP()
+	}
+	return extraData.Encode(chainConfig.IsShillin(number)), nil
+}
+
+// After Tripp, HeaderExtraData switches to use RLP decoding method
+func DecodeExtraV2(enc []byte, chainConfig *params.ChainConfig, number *big.Int) (*HeaderExtraData, error) {
+	if chainConfig == nil || number == nil {
+		return nil, ErrInvalidArgument
+	}
+	if chainConfig.IsTripp(number) {
+		return DecodeExtraRLP(enc)
+	}
+	return DecodeExtra(enc, chainConfig.IsShillin(number))
 }
 
 // ParseCheckpointData retrieves the list of validator addresses and finality voter's public keys

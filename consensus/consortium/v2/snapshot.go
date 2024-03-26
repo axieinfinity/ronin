@@ -205,7 +205,7 @@ func (s *Snapshot) apply(headers []*types.Header, chain consensus.ChainHeaderRea
 		snap.Recents[number] = validator
 
 		if chain.Config().IsShillin(header.Number) {
-			extraData, err := finality.DecodeExtra(header.Extra, true)
+			extraData, err := finality.DecodeExtraV2(header.Extra, chain.Config(), header.Number)
 			if err != nil {
 				return nil, err
 			}
@@ -240,7 +240,7 @@ func (s *Snapshot) apply(headers []*types.Header, chain consensus.ChainHeaderRea
 			} else {
 				isShillin := chain.Config().IsShillin(checkpointHeader.Number)
 				// Get validator set from headers and use that for new validator set
-				extraData, err := finality.DecodeExtra(checkpointHeader.Extra, isShillin)
+				extraData, err := finality.DecodeExtraV2(checkpointHeader.Extra, chain.Config(), checkpointHeader.Number)
 				if err != nil {
 					return nil, err
 				}

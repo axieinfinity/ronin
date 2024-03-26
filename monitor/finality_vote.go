@@ -64,7 +64,7 @@ func prettyPrintAddress(addresses []common.Address) string {
 }
 
 func (monitor *FinalityVoteMonitor) CheckFinalityVote(block *types.Block) error {
-	extraData, err := finality.DecodeExtra(block.Extra(), true)
+	extraData, err := finality.DecodeExtraV2(block.Extra(), monitor.chain.Config(), block.Number())
 	// This should not happen because the block has been verified
 	if err != nil {
 		log.Error("Unexpected error when decode extradata", "err", err)
