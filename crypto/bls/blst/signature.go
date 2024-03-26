@@ -271,10 +271,6 @@ func (s *Signature) Copy() common.Signature {
 	return &Signature{s: &sign}
 }
 
-func (s *Signature) Equals(s2 common.Signature) bool {
-	return s.s.Equals(s2.(*Signature).s)
-}
-
 // VerifyCompressed verifies that the compressed signature and pubkey
 // are valid from the message provided.
 func VerifyCompressed(signature, pub, msg []byte) bool {

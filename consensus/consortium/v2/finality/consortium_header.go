@@ -311,11 +311,7 @@ func (extraData *HeaderExtraData) EncodeRLP() ([]byte, error) {
 		}
 	}
 	ext.CheckpointValidators = cp
-
-	if extraData.BlockProducers != nil {
-		ext.BlockProducers = make([]common.Address, len(extraData.BlockProducers))
-		copy(ext.BlockProducers, extraData.BlockProducers)
-	}
+	ext.BlockProducers = extraData.BlockProducers
 
 	enc, err := rlp.EncodeToBytes(ext)
 	if err != nil {
@@ -354,10 +350,7 @@ func DecodeExtraRLP(enc []byte) (*HeaderExtraData, error) {
 		}
 	}
 	ret.CheckpointValidators = cp
-	if dec.BlockProducers != nil {
-		ret.BlockProducers = make([]common.Address, len(dec.BlockProducers))
-		copy(ret.BlockProducers, dec.BlockProducers)
-	}
+	ret.BlockProducers = dec.BlockProducers
 
 	if len(dec.AggregatedFinalityVotes) != 0 && len(dec.FinalityVotedValidators.Indices()) != 0 {
 		ret.HasFinalityVote = 1

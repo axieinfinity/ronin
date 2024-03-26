@@ -636,7 +636,7 @@ func TestExtraDataDecodeRLP(t *testing.T) {
 		}
 		if dec.AggregatedFinalityVotes != nil &&
 			ext.AggregatedFinalityVotes != nil &&
-			!dec.AggregatedFinalityVotes.Equals(ext.AggregatedFinalityVotes) {
+			!bytes.Equal(dec.AggregatedFinalityVotes.Marshal(), ext.AggregatedFinalityVotes.Marshal()) {
 			t.Errorf("Mismatch decoded data")
 		}
 		if len(dec.CheckpointValidators) != len(ext.CheckpointValidators) {
