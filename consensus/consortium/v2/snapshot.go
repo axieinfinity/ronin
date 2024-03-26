@@ -37,8 +37,7 @@ type Snapshot struct {
 
 	// After Tripp, block producers are stored separately in a new field BlockProducers,
 	// differentiating from validator candidates, which are stored in ValidatorsWithBlsPub.
-	BlockProducers       []common.Address `json:"blockProducers,omitempty"` // Array of sorted block producers After Tripp.
-	FinalityVoteWeight   []uint16         `json:"finalityVoteWeight,omitempty"`
+	BlockProducers       []common.Address `json:"blockProducers,omitempty"`       // Array of sorted block producers After Tripp.
 	JustifiedBlockNumber uint64           `json:"justifiedBlockNumber,omitempty"` // The justified block number
 	JustifiedBlockHash   common.Hash      `json:"justifiedBlockHash,omitempty"`   // The justified block hash
 }

@@ -67,7 +67,7 @@ func (m *mockPOSA) VerifyVote(chain consensus.ChainHeaderReader, vote *types.Vot
 	return nil
 }
 
-func (m *mockPOSA) IsActiveValidatorAt(chain consensus.ChainHeaderReader, header *types.Header) bool {
+func (m *mockPOSA) IsFinalityVoterAt(chain consensus.ChainHeaderReader, header *types.Header) bool {
 	return true
 }
 
@@ -491,7 +491,7 @@ func (m *mockPOSAv2) VerifyVote(chain consensus.ChainHeaderReader, vote *types.V
 	return nil
 }
 
-func (m *mockPOSAv2) IsActiveValidatorAt(chain consensus.ChainHeaderReader, header *types.Header) bool {
+func (m *mockPOSAv2) IsFinalityVoterAt(chain consensus.ChainHeaderReader, header *types.Header) bool {
 	return true
 }
 

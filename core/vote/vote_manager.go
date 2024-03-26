@@ -142,7 +142,7 @@ func (voteManager *VoteManager) loop() {
 
 			curHead := cHead.Block.Header()
 			// Check if cur validator is within the validatorSet at curHead
-			if !voteManager.engine.IsActiveValidatorAt(voteManager.chain, curHead) {
+			if !voteManager.engine.IsFinalityVoterAt(voteManager.chain, curHead) {
 				log.Debug("cur validator is not within the validatorSet at curHead")
 				continue
 			}

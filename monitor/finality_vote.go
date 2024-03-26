@@ -72,7 +72,7 @@ func (monitor *FinalityVoteMonitor) CheckFinalityVote(block *types.Block) error 
 	}
 
 	if extraData.HasFinalityVote == 1 {
-		blockValidator := monitor.engine.GetActiveValidatorAt(
+		blockValidator := monitor.engine.GetFinalityVoterAt(
 			monitor.chain,
 			block.NumberU64()-1,
 			block.ParentHash(),

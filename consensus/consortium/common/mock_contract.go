@@ -53,7 +53,7 @@ func (m *MockValidators) GetPublicKey(addr common.Address) (blsCommon.PublicKey,
 type MockContract struct {
 }
 
-func (contract *MockContract) GetValidators(*big.Int) ([]common.Address, error) {
+func (contract *MockContract) GetBlockProducers(*big.Int) ([]common.Address, error) {
 	return Validators.GetValidators(), nil
 }
 

@@ -85,6 +85,7 @@ type ValidatorWithBlsPub struct {
 type savedValidatorWithBlsPub struct {
 	Address      common.Address `json:"address"`
 	BlsPublicKey string         `json:"blsPublicKey,omitempty"`
+	Weight       uint16         `json:"weight,omitempty"`
 }
 
 func (validator *ValidatorWithBlsPub) UnmarshalJSON(input []byte) error {
