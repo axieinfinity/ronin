@@ -275,13 +275,13 @@ type extraDataRLP struct {
 	FinalityVotedValidators FinalityVoteBitSet
 	AggregatedFinalityVotes []byte
 	CheckpointValidators    []validatorWithBlsPubRLP
-	BlockProducers          []common.Address `rlp:"optional"`
+	BlockProducers          []common.Address
 }
 
 type validatorWithBlsPubRLP struct {
 	Address      common.Address
 	BlsPublicKey []byte
-	Weight       uint16 `rlp:"optional"`
+	Weight       uint16
 }
 
 // EncodeRLP computes rlp-based encoding for HeaderExtraData before
