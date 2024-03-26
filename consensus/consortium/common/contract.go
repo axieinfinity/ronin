@@ -56,7 +56,7 @@ func getTransactionOpts(from common.Address, nonce uint64, chainId *big.Int, sig
 }
 
 type ContractInteraction interface {
-	GetValidators(blockNumber *big.Int) ([]common.Address, error)
+	GetBlockProducers(blockNumber *big.Int) ([]common.Address, error)
 	GetValidatorCandidates(blockNumber *big.Int) ([]common.Address, error)
 	WrapUpEpoch(opts *ApplyTransactOpts) error
 	SubmitBlockReward(opts *ApplyTransactOpts) error
@@ -124,8 +124,8 @@ func NewContractIntegrator(config *chainParams.ChainConfig, backend bind.Contrac
 	}, nil
 }
 
-// GetValidators retrieves top validators addresses
-func (c *ContractIntegrator) GetValidators(blockNumber *big.Int) ([]common.Address, error) {
+// GetBlockProducers retrieves block producer addresses
+func (c *ContractIntegrator) GetBlockProducers(blockNumber *big.Int) ([]common.Address, error) {
 	callOpts := bind.CallOpts{
 		BlockNumber: blockNumber,
 	}

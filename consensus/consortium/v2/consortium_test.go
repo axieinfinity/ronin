@@ -541,7 +541,7 @@ func mockExtraData(nVal int, bits uint32) *finality.HeaderExtraData {
 		ret                     = &finality.HeaderExtraData{}
 	)
 
-	bits = bits % 32 
+	bits = bits % 32
 	for i := 0; i < 5; i++ {
 		if bits&(1<<i) != 0 {
 			switch i {
@@ -848,6 +848,9 @@ func TestVerifyFinalitySignatureTripp(t *testing.T) {
 			BlsPublicKey: secretKey[i].PublicKey(),
 		}
 	}
+	valWithBlsPub[0].Weight = 6666
+	valWithBlsPub[1].Weight = 1
+	valWithBlsPub[2].Weight = 3333
 
 	blockNumber := uint64(0)
 	blockHash := common.Hash{0x1}
@@ -863,11 +866,6 @@ func TestVerifyFinalitySignatureTripp(t *testing.T) {
 	}
 
 	snap := newSnapshot(nil, nil, nil, 10, common.Hash{}, nil, valWithBlsPub, nil)
-	snap.FinalityVoteWeight = make([]uint16, numValidator)
-	snap.FinalityVoteWeight[0] = 6666
-	snap.FinalityVoteWeight[1] = 1
-	snap.FinalityVoteWeight[2] = 3333
-
 	recents, _ := lru.NewARC(inmemorySnapshots)
 	c := Consortium{
 		chainConfig: &params.ChainConfig{
@@ -1007,7 +1005,7 @@ func (contract *mockContract) FinalityReward(opts *consortiumCommon.ApplyTransac
 	return nil
 }
 
-func (contract *mockContract) GetValidators(*big.Int) ([]common.Address, error) {
+func (contract *mockContract) GetBlockProducers(*big.Int) ([]common.Address, error) {
 	var validatorAddresses []common.Address
 	for address := range contract.validators {
 		validatorAddresses = append(validatorAddresses, address)
