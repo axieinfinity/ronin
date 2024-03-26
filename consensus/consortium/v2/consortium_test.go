@@ -1185,9 +1185,146 @@ func TestAssembleFinalityVote(t *testing.T) {
 	}
 }
 
-// TODO: Add AssembleFinalityVoteTripp test
 func TestAssembleFinalityVoteTripp(t *testing.T) {
+	var err error
+	numValidators := 3
+	secretKeys := make([]blsCommon.SecretKey, numValidators)
+	for i := range secretKeys {
+		secretKeys[i], err = blst.RandKey()
+		if err != nil {
+			t.Fatalf("Failed to generate secret key, err: %s", err)
+		}
+	}
 
+	voteData := types.VoteData{
+		TargetNumber: 4,
+		TargetHash:   common.Hash{0x1},
+	}
+	digest := voteData.Hash()
+
+	signatures := make([]blsCommon.Signature, numValidators)
+	for i := range signatures {
+		signatures[i] = secretKeys[i].Sign(digest[:])
+	}
+
+	votes := make([]*types.VoteEnvelope, numValidators)
+	for i := range votes {
+		votes[i] = &types.VoteEnvelope{
+			RawVoteEnvelope: types.RawVoteEnvelope{
+				PublicKey: types.BLSPublicKey(secretKeys[i].PublicKey().Marshal()),
+				Signature: types.BLSSignature(signatures[i].Marshal()),
+				Data:      &voteData,
+			},
+		}
+	}
+
+	mock := mockVotePool{
+		vote: votes,
+	}
+
+	chainConfig := params.ChainConfig{
+		ShillinBlock: big.NewInt(0),
+		TrippBlock:   big.NewInt(0),
+	}
+	c := Consortium{
+		chainConfig: &chainConfig,
+		votePool:    &mock,
+	}
+
+	validators := make([]finality.ValidatorWithBlsPub, numValidators)
+	for i := range validators {
+		validators[i] = finality.ValidatorWithBlsPub{
+			Address:      common.BigToAddress(big.NewInt(int64(i))),
+			BlsPublicKey: secretKeys[i].PublicKey(),
+		}
+	}
+	validators[0].Weight = 6666
+	validators[1].Weight = 1
+	validators[2].Weight = 3333
+
+	snap := newSnapshot(nil, nil, nil, 10, common.Hash{}, nil, validators, nil)
+
+	header := types.Header{Number: big.NewInt(5)}
+	extraData := &finality.HeaderExtraData{}
+	header.Extra, err = extraData.EncodeV2(&chainConfig, header.Number)
+	if err != nil {
+		t.Fatalf("Failed to encode extradata, err %s", err)
+	}
+
+	// Case 1: only 1 validator with weight 6666 cannot reach the threshold
+	mock.vote = mock.vote[:1]
+	c.assembleFinalityVote(&header, snap)
+	extraData, err = finality.DecodeExtraV2(header.Extra, &chainConfig, header.Number)
+	if err != nil {
+		t.Fatalf("Failed to decode extradata, err %s", err)
+	}
+	if uint64(extraData.FinalityVotedValidators) != 0 {
+		t.Fatalf("Expect vote bit set to be %d, got %d", 0, uint64(extraData.FinalityVotedValidators))
+	}
+
+	// Case 2: 1 validator with 2 votes cannot reach the threshold
+	header = types.Header{Number: big.NewInt(5)}
+	extraData = &finality.HeaderExtraData{}
+	header.Extra, _ = extraData.EncodeV2(&chainConfig, header.Number)
+	mock.vote = make([]*types.VoteEnvelope, 0)
+	mock.vote = append(mock.vote, votes[0], votes[0])
+	c.assembleFinalityVote(&header, snap)
+	extraData, err = finality.DecodeExtraV2(header.Extra, &chainConfig, header.Number)
+	if err != nil {
+		t.Fatalf("Failed to decode extradata, err %s", err)
+	}
+	if uint64(extraData.FinalityVotedValidators) != 0 {
+		t.Fatalf("Expect vote bit set to be %d, got %d", 0, uint64(extraData.FinalityVotedValidators))
+	}
+
+	// Case 3: 2 validators with total vote weight 6667 can reach the threshold
+	header = types.Header{Number: big.NewInt(5)}
+	extraData = &finality.HeaderExtraData{}
+	header.Extra, _ = extraData.EncodeV2(&chainConfig, header.Number)
+	mock.vote = make([]*types.VoteEnvelope, 0)
+	mock.vote = append(mock.vote, votes[0], votes[1])
+	c.assembleFinalityVote(&header, snap)
+	extraData, err = finality.DecodeExtraV2(header.Extra, &chainConfig, header.Number)
+	if err != nil {
+		t.Fatalf("Failed to decode extradata, err %s", err)
+	}
+	bitSet := finality.FinalityVoteBitSet(0)
+	bitSet.SetBit(0)
+	bitSet.SetBit(1)
+	if uint64(extraData.FinalityVotedValidators) != uint64(bitSet) {
+		t.Fatalf("Expect vote bit set to be %d, got %d", uint64(bitSet), uint64(extraData.FinalityVotedValidators))
+	}
+	var includedSignatures []blsCommon.Signature
+	includedSignatures = append(includedSignatures, signatures[0], signatures[1])
+	aggregatedSignature := blst.AggregateSignatures(includedSignatures)
+	if !bytes.Equal(aggregatedSignature.Marshal(), extraData.AggregatedFinalityVotes.Marshal()) {
+		t.Fatal("Mismatch signature")
+	}
+
+	// Case 4: 1 validator with vote weight 6667 can reach the threshold
+	validators[0].Weight = 6667
+	validators[1].Weight = 1
+	validators[2].Weight = 3332
+
+	snap = newSnapshot(nil, nil, nil, 10, common.Hash{}, nil, validators, nil)
+	header = types.Header{Number: big.NewInt(5)}
+	extraData = &finality.HeaderExtraData{}
+	header.Extra, _ = extraData.EncodeV2(&chainConfig, header.Number)
+	mock.vote = make([]*types.VoteEnvelope, 0)
+	mock.vote = append(mock.vote, votes[0])
+	c.assembleFinalityVote(&header, snap)
+	extraData, err = finality.DecodeExtraV2(header.Extra, &chainConfig, header.Number)
+	if err != nil {
+		t.Fatalf("Failed to decode extradata, err %s", err)
+	}
+	bitSet = finality.FinalityVoteBitSet(0)
+	bitSet.SetBit(0)
+	if uint64(extraData.FinalityVotedValidators) != uint64(bitSet) {
+		t.Fatalf("Expect vote bit set to be %d, got %d", uint64(bitSet), uint64(extraData.FinalityVotedValidators))
+	}
+	if !bytes.Equal(signatures[0].Marshal(), extraData.AggregatedFinalityVotes.Marshal()) {
+		t.Fatal("Mismatch signature")
+	}
 }
 
 func TestVerifyVote(t *testing.T) {
