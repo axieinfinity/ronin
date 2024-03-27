@@ -46,12 +46,8 @@ func getTransactionOpts(from common.Address, nonce uint64, chainId *big.Int, sig
 		Nonce:  new(big.Int).SetUint64(nonce),
 		NoSend: true,
 		Signer: func(address common.Address, tx *types.Transaction) (*types.Transaction, error) {
-			// signTxFn is nil when mining is not enabled, then we just return the transaction directly
-			if signTxFn == nil {
-				return tx, nil
-			}
-
-			return signTxFn(accounts.Account{Address: from}, tx, chainId)
+			// The transaction signing will happen later in ApplyTransaction
+			return tx, nil
 		},
 	}
 }
