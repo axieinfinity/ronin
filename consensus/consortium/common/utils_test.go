@@ -1,6 +1,7 @@
 package common
 
 import (
+	"encoding/binary"
 	"math/big"
 	"reflect"
 	"testing"
@@ -68,59 +69,79 @@ func TestRemoveInvalidRecents(t *testing.T) {
 }
 
 func TestNormalizeFinalityVoteWeight(t *testing.T) {
-	// All staked amounts are equal
-	var stakedAmounts []*big.Int
-	for i := 0; i < 22; i++ {
-		stakedAmounts = append(stakedAmounts, big.NewInt(1_000_000))
+	tests := []struct {
+		input  []int
+		output []uint16
+	}{
+		// fewer or equal to 22 validator candidates
+		{
+			[]int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22},
+			[]uint16{454, 454, 454, 454, 454, 454, 454, 454, 454, 454, 454, 454, 454, 454, 454, 454, 454, 454, 454, 454, 454, 454},
+		},
+		// 23 validator candidates with different staked amounts
+		{
+			[]int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23},
+			[]uint16{150, 304, 454, 454, 454, 454, 454, 454, 454, 454, 454, 454, 454, 454, 454, 454, 454, 454, 454, 454, 454, 454, 454},
+		},
+		// 23 validator candidates with different staked amounts
+		{
+			[]int{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+			[]uint16{434, 434, 434, 434, 434, 434, 434, 434, 434, 434, 434, 434, 434, 434, 434, 434, 434, 434, 434, 434, 434, 434, 434},
+		},
+		// 23 validator candidates, some have very high staked amounts
+		{
+			[]int{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 100, 200, 150, 50},
+			[]uint16{430, 430, 430, 430, 430, 430, 430, 430, 430, 430, 430, 430, 430, 430, 430, 430, 430, 430, 430, 454, 454, 454, 454},
+		},
 	}
 
-	voteWeights := NormalizeFinalityVoteWeight(stakedAmounts)
-	for _, voteWeight := range voteWeights {
-		if voteWeight != 454 {
-			t.Fatalf("Incorrect vote weight, expect %d got %d", 454, voteWeight)
+	for _, test := range tests {
+		input := make([]*big.Int, 0, len(test.input))
+		for _, in := range test.input {
+			input = append(input, big.NewInt(int64(in)))
+		}
+
+		output := NormalizeFinalityVoteWeight(input)
+		if !reflect.DeepEqual(output, test.output) {
+			t.Fatalf("Input %v\nExpected output: %v\nGot: %v\n", test.input, test.output, output)
 		}
 	}
+}
 
-	// All staked amount differs
-	for i := 0; i < 22; i++ {
-		stakedAmounts[i] = big.NewInt(int64(i) + 1)
-	}
-	voteWeights = NormalizeFinalityVoteWeight(stakedAmounts)
-	expectedVoteWeights := []uint16{51, 103, 155, 207, 259, 311, 363, 415, 467, 519, 571, 597, 597, 597, 597, 597, 597, 597, 597, 597, 597, 597}
-
-	for i := range voteWeights {
-		if voteWeights[i] != expectedVoteWeights[i] {
-			t.Fatalf("Incorrect vote weight, expect %d got %d", expectedVoteWeights[i], voteWeights[i])
+func FuzzNormalizeFinalityVoteWeight(f *testing.F) {
+	f.Fuzz(func(t *testing.T, fuzzInput []byte) {
+		input := make([]*big.Int, 0, len(fuzzInput))
+		if len(input)%8 != 0 {
+			return
 		}
-	}
-
-	// Staked amount differences are small
-	for i := 0; i < 22; i++ {
-		stakedAmounts[i] = big.NewInt(int64(i) + 1_000_000)
-	}
-	voteWeights = NormalizeFinalityVoteWeight(stakedAmounts)
-	for i := range voteWeights {
-		if voteWeights[i] != 454 {
-			t.Fatalf("Incorrect vote weight, expect %d got %d", 454, voteWeights[i])
+		for i := 0; i < len(fuzzInput)-7; i += 8 {
+			in := binary.LittleEndian.Uint64(fuzzInput[i : i+8])
+			if in == 0 {
+				return
+			}
+			input = append(input, new(big.Int).SetUint64(in))
 		}
-	}
-
-	// Some staked amounts differ greatly
-	for i := 0; i < 20; i++ {
-		stakedAmounts[i] = big.NewInt(1_000_000)
-	}
-	stakedAmounts[20] = big.NewInt(1000)
-	stakedAmounts[21] = big.NewInt(2500)
-	voteWeights = NormalizeFinalityVoteWeight(stakedAmounts)
-	for i := 0; i < 20; i++ {
-		if voteWeights[i] != 499 {
-			t.Fatalf("Incorrect vote weight, expect %d got %d", 499, voteWeights[i])
+		if len(input) == 0 || len(input) > 64 {
+			return
 		}
-	}
-	if voteWeights[20] != 0 {
-		t.Fatalf("Incorrect vote weight, expect %d got %d", 0, voteWeights[20])
-	}
-	if voteWeights[21] != 1 {
-		t.Fatalf("Incorrect vote weight, expect %d got %d", 1, voteWeights[21])
-	}
+
+		output := NormalizeFinalityVoteWeight(input)
+		totalWeight := uint16(0)
+		for _, out := range output {
+			if len(input) > VoteWeightThreshold {
+				if out > MaxFinalityVotePercentage/VoteWeightThreshold+1 {
+					t.Fatalf("Weight is higher than 1/22\nInput: %v\nOutput: %v\n", input, output)
+				}
+			}
+			totalWeight += out
+		}
+
+		if totalWeight > MaxFinalityVotePercentage {
+			t.Fatalf("Total weight is higher than 10_000\nInput: %v\nOutput: %v\n", input, output)
+		}
+
+		if MaxFinalityVotePercentage-totalWeight >= uint16(len(input)) {
+			t.Fatalf("Total weight error is too high\nTotal weight: %d\nInput: %v\nOutput: %v\n", totalWeight, input, output)
+		}
+	})
 }
