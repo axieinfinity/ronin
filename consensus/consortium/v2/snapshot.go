@@ -40,6 +40,7 @@ type Snapshot struct {
 	BlockProducers       []common.Address `json:"blockProducers,omitempty"`       // Array of sorted block producers After Tripp.
 	JustifiedBlockNumber uint64           `json:"justifiedBlockNumber,omitempty"` // The justified block number
 	JustifiedBlockHash   common.Hash      `json:"justifiedBlockHash,omitempty"`   // The justified block hash
+	CurrentPeriod        uint64           `json:"currentPeriod,omitempty"`        // Period number where the snapshot was created
 }
 
 // validatorsAscending implements the sort interface to allow sorting a list of addresses
@@ -129,6 +130,7 @@ func (s *Snapshot) copy() *Snapshot {
 		Number:               s.Number,
 		Hash:                 s.Hash,
 		Recents:              make(map[uint64]common.Address),
+		CurrentPeriod:        s.CurrentPeriod,
 		JustifiedBlockNumber: s.JustifiedBlockNumber,
 		JustifiedBlockHash:   s.JustifiedBlockHash,
 	}
@@ -232,6 +234,10 @@ func (s *Snapshot) apply(headers []*types.Header, chain consensus.ChainHeaderRea
 			}
 		}
 
+		isTripp := chain.Config().IsTripp(header.Number)
+		if isTripp && number%s.config.EpochV2 == 0 && header.Time/dateInSeconds > snap.CurrentPeriod {
+			snap.CurrentPeriod = header.Time / dateInSeconds
+		}
 		// Change the validator set base on the size of the validators set
 		if number > 0 && number%s.config.EpochV2 == uint64(len(snap.validators())/2) {
 			// Get the most recent checkpoint header
@@ -248,7 +254,6 @@ func (s *Snapshot) apply(headers []*types.Header, chain consensus.ChainHeaderRea
 				}
 				snap.ValidatorsWithBlsPub = nil
 			} else {
-				isTripp := chain.Config().IsTripp(checkpointHeader.Number)
 				// Get validator set from headers and use that for new validator set
 				extraData, err := finality.DecodeExtraV2(checkpointHeader.Extra, chain.Config(), checkpointHeader.Number)
 				if err != nil {
@@ -272,12 +277,8 @@ func (s *Snapshot) apply(headers []*types.Header, chain consensus.ChainHeaderRea
 
 				if isTripp {
 					// if at the start of period, read BLS key, consensus and staked amount from header
-					if IsPeriodBlock(chain, checkpointHeader, s.config.EpochV2) {
-						snap.ValidatorsWithBlsPub = make([]finality.ValidatorWithBlsPub, len(extraData.CheckpointValidators))
-						copy(snap.ValidatorsWithBlsPub, extraData.CheckpointValidators)
-					}
-					snap.BlockProducers = make([]common.Address, len(extraData.BlockProducers))
-					copy(snap.BlockProducers, extraData.BlockProducers)
+					snap.ValidatorsWithBlsPub = extraData.CheckpointValidators
+					snap.BlockProducers = extraData.BlockProducers
 					snap.Validators = nil
 				} else if chain.Config().IsShillin(checkpointHeader.Number) {
 					// The validator information in checkpoint header is already sorted,
