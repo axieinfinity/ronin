@@ -50,6 +50,7 @@ const (
 	finalityRatio                  float64 = 2.0 / 3
 	assemblingFinalityVoteDuration         = 1 * time.Second
 	MaxValidatorCandidates                 = 64 // Maximum number of validator candidates (aka voters for a block).
+	dateInSeconds                          = uint64(86400)
 )
 
 // Consortium delegated proof-of-stake protocol constants.
@@ -785,7 +786,7 @@ func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.He
 	var extraData finality.HeaderExtraData
 
 	if number%c.config.EpochV2 == 0 || c.chainConfig.IsOnConsortiumV2(big.NewInt(int64(number))) {
-		isPeriodBlock := IsPeriodBlock(chain, header, c.config.EpochV2)
+		isPeriodBlock := c.IsPeriodBlock(chain, header)
 		checkpointValidator, blockProducers, err := c.getCheckpointValidatorsFromContract(isPeriodBlock, header)
 		if err != nil {
 			return err
@@ -965,7 +966,7 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 	// If the block is an epoch end block, verify the validator list
 	// The verification can only be done when the state is ready, it can't be done in VerifyHeader.
 	if header.Number.Uint64()%c.config.EpochV2 == 0 {
-		isPeriodBlock := IsPeriodBlock(chain, header, c.config.EpochV2)
+		isPeriodBlock := c.IsPeriodBlock(chain, header)
 		checkpointValidators, blockProducers, err := c.getCheckpointValidatorsFromContract(isPeriodBlock, header)
 		if err != nil {
 			return err
@@ -1597,16 +1598,29 @@ func encodeSigHeader(w io.Writer, header *types.Header, chainId *big.Int) {
 
 // IsPeriodBlock returns indicator whether a block is a period checkpoint block or not,
 // which is the first checkpoint block (block % EpochV2 == 0) after 00:00 UTC everyday.
-func IsPeriodBlock(chain consensus.ChainHeaderReader, header *types.Header, EpochV2 uint64) bool {
+func (c *Consortium) IsPeriodBlock(chain consensus.ChainHeaderReader, header *types.Header) bool {
 	number := header.Number.Uint64()
-	dateInSeconds := uint64(86400)
-	if number%EpochV2 != 0 || number < EpochV2 {
+	if number%c.config.EpochV2 != 0 || !chain.Config().IsTripp(header.Number) {
 		return false
 	}
-	ancient := chain.GetHeaderByNumber(number - EpochV2)
-	if ancient == nil {
-		log.Error("fail to get header by block number", "number", number-EpochV2)
-		return false
+	snap, err := c.snapshot(chain, number-1, header.ParentHash, nil)
+
+	// If error happens when derive snapshot or current period is absent, we recursively find
+	// the nearest epoch block; and determine whether the header is one day ahead of that neighbor.
+	if err != nil || (snap != nil && snap.CurrentPeriod == 0) {
+		var (
+			parentNumber uint64        = number - 1
+			parentHash   common.Hash   = header.ParentHash
+			parent       *types.Header = chain.GetHeader(parentHash, parentNumber)
+		)
+		for parentNumber%c.config.EpochV2 != 0 && parent != nil {
+			parentNumber = parent.Number.Uint64() - 1
+			parentHash = parent.ParentHash
+			parent = chain.GetHeader(parentHash, parentNumber)
+		}
+		if parentNumber%c.config.EpochV2 == 0 && parent != nil {
+			return uint64(header.Time/dateInSeconds) > uint64(parent.Time/dateInSeconds)
+		}
 	}
-	return header.Time/dateInSeconds-1 == ancient.Time/dateInSeconds
+	return uint64(header.Time/dateInSeconds) > snap.CurrentPeriod
 }

@@ -2082,45 +2082,85 @@ func TestEnablePickValidatorSetWithBeacon(t *testing.T) {
 }
 
 func TestIsPeriodBlock(t *testing.T) {
-	EpochV2 := uint64(200)
-	db := rawdb.NewMemoryDatabase()
-	genesis := (&core.Genesis{
-		Config:  params.TestChainConfig,
-		BaseFee: big.NewInt(params.InitialBaseFee),
-	}).MustCommit(db)
-	chain, _ := core.NewBlockChain(db, nil, params.TestChainConfig, ethash.NewFullFaker(), vm.Config{}, nil, nil)
+	const NUM_OF_VALIDATORS = 21
+	dateInSeconds := uint64(86400)
+	now := uint64(time.Now().Unix())
+	midnight := uint64(now / dateInSeconds * dateInSeconds)
 
-	bs, _ := core.GenerateChain(params.TestChainConfig, genesis, ethash.NewFaker(), db, 10, nil, true)
+	db := rawdb.NewMemoryDatabase()
+	chainConfig := params.ChainConfig{
+		ChainID:    big.NewInt(2021),
+		TrippBlock: big.NewInt(30),
+		Consortium: &params.ConsortiumConfig{
+			EpochV2: 200,
+		},
+		ConsortiumV2Contracts: &params.ConsortiumV2Contracts{
+			RoninValidatorSet: common.HexToAddress("0xaa"),
+		},
+	}
+	genesis := (&core.Genesis{
+		Config:    &chainConfig,
+		BaseFee:   big.NewInt(params.InitialBaseFee),
+		Timestamp: midnight + 1, // genesis at day 1
+	}).MustCommit(db)
+	chain, _ := core.NewBlockChain(db, nil, &chainConfig, ethash.NewFullFaker(), vm.Config{}, nil, nil)
+	bs, _ := core.GenerateChain(&chainConfig, genesis, ethash.NewFaker(), db, 399, nil, true) // create chain of up to 399 blocks
 	if _, err := chain.InsertChain(bs[:]); err != nil {
 		panic(err)
 	}
+	recents, _ := lru.NewARC(inmemorySnapshots)
+	signatures, _ := lru.NewARC(inmemorySignatures)
+	mock := &mockContract{
+		validators: map[common.Address]blsCommon.PublicKey{},
+	}
+	c := &Consortium{
+		chainConfig: &chainConfig,
+		recents:     recents,
+		signatures:  signatures,
+		config: &params.ConsortiumConfig{
+			EpochV2: 200,
+		},
+		db:       db,
+		contract: mock,
+	}
+	validators := make([]common.Address, NUM_OF_VALIDATORS)
+	for i := 0; i < NUM_OF_VALIDATORS; i++ {
+		validators = append(validators, common.BigToAddress(big.NewInt(int64(i))))
+	}
 
-	header := &types.Header{Number: new(big.Int).SetUint64(5)}
-	if IsPeriodBlock(chain, header, EpochV2) {
+	header := &types.Header{
+		Number:     big.NewInt(400),
+		Time:       midnight + dateInSeconds + 1, // header at day 2
+		ParentHash: bs[len(bs)-1].Hash(),         // assign hash of block 399 as parent hash
+	}
+	// this header must be period header
+	if !c.IsPeriodBlock(chain, header) {
 		t.Errorf("wrong period block")
 	}
-	header.Number = new(big.Int).SetUint64(0)
-	if IsPeriodBlock(chain, header, EpochV2) {
-		t.Errorf("wrong period block")
-	}
 
-	dateInSeconds := uint64(86400)
-	now := uint64(time.Now().Unix())
-	time := now - now%dateInSeconds
-	ancient := &types.Header{
-		Number: new(big.Int).SetUint64(1000),
-		Time:   uint64(time - 1),
-	}
+	snap := newSnapshot(nil, nil, nil, 199, common.Hash{0x22}, validators, nil, nil)
+	snap.CurrentPeriod = uint64(now/dateInSeconds) - 1 // yesterday period
+	snap.copy().store(c.db)
+	c.recents.Add(snap.Hash, snap)
 	header = &types.Header{
-		Number: new(big.Int).SetUint64(1200),
-		Time:   uint64(time + 2),
+		Number:     big.NewInt(200),
+		ParentHash: snap.Hash,
+		Time:       midnight + 1, // today period
 	}
-	if header.Time/dateInSeconds-1 != ancient.Time/dateInSeconds {
-		t.Errorf("wrong period block logic")
+	// this header must be period header
+	if !c.IsPeriodBlock(chain, header) {
+		t.Errorf("wrong period block")
 	}
 
-	ancient.Time = uint64(time + 1)
-	if header.Time/dateInSeconds != ancient.Time/dateInSeconds {
-		t.Errorf("wrong period block logic")
+	snap = newSnapshot(nil, nil, nil, 599, common.Hash{0x33}, validators, nil, nil)
+	snap.CurrentPeriod = uint64(now / dateInSeconds) // today period
+	snap.copy().store(c.db)
+	c.recents.Add(snap.Hash, snap)
+	header.Number = big.NewInt(600)
+	header.ParentHash = snap.Hash
+	header.Time = midnight + 1
+	// this header must not be period header
+	if c.IsPeriodBlock(chain, header) {
+		t.Errorf("wrong period block")
 	}
 }
