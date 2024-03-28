@@ -764,14 +764,16 @@ func TestVerifyFinalitySignature(t *testing.T) {
 		config: &params.ConsortiumConfig{
 			EpochV2: 300,
 		},
-		recents: recents,
+		recents:            recents,
+		testTrippEffective: true,
 	}
 	snap.Hash = blockHash
 	c.recents.Add(snap.Hash, snap)
 
+	header := types.Header{Number: big.NewInt(int64(blockNumber + 1)), ParentHash: blockHash}
 	var votedBitSet finality.FinalityVoteBitSet
 	votedBitSet.SetBit(0)
-	err = c.verifyFinalitySignatures(nil, votedBitSet, nil, blockNumber, blockHash, nil)
+	err = c.verifyFinalitySignatures(nil, votedBitSet, nil, &header, nil)
 	if !errors.Is(err, finality.ErrNotEnoughFinalityVote) {
 		t.Errorf("Expect error %v have %v", finality.ErrNotEnoughFinalityVote, err)
 	}
@@ -780,7 +782,7 @@ func TestVerifyFinalitySignature(t *testing.T) {
 	votedBitSet.SetBit(0)
 	votedBitSet.SetBit(1)
 	votedBitSet.SetBit(3)
-	err = c.verifyFinalitySignatures(nil, votedBitSet, nil, 0, snap.Hash, nil)
+	err = c.verifyFinalitySignatures(nil, votedBitSet, nil, &header, nil)
 	if !errors.Is(err, finality.ErrInvalidFinalityVotedBitSet) {
 		t.Errorf("Expect error %v have %v", finality.ErrInvalidFinalityVotedBitSet, err)
 	}
@@ -794,7 +796,7 @@ func TestVerifyFinalitySignature(t *testing.T) {
 		signature[1],
 		signature[3],
 	})
-	err = c.verifyFinalitySignatures(nil, votedBitSet, aggregatedSignature, 0, snap.Hash, nil)
+	err = c.verifyFinalitySignatures(nil, votedBitSet, aggregatedSignature, &header, nil)
 	if !errors.Is(err, finality.ErrFinalitySignatureVerificationFailed) {
 		t.Errorf("Expect error %v have %v", finality.ErrFinalitySignatureVerificationFailed, err)
 	}
@@ -809,7 +811,7 @@ func TestVerifyFinalitySignature(t *testing.T) {
 		signature[2],
 		signature[3],
 	})
-	err = c.verifyFinalitySignatures(nil, votedBitSet, aggregatedSignature, 0, snap.Hash, nil)
+	err = c.verifyFinalitySignatures(nil, votedBitSet, aggregatedSignature, &header, nil)
 	if !errors.Is(err, finality.ErrFinalitySignatureVerificationFailed) {
 		t.Errorf("Expect error %v have %v", finality.ErrFinalitySignatureVerificationFailed, err)
 	}
@@ -823,7 +825,7 @@ func TestVerifyFinalitySignature(t *testing.T) {
 		signature[1],
 		signature[2],
 	})
-	err = c.verifyFinalitySignatures(nil, votedBitSet, aggregatedSignature, 0, snap.Hash, nil)
+	err = c.verifyFinalitySignatures(nil, votedBitSet, aggregatedSignature, &header, nil)
 	if err != nil {
 		t.Errorf("Expect successful verification have %v", err)
 	}
@@ -875,18 +877,20 @@ func TestVerifyFinalitySignatureTripp(t *testing.T) {
 		config: &params.ConsortiumConfig{
 			EpochV2: 300,
 		},
-		recents: recents,
+		recents:            recents,
+		testTrippEffective: true,
 	}
 	snap.Hash = blockHash
 	c.recents.Add(snap.Hash, snap)
 
+	header := types.Header{Number: big.NewInt(int64(blockNumber + 1)), ParentHash: blockHash}
 	// 1 voter with vote weight 6666 does not reach the threshold
 	votedBitSet := finality.FinalityVoteBitSet(0)
 	votedBitSet.SetBit(0)
 	aggregatedSignature := blst.AggregateSignatures([]blsCommon.Signature{
 		signature[0],
 	})
-	err = c.verifyFinalitySignatures(nil, votedBitSet, aggregatedSignature, 0, snap.Hash, nil)
+	err = c.verifyFinalitySignatures(nil, votedBitSet, aggregatedSignature, &header, nil)
 	if !errors.Is(err, finality.ErrNotEnoughFinalityVote) {
 		t.Errorf("Expect error %v have %v", finality.ErrNotEnoughFinalityVote, err)
 	}
@@ -899,7 +903,7 @@ func TestVerifyFinalitySignatureTripp(t *testing.T) {
 		signature[1],
 		signature[2],
 	})
-	err = c.verifyFinalitySignatures(nil, votedBitSet, aggregatedSignature, 0, snap.Hash, nil)
+	err = c.verifyFinalitySignatures(nil, votedBitSet, aggregatedSignature, &header, nil)
 	if !errors.Is(err, finality.ErrNotEnoughFinalityVote) {
 		t.Errorf("Expect error %v have %v", finality.ErrNotEnoughFinalityVote, err)
 	}
@@ -912,7 +916,7 @@ func TestVerifyFinalitySignatureTripp(t *testing.T) {
 		signature[0],
 		signature[1],
 	})
-	err = c.verifyFinalitySignatures(nil, votedBitSet, aggregatedSignature, 0, snap.Hash, nil)
+	err = c.verifyFinalitySignatures(nil, votedBitSet, aggregatedSignature, &header, nil)
 	if err != nil {
 		t.Errorf("Expect successful verification have %v", err)
 	}
@@ -927,7 +931,7 @@ func TestVerifyFinalitySignatureTripp(t *testing.T) {
 		signature[1],
 		signature[2],
 	})
-	err = c.verifyFinalitySignatures(nil, votedBitSet, aggregatedSignature, 0, snap.Hash, nil)
+	err = c.verifyFinalitySignatures(nil, votedBitSet, aggregatedSignature, &header, nil)
 	if err != nil {
 		t.Errorf("Expect successful verification have %v", err)
 	}
@@ -1058,7 +1062,7 @@ func TestGetCheckpointValidatorFromContract(t *testing.T) {
 		contract: mock,
 	}
 
-	validatorWithPubs, _, err := c.getCheckpointValidatorsFromContract(false, &types.Header{Number: big.NewInt(3)})
+	validatorWithPubs, _, err := c.getCheckpointValidatorsFromContract(nil, false, &types.Header{Number: big.NewInt(3)})
 	if err != nil {
 		t.Fatalf("Failed to get checkpoint validators from contract, err: %s", err)
 	}
@@ -1149,7 +1153,7 @@ func TestAssembleFinalityVote(t *testing.T) {
 	header := types.Header{Number: big.NewInt(5)}
 	extraData := &finality.HeaderExtraData{}
 	header.Extra = extraData.Encode(true)
-	c.assembleFinalityVote(&header, snap)
+	c.assembleFinalityVote(nil, &header, snap)
 
 	extraData, err = finality.DecodeExtra(header.Extra, true)
 	if err != nil {
@@ -1227,8 +1231,9 @@ func TestAssembleFinalityVoteTripp(t *testing.T) {
 		TrippBlock:   big.NewInt(0),
 	}
 	c := Consortium{
-		chainConfig: &chainConfig,
-		votePool:    &mock,
+		chainConfig:        &chainConfig,
+		votePool:           &mock,
+		testTrippEffective: true,
 	}
 
 	validators := make([]finality.ValidatorWithBlsPub, numValidators)
@@ -1253,7 +1258,7 @@ func TestAssembleFinalityVoteTripp(t *testing.T) {
 
 	// Case 1: only 1 validator with weight 6666 cannot reach the threshold
 	mock.vote = mock.vote[:1]
-	c.assembleFinalityVote(&header, snap)
+	c.assembleFinalityVote(nil, &header, snap)
 	extraData, err = finality.DecodeExtraV2(header.Extra, &chainConfig, header.Number)
 	if err != nil {
 		t.Fatalf("Failed to decode extradata, err %s", err)
@@ -1268,7 +1273,7 @@ func TestAssembleFinalityVoteTripp(t *testing.T) {
 	header.Extra, _ = extraData.EncodeV2(&chainConfig, header.Number)
 	mock.vote = make([]*types.VoteEnvelope, 0)
 	mock.vote = append(mock.vote, votes[0], votes[0])
-	c.assembleFinalityVote(&header, snap)
+	c.assembleFinalityVote(nil, &header, snap)
 	extraData, err = finality.DecodeExtraV2(header.Extra, &chainConfig, header.Number)
 	if err != nil {
 		t.Fatalf("Failed to decode extradata, err %s", err)
@@ -1283,7 +1288,7 @@ func TestAssembleFinalityVoteTripp(t *testing.T) {
 	header.Extra, _ = extraData.EncodeV2(&chainConfig, header.Number)
 	mock.vote = make([]*types.VoteEnvelope, 0)
 	mock.vote = append(mock.vote, votes[0], votes[1])
-	c.assembleFinalityVote(&header, snap)
+	c.assembleFinalityVote(nil, &header, snap)
 	extraData, err = finality.DecodeExtraV2(header.Extra, &chainConfig, header.Number)
 	if err != nil {
 		t.Fatalf("Failed to decode extradata, err %s", err)
@@ -1312,7 +1317,7 @@ func TestAssembleFinalityVoteTripp(t *testing.T) {
 	header.Extra, _ = extraData.EncodeV2(&chainConfig, header.Number)
 	mock.vote = make([]*types.VoteEnvelope, 0)
 	mock.vote = append(mock.vote, votes[0])
-	c.assembleFinalityVote(&header, snap)
+	c.assembleFinalityVote(nil, &header, snap)
 	extraData, err = finality.DecodeExtraV2(header.Extra, &chainConfig, header.Number)
 	if err != nil {
 		t.Fatalf("Failed to decode extradata, err %s", err)
