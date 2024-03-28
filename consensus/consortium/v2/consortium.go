@@ -378,6 +378,7 @@ func (c *Consortium) verifyCascadingFields(chain consensus.ChainHeaderReader, he
 
 	// Check extra data
 	isShillin := c.chainConfig.IsShillin(header.Number)
+	isTripp := c.chainConfig.IsTripp(header.Number)
 	extraData, err := finality.DecodeExtraV2(header.Extra, c.chainConfig, header.Number)
 	if err != nil {
 		return err
@@ -387,6 +388,14 @@ func (c *Consortium) verifyCascadingFields(chain consensus.ChainHeaderReader, he
 	isEpoch := number%c.config.EpochV2 == 0 || c.chainConfig.IsOnConsortiumV2(header.Number)
 
 	if !isEpoch && len(extraData.CheckpointValidators) != 0 {
+		return consortiumCommon.ErrExtraValidators
+	}
+
+	if isTripp && isEpoch && len(extraData.BlockProducers) == 0 {
+		return consortiumCommon.ErrExtraValidators
+	}
+
+	if isTripp && c.IsPeriodBlock(chain, header) && len(extraData.CheckpointValidators) == 0 {
 		return consortiumCommon.ErrExtraValidators
 	}
 
@@ -1592,7 +1601,8 @@ func (c *Consortium) IsPeriodBlock(chain consensus.ChainHeaderReader, header *ty
 
 	// If error happens when derive snapshot or current period is absent, we recursively find
 	// the nearest epoch block; and determine whether the header is one day ahead of that neighbor.
-	if err != nil || (snap != nil && snap.CurrentPeriod == 0) {
+	if err != nil {
+		log.Warn("Fail to get snapshot at", "block", number-1, "err", err)
 		var (
 			parentNumber uint64        = number - 1
 			parentHash   common.Hash   = header.ParentHash
@@ -1603,9 +1613,10 @@ func (c *Consortium) IsPeriodBlock(chain consensus.ChainHeaderReader, header *ty
 			parentHash = parent.ParentHash
 			parent = chain.GetHeader(parentHash, parentNumber)
 		}
-		if parentNumber%c.config.EpochV2 == 0 && parent != nil {
-			return uint64(header.Time/dateInSeconds) > uint64(parent.Time/dateInSeconds)
-		}
+		return uint64(header.Time/dateInSeconds) > uint64(parent.Time/dateInSeconds)
+	}
+	if snap.CurrentPeriod == 0 {
+		return false
 	}
 	return uint64(header.Time/dateInSeconds) > snap.CurrentPeriod
 }
