@@ -2163,4 +2163,10 @@ func TestIsPeriodBlock(t *testing.T) {
 	if c.IsPeriodBlock(chain, header) {
 		t.Errorf("wrong period block")
 	}
+
+	// this is non Tripp, then must not be period header
+	header.Number = common.Big0
+	if c.IsPeriodBlock(chain, header) {
+		t.Errorf("wrong period block")	
+	}
 }
