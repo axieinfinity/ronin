@@ -234,7 +234,7 @@ func (s *Snapshot) apply(headers []*types.Header, chain consensus.ChainHeaderRea
 			}
 		}
 
-		isTripp := chain.Config().IsTripp(header.Number)	
+		isTripp := chain.Config().IsTripp(header.Number)
 		if isTripp && header.Time/dateInSeconds > snap.CurrentPeriod {
 			snap.CurrentPeriod = header.Time / dateInSeconds
 		}
@@ -264,7 +264,7 @@ func (s *Snapshot) apply(headers []*types.Header, chain consensus.ChainHeaderRea
 				var newLimit int
 				// After Tripp, list of block producers is retrieved from the
 				// field BlockProducer, instead of field CheckpointValidators.
-				if isTripp {
+				if isTripp && len(extraData.BlockProducers) != 0 {
 					newLimit = len(extraData.BlockProducers)/2 + 1
 				} else {
 					newLimit = len(extraData.CheckpointValidators)/2 + 1
@@ -275,7 +275,7 @@ func (s *Snapshot) apply(headers []*types.Header, chain consensus.ChainHeaderRea
 					}
 				}
 
-				if isTripp {
+				if isTripp && len(extraData.BlockProducers) != 0 {
 					// if at the start of period, read BLS key, consensus and staked amount from header
 					snap.ValidatorsWithBlsPub = extraData.CheckpointValidators
 					snap.BlockProducers = extraData.BlockProducers

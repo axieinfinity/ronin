@@ -115,6 +115,9 @@ type Consortium struct {
 	v1       consortiumCommon.ConsortiumAdapter
 
 	votePool consensus.VotePool
+
+	// This is used in unit test only
+	testTrippEffective bool
 }
 
 // New creates a Consortium delegated proof-of-stake consensus engine
@@ -271,19 +274,18 @@ func (c *Consortium) verifyFinalitySignatures(
 	chain consensus.ChainHeaderReader,
 	finalityVotedValidators finality.FinalityVoteBitSet,
 	finalitySignatures blsCommon.Signature,
-	parentNumber uint64,
-	parentHash common.Hash,
+	header *types.Header,
 	parents []*types.Header,
 ) error {
-	isTripp := c.chainConfig.IsTripp(new(big.Int).SetUint64(parentNumber + 1))
-	snap, err := c.snapshot(chain, parentNumber, parentHash, parents)
+	isTrippEffective := c.IsTrippEffective(chain, header)
+	snap, err := c.snapshot(chain, header.Number.Uint64()-1, header.ParentHash, parents)
 	if err != nil {
 		return err
 	}
 
 	voteData := types.VoteData{
-		TargetNumber: parentNumber,
-		TargetHash:   parentHash,
+		TargetNumber: header.Number.Uint64() - 1,
+		TargetHash:   header.ParentHash,
 	}
 	digest := voteData.Hash()
 
@@ -299,14 +301,14 @@ func (c *Consortium) verifyFinalitySignatures(
 			return finality.ErrInvalidFinalityVotedBitSet
 		}
 		publicKeys = append(publicKeys, snap.ValidatorsWithBlsPub[position].BlsPublicKey)
-		if isTripp {
+		if isTrippEffective {
 			accumulatedVoteWeight += int(snap.ValidatorsWithBlsPub[position].Weight)
 		} else {
 			accumulatedVoteWeight += 1
 		}
 	}
 
-	if isTripp {
+	if isTrippEffective {
 		finalityThreshold = int(math.Floor(finalityRatio*float64(consortiumCommon.MaxFinalityVotePercentage))) + 1
 	} else {
 		finalityThreshold = int(math.Floor(finalityRatio*float64(len(snap.ValidatorsWithBlsPub)))) + 1
@@ -378,7 +380,7 @@ func (c *Consortium) verifyCascadingFields(chain consensus.ChainHeaderReader, he
 
 	// Check extra data
 	isShillin := c.chainConfig.IsShillin(header.Number)
-	isTripp := c.chainConfig.IsTripp(header.Number)
+	isTrippEffective := c.IsTrippEffective(chain, header)
 	extraData, err := finality.DecodeExtraV2(header.Extra, c.chainConfig, header.Number)
 	if err != nil {
 		return err
@@ -391,11 +393,15 @@ func (c *Consortium) verifyCascadingFields(chain consensus.ChainHeaderReader, he
 		return consortiumCommon.ErrExtraValidators
 	}
 
-	if isTripp && isEpoch && len(extraData.BlockProducers) == 0 {
+	if isTrippEffective && isEpoch && len(extraData.BlockProducers) == 0 {
 		return consortiumCommon.ErrExtraValidators
 	}
 
-	if isTripp && c.IsPeriodBlock(chain, header) && len(extraData.CheckpointValidators) == 0 {
+	if isTrippEffective && c.IsPeriodBlock(chain, header) && len(extraData.CheckpointValidators) == 0 {
+		return consortiumCommon.ErrExtraValidators
+	}
+
+	if !isTrippEffective && len(extraData.BlockProducers) != 0 {
 		return consortiumCommon.ErrExtraValidators
 	}
 
@@ -404,8 +410,7 @@ func (c *Consortium) verifyCascadingFields(chain consensus.ChainHeaderReader, he
 			chain,
 			extraData.FinalityVotedValidators,
 			extraData.AggregatedFinalityVotes,
-			header.Number.Uint64()-1,
-			header.ParentHash,
+			header,
 			parents,
 		); err != nil {
 			return err
@@ -692,6 +697,7 @@ func (c *Consortium) verifyHeaderTime(header, parent *types.Header, snapshot *Sn
 }
 
 func (c *Consortium) getCheckpointValidatorsFromContract(
+	chain consensus.ChainHeaderReader,
 	isPeriodBlock bool,
 	header *types.Header,
 ) ([]finality.ValidatorWithBlsPub, []common.Address, error) {
@@ -708,7 +714,7 @@ func (c *Consortium) getCheckpointValidatorsFromContract(
 	// After Tripp, bls key and staked amount are read only once at
 	// the start of new period, whereas block producer address is read
 	// at the start of every epoch.
-	if c.chainConfig.IsTripp(header.Number) {
+	if c.IsTrippEffective(chain, header) {
 		sort.Sort(validatorsAscending(blockProducers))
 		if !isPeriodBlock {
 			return nil, blockProducers, nil
@@ -795,14 +801,14 @@ func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.He
 
 	if number%c.config.EpochV2 == 0 || c.chainConfig.IsOnConsortiumV2(big.NewInt(int64(number))) {
 		isPeriodBlock := c.IsPeriodBlock(chain, header)
-		checkpointValidator, blockProducers, err := c.getCheckpointValidatorsFromContract(isPeriodBlock, header)
+		checkpointValidator, blockProducers, err := c.getCheckpointValidatorsFromContract(chain, isPeriodBlock, header)
 		if err != nil {
 			return err
 		}
 		// After Tripp, validator candidates are read only once at
 		// the start of new period, whereas block producer address is read
 		// at the start of every epoch.
-		if c.chainConfig.IsTripp(header.Number) {
+		if c.IsTrippEffective(chain, header) {
 			if isPeriodBlock {
 				extraData.CheckpointValidators = checkpointValidator
 			}
@@ -965,7 +971,7 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 	// The verification can only be done when the state is ready, it can't be done in VerifyHeader.
 	if header.Number.Uint64()%c.config.EpochV2 == 0 {
 		isPeriodBlock := c.IsPeriodBlock(chain, header)
-		checkpointValidators, blockProducers, err := c.getCheckpointValidatorsFromContract(isPeriodBlock, header)
+		checkpointValidators, blockProducers, err := c.getCheckpointValidatorsFromContract(chain, isPeriodBlock, header)
 		if err != nil {
 			return err
 		}
@@ -976,7 +982,7 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 
 		// If isTripp and new period, read all validator candidates and
 		// their amounts, check with stored data in header
-		if c.chainConfig.IsTripp(header.Number) {
+		if c.IsTrippEffective(chain, header) {
 			if len(blockProducers) != len(extraData.BlockProducers) {
 				return errMismatchingValidators
 			}
@@ -1163,7 +1169,7 @@ func (c *Consortium) Seal(chain consensus.ChainHeaderReader, block *types.Block,
 		case <-stop:
 			return
 		case <-time.After(delay - assemblingFinalityVoteDuration):
-			c.assembleFinalityVote(header, snap)
+			c.assembleFinalityVote(chain, header, snap)
 
 			// Sign all the things!
 			sig, err := signFn(accounts.Account{Address: val}, accounts.MimetypeConsortium, consortiumRLP(header, c.chainConfig.ChainID))
@@ -1336,7 +1342,7 @@ func (c *Consortium) GetJustifiedBlock(chain consensus.ChainHeaderReader, blockN
 // snapshot (N)
 // So here when including the vote for header.Number - 1 into header.Number, the
 // snapshot provided must be at header.Number - 1
-func (c *Consortium) assembleFinalityVote(header *types.Header, snap *Snapshot) {
+func (c *Consortium) assembleFinalityVote(chain consensus.ChainHeaderReader, header *types.Header, snap *Snapshot) {
 	if c.chainConfig.IsShillin(header.Number) {
 		var (
 			signatures              []blsCommon.Signature
@@ -1345,8 +1351,8 @@ func (c *Consortium) assembleFinalityVote(header *types.Header, snap *Snapshot) 
 			accumulatedVoteWeight   int
 		)
 
-		isTripp := c.chainConfig.IsTripp(header.Number)
-		if isTripp {
+		isTrippEffective := c.IsTrippEffective(chain, header)
+		if isTrippEffective {
 			finalityThreshold = int(math.Floor(finalityRatio*float64(consortiumCommon.MaxFinalityVotePercentage))) + 1
 		} else {
 			finalityThreshold = int(math.Floor(finalityRatio*float64(len(snap.ValidatorsWithBlsPub)))) + 1
@@ -1358,7 +1364,7 @@ func (c *Consortium) assembleFinalityVote(header *types.Header, snap *Snapshot) 
 			votes := c.votePool.FetchVoteByBlockHash(header.ParentHash)
 			// Before Tripp (!isTripp), every vote has the same weight so if the number of votes
 			// is lower than threshold, we can short-circuit and skip all the checks
-			if isTripp || len(votes) >= finalityThreshold {
+			if isTrippEffective || len(votes) >= finalityThreshold {
 				for _, vote := range votes {
 					publicKey, err := blst.PublicKeyFromBytes(vote.PublicKey[:])
 					if err != nil {
@@ -1381,7 +1387,7 @@ func (c *Consortium) assembleFinalityVote(header *types.Header, snap *Snapshot) 
 							}
 							signatures = append(signatures, signature)
 							finalityVotedValidators.SetBit(valPosition)
-							if isTripp {
+							if isTrippEffective {
 								accumulatedVoteWeight += int(snap.ValidatorsWithBlsPub[valPosition].Weight)
 							}
 							break
@@ -1392,7 +1398,7 @@ func (c *Consortium) assembleFinalityVote(header *types.Header, snap *Snapshot) 
 					}
 				}
 
-				if !isTripp {
+				if !isTrippEffective {
 					accumulatedVoteWeight = len(finalityVotedValidators.Indices())
 				}
 				if accumulatedVoteWeight >= finalityThreshold {
@@ -1495,7 +1501,7 @@ func (c *Consortium) IsFinalityVoterAt(chain consensus.ChainHeaderReader, header
 	nodeValidator, _, _, _ := c.readSignerAndContract()
 	// After Tripp, voting process is openned for a wider set of validator candidates
 	// (at most 64 validators), which are stored in ValidatorsWithBlsPub of HeaderExtraData
-	if c.chainConfig.IsTripp(header.Number) {
+	if c.IsTrippEffective(chain, header) {
 		return snap.inVoterSet(nodeValidator)
 	}
 	return snap.inInValidatorSet(nodeValidator)
@@ -1619,4 +1625,30 @@ func (c *Consortium) IsPeriodBlock(chain consensus.ChainHeaderReader, header *ty
 		return false
 	}
 	return uint64(header.Time/dateInSeconds) > snap.CurrentPeriod
+}
+
+// IsTrippEffective returns if the finality vote rule change is effective. This change is effective
+// after the period of Tripp block not right after the Tripp block.
+func (c *Consortium) IsTrippEffective(chain consensus.ChainHeaderReader, header *types.Header) bool {
+	if c.chainConfig.IsTripp(header.Number) {
+		if c.testTrippEffective {
+			return true
+		}
+
+		snap, err := c.snapshot(chain, header.Number.Uint64()-1, header.ParentHash, nil)
+		if err != nil {
+			log.Error("Failed to get snapshot", "err", err)
+			return false
+		}
+
+		if snap.CurrentPeriod > c.chainConfig.TrippPeriod.Uint64() {
+			return true
+		}
+
+		if c.IsPeriodBlock(chain, header) {
+			return true
+		}
+	}
+
+	return false
 }
