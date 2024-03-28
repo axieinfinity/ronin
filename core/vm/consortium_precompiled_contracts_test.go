@@ -18,6 +18,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto/bls/blst"
 	blsCommon "github.com/ethereum/go-ethereum/crypto/bls/common"
 	"github.com/ethereum/go-ethereum/params"
+	"golang.org/x/crypto/sha3"
 )
 
 /*
@@ -577,10 +578,10 @@ func TestSort(t *testing.T) {
 	sortValidators(addrs, totalBalances)
 	for i, val := range addrs {
 		if expectedBalances[i].Cmp(totalBalances[i]) != 0 {
-			t.Fatal(fmt.Sprintf("mismatched balance at %d, expected:%s got:%s", i, expectedBalances[i].String(), totalBalances[i].String()))
+			t.Fatalf("mismatched balance at %d, expected:%s got:%s", i, expectedBalances[i].String(), totalBalances[i].String())
 		}
 		if expectedAddrs[i].Hex() != val.Hex() {
-			t.Fatal(fmt.Sprintf("mismatched addr at %d, expected:%s got:%s", i, expectedValidators[i].Hex(), val.Hex()))
+			t.Fatalf("mismatched addr at %d, expected:%s got:%s", i, expectedValidators[i].Hex(), val.Hex())
 		}
 	}
 }
@@ -616,12 +617,12 @@ func TestConsortiumValidatorSorting_Run(t *testing.T) {
 	}
 	sortedValidators := *abi.ConvertType(res[0], new([21]common.Address)).(*[21]common.Address)
 	if len(expectedValidators) != len(sortedValidators) {
-		t.Fatal(fmt.Sprintf("expected len %d, got %v", 21, len(sortedValidators)))
+		t.Fatalf("expected len %d, got %v", 21, len(sortedValidators))
 	}
 	for i, addr := range sortedValidators {
 		//println(addr.Hex())
 		if expectedValidators[i].Hex() != addr.Hex() {
-			t.Fatal(fmt.Sprintf("mismatched addr at %d, expected:%s got:%s", i, expectedValidators[i].Hex(), addr.Hex()))
+			t.Fatalf("mismatched addr at %d, expected:%s got:%s", i, expectedValidators[i].Hex(), addr.Hex())
 		}
 	}
 }
@@ -664,11 +665,11 @@ func TestConsortiumValidatorSorting_Run2(t *testing.T) {
 
 	sortedValidators := *abi.ConvertType(res[0], new([21]common.Address)).(*[21]common.Address)
 	if len(expectedValidators) != len(sortedValidators) {
-		t.Fatal(fmt.Sprintf("expected len 21, got %v", len(sortedValidators)))
+		t.Fatalf("expected len 21, got %v", len(sortedValidators))
 	}
 	for i, addr := range sortedValidators {
 		if expectedValidators[i].Hex() != addr.Hex() {
-			t.Fatal(fmt.Sprintf("mismatched addr at %d, expected:%s got:%s", i, expectedValidators[i].Hex(), addr.Hex()))
+			t.Fatalf("mismatched addr at %d, expected:%s got:%s", i, expectedValidators[i].Hex(), addr.Hex())
 		}
 	}
 }
@@ -817,10 +818,10 @@ func TestConsortiumVerifyHeaders_Run(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(result) != 32 {
-		t.Fatal(fmt.Sprintf("expected len 32 got %d", len(result)))
+		t.Fatalf("expected len 32 got %d", len(result))
 	}
 	if result[len(result)-1] != 1 {
-		t.Fatal(fmt.Sprintf("expected 1 (true) got %d", result[len(result)-1]))
+		t.Fatalf("expected 1 (true) got %d", result[len(result)-1])
 	}
 }
 
@@ -999,7 +1000,7 @@ func TestArrangeValidatorCandidates(t *testing.T) {
 	}
 	for i, candidate := range candidates {
 		if !bytes.Equal(expectedCandidates[i].Bytes(), candidate.Bytes()) {
-			t.Fatal(fmt.Sprintf("mismatched candidate address at %d, expected:%s got:%s", i, expectedCandidates[i].Hex(), candidate.Hex()))
+			t.Fatalf("mismatched candidate address at %d, expected:%s got:%s", i, expectedCandidates[i].Hex(), candidate.Hex())
 		}
 	}
 }
@@ -1048,7 +1049,7 @@ func TestArrangeValidatorCandidates_RandomTrustedOrganizations(t *testing.T) {
 
 	for i, candidate := range candidates {
 		if !bytes.Equal(expectedCandidates[i].Bytes(), candidate.Bytes()) {
-			t.Fatal(fmt.Sprintf("mismatched candidate address at %d, expected:%s got:%s", i, expectedCandidates[i].Hex(), candidate.Hex()))
+			t.Fatalf("mismatched candidate address at %d, expected:%s got:%s", i, expectedCandidates[i].Hex(), candidate.Hex())
 		}
 	}
 }
@@ -1096,7 +1097,7 @@ func TestArrangeValidatorCandidates_Max5Prioritized(t *testing.T) {
 
 	for i, candidate := range candidates {
 		if !bytes.Equal(expectedCandidates[i].Bytes(), candidate.Bytes()) {
-			t.Fatal(fmt.Sprintf("mismatched candidate address at %d, expected:%s got:%s", i, expectedCandidates[i].Hex(), candidate.Hex()))
+			t.Fatalf("mismatched candidate address at %d, expected:%s got:%s", i, expectedCandidates[i].Hex(), candidate.Hex())
 		}
 	}
 }
@@ -1138,7 +1139,7 @@ func TestArrangeValidatorCandidates_Miss5Nodes(t *testing.T) {
 	}
 	for i, candidate := range candidates {
 		if !bytes.Equal(expectedCandidates[i].Bytes(), candidate.Bytes()) {
-			t.Fatal(fmt.Sprintf("mismatched candidate address at %d, expected:%s got:%s", i, expectedCandidates[i].Hex(), candidate.Hex()))
+			t.Fatalf("mismatched candidate address at %d, expected:%s got:%s", i, expectedCandidates[i].Hex(), candidate.Hex())
 		}
 	}
 }
@@ -1208,7 +1209,7 @@ func TestArrangeValidatorCandidates_Has15TrustedNodes(t *testing.T) {
 
 	for i, candidate := range candidates[:newValidatorCount] {
 		if !bytes.Equal(expectedCandidates[i].Bytes(), candidate.Bytes()) {
-			t.Fatal(fmt.Sprintf("mismatched candidate address at %d, expected:%s got:%s", i, expectedCandidates[i].Hex(), candidate.Hex()))
+			t.Fatalf("mismatched candidate address at %d, expected:%s got:%s", i, expectedCandidates[i].Hex(), candidate.Hex())
 		}
 	}
 }
@@ -1278,7 +1279,7 @@ func TestArrangeValidatorCandidates_TrustedNodesAtBeginningArray(t *testing.T) {
 	}
 	for i, candidate := range candidates[:newValidatorCount] {
 		if !bytes.Equal(expectedCandidates[i].Bytes(), candidate.Bytes()) {
-			t.Fatal(fmt.Sprintf("mismatched candidate address at %d, expected:%s got:%s", i, expectedCandidates[i].Hex(), candidate.Hex()))
+			t.Fatalf("mismatched candidate address at %d, expected:%s got:%s", i, expectedCandidates[i].Hex(), candidate.Hex())
 		}
 	}
 }
@@ -1344,12 +1345,12 @@ func TestConsortiumPickValidatorSet_Run(t *testing.T) {
 	}
 	validators := *abi.ConvertType(res[0], new([21]common.Address)).(*[21]common.Address)
 	if len(expectedCandidates) != len(validators) {
-		t.Fatal(fmt.Sprintf("expected len %d, got %v", len(expectedCandidates), len(validators)))
+		t.Fatalf("expected len %d, got %v", len(expectedCandidates), len(validators))
 	}
 
 	for i, addr := range validators {
 		if expectedCandidates[i].Hex() != addr.Hex() {
-			t.Fatal(fmt.Sprintf("mismatched addr at %d, expected:%s got:%s", i, expectedCandidates[i].Hex(), addr.Hex()))
+			t.Fatalf("mismatched addr at %d, expected:%s got:%s", i, expectedCandidates[i].Hex(), addr.Hex())
 		}
 	}
 }
@@ -1409,12 +1410,12 @@ func TestConsortiumPickValidatorSet_Run2(t *testing.T) {
 	}
 	validators := *abi.ConvertType(res[0], new([15]common.Address)).(*[15]common.Address)
 	if len(expectedCandidates) != len(validators) {
-		t.Fatal(fmt.Sprintf("expected len %d, got %v", len(expectedCandidates), len(validators)))
+		t.Fatalf("expected len %d, got %v", len(expectedCandidates), len(validators))
 	}
 
 	for i, addr := range validators {
 		if expectedCandidates[i].Hex() != addr.Hex() {
-			t.Fatal(fmt.Sprintf("mismatched addr at %d, expected:%s got:%s", i, expectedCandidates[i].Hex(), addr.Hex()))
+			t.Fatalf("mismatched addr at %d, expected:%s got:%s", i, expectedCandidates[i].Hex(), addr.Hex())
 		}
 	}
 }
@@ -1506,12 +1507,12 @@ func TestConsortiumPickValidatorSet_Run3(t *testing.T) {
 	validators := *abi.ConvertType(res[0], new([21]common.Address)).(*[21]common.Address)
 	fmt.Println(addressesToByte(validators[:]))
 	if len(expectedCandidates) != len(validators) {
-		t.Fatal(fmt.Sprintf("expected len %d, got %v", len(expectedCandidates), len(validators)))
+		t.Fatalf("expected len %d, got %v", len(expectedCandidates), len(validators))
 	}
 
 	for i, addr := range validators {
 		if expectedCandidates[i].Hex() != addr.Hex() {
-			t.Fatal(fmt.Sprintf("mismatched addr at %d, expected:%s got:%s", i, expectedCandidates[i].Hex(), addr.Hex()))
+			t.Fatalf("mismatched addr at %d, expected:%s got:%s", i, expectedCandidates[i].Hex(), addr.Hex())
 		}
 	}
 }
@@ -1602,12 +1603,12 @@ func TestConsortiumPickValidatorSet_Run4(t *testing.T) {
 	}
 	validators := *abi.ConvertType(res[0], new([21]common.Address)).(*[21]common.Address)
 	if len(expectedCandidates) != len(validators) {
-		t.Fatal(fmt.Sprintf("expected len %d, got %v", len(expectedCandidates), len(validators)))
+		t.Fatalf("expected len %d, got %v", len(expectedCandidates), len(validators))
 	}
 
 	for i, addr := range validators {
 		if expectedCandidates[i].Hex() != addr.Hex() {
-			t.Fatal(fmt.Sprintf("mismatched addr at %d, expected:%s got:%s", i, expectedCandidates[i].Hex(), addr.Hex()))
+			t.Fatalf("mismatched addr at %d, expected:%s got:%s", i, expectedCandidates[i].Hex(), addr.Hex())
 		}
 	}
 }
@@ -1678,12 +1679,12 @@ func TestConsortiumPickValidatorSet_Run5(t *testing.T) {
 	}
 
 	if len(expectedCandidates) != len(validators) {
-		t.Fatal(fmt.Sprintf("expected len 21, got %v", len(validators)))
+		t.Fatalf("expected len 21, got %v", len(validators))
 	}
 
 	for i, addr := range validators {
 		if expectedCandidates[i].Hex() != addr.Hex() {
-			t.Fatal(fmt.Sprintf("mismatched addr at %d, expected:%s got:%s", i, expectedCandidates[i].Hex(), addr.Hex()))
+			t.Fatalf("mismatched addr at %d, expected:%s got:%s", i, expectedCandidates[i].Hex(), addr.Hex())
 		}
 	}
 }
@@ -2161,4 +2162,569 @@ func BenchmarkPrecompiledValidateProofOfPossession(b *testing.B) {
 	}
 
 	benchmarkPrecompiled("6a", test, b)
+}
+
+func TestPickNonRotatingValidator(t *testing.T) {
+	// Case 1: There are fewer governance validators than numGovnernanceValidator
+	consensusAddrs := []common.Address{
+		common.Address{0x1},
+		common.Address{0x2},
+		common.Address{0x3},
+		common.Address{0x4},
+		common.Address{0x5},
+	}
+	stakedAmounts := []*big.Int{
+		big.NewInt(10),
+		big.NewInt(50),
+		big.NewInt(30),
+		big.NewInt(40),
+		big.NewInt(20),
+	}
+	isGovernanceValidators := []*big.Int{
+		common.Big1,
+		common.Big0,
+		common.Big0,
+		common.Big0,
+		common.Big0,
+	}
+	nonRotatingValidators := pickNonRotatingValidator(3, 2, consensusAddrs, stakedAmounts, isGovernanceValidators)
+	if len(nonRotatingValidators) != 5 {
+		t.Fatalf("Expect pickNonRotatingValidator returns %d validators, got %d", 5, len(nonRotatingValidators))
+	}
+
+	// Case 2: Governance validator is prioritised
+	consensusAddrs = []common.Address{
+		common.Address{0x1},
+		common.Address{0x2},
+		common.Address{0x3},
+		common.Address{0x4},
+		common.Address{0x5},
+		common.Address{0x6},
+	}
+	stakedAmounts = []*big.Int{
+		big.NewInt(10),
+		big.NewInt(50),
+		big.NewInt(30),
+		big.NewInt(40),
+		big.NewInt(20),
+		big.NewInt(60),
+	}
+	isGovernanceValidators = []*big.Int{
+		common.Big1,
+		common.Big0,
+		common.Big1,
+		common.Big0,
+		common.Big1,
+		common.Big0,
+	}
+	nonRotatingValidators = pickNonRotatingValidator(3, 2, consensusAddrs, stakedAmounts, isGovernanceValidators)
+	if len(nonRotatingValidators) != 5 {
+		t.Fatalf("Expect pickNonRotatingValidator returns %d validators, got %d", 5, len(nonRotatingValidators))
+	}
+	expectedConsensusAddrs := []common.Address{
+		common.Address{0x1},
+		common.Address{0x3},
+		common.Address{0x5},
+		common.Address{0x6},
+		common.Address{0x2},
+	}
+	for i := range expectedConsensusAddrs {
+		if expectedConsensusAddrs[i] != nonRotatingValidators[i] {
+			t.Fatalf("Expect to get validator: %s, got: %s", expectedConsensusAddrs[i], nonRotatingValidators[i])
+		}
+	}
+
+	// Case 3: More governance validator than max governance validator. The governance validator that is
+	// not picked in governance category can still be picked as a standard validator
+	consensusAddrs = []common.Address{
+		common.Address{0x1},
+		common.Address{0x2},
+		common.Address{0x3},
+		common.Address{0x4},
+		common.Address{0x5},
+		common.Address{0x6},
+	}
+	stakedAmounts = []*big.Int{
+		big.NewInt(10),
+		big.NewInt(50),
+		big.NewInt(30),
+		big.NewInt(40),
+		big.NewInt(20),
+		big.NewInt(60),
+	}
+	isGovernanceValidators = []*big.Int{
+		common.Big0,
+		common.Big1,
+		common.Big1,
+		common.Big1,
+		common.Big1,
+		common.Big0,
+	}
+	nonRotatingValidators = pickNonRotatingValidator(3, 2, consensusAddrs, stakedAmounts, isGovernanceValidators)
+	if len(nonRotatingValidators) != 5 {
+		t.Fatalf("Expect pickNonRotatingValidator returns %d validators, got %d", 5, len(nonRotatingValidators))
+	}
+	expectedConsensusAddrs = []common.Address{
+		common.Address{0x2},
+		common.Address{0x4},
+		common.Address{0x3},
+		common.Address{0x6},
+		common.Address{0x5},
+	}
+	for i := range expectedConsensusAddrs {
+		if expectedConsensusAddrs[i] != nonRotatingValidators[i] {
+			t.Fatalf("Expect to get validator: %s, got: %s", expectedConsensusAddrs[i], nonRotatingValidators[i])
+		}
+	}
+}
+
+func TestCalculateValidatorWeight(t *testing.T) {
+	hasher := sha3.NewLegacyKeccak256().(crypto.KeccakState)
+
+	rawBeacon := crypto.Keccak256([]byte("aaa"))
+	beacon := new(big.Int).SetBytes(rawBeacon)
+
+	ether := new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil)
+	weight := calculateValidatorWeight(hasher, beacon, 12, common.BigToAddress(big.NewInt(0x11)), new(big.Int).Mul(big.NewInt(1000), ether))
+	expectedWeight := new(big.Int).SetBytes(common.Hex2Bytes("0e0b8087a009a9f3132f068fcb99f941d3d5c0"))
+	if weight.Cmp(expectedWeight) != 0 {
+		t.Fatalf("Expect %x, got %x", expectedWeight, weight)
+	}
+}
+
+func TestPickValidatorSetBeacon(t *testing.T) {
+	ether := new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil)
+	statedb, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
+	contract := pickValidatorSetBeacon{
+		evm: &EVM{
+			StateDB: statedb,
+		},
+	}
+	contractAbi := *unmarshalledABIs[PickValidatorSetBeacon]
+
+	// Case 1: Consensus addresses and staked amounts length mismatch
+	beacon := common.Big0
+	period := common.Big1
+	numGovernanceValidator := big.NewInt(3)
+	numStandardValidator := big.NewInt(2)
+	numRotatingValidator := big.NewInt(1)
+	consensusAddrs := []common.Address{
+		common.Address{0x1},
+		common.Address{0x2},
+		common.Address{0x3},
+	}
+	stakedAmount := []*big.Int{
+		new(big.Int).Mul(big.NewInt(10), ether),
+		new(big.Int).Mul(big.NewInt(20), ether),
+	}
+	isGovernanceValidators := []*big.Int{
+		common.Big1,
+		common.Big0,
+		common.Big0,
+	}
+	input, err := contractAbi.Pack(
+		requestSortValidatorSet,
+		beacon,
+		period,
+		numGovernanceValidator,
+		numStandardValidator,
+		numRotatingValidator,
+		consensusAddrs,
+		stakedAmount,
+		isGovernanceValidators,
+	)
+	if err != nil {
+		t.Fatalf("Failed to pack input")
+	}
+	_, err = contract.Run(input)
+	expectedErr := "consensus addresses and staked amounts length mismatched"
+	if err == nil || err.Error() != expectedErr {
+		t.Fatalf("Expect to have err %s, got %s", expectedErr, err)
+	}
+
+	// Case 2: Is govnernance validators and staked amounts length mismatch
+	stakedAmount = []*big.Int{
+		new(big.Int).Mul(big.NewInt(10), ether),
+		new(big.Int).Mul(big.NewInt(20), ether),
+		new(big.Int).Mul(big.NewInt(30), ether),
+	}
+	isGovernanceValidators = []*big.Int{
+		common.Big1,
+		common.Big0,
+	}
+	input, err = contractAbi.Pack(
+		requestSortValidatorSet,
+		beacon,
+		period,
+		numGovernanceValidator,
+		numStandardValidator,
+		numRotatingValidator,
+		consensusAddrs,
+		stakedAmount,
+		isGovernanceValidators,
+	)
+	if err != nil {
+		t.Fatalf("Failed to pack input")
+	}
+
+	_, err = contract.Run(input)
+	expectedErr = "is governance validator and staked amounts length mismatched"
+	if err == nil || err.Error() != expectedErr {
+		t.Fatalf("Expect to have err %s, got %s", expectedErr, err)
+	}
+
+	// Case 3: The new period is not larger than the old one
+	period = common.Big0
+	isGovernanceValidators = []*big.Int{
+		common.Big1,
+		common.Big0,
+		common.Big0,
+	}
+	input, err = contractAbi.Pack(
+		requestSortValidatorSet,
+		beacon,
+		period,
+		numGovernanceValidator,
+		numStandardValidator,
+		numRotatingValidator,
+		consensusAddrs,
+		stakedAmount,
+		isGovernanceValidators,
+	)
+	if err != nil {
+		t.Fatalf("Failed to pack input")
+	}
+
+	_, err = contract.Run(input)
+	expectedErr = "new period is fewer or equals to stored period"
+	if err == nil || err.Error() != expectedErr {
+		t.Fatalf("Expect to have err %s, got %s", expectedErr, err)
+	}
+
+	// Case 4: Number of candidates is fewer than sum of max governance validator,
+	// max standard validator, max rotating validator
+	period = common.Big1
+	input, err = contractAbi.Pack(
+		requestSortValidatorSet,
+		beacon,
+		period,
+		numGovernanceValidator,
+		numStandardValidator,
+		numRotatingValidator,
+		consensusAddrs,
+		stakedAmount,
+		isGovernanceValidators,
+	)
+	if err != nil {
+		t.Fatalf("Failed to pack input")
+	}
+	_, err = contract.Run(input)
+	if err != nil {
+		t.Fatalf("Precompiled contract throws error %s", err)
+	}
+	storedPeriod, storedNumOfEpochs, storedNumOfNonRotatingValidators, storedNumOfRotatingValidators := contract.readMetadataFromStorage()
+	if storedPeriod != int(period.Int64()) {
+		t.Fatalf("Expect stored period: %d, got %d", storedPeriod, int(period.Int64()))
+	}
+	if storedNumOfEpochs != maxNumberOfEpochPerPeriod {
+		t.Fatalf("Expect stored number of epochs: %d, got %d", maxNumberOfEpochPerPeriod, storedNumOfEpochs)
+	}
+	if storedNumOfNonRotatingValidators != len(consensusAddrs) {
+		t.Fatalf("Expect stored number of non-rotating validators: %d, got %d", len(consensusAddrs), storedNumOfNonRotatingValidators)
+	}
+	if storedNumOfRotatingValidators != 0 {
+		t.Fatalf("Expect stored number of rotating validators: %d, got %d", 0, storedNumOfRotatingValidators)
+	}
+
+	// Pick validator with wrong epoch number
+	input, _ = contractAbi.Pack(pickValidatorSetMethod, period, common.Big0)
+	_, err = contract.Run(input)
+	expectedErr = "invalid epoch number"
+	if err == nil || err.Error() != expectedErr {
+		t.Fatalf("Expect to have err %s, got %s", expectedErr, err)
+	}
+
+	input, _ = contractAbi.Pack(pickValidatorSetMethod, period, big.NewInt(150))
+	_, err = contract.Run(input)
+	expectedErr = "invalid epoch number"
+	if err == nil || err.Error() != expectedErr {
+		t.Fatalf("Expect to have err %s, got %s", expectedErr, err)
+	}
+
+	// Pick validator with wrong period number
+	queriedPeriod := new(big.Int).Sub(period, common.Big1)
+	input, _ = contractAbi.Pack(pickValidatorSetMethod, queriedPeriod, common.Big1)
+	_, err = contract.Run(input)
+	expectedErr = fmt.Sprintf("queried period mismatches with stored one, queried: %d, stored: %d", queriedPeriod, period)
+	if err == nil || err.Error() != expectedErr {
+		t.Fatalf("Expect to have err %s, got %s", expectedErr, err)
+	}
+
+	for i := 1; i <= maxNumberOfEpochPerPeriod; i++ {
+		input, _ := contractAbi.Pack(pickValidatorSetMethod, period, big.NewInt(int64(i)))
+		output, err := contract.Run(input)
+		if err != nil {
+			t.Fatalf("Failed to pick validator set, err: %s", err)
+		}
+
+		ret, err := contractAbi.Unpack(pickValidatorSetMethod, output)
+		if err != nil {
+			t.Fatalf("Failed to unpack output, err: %s", err)
+		}
+
+		pickedValidator, _ := (ret[0]).([]common.Address)
+		for i := range pickedValidator {
+			if pickedValidator[i] != consensusAddrs[i] {
+				t.Fatalf("Expect picked validator %s, got %s", consensusAddrs[i], pickedValidator[i])
+			}
+		}
+	}
+
+	// Case 5: New period with fewer validators, storage must be clean up
+	// Ensure this slot is not nil before new period
+	value := statedb.GetState(PickValidatorSetBeaconAddress, common.BigToHash(big.NewInt(validatorArrayStartSlot+2)))
+	if value == (common.Hash{}) {
+		t.Fatal("Expect storage slot 102 to be not nil, got nil")
+	}
+
+	period = common.Big2
+	consensusAddrs = consensusAddrs[:len(consensusAddrs)-1]
+	stakedAmount = stakedAmount[:len(stakedAmount)-1]
+	isGovernanceValidators = isGovernanceValidators[:len(isGovernanceValidators)-1]
+	input, err = contractAbi.Pack(
+		requestSortValidatorSet,
+		beacon,
+		period,
+		numGovernanceValidator,
+		numStandardValidator,
+		numRotatingValidator,
+		consensusAddrs,
+		stakedAmount,
+		isGovernanceValidators,
+	)
+	if err != nil {
+		t.Fatalf("Failed to pack input")
+	}
+	_, err = contract.Run(input)
+	if err != nil {
+		t.Fatalf("Precompiled contract throws error %s", err)
+	}
+
+	value = statedb.GetState(PickValidatorSetBeaconAddress, common.BigToHash(big.NewInt(validatorArrayStartSlot+2)))
+	if value != (common.Hash{}) {
+		t.Fatalf("Expect storage slot 102 to be clean up and equal to nil, got %s", value)
+	}
+
+	// Case 6: Pick validator set with rotating validators
+	rawBeacon := crypto.Keccak256([]byte("aaa"))
+	beacon = new(big.Int).SetBytes(rawBeacon)
+	period = common.Big3
+	numGovernanceValidator = big.NewInt(2)
+	numStandardValidator = big.NewInt(2)
+	numRotatingValidator = big.NewInt(1)
+	consensusAddrs = []common.Address{
+		common.BigToAddress(big.NewInt(1)),
+		common.BigToAddress(big.NewInt(2)),
+		common.BigToAddress(big.NewInt(3)),
+		common.BigToAddress(big.NewInt(4)),
+		common.BigToAddress(big.NewInt(5)),
+		common.BigToAddress(big.NewInt(6)),
+	}
+	stakedAmount = []*big.Int{
+		new(big.Int).Mul(big.NewInt(10), ether),
+		new(big.Int).Mul(big.NewInt(20), ether),
+		new(big.Int).Mul(big.NewInt(30), ether),
+		new(big.Int).Mul(big.NewInt(40), ether),
+		new(big.Int).Mul(big.NewInt(50), ether),
+		new(big.Int).Mul(big.NewInt(60), ether),
+	}
+	isGovernanceValidators = []*big.Int{
+		common.Big1,
+		common.Big1,
+		common.Big0,
+		common.Big0,
+		common.Big0,
+		common.Big0,
+	}
+	input, err = contractAbi.Pack(
+		requestSortValidatorSet,
+		beacon,
+		period,
+		numGovernanceValidator,
+		numStandardValidator,
+		numRotatingValidator,
+		consensusAddrs,
+		stakedAmount,
+		isGovernanceValidators,
+	)
+	if err != nil {
+		t.Fatalf("Failed to pack input")
+	}
+	_, err = contract.Run(input)
+	if err != nil {
+		t.Fatalf("Precompiled contract throws error %s", err)
+	}
+
+	input, _ = contractAbi.Pack(pickValidatorSetMethod, period, big.NewInt(1))
+	output, err := contract.Run(input)
+	if err != nil {
+		t.Fatalf("Failed to pick validator set, err: %s", err)
+	}
+	ret, err := contractAbi.Unpack(pickValidatorSetMethod, output)
+	if err != nil {
+		t.Fatalf("Failed to unpack output, err: %s", err)
+	}
+
+	pickedValidator, _ := (ret[0]).([]common.Address)
+	expectedValidator := []common.Address{
+		common.BigToAddress(big.NewInt(1)),
+		common.BigToAddress(big.NewInt(2)),
+		common.BigToAddress(big.NewInt(6)),
+		common.BigToAddress(big.NewInt(5)),
+		common.BigToAddress(big.NewInt(4)),
+	}
+	for i := range pickedValidator {
+		if pickedValidator[i] != expectedValidator[i] {
+			t.Fatalf("Expect picked validator %s, got %s", expectedValidator[i], pickedValidator[i])
+		}
+	}
+
+	input, _ = contractAbi.Pack(pickValidatorSetMethod, period, big.NewInt(2))
+	output, err = contract.Run(input)
+	if err != nil {
+		t.Fatalf("Failed to pick validator set, err: %s", err)
+	}
+	ret, err = contractAbi.Unpack(pickValidatorSetMethod, output)
+	if err != nil {
+		t.Fatalf("Failed to unpack output, err: %s", err)
+	}
+	pickedValidator, _ = (ret[0]).([]common.Address)
+	expectedValidator = []common.Address{
+		common.BigToAddress(big.NewInt(1)),
+		common.BigToAddress(big.NewInt(2)),
+		common.BigToAddress(big.NewInt(6)),
+		common.BigToAddress(big.NewInt(5)),
+		common.BigToAddress(big.NewInt(3)),
+	}
+	for i := range pickedValidator {
+		if pickedValidator[i] != expectedValidator[i] {
+			t.Fatalf("Expect picked validator %s, got %s", expectedValidator[i], pickedValidator[i])
+		}
+	}
+}
+func TestRequiredGas(t *testing.T) {
+	const maxCandidates = 64
+	contract := pickValidatorSetBeacon{}
+	contractAbi := *unmarshalledABIs[PickValidatorSetBeacon]
+
+	rawBeacon := crypto.Keccak256([]byte("bbb"))
+	beacon := new(big.Int).SetBytes(rawBeacon)
+	period := common.Big1
+	numGovernanceValidator := big.NewInt(12)
+	numStandardValidator := big.NewInt(5)
+	numRotatingValidator := big.NewInt(5)
+
+	consensusAddrs := make([]common.Address, 0, maxCandidates)
+	stakedAmount := make([]*big.Int, 0, maxCandidates)
+	isGovernanceValidators := make([]*big.Int, 0, maxCandidates)
+	for i := range consensusAddrs {
+		consensusAddrs = append(consensusAddrs, common.BigToAddress(big.NewInt(int64(i))))
+		stakedAmount = append(stakedAmount, big.NewInt(rand.Int63()))
+		if i < int(numGovernanceValidator.Int64()) {
+			isGovernanceValidators = append(isGovernanceValidators, common.Big1)
+		} else {
+			isGovernanceValidators = append(isGovernanceValidators, common.Big0)
+		}
+	}
+
+	input, err := contractAbi.Pack(
+		requestSortValidatorSet,
+		beacon,
+		period,
+		numGovernanceValidator,
+		numStandardValidator,
+		numRotatingValidator,
+		consensusAddrs,
+		stakedAmount,
+		isGovernanceValidators,
+	)
+	if err != nil {
+		t.Fatalf("Failed to pack input")
+	}
+
+	gas := contract.RequiredGas(input)
+	var expectedGas uint64 = 3_600_000
+	if gas != expectedGas {
+		t.Fatalf("Expect to have gas: %d, got: %d", expectedGas, gas)
+	}
+
+	numStandardValidator = common.Big0
+	numRotatingValidator = big.NewInt(10)
+	input, err = contractAbi.Pack(
+		requestSortValidatorSet,
+		beacon,
+		period,
+		numGovernanceValidator,
+		numStandardValidator,
+		numRotatingValidator,
+		consensusAddrs,
+		stakedAmount,
+		isGovernanceValidators,
+	)
+	if err != nil {
+		t.Fatalf("Failed to pack input")
+	}
+
+	gas = contract.RequiredGas(input)
+	expectedGas = 7_200_000
+	if gas != expectedGas {
+		t.Fatalf("Expect to have gas: %d, got: %d", expectedGas, gas)
+	}
+}
+
+func BenchmarkRequestSortValidator(b *testing.B) {
+	const maxCandidates = 64
+
+	contractAbi := *unmarshalledABIs[PickValidatorSetBeacon]
+	rawBeacon := crypto.Keccak256([]byte("bbb"))
+	beacon := new(big.Int).SetBytes(rawBeacon)
+	period := common.Big1
+	numGovernanceValidator := big.NewInt(12)
+	numStandardValidator := big.NewInt(5)
+	numRotatingValidator := big.NewInt(5)
+
+	consensusAddrs := make([]common.Address, 0, maxCandidates)
+	stakedAmount := make([]*big.Int, 0, maxCandidates)
+	isGovernanceValidators := make([]*big.Int, 0, maxCandidates)
+	for i := range consensusAddrs {
+		consensusAddrs = append(consensusAddrs, common.BigToAddress(big.NewInt(int64(i))))
+		stakedAmount = append(stakedAmount, big.NewInt(rand.Int63()))
+		if i < int(numGovernanceValidator.Int64()) {
+			isGovernanceValidators = append(isGovernanceValidators, common.Big1)
+		} else {
+			isGovernanceValidators = append(isGovernanceValidators, common.Big0)
+		}
+	}
+
+	input, err := contractAbi.Pack(
+		requestSortValidatorSet,
+		beacon,
+		period,
+		numGovernanceValidator,
+		numStandardValidator,
+		numRotatingValidator,
+		consensusAddrs,
+		stakedAmount,
+		isGovernanceValidators,
+	)
+	if err != nil {
+		b.Fatalf("Failed to pack input")
+	}
+
+	test := precompiledTest{
+		Input:    common.Bytes2Hex(input),
+		Expected: "",
+		Name:     "request-sort-validator",
+	}
+	benchmarkPrecompiled("6b", test, b)
 }

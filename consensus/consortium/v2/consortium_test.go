@@ -1682,3 +1682,124 @@ func TestSystemTransactionOrder(t *testing.T) {
 		t.Fatalf("Expected err: %s, got %s", core.ErrOutOfOrderSystemTx, err)
 	}
 }
+
+func TestEnablePickValidatorSetWithBeacon(t *testing.T) {
+	db := rawdb.NewMemoryDatabase()
+	blsSecretKey, err := blst.RandKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	secretKey, err := crypto.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	validatorAddr := crypto.PubkeyToAddress(secretKey.PublicKey)
+
+	chainConfig := params.ChainConfig{
+		ChainID:           big.NewInt(2021),
+		HomesteadBlock:    common.Big0,
+		EIP150Block:       common.Big0,
+		EIP155Block:       common.Big0,
+		EIP158Block:       common.Big0,
+		ConsortiumV2Block: common.Big0,
+		MikoBlock:         common.Big0,
+		TrippBlock:        common.Big3,
+		Consortium: &params.ConsortiumConfig{
+			EpochV2: 200,
+		},
+	}
+
+	genesis := (&core.Genesis{
+		Config: &chainConfig,
+		Alloc: core.GenesisAlloc{
+			// Make proxy address non-empty to avoid being deleted
+			common.Address{0x10}: core.GenesisAccount{Balance: common.Big1},
+		},
+	}).MustCommit(db)
+
+	mock := &mockContract{
+		validators: map[common.Address]blsCommon.PublicKey{
+			validatorAddr: blsSecretKey.PublicKey(),
+		},
+	}
+	recents, _ := lru.NewARC(inmemorySnapshots)
+	signatures, _ := lru.NewARC(inmemorySignatures)
+
+	v2 := Consortium{
+		chainConfig: &chainConfig,
+		contract:    mock,
+		recents:     recents,
+		signatures:  signatures,
+		config: &params.ConsortiumConfig{
+			EpochV2: 200,
+		},
+	}
+
+	chain, _ := core.NewBlockChain(db, nil, &chainConfig, &v2, vm.Config{}, nil, nil)
+	extraDataBeforeTripp := [consortiumCommon.ExtraVanity + consortiumCommon.ExtraSeal]byte{}
+	extraDataAfterTripp := finality.HeaderExtraData{}
+	data, _ := extraDataAfterTripp.EncodeV2(&chainConfig, chainConfig.TrippBlock)
+
+	parent := genesis
+	for i := 0; i < 5; i++ {
+		block, _ := core.GenerateChain(
+			&chainConfig,
+			parent,
+			&v2,
+			db,
+			1,
+			func(j int, bg *core.BlockGen) {
+				bg.SetCoinbase(validatorAddr)
+				if i < int(chainConfig.TrippBlock.Int64())-1 {
+					bg.SetExtra(extraDataBeforeTripp[:])
+				} else {
+					bg.SetExtra(data[:])
+				}
+				bg.SetDifficulty(big.NewInt(7))
+			},
+			true,
+		)
+
+		header := block[0].Header()
+		hash := calculateSealHash(header, big.NewInt(2021))
+		sig, err := crypto.Sign(hash[:], secretKey)
+		if err != nil {
+			t.Fatalf("Failed to sign block, err %s", err)
+		}
+
+		copy(header.Extra[len(header.Extra)-consortiumCommon.ExtraSeal:], sig)
+		block[0] = block[0].WithSeal(header)
+		parent = block[0]
+
+		// Before Tripp block - 1, nonce is 0
+		if i == int(chainConfig.TrippBlock.Int64()-2) {
+			statedb, err := chain.State()
+			if err != nil {
+				t.Fatalf("Failed to get statedb, err %s", err)
+			}
+
+			nonce := statedb.GetNonce(vm.PickValidatorSetBeaconAddress)
+			if nonce != 0 {
+				t.Fatalf("Expect to get nonce: %d, got %d", 0, nonce)
+			}
+		}
+
+		_, err = chain.InsertChain(block)
+		if err != nil {
+			t.Fatalf("Failed to insert chain, err %s", err)
+		}
+
+		// After Tripp block - 1, nonce is 1
+		if i == int(chainConfig.TrippBlock.Int64()-2) {
+			statedb, err := chain.State()
+			if err != nil {
+				t.Fatalf("Failed to get statedb, err %s", err)
+			}
+
+			nonce := statedb.GetNonce(vm.PickValidatorSetBeaconAddress)
+			if nonce != 1 {
+				t.Fatalf("Expect to get nonce: %d, got %d", 1, nonce)
+			}
+		}
+	}
+}

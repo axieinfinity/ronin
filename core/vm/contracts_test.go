@@ -27,6 +27,8 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/core/rawdb"
+	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/log"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -46,6 +48,16 @@ type precompiledFailureTest struct {
 	Input         string
 	ExpectedError string
 	Name          string
+}
+
+func init() {
+	statedb, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
+	allPrecompiles[common.BytesToAddress([]byte{107})] = &pickValidatorSetBeacon{
+		evm: &EVM{
+			StateDB: statedb,
+		},
+		skipPeriodCheck: true,
+	}
 }
 
 // allPrecompiles does not map to the actual set of precompiles, as it also contains
