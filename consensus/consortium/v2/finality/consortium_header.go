@@ -367,9 +367,6 @@ func DecodeExtraRLP(enc []byte) (*HeaderExtraData, error) {
 
 // After Tripp, HeaderExtraData switches to use RLP encoding method
 func (extraData *HeaderExtraData) EncodeV2(chainConfig *params.ChainConfig, number *big.Int) ([]byte, error) {
-	if chainConfig == nil || number == nil {
-		return nil, ErrInvalidExtraData
-	}
 	if chainConfig.IsTripp(number) {
 		return extraData.EncodeRLP()
 	}
@@ -378,9 +375,6 @@ func (extraData *HeaderExtraData) EncodeV2(chainConfig *params.ChainConfig, numb
 
 // After Tripp, HeaderExtraData switches to use RLP decoding method
 func DecodeExtraV2(enc []byte, chainConfig *params.ChainConfig, number *big.Int) (*HeaderExtraData, error) {
-	if chainConfig == nil || number == nil {
-		return nil, ErrInvalidExtraData
-	}
 	if chainConfig.IsTripp(number) {
 		return DecodeExtraRLP(enc)
 	}
