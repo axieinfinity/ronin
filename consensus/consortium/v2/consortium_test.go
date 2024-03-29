@@ -1985,9 +1985,10 @@ func TestIsPeriodBlock(t *testing.T) {
 	genesis := (&core.Genesis{
 		Config:    &chainConfig,
 		BaseFee:   big.NewInt(params.InitialBaseFee),
-		Timestamp: midnight + 1, // genesis at day 1
+		Timestamp: midnight, // genesis at day 1
 	}).MustCommit(db)
 	chain, _ := core.NewBlockChain(db, nil, &chainConfig, ethash.NewFullFaker(), vm.Config{}, nil, nil)
+	// create chain of up to 399 blocks, all of them are not period block
 	bs, _ := core.GenerateChain(&chainConfig, genesis, ethash.NewFaker(), db, 399, nil, true) // create chain of up to 399 blocks
 	if _, err := chain.InsertChain(bs[:]); err != nil {
 		panic(err)
@@ -2012,45 +2013,159 @@ func TestIsPeriodBlock(t *testing.T) {
 		validators = append(validators, common.BigToAddress(big.NewInt(int64(i))))
 	}
 
-	header := &types.Header{
-		Number:     big.NewInt(400),
-		Time:       midnight + dateInSeconds + 1, // header at day 2
-		ParentHash: bs[len(bs)-1].Hash(),         // assign hash of block 399 as parent hash
+	var header = &types.Header{}
+
+	// header of block 0	
+	// this must not a period block
+	header = genesis.Header()
+	if c.IsPeriodBlock(chain, header) {
+		t.Errorf("wrong period block")
 	}
+
+	// header of block 200
+	// this must not a period block
+	header = bs[199].Header() 
+	if c.IsPeriodBlock(chain, header) {
+		t.Error("wrong period block")
+	}
+
+	header = bs[351].Header()
+	if c.IsPeriodBlock(chain, header) {
+		t.Error("wrong period block")
+	}
+
+	for i := 0; i < 210; i++ {
+		callback := func(i int, bg *core.BlockGen) {
+			if i == 0 {
+				bg.OffsetTime(int64(dayInSeconds))
+			}
+		}
+		block, _ := core.GenerateChain(&chainConfig, bs[len(bs)-1], ethash.NewFaker(), db, 1, callback, true)
+		bs = append(bs, block...)
+	}
+	if _, err := chain.InsertChain(bs[:]); err != nil {
+		panic(err)
+	}
+
+	// header of block 400
+	// this must be a period block
+	header = bs[399].Header()
 	// this header must be period header
 	if !c.IsPeriodBlock(chain, header) {
 		t.Errorf("wrong period block")
 	}
 
-	snap := newSnapshot(nil, nil, nil, 199, common.Hash{0x22}, validators, nil, nil)
-	snap.CurrentPeriod = uint64(now/dateInSeconds) - 1 // yesterday period
-	snap.copy().store(c.db)
-	c.recents.Add(snap.Hash, snap)
-	header = &types.Header{
-		Number:     big.NewInt(200),
-		ParentHash: snap.Hash,
-		Time:       midnight + 1, // today period
-	}
-	// this header must be period header
-	if !c.IsPeriodBlock(chain, header) {
-		t.Errorf("wrong period block")
-	}
-
-	snap = newSnapshot(nil, nil, nil, 599, common.Hash{0x33}, validators, nil, nil)
-	snap.CurrentPeriod = uint64(now / dateInSeconds) // today period
-	snap.copy().store(c.db)
-	c.recents.Add(snap.Hash, snap)
-	header.Number = big.NewInt(600)
-	header.ParentHash = snap.Hash
-	header.Time = midnight + 1
-	// this header must not be period header
+	// header of block 500
+	// this must not be a period block
+	header = bs[499].Header()
 	if c.IsPeriodBlock(chain, header) {
 		t.Errorf("wrong period block")
 	}
+}
 
-	// this is non Tripp, then must not be period header
-	header.Number = common.Big0
-	if c.IsPeriodBlock(chain, header) {
-		t.Errorf("wrong period block")	
+func TestIsTrippEffective(t *testing.T) {
+	now := uint64(time.Now().Unix())
+	midnight := uint64(now / dayInSeconds * dayInSeconds)
+	db := rawdb.NewMemoryDatabase()
+	chainConfig := params.ChainConfig{
+		ChainID:    big.NewInt(2021),
+		TrippBlock: big.NewInt(30),
+		Consortium: &params.ConsortiumConfig{
+			EpochV2: 200,
+		},
+		ConsortiumV2Contracts: &params.ConsortiumV2Contracts{
+			RoninValidatorSet: common.HexToAddress("0xaa"),
+		},
+		TrippPeriod: new(big.Int).SetUint64(now / dayInSeconds),
+	}
+	genesis := (&core.Genesis{
+		Config:    &chainConfig,
+		BaseFee:   big.NewInt(params.InitialBaseFee),
+		Timestamp: midnight, // genesis at day 1
+	}).MustCommit(db)
+	chain, _ := core.NewBlockChain(db, nil, &chainConfig, ethash.NewFullFaker(), vm.Config{}, nil, nil)
+	// create chain of up to 399 blocks, all of them are not Tripp effective
+	bs, _ := core.GenerateChain(&chainConfig, genesis, ethash.NewFaker(), db, 399, nil, true)
+	if _, err := chain.InsertChain(bs[:]); err != nil {
+		panic(err)
+	}
+	recents, _ := lru.NewARC(inmemorySnapshots)
+	signatures, _ := lru.NewARC(inmemorySignatures)
+	mock := &mockContract{
+		validators: map[common.Address]blsCommon.PublicKey{},
+	}
+	c := &Consortium{
+		chainConfig: &chainConfig,
+		recents:     recents,
+		signatures:  signatures,
+		config: &params.ConsortiumConfig{
+			EpochV2: 200,
+		},
+		testTrippEffective: false,
+		db:                 db,
+		contract:           mock,
+	}
+
+	var header = &types.Header{}
+
+	// header of block 30
+	header = bs[29].Header()
+	// this header must not be Tripp effective
+	if c.IsTrippEffective(chain, header) {
+		t.Error("fail test Tripp effective")
+	}
+
+	// header of block 201
+	// this header must not be Tripp effective
+	header = bs[201].Header()
+	if c.IsTrippEffective(chain, header) {
+		t.Error("fail test Tripp effective")
+	}
+
+	// header of block 200
+	// this header must not be Tripp effective
+	header = bs[200].Header()
+	if c.IsTrippEffective(chain, header) {
+		t.Error("fail test Tripp effective")
+	}
+
+	// header of block 399
+	// this header must not be Tripp effective
+	header = bs[398].Header()
+	if c.IsTrippEffective(chain, header) {
+		t.Error("fail test Tripp effective")
+	}
+
+	for i := 0; i < 210; i++ {
+		callback := func(i int, bg *core.BlockGen) {
+			if i == 0 {
+				bg.OffsetTime(int64(dayInSeconds))
+			}
+		}
+		block, _ := core.GenerateChain(&chainConfig, bs[len(bs)-1], ethash.NewFaker(), db, 1, callback, true)
+		bs = append(bs, block...)
+	}
+	if _, err := chain.InsertChain(bs[:]); err != nil {
+		panic(err)
+	}
+
+	// header of block 400
+	// this header must be Tripp effective
+	header = bs[399].Header()
+	if !c.IsTrippEffective(nil, header) {
+		t.Error("fail test Tripp effective")
+	}
+
+	// header of block 402
+	// this header must be Tripp effective
+	header = bs[401].Header()
+	if !c.IsTrippEffective(chain, header) {
+		t.Error("fail test Tripp effective")
+	}
+
+	header = bs[599].Header()
+	// this header must be Tripp effective
+	if !c.IsTrippEffective(chain, header) {
+		t.Error("fail test Tripp effective")
 	}
 }

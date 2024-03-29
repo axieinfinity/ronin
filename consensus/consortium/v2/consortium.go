@@ -1659,7 +1659,7 @@ func (c *Consortium) IsTrippEffective(chain consensus.ChainHeaderReader, header 
 
 		// If it is the checkpoint block, check its period number with the configured one
 		if header.Number.Uint64()%c.chainConfig.Consortium.EpochV2 == 0 {
-			return header.Time/dayInSeconds > c.chainConfig.TrippPeriod.Uint64()
+			return uint64(header.Time/dayInSeconds) > c.chainConfig.TrippPeriod.Uint64()
 		}
 
 		// else check the period number of the last checkpoint header with the configured one
@@ -1671,7 +1671,7 @@ func (c *Consortium) IsTrippEffective(chain consensus.ChainHeaderReader, header 
 				return false
 			}
 
-			return parent.Time/dayInSeconds > c.chainConfig.TrippBlock.Uint64()
+			return uint64(parent.Time/dayInSeconds) > c.chainConfig.TrippPeriod.Uint64()
 		}
 
 		if snap.CurrentPeriod > c.chainConfig.TrippPeriod.Uint64() {
