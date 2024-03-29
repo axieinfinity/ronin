@@ -1012,12 +1012,13 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 				return errMismatchingValidators
 			}
 
+			isShillin := c.chainConfig.IsShillin(header.Number)
 			for i := range checkpointValidators {
 				if checkpointValidators[i].Address != extraData.CheckpointValidators[i].Address {
 					return errMismatchingValidators
 				}
 
-				if c.chainConfig.IsShillin(header.Number) {
+				if isShillin {
 					if !checkpointValidators[i].BlsPublicKey.Equals(extraData.CheckpointValidators[i].BlsPublicKey) {
 						return errMismatchingValidators
 					}
