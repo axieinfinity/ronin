@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/misc"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/bls/blst"
 	blsCommon "github.com/ethereum/go-ethereum/crypto/bls/common"
@@ -847,6 +848,16 @@ func (c *Consortium) processSystemTransactions(chain consensus.ChainHeaderReader
 	return nil
 }
 
+// enablePickValidatorSetWithBeacon increases the nonce of pick validator set with beacon
+// precompiled contract to make the account non-empty, so the account of precompiled
+// contract is not deleted.
+func (c *Consortium) enablePickValidatorSetWithBeacon(blockNumber *big.Int, state *state.StateDB) {
+	// The action only happens in 1 block: Tripp hardfork block - 1
+	if c.chainConfig.TrippBlock != nil && new(big.Int).Sub(c.chainConfig.TrippBlock, common.Big1).Cmp(blockNumber) == 0 {
+		state.SetNonce(vm.PickValidatorSetBeaconAddress, 1)
+	}
+}
+
 func (c *Consortium) upgradeRoninTrustedOrg(blockNumber *big.Int, state *state.StateDB) {
 	// The upgrade only happens in 1 block: Miko hardfork block
 	if c.chainConfig.MikoBlock != nil && c.chainConfig.MikoBlock.Cmp(blockNumber) == 0 {
@@ -916,6 +927,8 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 		}
 	}
 
+	// We must enable pick validator set with beacon before wrap up epoch system transaction
+	c.enablePickValidatorSetWithBeacon(header.Number, state)
 	if err := c.processSystemTransactions(chain, header, transactOpts, false); err != nil {
 		return err
 	}
@@ -962,6 +975,8 @@ func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, head
 		SignTxFn:    signTxFn,
 	}
 
+	// We must enable pick validator set with beacon before wrap up epoch system transaction
+	c.enablePickValidatorSetWithBeacon(header.Number, state)
 	if err := c.processSystemTransactions(chain, header, transactOpts, true); err != nil {
 		return nil, nil, err
 	}
