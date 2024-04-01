@@ -32,6 +32,7 @@ const (
 	GetDoubleSignSlashingConfig
 	ValidateFinalityVoteProof
 	ValidateProofOfPossession
+	PickValidatorSetBeacon
 	NumOfAbis
 )
 
@@ -43,6 +44,7 @@ var (
 	rawGetDoubleSignSlashingConfigsAbi = `[{"inputs":[],"name":"getDoubleSignSlashingConfigs","outputs":[{"internalType":"uint256","name":"","type":"uint256"},{"internalType":"uint256","name":"","type":"uint256"},{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"}]`
 	rawValidateFinalityVoteProofAbi    = `[{"inputs":[{"internalType":"bytes","name":"voterPublicKey","type":"bytes"},{"internalType":"uint256","name":"targetBlockNumber","type":"uint256"},{"internalType":"bytes32[2]","name":"targetBlockHash","type":"bytes32[2]"},{"internalType":"bytes[][2]","name":"listOfPublicKey","type":"bytes[][2]"},{"internalType":"bytes[2]","name":"aggregatedSignature","type":"bytes[2]"}],"name":"validateFinalityVoteProof","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"view","type":"function"}]`
 	rawValidateProofOfPossessionAbi    = `[{"inputs":[{"internalType":"bytes","name":"publicKey","type":"bytes"},{"internalType":"bytes","name":"signature","type":"bytes"}],"name":"validateProofOfPossession","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"view","type":"function"}]`
+	rawPickValidatorSetBeaconAbi       = `[{"inputs":[{"internalType":"uint256","name":"period","type":"uint256"},{"internalType":"uint256","name":"epoch","type":"uint256"}],"name":"pickValidatorSet","outputs":[{"internalType":"address[]","name":"pickedValidatorIds","type":"address[]"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint256","name":"beacon","type":"uint256"},{"internalType":"uint256","name":"period","type":"uint256"},{"internalType":"uint256","name":"numGovernanceValidator","type":"uint256"},{"internalType":"uint256","name":"numStandardValidator","type":"uint256"},{"internalType":"uint256","name":"numRotatingValidator","type":"uint256"},{"internalType":"address[]","name":"ids","type":"address[]"},{"internalType":"uint256[]","name":"stakedAmounts","type":"uint256[]"},{"internalType":"uint256[]","name":"trustedWeights","type":"uint256[]"}],"name":"requestSortValidatorSet","outputs":[],"stateMutability":"nonpayable","type":"function"}]`
 
 	rawABIs = [NumOfAbis]string{
 		LogContract:                 rawConsortiumLogAbi,
@@ -52,9 +54,11 @@ var (
 		GetDoubleSignSlashingConfig: rawGetDoubleSignSlashingConfigsAbi,
 		ValidateFinalityVoteProof:   rawValidateFinalityVoteProofAbi,
 		ValidateProofOfPossession:   rawValidateProofOfPossessionAbi,
+		PickValidatorSetBeacon:      rawPickValidatorSetBeaconAbi,
 	}
 
-	unmarshalledABIs = [NumOfAbis]*abi.ABI{}
+	unmarshalledABIs              = [NumOfAbis]*abi.ABI{}
+	PickValidatorSetBeaconAddress = common.BytesToAddress([]byte{107})
 )
 
 const (
@@ -71,6 +75,16 @@ const (
 	validateFinalityVoteProof = "validateFinalityVoteProof"
 	validateProofOfPossession = "validateProofOfPossession"
 	maxBlsPublicKeyListLength = 100
+
+	requestSortValidatorSet   = "requestSortValidatorSet"
+	maxNumberOfEpochPerPeriod = 144
+
+	// pickValidatorSetBeacon storage slot
+	periodSlot                        = 0
+	numberOfEpochsSlot                = 1
+	numberOfNonRotatingValidatorsSlot = 2
+	numberOfRotatingValidatorsSlot    = 3
+	validatorArrayStartSlot           = 100
 )
 
 func init() {
@@ -97,6 +111,12 @@ func PrecompiledContractsConsortium(caller ContractRef, evm *EVM) map[common.Add
 func PrecompiledContractsConsortiumMiko(caller ContractRef, evm *EVM) map[common.Address]PrecompiledContract {
 	contracts := PrecompiledContractsConsortium(caller, evm)
 	contracts[common.BytesToAddress([]byte{106})] = &consortiumValidateProofOfPossession{caller: caller, evm: evm}
+	return contracts
+}
+
+func PrecompiledContractsConsortiumTripp(caller ContractRef, evm *EVM) map[common.Address]PrecompiledContract {
+	contracts := PrecompiledContractsConsortiumMiko(caller, evm)
+	contracts[common.BytesToAddress([]byte{107})] = &pickValidatorSetBeacon{caller: caller, evm: evm}
 	return contracts
 }
 
@@ -172,7 +192,7 @@ func (c *consortiumPickValidatorSet) Run(input []byte) ([]byte, error) {
 	}
 
 	if len(args) != 5 {
-		return nil, errors.New(fmt.Sprintf("invalid arguments, expected 5 got %d", len(args)))
+		return nil, fmt.Errorf("invalid arguments, expected 5 got %d", len(args))
 	}
 
 	// cast args[0] to list addresses
@@ -303,7 +323,7 @@ func (c *consortiumValidatorSorting) Run(input []byte) ([]byte, error) {
 		return nil, errors.New("invalid method")
 	}
 	if len(args) != 2 {
-		return nil, errors.New(fmt.Sprintf("invalid arguments, expected 2 got %d", len(args)))
+		return nil, fmt.Errorf("invalid arguments, expected 2 got %d", len(args))
 	}
 	// cast args[0] to list addresses
 	validators, ok := args[0].([]common.Address)
@@ -327,64 +347,25 @@ func (c *consortiumValidatorSorting) Run(input []byte) ([]byte, error) {
 	return method.Outputs.Pack(validators)
 }
 
-type SortableValidators struct {
-	validators []common.Address
-	weights    []*big.Int
-}
-
-func (s *SortableValidators) Len() int {
-	return len(s.validators)
-}
-
-func (s *SortableValidators) Less(i, j int) bool {
-	cmp := s.weights[i].Cmp(s.weights[j])
-
-	if cmp == 0 {
-		return new(big.Int).SetBytes(s.validators[i].Bytes()).Cmp(new(big.Int).SetBytes(s.validators[j].Bytes())) > 0
-	}
-
-	return cmp > 0
-}
-
-func (s *SortableValidators) Swap(i, j int) {
-	s.validators[i], s.validators[j] = s.validators[j], s.validators[i]
-	s.weights[i], s.weights[j] = s.weights[j], s.weights[i]
-}
-
 func sortValidators(validators []common.Address, weights []*big.Int) {
 	if len(validators) < 2 {
 		return
 	}
 	// start sorting validators
-	vals := &SortableValidators{validators: validators, weights: weights}
-	sort.Sort(vals)
-	return
-}
-
-type SmartContractCaller struct {
-	evm    *EVM
-	smcAbi abi.ABI
-	sender common.Address
-}
-
-func (c *SmartContractCaller) validators() ([]common.Address, error) {
-	res, err := c.staticCall(getValidatorsMethod, c.evm.ChainConfig().ConsortiumV2Contracts.RoninValidatorSet)
-	if err != nil {
-		return nil, err
+	var validatorWithWeights []validatorWithWeight
+	for i := range validators {
+		validatorWithWeights = append(validatorWithWeights, validatorWithWeight{
+			address: validators[i],
+			weight:  weights[i],
+		})
 	}
-	return *abi.ConvertType(res[0], new([]common.Address)).(*[]common.Address), nil
-}
 
-func (c *SmartContractCaller) totalBalances(validators []common.Address) ([]*big.Int, error) {
-	res, err := c.staticCall(totalBalancesMethod, c.evm.ChainConfig().ConsortiumV2Contracts.RoninValidatorSet, validators)
-	if err != nil {
-		return nil, err
+	sort.Sort(sortByWeight(validatorWithWeights))
+
+	for i, validator := range validatorWithWeights {
+		validators[i] = validator.address
+		weights[i] = validator.weight
 	}
-	return *abi.ConvertType(res[0], new([]*big.Int)).(*[]*big.Int), nil
-}
-
-func (c *SmartContractCaller) staticCall(method string, contract common.Address, args ...interface{}) ([]interface{}, error) {
-	return staticCall(c.evm, c.smcAbi, method, contract, c.sender, args...)
 }
 
 func staticCall(evm *EVM, smcAbi abi.ABI, method string, contract, sender common.Address, args ...interface{}) ([]interface{}, error) {
@@ -457,7 +438,7 @@ func (c *consortiumVerifyHeaders) Run(input []byte) ([]byte, error) {
 		return nil, errors.New("invalid method")
 	}
 	if len(args) != 3 {
-		return nil, errors.New(fmt.Sprintf("invalid arguments, expected 2 got %d", len(args)))
+		return nil, fmt.Errorf("invalid arguments, expected 2 got %d", len(args))
 	}
 	consensusAddr, ok := args[0].(common.Address)
 	if !ok {
@@ -772,4 +753,467 @@ func (contract *consortiumValidateProofOfPossession) Run(input []byte) ([]byte, 
 	}
 
 	return method.Outputs.Pack(true)
+}
+
+// This precompiled contract has 2 methods
+// - requestSortValidatorSet: is called at the end of old period, with the information about
+// beacon, staked amount of validator candidates. Sort and pick validator set for each epoch
+// in the next period and store the result into contract's storage
+// - pickValidatorSet: get the validator (block producer) list of an epoch
+//
+// The contract storage layout
+// Storage slot 0: period number
+// Storage slot 1: number of epochs in a period
+// Storage slot 2: number of non-rotating validators
+// Storage slot 3: number of rotating validators
+//
+// Storage slot 100: store N non-rotating validator addresses
+// Storage slot 100 + N: 2D array of rotating validators in each epoch
+// The storage slot of rotating validator ith in epoch jth is
+// 100 + N + j * number of rotating validators in each epoch + i
+type pickValidatorSetBeacon struct {
+	caller ContractRef
+	evm    *EVM
+	// This is true only when running benchmark
+	skipPeriodCheck bool
+}
+
+func (contract *pickValidatorSetBeacon) RequiredGas(input []byte) uint64 {
+	_, method, args, err := loadMethodAndArgs(PickValidatorSetBeacon, input)
+	if err != nil {
+		return math.MaxUint64
+	}
+
+	if method.Name == requestSortValidatorSet {
+		numRotatingValidator, ok := args[4].(*big.Int)
+		if !ok {
+			return math.MaxUint64
+		}
+		return numRotatingValidator.Uint64() * maxNumberOfEpochPerPeriod * params.SstoreClearGas
+	} else {
+		return maxNumberOfEpochPerPeriod * params.SloadGasEIP2200
+	}
+}
+
+func (contract *pickValidatorSetBeacon) Run(input []byte) ([]byte, error) {
+	if err := isSystemContractCaller(contract.caller, contract.evm); err != nil {
+		return nil, err
+	}
+
+	_, method, args, err := loadMethodAndArgs(PickValidatorSetBeacon, input)
+	if err != nil {
+		return nil, err
+	}
+
+	if method.Name == requestSortValidatorSet {
+		return contract.requestSortValidator(method, args)
+	} else {
+		return contract.pickValidator(method, args)
+	}
+}
+
+func (contract *pickValidatorSetBeacon) pickValidator(method *abi.Method, args []interface{}) ([]byte, error) {
+	if len(args) != 2 {
+		return nil, fmt.Errorf("invalid arguments, expected 2 got %d", len(args))
+	}
+	period, ok := args[0].(*big.Int)
+	if !ok {
+		return nil, errors.New("invalid period argument type")
+	}
+	epoch, ok := args[1].(*big.Int)
+	if !ok {
+		return nil, errors.New("invalid epoch argument type")
+	}
+	validators, err := contract.readValidatorAtEpoch(int(period.Int64()), int(epoch.Int64()))
+	if err != nil {
+		return nil, err
+	}
+	output, err := method.Outputs.Pack(validators)
+	if err != nil {
+		return nil, err
+	}
+
+	return output, nil
+}
+
+func (contract *pickValidatorSetBeacon) readMetadataFromStorage() (
+	period int,
+	numOfEpochs int,
+	numOfNonRotatingValidators int,
+	numOfRotatingValidators int,
+) {
+	stateDB := contract.evm.StateDB
+	contractAddress := PickValidatorSetBeaconAddress
+
+	periodValue := stateDB.GetState(contractAddress, common.BigToHash(big.NewInt(periodSlot)))
+	numOfEpochsValue := stateDB.GetState(contractAddress, common.BigToHash(big.NewInt(numberOfEpochsSlot)))
+	numOfNonRotatingValidatorsValue := stateDB.GetState(
+		contractAddress,
+		common.BigToHash(big.NewInt(numberOfNonRotatingValidatorsSlot)),
+	)
+	numOfRotatingValidatorsValue := stateDB.GetState(
+		contractAddress,
+		common.BigToHash(big.NewInt(numberOfRotatingValidatorsSlot)),
+	)
+
+	return int(periodValue.Big().Int64()),
+		int(numOfEpochsValue.Big().Int64()),
+		int(numOfNonRotatingValidatorsValue.Big().Int64()),
+		int(numOfRotatingValidatorsValue.Big().Int64())
+}
+
+func (contract *pickValidatorSetBeacon) readValidatorAtEpoch(period int, epochNumber int) ([]common.Address, error) {
+	stateDB := contract.evm.StateDB
+	contractAddress := PickValidatorSetBeaconAddress
+	storedPeriod, numOfEpochs, numOfNonRotatingValidators, numOfRotatingValidators := contract.readMetadataFromStorage()
+
+	if storedPeriod != period {
+		return nil, fmt.Errorf("queried period mismatches with stored one, queried: %d, stored: %d", period, storedPeriod)
+	}
+
+	// Queried epoch number starts from 1, but the stored index starts from 0.
+	// So we need to subtract 1 from queried epoch to get the correct stored index.
+	epochNumber = epochNumber - 1
+	if epochNumber < 0 || epochNumber > numOfEpochs {
+		return nil, errors.New("invalid epoch number")
+	}
+
+	consensusAddrs := make([]common.Address, 0, numOfNonRotatingValidators+numOfRotatingValidators)
+	// Read non-rotating validators
+	for i := 0; i < numOfNonRotatingValidators; i++ {
+		value := stateDB.GetState(contractAddress, common.BigToHash(big.NewInt(int64(validatorArrayStartSlot+i))))
+		address := common.BytesToAddress(value.Bytes())
+		consensusAddrs = append(consensusAddrs, address)
+	}
+
+	// Read rotating validators
+	startSlot := validatorArrayStartSlot + numOfNonRotatingValidators + epochNumber*numOfRotatingValidators
+	for i := 0; i < numOfRotatingValidators; i++ {
+		value := stateDB.GetState(contractAddress, common.BigToHash(big.NewInt(int64(startSlot+i))))
+		address := common.BytesToAddress(value.Bytes())
+		consensusAddrs = append(consensusAddrs, address)
+	}
+
+	return consensusAddrs, nil
+}
+
+// rotating validators dimension: [numOfEpochs][numOfRotatingValidators]common.Address
+func (contract *pickValidatorSetBeacon) writeToStorage(
+	period int,
+	nonRotatingValidators []common.Address,
+	rotatingValidators [][]common.Address,
+) {
+	stateDB := contract.evm.StateDB
+	contractAddress := PickValidatorSetBeaconAddress
+
+	var (
+		numOfRotatingValidators int
+		numOfEpochs             int = maxNumberOfEpochPerPeriod
+	)
+	if len(rotatingValidators) != 0 {
+		numOfRotatingValidators = len(rotatingValidators[0])
+		numOfEpochs = len(rotatingValidators)
+	}
+
+	stateDB.SetState(
+		contractAddress,
+		common.BigToHash(big.NewInt(periodSlot)),
+		common.BigToHash(big.NewInt(int64(period))),
+	)
+	stateDB.SetState(
+		contractAddress,
+		common.BigToHash(big.NewInt(numberOfEpochsSlot)),
+		common.BigToHash(big.NewInt(int64(numOfEpochs))),
+	)
+	stateDB.SetState(
+		contractAddress,
+		common.BigToHash(big.NewInt(numberOfNonRotatingValidatorsSlot)),
+		common.BigToHash(big.NewInt(int64(len(nonRotatingValidators)))),
+	)
+	stateDB.SetState(
+		contractAddress,
+		common.BigToHash(big.NewInt(numberOfRotatingValidatorsSlot)),
+		common.BigToHash(big.NewInt(int64(numOfRotatingValidators))),
+	)
+
+	// Write non-rotating validators
+	for i, validator := range nonRotatingValidators {
+		stateDB.SetState(
+			contractAddress,
+			common.BigToHash(big.NewInt(int64(validatorArrayStartSlot+i))),
+			common.BytesToHash(validator.Bytes()),
+		)
+	}
+
+	// Write rotating validators
+	startSlot := validatorArrayStartSlot + len(nonRotatingValidators)
+	for epochNumber, validators := range rotatingValidators {
+		for valIndex, validator := range validators {
+			stateDB.SetState(
+				contractAddress,
+				common.BigToHash(big.NewInt(int64(startSlot+epochNumber*numOfRotatingValidators+valIndex))),
+				common.BytesToHash(validator.Bytes()),
+			)
+		}
+	}
+}
+
+func (contract *pickValidatorSetBeacon) cleanupStorage(oldEnd int, newEnd int) {
+	stateDB := contract.evm.StateDB
+	contractAddress := PickValidatorSetBeaconAddress
+
+	for i := newEnd; i < oldEnd; i++ {
+		stateDB.SetState(contractAddress, common.BigToHash(big.NewInt(int64(i))), common.Hash{})
+	}
+}
+
+// calculateValidatorWeight calculates the weight to choose rotating validators
+// uint256 random = hash(beacon || epochNumber || address)
+// random = higher128(random) xor lower128(random)
+// stakeAmount = stakedAmount / 10**18
+// weight =  random * stakedAmount * stakedAmount
+// with || is the concatenation operation
+func calculateValidatorWeight(
+	hasher crypto.KeccakState,
+	beacon *big.Int,
+	epochNumber int,
+	consensusAddr common.Address,
+	stakedAmount *big.Int,
+) *big.Int {
+	var (
+		hashbuf common.Hash
+		output  [32]byte
+	)
+
+	hasher.Reset()
+	beacon.FillBytes(output[:])
+	hasher.Write(output[:])
+
+	big.NewInt(int64(epochNumber)).FillBytes(output[:])
+	hasher.Write(output[:])
+
+	new(big.Int).SetBytes(consensusAddr.Bytes()).FillBytes(output[:])
+	hasher.Write(output[:])
+
+	hasher.Read(hashbuf[:])
+
+	ether := new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil)
+	amount := new(big.Int).Div(stakedAmount, ether)
+	amount = new(big.Int).Mul(amount, amount)
+
+	hashResult := make([]byte, len(hashbuf)/2)
+	for i := range hashResult {
+		hashResult[i] = hashbuf[i] ^ hashbuf[i+16]
+	}
+
+	randomHash := new(big.Int).SetBytes(hashResult)
+	return new(big.Int).Mul(randomHash, amount)
+}
+
+type validatorWithWeight struct {
+	address common.Address
+	weight  *big.Int
+}
+
+// Sort validator based on weight in descending order
+type sortByWeight []validatorWithWeight
+
+func (validators sortByWeight) Len() int { return len(validators) }
+func (validators sortByWeight) Swap(i, j int) {
+	validators[i], validators[j] = validators[j], validators[i]
+}
+func (validators sortByWeight) Less(i, j int) bool {
+	cmp := validators[i].weight.Cmp(validators[j].weight)
+	if cmp != 0 {
+		return cmp > 0
+	} else {
+		return bytes.Compare(validators[i].address[:], validators[j].address[:]) > 0
+	}
+}
+
+// pickNonRotatingValidator assumes that len(consensusAddress) > numGovernanceValidator + numStandardValidator.
+// It always picks numGovernanceValidator + numStandardValidator validators. In case, the available governance
+// validators are fewer than the maximum number, the remaining number is transfered to standard maximum number
+// (if we cannot pick enough governance validator, we will pick more standard validator).
+func pickNonRotatingValidator(
+	numGovernanceValidator int,
+	numStandardValidator int,
+	consensusAddress []common.Address,
+	stakedAmounts []*big.Int,
+	isGovernanceValidator []*big.Int,
+) []common.Address {
+	var governanceValidator []validatorWithWeight
+	for i := range isGovernanceValidator {
+		if isGovernanceValidator[i].Cmp(common.Big1) == 0 {
+			governanceValidator = append(governanceValidator, validatorWithWeight{
+				address: consensusAddress[i],
+				weight:  stakedAmounts[i],
+			})
+		}
+	}
+
+	if len(governanceValidator) > numGovernanceValidator {
+		sort.Sort(sortByWeight(governanceValidator))
+		governanceValidator = governanceValidator[:numGovernanceValidator]
+	} else {
+		// The number of governance validators is fewer than the maximum governance
+		// validator, the remainning number is transfered to standard validator case
+		numStandardValidator += numGovernanceValidator - len(governanceValidator)
+	}
+
+	chosen := make(map[common.Address]struct{})
+	for _, validator := range governanceValidator {
+		chosen[validator.address] = struct{}{}
+	}
+
+	var standardValidator []validatorWithWeight
+	for i := range consensusAddress {
+		if _, ok := chosen[consensusAddress[i]]; !ok {
+			standardValidator = append(standardValidator, validatorWithWeight{
+				address: consensusAddress[i],
+				weight:  stakedAmounts[i],
+			})
+		}
+	}
+
+	if len(standardValidator) > numStandardValidator {
+		sort.Sort(sortByWeight(standardValidator))
+		standardValidator = standardValidator[:numStandardValidator]
+	}
+
+	nonRotatingValidator := make([]common.Address, 0, len(governanceValidator)+len(standardValidator))
+	for _, validator := range governanceValidator {
+		nonRotatingValidator = append(nonRotatingValidator, validator.address)
+	}
+	for _, validator := range standardValidator {
+		nonRotatingValidator = append(nonRotatingValidator, validator.address)
+	}
+
+	return nonRotatingValidator
+}
+
+func (contract *pickValidatorSetBeacon) requestSortValidator(method *abi.Method, args []interface{}) ([]byte, error) {
+	if len(args) != 8 {
+		return nil, fmt.Errorf("invalid arguments, expected 8 got %d", len(args))
+	}
+	beacon, ok := args[0].(*big.Int)
+	if !ok {
+		return nil, errors.New("invalid beacon argument type")
+	}
+	period, ok := args[1].(*big.Int)
+	if !ok {
+		return nil, errors.New("invalid period argument type")
+	}
+	numGovernanceValidator, ok := args[2].(*big.Int)
+	if !ok {
+		return nil, errors.New("invalid number of governance validators argument type")
+	}
+	numStandardValidator, ok := args[3].(*big.Int)
+	if !ok {
+		return nil, errors.New("invalid number of standard validators argument type")
+	}
+	numRotatingValidator, ok := args[4].(*big.Int)
+	if !ok {
+		return nil, errors.New("invalid number of rotating validators argument type")
+	}
+	consensusAddrs, ok := args[5].([]common.Address)
+	if !ok {
+		return nil, errors.New("invalid consensus address argument type")
+	}
+	stakedAmounts, ok := args[6].([]*big.Int)
+	if !ok {
+		return nil, errors.New("invalid staked amount argument type")
+	}
+	isGovernanceValidator, ok := args[7].([]*big.Int)
+	if !ok {
+		return nil, errors.New("invalid is govnernance validator argument type")
+	}
+	if len(consensusAddrs) != len(stakedAmounts) {
+		return nil, errors.New("consensus addresses and staked amounts length mismatched")
+	}
+	if len(isGovernanceValidator) != len(stakedAmounts) {
+		return nil, errors.New("is governance validator and staked amounts length mismatched")
+	}
+
+	oldPeriod, numOfEpochs, numOfPreviousNonRotatingValidators, numOfPreviousRotatingValidators := contract.readMetadataFromStorage()
+	if !contract.skipPeriodCheck && oldPeriod >= int(period.Int64()) {
+		return nil, errors.New("new period is fewer or equals to stored period")
+	}
+
+	// The number of validator candidates is too few, just pick all candidates. In this case, number of non-rotating
+	// validators is higher than the sum of number of governance validators and number of standard validators
+	if len(consensusAddrs) <=
+		int(numGovernanceValidator.Int64())+int(numStandardValidator.Int64())+int(numRotatingValidator.Int64()) {
+
+		contract.writeToStorage(int(period.Int64()), consensusAddrs, nil)
+
+		oldEnd := validatorArrayStartSlot + numOfPreviousNonRotatingValidators + numOfEpochs*numOfPreviousRotatingValidators
+		newEnd := validatorArrayStartSlot + len(consensusAddrs)
+		contract.cleanupStorage(oldEnd, newEnd)
+		return nil, nil
+	}
+
+	// Pick governance and standard validators, this set does not change across
+	// different epoch
+	nonRotatingValidators := pickNonRotatingValidator(
+		int(numGovernanceValidator.Int64()),
+		int(numStandardValidator.Int64()),
+		consensusAddrs,
+		stakedAmounts,
+		isGovernanceValidator,
+	)
+
+	chosen := make(map[common.Address]struct{})
+	for _, validator := range nonRotatingValidators {
+		chosen[validator] = struct{}{}
+	}
+
+	var rotatingValidatorCandidates []validatorWithWeight
+	for i := range consensusAddrs {
+		if _, ok := chosen[consensusAddrs[i]]; !ok {
+			rotatingValidatorCandidates = append(rotatingValidatorCandidates, validatorWithWeight{
+				address: consensusAddrs[i],
+				weight:  stakedAmounts[i],
+			})
+		}
+	}
+
+	rotatingValidators := make([][]common.Address, maxNumberOfEpochPerPeriod)
+	for epochNumber := range rotatingValidators {
+		rotatingValidators[epochNumber] = make([]common.Address, numRotatingValidator.Int64())
+	}
+
+	rotatingValidatorCandidatesWithWeight := make([]validatorWithWeight, len(rotatingValidatorCandidates))
+	hasher := sha3.NewLegacyKeccak256().(crypto.KeccakState)
+	// The epoch number starts from 1 ranges from [1, maxNumberOfEpochPerPeriod]
+	for epochNumber := 1; epochNumber <= maxNumberOfEpochPerPeriod; epochNumber++ {
+		for i, validator := range rotatingValidatorCandidates {
+			weight := calculateValidatorWeight(
+				hasher,
+				beacon,
+				epochNumber,
+				validator.address,
+				validator.weight,
+			)
+
+			rotatingValidatorCandidatesWithWeight[i] = validatorWithWeight{
+				address: validator.address,
+				weight:  weight,
+			}
+		}
+
+		sort.Sort(sortByWeight(rotatingValidatorCandidatesWithWeight))
+		// Pick numRotatingValidator with the highest weight
+		for i := 0; i < int(numRotatingValidator.Int64()); i++ {
+			rotatingValidators[epochNumber-1][i] = rotatingValidatorCandidatesWithWeight[i].address
+		}
+	}
+	contract.writeToStorage(int(period.Int64()), nonRotatingValidators, rotatingValidators)
+
+	// Clean up the storage if old validator list is larger than the new one
+	oldEnd := validatorArrayStartSlot + numOfPreviousNonRotatingValidators + numOfEpochs*numOfPreviousRotatingValidators
+	newEnd := validatorArrayStartSlot + len(nonRotatingValidators) + maxNumberOfEpochPerPeriod*int(numRotatingValidator.Int64())
+	contract.cleanupStorage(oldEnd, newEnd)
+
+	return nil, nil
 }

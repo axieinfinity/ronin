@@ -87,9 +87,12 @@ func (evm *EVM) precompile(caller ContractRef, addr common.Address) (Precompiled
 
 	// add consortium precompiled contracts to list
 	var consortiumContracts map[common.Address]PrecompiledContract
-	if evm.chainRules.IsMiko {
+	switch {
+	case evm.chainRules.IsTripp:
+		consortiumContracts = PrecompiledContractsConsortiumTripp(caller, evm)
+	case evm.chainRules.IsMiko:
 		consortiumContracts = PrecompiledContractsConsortiumMiko(caller, evm)
-	} else {
+	default:
 		consortiumContracts = PrecompiledContractsConsortium(caller, evm)
 	}
 	for address, contract := range consortiumContracts {
