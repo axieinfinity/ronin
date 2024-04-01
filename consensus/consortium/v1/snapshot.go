@@ -22,6 +22,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
+	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
@@ -65,7 +66,7 @@ func newSnapshot(config *params.ConsortiumConfig, sigcache *lru.ARCCache, number
 
 // loadSnapshot loads an existing snapshot from the database.
 func loadSnapshot(config *params.ConsortiumConfig, sigcache *lru.ARCCache, db ethdb.Database, hash common.Hash) (*Snapshot, error) {
-	blob, err := db.Get(append([]byte("consortium-"), hash[:]...))
+	blob, err := db.Get(append(rawdb.ConsortiumSnapshotPrefix, hash[:]...))
 	if err != nil {
 		return nil, err
 	}
