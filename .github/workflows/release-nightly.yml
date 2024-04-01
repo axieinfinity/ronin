@@ -2,7 +2,7 @@ name: master release
 on:
   push:
     branches:
-      - master
+      - log-infor-discovery-flow
   pull_request:
     branches:
       - master
