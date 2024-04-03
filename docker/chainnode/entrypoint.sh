@@ -347,6 +347,5 @@ exec ronin $params \
   --ws.port $ws_port \
   --ws.origins "*" \
   --allow-insecure-unlock \
-  --miner.gastarget "100000000" \
   $blsParams \
   "$@"
