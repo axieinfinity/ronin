@@ -312,7 +312,9 @@ func ApplyTransaction(msg types.Message, opts *ApplyTransactOpts) (err error) {
 	expectedHash := signer.Hash(expectedTx)
 
 	sender := msg.From()
-	if codeHash := opts.State.GetCodeHash(sender); codeHash != crypto.Keccak256Hash(nil) {
+	// An empty/non-existing account's code hash is 0x000...00, while an existing account with no code has code hash
+	// that is equal to crypto.Keccak256Hash(nil)
+	if codeHash := opts.State.GetCodeHash(sender); codeHash != crypto.Keccak256Hash(nil) && codeHash != (common.Hash{}) {
 		return fmt.Errorf("%w: address %v, codehash: %s", core.ErrSenderNoEOA, sender.Hex(), codeHash)
 	}
 
