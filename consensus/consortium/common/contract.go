@@ -347,6 +347,7 @@ func ApplyTransaction(msg types.Message, opts *ApplyTransactOpts) (err error) {
 		*receivedTxs = (*receivedTxs)[1:]
 	}
 	opts.State.Prepare(expectedTx.Hash(), len(*txs))
+	opts.State.SetNonce(msg.From(), nonce+1)
 	gasUsed, err := applyMessage(opts.ApplyMessageOpts, expectedTx)
 	if err != nil {
 		failed = true
@@ -376,7 +377,6 @@ func ApplyTransaction(msg types.Message, opts *ApplyTransactOpts) (err error) {
 	receipt.BlockNumber = header.Number
 	receipt.TransactionIndex = uint(opts.State.TxIndex())
 	*receipts = append(*receipts, receipt)
-	opts.State.SetNonce(msg.From(), nonce+1)
 	return nil
 }
 
