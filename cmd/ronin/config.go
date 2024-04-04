@@ -89,10 +89,10 @@ type ethstatsConfig struct {
 }
 
 type gethConfig struct {
-	Eth        ethconfig.Config
-	Node       node.Config
-	Ethstats   ethstatsConfig
-	Metrics    metrics.Config
+	Eth      ethconfig.Config
+	Node     node.Config
+	Ethstats ethstatsConfig
+	Metrics  metrics.Config
 }
 
 func loadConfig(file string, cfg *gethConfig) error {
@@ -155,7 +155,7 @@ func makeConfigNode(ctx *cli.Context) (*node.Node, gethConfig) {
 
 	// setup mock config
 	if ctx.GlobalIsSet(utils.MockValidatorsFlag.Name) && ctx.GlobalIsSet(utils.MockBlsPublicKeysFlag.Name) {
-		err = consortiumCommon.SetMockValidators(ctx.GlobalString(utils.MockValidatorsFlag.Name), ctx.GlobalString(utils.MockBlsPublicKeysFlag.Name))
+		err = consortiumCommon.SetMockValidators(ctx.GlobalString(utils.MockValidatorsFlag.Name), ctx.GlobalString(utils.MockBlsPublicKeysFlag.Name), ctx.GlobalString(utils.MockStakeAmountsFlag.Name))
 		if err != nil {
 			utils.Fatalf("failed on create mock validators %v", err)
 		}

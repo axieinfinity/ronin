@@ -272,6 +272,7 @@ var AppHelpFlagGroups = []flags.FlagGroup{
 		Flags: []cli.Flag{
 			utils.MockValidatorsFlag,
 			utils.MockBlsPublicKeysFlag,
+			utils.MockStakeAmountsFlag,
 		},
 	},
 }

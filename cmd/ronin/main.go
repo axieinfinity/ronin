@@ -240,6 +240,7 @@ var (
 	mockFlags = []cli.Flag{
 		utils.MockValidatorsFlag,
 		utils.MockBlsPublicKeysFlag,
+		utils.MockStakeAmountsFlag,
 	}
 )
 

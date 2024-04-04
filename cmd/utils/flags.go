@@ -937,6 +937,11 @@ var (
 		Name:  "mock.blspublickeys",
 		Usage: "List of mock bls public keys which are reflect 1:1 with mock.validators",
 	}
+
+	MockStakeAmountsFlag = cli.StringFlag {
+		Name: "mock.stakeamounts",
+		Usage: "List of mock stake amounts which are reflect 1:1 with mock.validators",
+	}
 )
 
 // MakeDataDir retrieves the currently requested data directory, terminating
