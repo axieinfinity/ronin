@@ -48,10 +48,46 @@ func TestApplyTransactionSender(t *testing.T) {
 			Signer: signer,
 		},
 	)
+	// Sender is an empty account, we must not get core.ErrSenderNoEOA
+	if errors.Is(err, core.ErrSenderNoEOA) {
+		t.Fatalf("Don't expect err: %s, have %s", core.ErrSenderNoEOA, err)
+	}
+
+	// Sender is not an empty account but still has no code, we must
+	// not get core.ErrSenderNoEOA
+	state.SetBalance(sender, common.Big1)
+	err = ApplyTransaction(
+		msg,
+		&ApplyTransactOpts{
+			ApplyMessageOpts: &ApplyMessageOpts{
+				State:  state,
+				Header: &types.Header{},
+			},
+			Signer: signer,
+		},
+	)
+	if errors.Is(err, core.ErrSenderNoEOA) {
+		t.Fatalf("Don't expect err: %s, have %s", core.ErrSenderNoEOA, err)
+	}
+
+	// Sender has code, is not an EOA
+	state.SetCode(sender, []byte{0x1})
+	err = ApplyTransaction(
+		msg,
+		&ApplyTransactOpts{
+			ApplyMessageOpts: &ApplyMessageOpts{
+				State:  state,
+				Header: &types.Header{},
+			},
+			Signer: signer,
+		},
+	)
 	if !errors.Is(err, core.ErrSenderNoEOA) {
 		t.Fatalf("Expect err: %s, have %s", core.ErrSenderNoEOA, err)
 	}
 
+	// Sender is an EOA but the sender of system transaction
+	// does not match with coinbase
 	state.SetCode(sender, []byte{})
 	coinbase := common.Address{0x2}
 	err = ApplyTransaction(
