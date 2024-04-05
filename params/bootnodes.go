@@ -18,7 +18,7 @@ package params
 
 import "github.com/ethereum/go-ethereum/common"
 
-// MainnetBootnodes are the enode URLs of the P2P bootstrap nodes running on
+// EtherumMainnetBootnodes are the enode URLs of the P2P bootstrap nodes running on
 // the main Ethereum network.
 var EtherumMainnetBootnodes = []string{
 	// Ethereum Foundation Go Bootnodes
@@ -30,8 +30,9 @@ var EtherumMainnetBootnodes = []string{
 	"enode://103858bdb88756c71f15e9b5e09b56dc1be52f0a5021d46301dbbfb7e130029cc9d0d6f73f693bc29b665770fff7da4d34f3c6379fe12721b5d7a0bcb5ca1fc1@191.234.162.198:30303", // bootnode-azure-brazilsouth-001
 	"enode://715171f50508aba88aecd1250af392a45a330af91d7b90701c436b618c86aaa1589c9184561907bebbb56439b8f8787bc01f49a7c77276c58c1b09822d75e8e8@52.231.165.108:30303",  // bootnode-azure-koreasouth-001
 	"enode://5d6d7cd20d6da4bb83a1d28cadb5d409b64edf314c0335df658c1a54e32c7c4a7ab7823d57c39b6a757556e68ff1df17c748b698544a55cb488b52479a92b60f@104.42.217.25:30303",   // bootnode-azure-westus-001
-}	
-// MainnetBootnodes are the enode URLs of the P2P bootstrap nodes running on
+}
+
+// RoninMainnetBootnodes are the enode URLs of the P2P bootstrap nodes running on
 // the main Ronin network.
 var RoninMainnetBootnodes = []string{
 	// Ronin Foundation Go Bootnodes
