@@ -18,9 +18,9 @@ package params
 
 import "github.com/ethereum/go-ethereum/common"
 
-// MainnetBootnodes are the enode URLs of the P2P bootstrap nodes running on
+// EtherumMainnetBootnodes are the enode URLs of the P2P bootstrap nodes running on
 // the main Ethereum network.
-var MainnetBootnodes = []string{
+var EtherumMainnetBootnodes = []string{
 	// Ethereum Foundation Go Bootnodes
 	"enode://d860a01f9722d78051619d1e2351aba3f43f943f6f00718d1b9baa4101932a1f5011f16bb2b1bb35db20d6fe28fa0bf09636d26a87d31de9ec6203eeedb1f666@18.138.108.67:30303",   // bootnode-aws-ap-southeast-1-001
 	"enode://22a8232c3abc76a16ae9d6c3b164f98775fe226f0917b0ca871128a74a8e9630b458460865bab457221f1d448dd9791d24c4e5d88786180ac185df813a68d4de@3.209.45.79:30303",     // bootnode-aws-us-east-1-001
@@ -30,6 +30,16 @@ var MainnetBootnodes = []string{
 	"enode://103858bdb88756c71f15e9b5e09b56dc1be52f0a5021d46301dbbfb7e130029cc9d0d6f73f693bc29b665770fff7da4d34f3c6379fe12721b5d7a0bcb5ca1fc1@191.234.162.198:30303", // bootnode-azure-brazilsouth-001
 	"enode://715171f50508aba88aecd1250af392a45a330af91d7b90701c436b618c86aaa1589c9184561907bebbb56439b8f8787bc01f49a7c77276c58c1b09822d75e8e8@52.231.165.108:30303",  // bootnode-azure-koreasouth-001
 	"enode://5d6d7cd20d6da4bb83a1d28cadb5d409b64edf314c0335df658c1a54e32c7c4a7ab7823d57c39b6a757556e68ff1df17c748b698544a55cb488b52479a92b60f@104.42.217.25:30303",   // bootnode-azure-westus-001
+}
+
+// RoninMainnetBootnodes are the enode URLs of the P2P bootstrap nodes running on
+// the main Ronin network.
+var RoninMainnetBootnodes = []string{
+	// Ronin Foundation Go Bootnodes
+	"enode://724fa2c1100449ef639ab021de6a5de11d362247bf525b16bfc6538d0454804afc8234d90a7267da0d55d9fbd4f76b947c12af403e273e62046c46929bc8190d@35.228.178.180:30303", // bootnode-gcp-europe-north1-a
+	"enode://c9772428f70bfb0cdecdee1a4ffdb0cb494ab602d6aa2353012684bcde70d61e90fb6b77c70a549d71d3b98d2f62ab8758ee2a9612189a880a2d6ce00e87e6ba@35.241.83.37:30303",   // bootnode-gcp-asia-east2-a
+	"enode://5ae439495320b639b9a8df7703887d0b76d34b8840938dad020892c9c1c980236da4f61dcc2e35f0a1dc1333d831c1ab0516efbacc01e83df175435bcc7e28c9@34.89.73.159:30303",   // bootnode-gcp-europe-west2-a
+	"enode://e110795cdabbaa8869acb62410c07b4a15af0c05696c335013709c30eb7ad948c2f989dda03ce5eab6913d7775a0188aea4e9fce573f99e58ee34c7019d8080f@35.247.115.158:30303", // bootnode-gcp-us-west1-a
 }
 
 // RopstenBootnodes are the enode URLs of the P2P bootstrap nodes running on the

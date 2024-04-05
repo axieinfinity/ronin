@@ -71,8 +71,8 @@ func GoerliGenesis() string {
 // FoundationBootnodes returns the enode URLs of the P2P bootstrap nodes operated
 // by the foundation running the V5 discovery protocol.
 func FoundationBootnodes() *Enodes {
-	nodes := &Enodes{nodes: make([]*enode.Node, len(params.MainnetBootnodes))}
-	for i, url := range params.MainnetBootnodes {
+	nodes := &Enodes{nodes: make([]*enode.Node, len(params.EtherumMainnetBootnodes))}
+	for i, url := range params.EtherumMainnetBootnodes {
 		var err error
 		nodes.nodes[i], err = enode.Parse(enode.ValidSchemes, url)
 		if err != nil {
