@@ -212,7 +212,7 @@ func newJsTracer(code string, ctx *tracers.Context, cfg json.RawMessage) (tracer
 
 // CaptureTxStart implements the Tracer interface and is invoked at the beginning of
 // transaction processing.
-func (t *jsTracer) CaptureTxStart(gasLimit uint64) {
+func (t *jsTracer) CaptureTxStart(gasLimit uint64, payer *common.Address) {
 	t.gasLimit = gasLimit
 }
 

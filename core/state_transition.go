@@ -334,7 +334,12 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	}
 
 	if tracer := st.evm.Config.Tracer; tracer != nil {
-		tracer.CaptureTxStart(st.initialGas)
+		var payer *common.Address
+		if st.msg.From() != st.msg.Payer() {
+			payerAddr := st.msg.Payer()
+			payer = &payerAddr
+		}
+		tracer.CaptureTxStart(st.initialGas, payer)
 		defer func() {
 			tracer.CaptureTxEnd(st.gas)
 		}()

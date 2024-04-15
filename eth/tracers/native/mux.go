@@ -101,9 +101,9 @@ func (t *muxTracer) CaptureExit(output []byte, gasUsed uint64, err error) {
 	}
 }
 
-func (t *muxTracer) CaptureTxStart(gasLimit uint64) {
+func (t *muxTracer) CaptureTxStart(gasLimit uint64, payer *common.Address) {
 	for _, t := range t.tracers {
-		t.CaptureTxStart(gasLimit)
+		t.CaptureTxStart(gasLimit, payer)
 	}
 }
 

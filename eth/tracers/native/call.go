@@ -233,7 +233,7 @@ func (t *callTracer) CaptureExit(output []byte, gasUsed uint64, err error) {
 	t.callstack[size-1].Calls = append(t.callstack[size-1].Calls, call)
 }
 
-func (t *callTracer) CaptureTxStart(gasLimit uint64) {
+func (t *callTracer) CaptureTxStart(gasLimit uint64, payer *common.Address) {
 	t.gasLimit = gasLimit
 }
 
