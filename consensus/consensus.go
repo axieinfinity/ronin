@@ -156,8 +156,9 @@ type FastFinalityPoSA interface {
 	GetJustifiedBlock(chain ChainHeaderReader, blockNumber uint64, blockHash common.Hash) (uint64, common.Hash)
 	GetFinalizedBlock(chain ChainHeaderReader, blockNumber uint64, blockHash common.Hash) (uint64, common.Hash)
 
-	// IsActiveValidatorAt always returns false before Shillin
-	IsActiveValidatorAt(chain ChainHeaderReader, header *types.Header) bool
+	// IsFinalityVoterAt always returns false before Shillin
+	// This is used by vote manager to check if the current node is allowed to vote for finality
+	IsFinalityVoterAt(chain ChainHeaderReader, header *types.Header) bool
 
 	// VerifyVote check if the finality voter is in the validator set, it assumes the signature is
 	// already verified
@@ -165,7 +166,8 @@ type FastFinalityPoSA interface {
 
 	SetVotePool(votePool VotePool)
 
-	GetActiveValidatorAt(chain ChainHeaderReader, blockNumber uint64, blockHash common.Hash) []finality.ValidatorWithBlsPub
+	// This is used by finality monitor
+	GetFinalityVoterAt(chain ChainHeaderReader, blockNumber uint64, blockHash common.Hash) []finality.ValidatorWithBlsPub
 }
 
 type VotePool interface {
