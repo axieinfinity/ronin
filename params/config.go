@@ -558,8 +558,9 @@ type ChainConfig struct {
 
 	AntennaBlock *big.Int `json:"antennaBlock,omitempty"` // AntennaBlock switch block (nil = no fork, 0 = already on activated)
 	// Miko hardfork introduces sponsored transactions
-	MikoBlock  *big.Int `json:"mikoBlock,omitempty"`  // Miko switch block (nil = no fork, 0 = already on activated)
-	TrippBlock *big.Int `json:"trippBlock,omitempty"` // Tripp switch block (nil = no fork, 0 = already on activated)
+	MikoBlock   *big.Int `json:"mikoBlock,omitempty"`   // Miko switch block (nil = no fork, 0 = already on activated)
+	TrippBlock  *big.Int `json:"trippBlock,omitempty"`  // Tripp switch block (nil = no fork, 0 = already on activated)
+	TrippPeriod *big.Int `json:"trippPeriod,omitempty"` // The period number of Tripp block
 
 	BlacklistContractAddress           *common.Address `json:"blacklistContractAddress,omitempty"`           // Address of Blacklist Contract (nil = no blacklist)
 	FenixValidatorContractAddress      *common.Address `json:"fenixValidatorContractAddress,omitempty"`      // Address of Ronin Contract in the Fenix hardfork (nil = no blacklist)
@@ -685,7 +686,8 @@ func (c *ChainConfig) String() string {
 	chainConfigFmt += "Petersburg: %v Istanbul: %v, Odysseus: %v, Fenix: %v, Muir Glacier: %v, Berlin: %v, London: %v, Arrow Glacier: %v, "
 	chainConfigFmt += "Engine: %v, Blacklist Contract: %v, Fenix Validator Contract: %v, ConsortiumV2: %v, ConsortiumV2.RoninValidatorSet: %v, "
 	chainConfigFmt += "ConsortiumV2.SlashIndicator: %v, ConsortiumV2.StakingContract: %v, Puffy: %v, Buba: %v, Olek: %v, Shillin: %v, Antenna: %v, "
-	chainConfigFmt += "ConsortiumV2.ProfileContract: %v, ConsortiumV2.FinalityTracking: %v, whiteListDeployerContractV2Address: %v, Miko: %v, Tripp: %v}"
+	chainConfigFmt += "ConsortiumV2.ProfileContract: %v, ConsortiumV2.FinalityTracking: %v, whiteListDeployerContractV2Address: %v, Miko: %v, Tripp: %v,"
+	chainConfigFmt += "TrippPeriod: %v}"
 
 	return fmt.Sprintf(chainConfigFmt,
 		c.ChainID,
@@ -722,6 +724,7 @@ func (c *ChainConfig) String() string {
 		whiteListDeployerContractV2Address.Hex(),
 		c.MikoBlock,
 		c.TrippBlock,
+		c.TrippPeriod,
 	)
 }
 
