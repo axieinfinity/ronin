@@ -541,8 +541,8 @@ func mockExtraData(nVal int, bits uint32) *finality.HeaderExtraData {
 		ret                     = &finality.HeaderExtraData{}
 	)
 
-	bits = bits % 7 // ensure bits can be represented by 3-bit integer
-	for i := 0; i < 3; i++ {
+	bits = bits % 32
+	for i := 0; i < 5; i++ {
 		if bits&(1<<i) != 0 {
 			switch i {
 			case 0:
@@ -572,6 +572,19 @@ func mockExtraData(nVal int, bits uint32) *finality.HeaderExtraData {
 				// is still be zero-filled byte array of size ExtraSeal
 				rand.Read(seal)
 				ret.Seal = [finality.ExtraSeal]byte(seal)
+
+			// cases 3,4 are used to test RLP encoding in both Shillin and Tripp blocks
+			// as before Tripp, StakedAmount and BlockProducers are empty.
+			case 3:
+				for i := range ret.CheckpointValidators {
+					ret.CheckpointValidators[i].Weight = uint16(333)
+				}
+			case 4:
+				ret.BlockProducers = []common.Address{
+					common.Address{0x11},
+					common.Address{0x22},
+					common.Address{0x33},
+				}
 			}
 		}
 	}
@@ -580,7 +593,7 @@ func mockExtraData(nVal int, bits uint32) *finality.HeaderExtraData {
 
 func TestExtraDataEncodeRLP(t *testing.T) {
 	nVal := 22
-	for i := 0; i < 7; i++ {
+	for i := 0; i < 32; i++ {
 		ext := mockExtraData(nVal, uint32(i))
 		enc, err := ext.EncodeRLP()
 		if err != nil {
@@ -601,8 +614,7 @@ func TestExtraDataEncodeRLP(t *testing.T) {
 
 func TestExtraDataDecodeRLP(t *testing.T) {
 	nVals := 22
-	// loop 64 times, equivalent to 64 combinations of 6 bits
-	for i := 0; i < 7; i++ {
+	for i := 0; i < 32; i++ {
 		ext := mockExtraData(nVals, uint32(i))
 		enc, err := ext.EncodeRLP()
 		if err != nil {
@@ -640,7 +652,18 @@ func TestExtraDataDecodeRLP(t *testing.T) {
 			}
 			if dec.CheckpointValidators[i].BlsPublicKey != nil &&
 				ext.CheckpointValidators[i].BlsPublicKey != nil &&
-				!bytes.Equal(dec.CheckpointValidators[i].BlsPublicKey.Marshal(), ext.CheckpointValidators[i].BlsPublicKey.Marshal()) {
+				!dec.CheckpointValidators[i].BlsPublicKey.Equals(ext.CheckpointValidators[i].BlsPublicKey) {
+				t.Errorf("Mismatch decoded data")
+			}
+			if dec.CheckpointValidators[i].Weight != ext.CheckpointValidators[i].Weight {
+				t.Error("Mismatch decoded data")
+			}
+		}
+		if len(dec.BlockProducers) != len(ext.BlockProducers) {
+			t.Errorf("Mismatch decoded data")
+		}
+		for i := 0; i < len(ext.BlockProducers); i++ {
+			if dec.BlockProducers[i].Hex() != ext.BlockProducers[i].Hex() {
 				t.Errorf("Mismatch decoded data")
 			}
 		}
@@ -741,14 +764,16 @@ func TestVerifyFinalitySignature(t *testing.T) {
 		config: &params.ConsortiumConfig{
 			EpochV2: 300,
 		},
-		recents: recents,
+		recents:            recents,
+		testTrippEffective: true,
 	}
 	snap.Hash = blockHash
 	c.recents.Add(snap.Hash, snap)
 
+	header := types.Header{Number: big.NewInt(int64(blockNumber + 1)), ParentHash: blockHash}
 	var votedBitSet finality.FinalityVoteBitSet
 	votedBitSet.SetBit(0)
-	err = c.verifyFinalitySignatures(nil, votedBitSet, nil, blockNumber, blockHash, nil)
+	err = c.verifyFinalitySignatures(nil, votedBitSet, nil, &header, nil)
 	if !errors.Is(err, finality.ErrNotEnoughFinalityVote) {
 		t.Errorf("Expect error %v have %v", finality.ErrNotEnoughFinalityVote, err)
 	}
@@ -757,7 +782,7 @@ func TestVerifyFinalitySignature(t *testing.T) {
 	votedBitSet.SetBit(0)
 	votedBitSet.SetBit(1)
 	votedBitSet.SetBit(3)
-	err = c.verifyFinalitySignatures(nil, votedBitSet, nil, 0, snap.Hash, nil)
+	err = c.verifyFinalitySignatures(nil, votedBitSet, nil, &header, nil)
 	if !errors.Is(err, finality.ErrInvalidFinalityVotedBitSet) {
 		t.Errorf("Expect error %v have %v", finality.ErrInvalidFinalityVotedBitSet, err)
 	}
@@ -771,7 +796,7 @@ func TestVerifyFinalitySignature(t *testing.T) {
 		signature[1],
 		signature[3],
 	})
-	err = c.verifyFinalitySignatures(nil, votedBitSet, aggregatedSignature, 0, snap.Hash, nil)
+	err = c.verifyFinalitySignatures(nil, votedBitSet, aggregatedSignature, &header, nil)
 	if !errors.Is(err, finality.ErrFinalitySignatureVerificationFailed) {
 		t.Errorf("Expect error %v have %v", finality.ErrFinalitySignatureVerificationFailed, err)
 	}
@@ -786,7 +811,7 @@ func TestVerifyFinalitySignature(t *testing.T) {
 		signature[2],
 		signature[3],
 	})
-	err = c.verifyFinalitySignatures(nil, votedBitSet, aggregatedSignature, 0, snap.Hash, nil)
+	err = c.verifyFinalitySignatures(nil, votedBitSet, aggregatedSignature, &header, nil)
 	if !errors.Is(err, finality.ErrFinalitySignatureVerificationFailed) {
 		t.Errorf("Expect error %v have %v", finality.ErrFinalitySignatureVerificationFailed, err)
 	}
@@ -800,7 +825,113 @@ func TestVerifyFinalitySignature(t *testing.T) {
 		signature[1],
 		signature[2],
 	})
-	err = c.verifyFinalitySignatures(nil, votedBitSet, aggregatedSignature, 0, snap.Hash, nil)
+	err = c.verifyFinalitySignatures(nil, votedBitSet, aggregatedSignature, &header, nil)
+	if err != nil {
+		t.Errorf("Expect successful verification have %v", err)
+	}
+}
+
+func TestVerifyFinalitySignatureTripp(t *testing.T) {
+	const numValidator = 3
+	var err error
+
+	secretKey := make([]blsCommon.SecretKey, numValidator)
+	for i := 0; i < len(secretKey); i++ {
+		secretKey[i], err = blst.RandKey()
+		if err != nil {
+			t.Fatalf("Failed to generate secret key, err %s", err)
+		}
+	}
+
+	valWithBlsPub := make([]finality.ValidatorWithBlsPub, numValidator)
+	for i := 0; i < len(valWithBlsPub); i++ {
+		valWithBlsPub[i] = finality.ValidatorWithBlsPub{
+			Address:      common.BigToAddress(big.NewInt(int64(i))),
+			BlsPublicKey: secretKey[i].PublicKey(),
+		}
+	}
+	valWithBlsPub[0].Weight = 6666
+	valWithBlsPub[1].Weight = 1
+	valWithBlsPub[2].Weight = 3333
+
+	blockNumber := uint64(0)
+	blockHash := common.Hash{0x1}
+	vote := types.VoteData{
+		TargetNumber: blockNumber,
+		TargetHash:   blockHash,
+	}
+
+	digest := vote.Hash()
+	signature := make([]blsCommon.Signature, numValidator)
+	for i := 0; i < len(signature); i++ {
+		signature[i] = secretKey[i].Sign(digest[:])
+	}
+
+	snap := newSnapshot(nil, nil, nil, 10, common.Hash{}, nil, valWithBlsPub, nil)
+	recents, _ := lru.NewARC(inmemorySnapshots)
+	c := Consortium{
+		chainConfig: &params.ChainConfig{
+			ShillinBlock: big.NewInt(0),
+			TrippBlock:   big.NewInt(0),
+		},
+		config: &params.ConsortiumConfig{
+			EpochV2: 300,
+		},
+		recents:            recents,
+		testTrippEffective: true,
+	}
+	snap.Hash = blockHash
+	c.recents.Add(snap.Hash, snap)
+
+	header := types.Header{Number: big.NewInt(int64(blockNumber + 1)), ParentHash: blockHash}
+	// 1 voter with vote weight 6666 does not reach the threshold
+	votedBitSet := finality.FinalityVoteBitSet(0)
+	votedBitSet.SetBit(0)
+	aggregatedSignature := blst.AggregateSignatures([]blsCommon.Signature{
+		signature[0],
+	})
+	err = c.verifyFinalitySignatures(nil, votedBitSet, aggregatedSignature, &header, nil)
+	if !errors.Is(err, finality.ErrNotEnoughFinalityVote) {
+		t.Errorf("Expect error %v have %v", finality.ErrNotEnoughFinalityVote, err)
+	}
+
+	// 2 voters with total vote weight 3333 + 1 does not reach the threshold
+	votedBitSet = finality.FinalityVoteBitSet(0)
+	votedBitSet.SetBit(1)
+	votedBitSet.SetBit(2)
+	aggregatedSignature = blst.AggregateSignatures([]blsCommon.Signature{
+		signature[1],
+		signature[2],
+	})
+	err = c.verifyFinalitySignatures(nil, votedBitSet, aggregatedSignature, &header, nil)
+	if !errors.Is(err, finality.ErrNotEnoughFinalityVote) {
+		t.Errorf("Expect error %v have %v", finality.ErrNotEnoughFinalityVote, err)
+	}
+
+	// 2 voters with total vote weight 6666 + 1 reach the threshold
+	votedBitSet = finality.FinalityVoteBitSet(0)
+	votedBitSet.SetBit(0)
+	votedBitSet.SetBit(1)
+	aggregatedSignature = blst.AggregateSignatures([]blsCommon.Signature{
+		signature[0],
+		signature[1],
+	})
+	err = c.verifyFinalitySignatures(nil, votedBitSet, aggregatedSignature, &header, nil)
+	if err != nil {
+		t.Errorf("Expect successful verification have %v", err)
+	}
+
+	// All voters vote
+	votedBitSet = finality.FinalityVoteBitSet(0)
+	votedBitSet.SetBit(0)
+	votedBitSet.SetBit(1)
+	votedBitSet.SetBit(2)
+	aggregatedSignature = blst.AggregateSignatures([]blsCommon.Signature{
+		signature[0],
+		signature[1],
+		signature[2],
+	})
+	err = c.verifyFinalitySignatures(nil, votedBitSet, aggregatedSignature, &header, nil)
 	if err != nil {
 		t.Errorf("Expect successful verification have %v", err)
 	}
@@ -878,12 +1009,16 @@ func (contract *mockContract) FinalityReward(opts *consortiumCommon.ApplyTransac
 	return nil
 }
 
-func (contract *mockContract) GetValidators(*big.Int) ([]common.Address, error) {
+func (contract *mockContract) GetBlockProducers(*big.Int) ([]common.Address, error) {
 	var validatorAddresses []common.Address
 	for address := range contract.validators {
 		validatorAddresses = append(validatorAddresses, address)
 	}
 	return validatorAddresses, nil
+}
+
+func (contract *mockContract) GetValidatorCandidates(blockNumber *big.Int) ([]common.Address, error) {
+	return nil, nil
 }
 
 func (contract *mockContract) GetBlsPublicKey(_ *big.Int, address common.Address) (blsCommon.PublicKey, error) {
@@ -896,6 +1031,10 @@ func (contract *mockContract) GetBlsPublicKey(_ *big.Int, address common.Address
 	} else {
 		return nil, errors.New("address is not a validator")
 	}
+}
+
+func (contract *mockContract) GetStakedAmount(_ *big.Int, _ []common.Address) ([]*big.Int, error) {
+	return nil, nil
 }
 
 func TestGetCheckpointValidatorFromContract(t *testing.T) {
@@ -923,7 +1062,7 @@ func TestGetCheckpointValidatorFromContract(t *testing.T) {
 		contract: mock,
 	}
 
-	validatorWithPubs, err := c.getCheckpointValidatorsFromContract(&types.Header{Number: big.NewInt(3)})
+	validatorWithPubs, _, err := c.getCheckpointValidatorsFromContract(nil, false, &types.Header{Number: big.NewInt(3)})
 	if err != nil {
 		t.Fatalf("Failed to get checkpoint validators from contract, err: %s", err)
 	}
@@ -1014,7 +1153,7 @@ func TestAssembleFinalityVote(t *testing.T) {
 	header := types.Header{Number: big.NewInt(5)}
 	extraData := &finality.HeaderExtraData{}
 	header.Extra = extraData.Encode(true)
-	c.assembleFinalityVote(&header, snap)
+	c.assembleFinalityVote(nil, &header, snap)
 
 	extraData, err = finality.DecodeExtra(header.Extra, true)
 	if err != nil {
@@ -1046,6 +1185,149 @@ func TestAssembleFinalityVote(t *testing.T) {
 	aggregatedSignature := blst.AggregateSignatures(includedSignatures)
 
 	if !bytes.Equal(aggregatedSignature.Marshal(), extraData.AggregatedFinalityVotes.Marshal()) {
+		t.Fatal("Mismatch signature")
+	}
+}
+
+func TestAssembleFinalityVoteTripp(t *testing.T) {
+	var err error
+	numValidators := 3
+	secretKeys := make([]blsCommon.SecretKey, numValidators)
+	for i := range secretKeys {
+		secretKeys[i], err = blst.RandKey()
+		if err != nil {
+			t.Fatalf("Failed to generate secret key, err: %s", err)
+		}
+	}
+
+	voteData := types.VoteData{
+		TargetNumber: 4,
+		TargetHash:   common.Hash{0x1},
+	}
+	digest := voteData.Hash()
+
+	signatures := make([]blsCommon.Signature, numValidators)
+	for i := range signatures {
+		signatures[i] = secretKeys[i].Sign(digest[:])
+	}
+
+	votes := make([]*types.VoteEnvelope, numValidators)
+	for i := range votes {
+		votes[i] = &types.VoteEnvelope{
+			RawVoteEnvelope: types.RawVoteEnvelope{
+				PublicKey: types.BLSPublicKey(secretKeys[i].PublicKey().Marshal()),
+				Signature: types.BLSSignature(signatures[i].Marshal()),
+				Data:      &voteData,
+			},
+		}
+	}
+
+	mock := mockVotePool{
+		vote: votes,
+	}
+
+	chainConfig := params.ChainConfig{
+		ShillinBlock: big.NewInt(0),
+		TrippBlock:   big.NewInt(0),
+	}
+	c := Consortium{
+		chainConfig:        &chainConfig,
+		votePool:           &mock,
+		testTrippEffective: true,
+	}
+
+	validators := make([]finality.ValidatorWithBlsPub, numValidators)
+	for i := range validators {
+		validators[i] = finality.ValidatorWithBlsPub{
+			Address:      common.BigToAddress(big.NewInt(int64(i))),
+			BlsPublicKey: secretKeys[i].PublicKey(),
+		}
+	}
+	validators[0].Weight = 6666
+	validators[1].Weight = 1
+	validators[2].Weight = 3333
+
+	snap := newSnapshot(nil, nil, nil, 10, common.Hash{}, nil, validators, nil)
+
+	header := types.Header{Number: big.NewInt(5)}
+	extraData := &finality.HeaderExtraData{}
+	header.Extra, err = extraData.EncodeV2(&chainConfig, header.Number)
+	if err != nil {
+		t.Fatalf("Failed to encode extradata, err %s", err)
+	}
+
+	// Case 1: only 1 validator with weight 6666 cannot reach the threshold
+	mock.vote = mock.vote[:1]
+	c.assembleFinalityVote(nil, &header, snap)
+	extraData, err = finality.DecodeExtraV2(header.Extra, &chainConfig, header.Number)
+	if err != nil {
+		t.Fatalf("Failed to decode extradata, err %s", err)
+	}
+	if uint64(extraData.FinalityVotedValidators) != 0 {
+		t.Fatalf("Expect vote bit set to be %d, got %d", 0, uint64(extraData.FinalityVotedValidators))
+	}
+
+	// Case 2: 1 validator with 2 votes cannot reach the threshold
+	header = types.Header{Number: big.NewInt(5)}
+	extraData = &finality.HeaderExtraData{}
+	header.Extra, _ = extraData.EncodeV2(&chainConfig, header.Number)
+	mock.vote = make([]*types.VoteEnvelope, 0)
+	mock.vote = append(mock.vote, votes[0], votes[0])
+	c.assembleFinalityVote(nil, &header, snap)
+	extraData, err = finality.DecodeExtraV2(header.Extra, &chainConfig, header.Number)
+	if err != nil {
+		t.Fatalf("Failed to decode extradata, err %s", err)
+	}
+	if uint64(extraData.FinalityVotedValidators) != 0 {
+		t.Fatalf("Expect vote bit set to be %d, got %d", 0, uint64(extraData.FinalityVotedValidators))
+	}
+
+	// Case 3: 2 validators with total vote weight 6667 can reach the threshold
+	header = types.Header{Number: big.NewInt(5)}
+	extraData = &finality.HeaderExtraData{}
+	header.Extra, _ = extraData.EncodeV2(&chainConfig, header.Number)
+	mock.vote = make([]*types.VoteEnvelope, 0)
+	mock.vote = append(mock.vote, votes[0], votes[1])
+	c.assembleFinalityVote(nil, &header, snap)
+	extraData, err = finality.DecodeExtraV2(header.Extra, &chainConfig, header.Number)
+	if err != nil {
+		t.Fatalf("Failed to decode extradata, err %s", err)
+	}
+	bitSet := finality.FinalityVoteBitSet(0)
+	bitSet.SetBit(0)
+	bitSet.SetBit(1)
+	if uint64(extraData.FinalityVotedValidators) != uint64(bitSet) {
+		t.Fatalf("Expect vote bit set to be %d, got %d", uint64(bitSet), uint64(extraData.FinalityVotedValidators))
+	}
+	var includedSignatures []blsCommon.Signature
+	includedSignatures = append(includedSignatures, signatures[0], signatures[1])
+	aggregatedSignature := blst.AggregateSignatures(includedSignatures)
+	if !bytes.Equal(aggregatedSignature.Marshal(), extraData.AggregatedFinalityVotes.Marshal()) {
+		t.Fatal("Mismatch signature")
+	}
+
+	// Case 4: 1 validator with vote weight 6667 can reach the threshold
+	validators[0].Weight = 6667
+	validators[1].Weight = 1
+	validators[2].Weight = 3332
+
+	snap = newSnapshot(nil, nil, nil, 10, common.Hash{}, nil, validators, nil)
+	header = types.Header{Number: big.NewInt(5)}
+	extraData = &finality.HeaderExtraData{}
+	header.Extra, _ = extraData.EncodeV2(&chainConfig, header.Number)
+	mock.vote = make([]*types.VoteEnvelope, 0)
+	mock.vote = append(mock.vote, votes[0])
+	c.assembleFinalityVote(nil, &header, snap)
+	extraData, err = finality.DecodeExtraV2(header.Extra, &chainConfig, header.Number)
+	if err != nil {
+		t.Fatalf("Failed to decode extradata, err %s", err)
+	}
+	bitSet = finality.FinalityVoteBitSet(0)
+	bitSet.SetBit(0)
+	if uint64(extraData.FinalityVotedValidators) != uint64(bitSet) {
+		t.Fatalf("Expect vote bit set to be %d, got %d", uint64(bitSet), uint64(extraData.FinalityVotedValidators))
+	}
+	if !bytes.Equal(signatures[0].Marshal(), extraData.AggregatedFinalityVotes.Marshal()) {
 		t.Fatal("Mismatch signature")
 	}
 }
@@ -1704,6 +1986,7 @@ func TestEnablePickValidatorSetWithBeacon(t *testing.T) {
 		ConsortiumV2Block: common.Big0,
 		MikoBlock:         common.Big0,
 		TrippBlock:        common.Big3,
+		TrippPeriod:       common.Big0,
 		Consortium: &params.ConsortiumConfig{
 			EpochV2: 200,
 		},
@@ -1801,5 +2084,210 @@ func TestEnablePickValidatorSetWithBeacon(t *testing.T) {
 				t.Fatalf("Expect to get nonce: %d, got %d", 1, nonce)
 			}
 		}
+	}
+}
+
+func TestIsPeriodBlock(t *testing.T) {
+	const NUM_OF_VALIDATORS = 21
+	dateInSeconds := uint64(86400)
+	now := uint64(time.Now().Unix())
+	midnight := uint64(now / dateInSeconds * dateInSeconds)
+
+	db := rawdb.NewMemoryDatabase()
+	chainConfig := params.ChainConfig{
+		ChainID:    big.NewInt(2021),
+		TrippBlock: big.NewInt(30),
+		Consortium: &params.ConsortiumConfig{
+			EpochV2: 200,
+		},
+		ConsortiumV2Contracts: &params.ConsortiumV2Contracts{
+			RoninValidatorSet: common.HexToAddress("0xaa"),
+		},
+	}
+	genesis := (&core.Genesis{
+		Config:    &chainConfig,
+		BaseFee:   big.NewInt(params.InitialBaseFee),
+		Timestamp: midnight, // genesis at day 1
+	}).MustCommit(db)
+	chain, _ := core.NewBlockChain(db, nil, &chainConfig, ethash.NewFullFaker(), vm.Config{}, nil, nil)
+	// create chain of up to 399 blocks, all of them are not period block
+	bs, _ := core.GenerateChain(&chainConfig, genesis, ethash.NewFaker(), db, 399, nil, true) // create chain of up to 399 blocks
+	if _, err := chain.InsertChain(bs[:]); err != nil {
+		panic(err)
+	}
+	recents, _ := lru.NewARC(inmemorySnapshots)
+	signatures, _ := lru.NewARC(inmemorySignatures)
+	mock := &mockContract{
+		validators: map[common.Address]blsCommon.PublicKey{},
+	}
+	c := &Consortium{
+		chainConfig: &chainConfig,
+		recents:     recents,
+		signatures:  signatures,
+		config: &params.ConsortiumConfig{
+			EpochV2: 200,
+		},
+		db:       db,
+		contract: mock,
+	}
+	validators := make([]common.Address, NUM_OF_VALIDATORS)
+	for i := 0; i < NUM_OF_VALIDATORS; i++ {
+		validators = append(validators, common.BigToAddress(big.NewInt(int64(i))))
+	}
+
+	var header = &types.Header{}
+
+	// header of block 0
+	// this must not a period block
+	header = genesis.Header()
+	if c.IsPeriodBlock(chain, header) {
+		t.Errorf("wrong period block")
+	}
+
+	// header of block 200
+	// this must not a period block
+	header = bs[199].Header()
+	if c.IsPeriodBlock(chain, header) {
+		t.Error("wrong period block")
+	}
+
+	header = bs[351].Header()
+	if c.IsPeriodBlock(chain, header) {
+		t.Error("wrong period block")
+	}
+
+	for i := 0; i < 210; i++ {
+		callback := func(i int, bg *core.BlockGen) {
+			if i == 0 {
+				bg.OffsetTime(int64(dayInSeconds))
+			}
+		}
+		block, _ := core.GenerateChain(&chainConfig, bs[len(bs)-1], ethash.NewFaker(), db, 1, callback, true)
+		bs = append(bs, block...)
+	}
+	if _, err := chain.InsertChain(bs[:]); err != nil {
+		panic(err)
+	}
+
+	// header of block 400
+	// this must be a period block
+	header = bs[399].Header()
+	// this header must be period header
+	if !c.IsPeriodBlock(chain, header) {
+		t.Errorf("wrong period block")
+	}
+
+	// header of block 500
+	// this must not be a period block
+	header = bs[499].Header()
+	if c.IsPeriodBlock(chain, header) {
+		t.Errorf("wrong period block")
+	}
+}
+
+func TestIsTrippEffective(t *testing.T) {
+	now := uint64(time.Now().Unix())
+	midnight := uint64(now / dayInSeconds * dayInSeconds)
+	db := rawdb.NewMemoryDatabase()
+	chainConfig := params.ChainConfig{
+		ChainID:    big.NewInt(2021),
+		TrippBlock: big.NewInt(30),
+		Consortium: &params.ConsortiumConfig{
+			EpochV2: 200,
+		},
+		ConsortiumV2Contracts: &params.ConsortiumV2Contracts{
+			RoninValidatorSet: common.HexToAddress("0xaa"),
+		},
+		TrippPeriod: new(big.Int).SetUint64(now / dayInSeconds),
+	}
+	genesis := (&core.Genesis{
+		Config:    &chainConfig,
+		BaseFee:   big.NewInt(params.InitialBaseFee),
+		Timestamp: midnight, // genesis at day 1
+	}).MustCommit(db)
+	chain, _ := core.NewBlockChain(db, nil, &chainConfig, ethash.NewFullFaker(), vm.Config{}, nil, nil)
+	// create chain of up to 399 blocks, all of them are not Tripp effective
+	bs, _ := core.GenerateChain(&chainConfig, genesis, ethash.NewFaker(), db, 399, nil, true)
+	if _, err := chain.InsertChain(bs[:]); err != nil {
+		panic(err)
+	}
+	recents, _ := lru.NewARC(inmemorySnapshots)
+	signatures, _ := lru.NewARC(inmemorySignatures)
+	mock := &mockContract{
+		validators: map[common.Address]blsCommon.PublicKey{},
+	}
+	c := &Consortium{
+		chainConfig: &chainConfig,
+		recents:     recents,
+		signatures:  signatures,
+		config: &params.ConsortiumConfig{
+			EpochV2: 200,
+		},
+		testTrippEffective: false,
+		db:                 db,
+		contract:           mock,
+	}
+
+	var header = &types.Header{}
+
+	// header of block 30
+	header = bs[29].Header()
+	// this header must not be Tripp effective
+	if c.IsTrippEffective(chain, header) {
+		t.Error("fail test Tripp effective")
+	}
+
+	// header of block 201
+	// this header must not be Tripp effective
+	header = bs[201].Header()
+	if c.IsTrippEffective(chain, header) {
+		t.Error("fail test Tripp effective")
+	}
+
+	// header of block 200
+	// this header must not be Tripp effective
+	header = bs[200].Header()
+	if c.IsTrippEffective(chain, header) {
+		t.Error("fail test Tripp effective")
+	}
+
+	// header of block 399
+	// this header must not be Tripp effective
+	header = bs[398].Header()
+	if c.IsTrippEffective(chain, header) {
+		t.Error("fail test Tripp effective")
+	}
+
+	for i := 0; i < 210; i++ {
+		callback := func(i int, bg *core.BlockGen) {
+			if i == 0 {
+				bg.OffsetTime(int64(dayInSeconds))
+			}
+		}
+		block, _ := core.GenerateChain(&chainConfig, bs[len(bs)-1], ethash.NewFaker(), db, 1, callback, true)
+		bs = append(bs, block...)
+	}
+	if _, err := chain.InsertChain(bs[:]); err != nil {
+		panic(err)
+	}
+
+	// header of block 400
+	// this header must be Tripp effective
+	header = bs[399].Header()
+	if !c.IsTrippEffective(nil, header) {
+		t.Error("fail test Tripp effective")
+	}
+
+	// header of block 402
+	// this header must be Tripp effective
+	header = bs[401].Header()
+	if !c.IsTrippEffective(chain, header) {
+		t.Error("fail test Tripp effective")
+	}
+
+	header = bs[599].Header()
+	// this header must be Tripp effective
+	if !c.IsTrippEffective(chain, header) {
+		t.Error("fail test Tripp effective")
 	}
 }

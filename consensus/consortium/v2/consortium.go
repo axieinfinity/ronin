@@ -49,6 +49,8 @@ const (
 
 	finalityRatio                  float64 = 2.0 / 3
 	assemblingFinalityVoteDuration         = 1 * time.Second
+	MaxValidatorCandidates                 = 64 // Maximum number of validator candidates (aka voters for a block).
+	dayInSeconds                           = uint64(86400)
 )
 
 // Consortium delegated proof-of-stake protocol constants.
@@ -84,9 +86,9 @@ var (
 	// errCoinBaseMisMatch is returned if a header's coinbase do not match with signature
 	errCoinBaseMisMatch = errors.New("coinbase do not match with signature")
 
-	// errMismatchingEpochValidators is returned if a sprint block contains a
+	// errMismatchingValidators is returned if a sprint block contains a
 	// list of validators different from the one the local node calculated.
-	errMismatchingEpochValidators = errors.New("mismatching validator list on epoch block")
+	errMismatchingValidators = errors.New("mismatching validator list")
 )
 
 // Consortium is the delegated proof-of-stake consensus engine proposed to support the
@@ -114,6 +116,9 @@ type Consortium struct {
 	v1       consortiumCommon.ConsortiumAdapter
 
 	votePool consensus.VotePool
+
+	// This is used in unit test only
+	testTrippEffective bool
 }
 
 // New creates a Consortium delegated proof-of-stake consensus engine
@@ -270,34 +275,50 @@ func (c *Consortium) verifyFinalitySignatures(
 	chain consensus.ChainHeaderReader,
 	finalityVotedValidators finality.FinalityVoteBitSet,
 	finalitySignatures blsCommon.Signature,
-	parentNumber uint64,
-	parentHash common.Hash,
+	header *types.Header,
 	parents []*types.Header,
 ) error {
-	snap, err := c.snapshot(chain, parentNumber, parentHash, parents)
+	isTrippEffective := c.IsTrippEffective(chain, header)
+	snap, err := c.snapshot(chain, header.Number.Uint64()-1, header.ParentHash, parents)
 	if err != nil {
 		return err
 	}
 
-	votedValidatorPositions := finalityVotedValidators.Indices()
-	if len(votedValidatorPositions) < int(math.Floor(finalityRatio*float64(len(snap.ValidatorsWithBlsPub))))+1 {
-		return finality.ErrNotEnoughFinalityVote
-	}
-
 	voteData := types.VoteData{
-		TargetNumber: parentNumber,
-		TargetHash:   parentHash,
+		TargetNumber: header.Number.Uint64() - 1,
+		TargetHash:   header.ParentHash,
 	}
 	digest := voteData.Hash()
 
 	// verify aggregated signature
-	var publicKeys []blsCommon.PublicKey
+	var (
+		publicKeys            []blsCommon.PublicKey
+		accumulatedVoteWeight int
+		finalityThreshold     int
+	)
+	votedValidatorPositions := finalityVotedValidators.Indices()
 	for _, position := range votedValidatorPositions {
 		if position >= len(snap.ValidatorsWithBlsPub) {
 			return finality.ErrInvalidFinalityVotedBitSet
 		}
 		publicKeys = append(publicKeys, snap.ValidatorsWithBlsPub[position].BlsPublicKey)
+		if isTrippEffective {
+			accumulatedVoteWeight += int(snap.ValidatorsWithBlsPub[position].Weight)
+		} else {
+			accumulatedVoteWeight += 1
+		}
 	}
+
+	if isTrippEffective {
+		finalityThreshold = int(math.Floor(finalityRatio*float64(consortiumCommon.MaxFinalityVotePercentage))) + 1
+	} else {
+		finalityThreshold = int(math.Floor(finalityRatio*float64(len(snap.ValidatorsWithBlsPub)))) + 1
+	}
+
+	if accumulatedVoteWeight < finalityThreshold {
+		return finality.ErrNotEnoughFinalityVote
+	}
+
 	if !finalitySignatures.FastAggregateVerify(publicKeys, digest) {
 		return finality.ErrFinalitySignatureVerificationFailed
 	}
@@ -360,6 +381,7 @@ func (c *Consortium) verifyCascadingFields(chain consensus.ChainHeaderReader, he
 
 	// Check extra data
 	isShillin := c.chainConfig.IsShillin(header.Number)
+	isTrippEffective := c.IsTrippEffective(chain, header)
 	extraData, err := finality.DecodeExtraV2(header.Extra, c.chainConfig, header.Number)
 	if err != nil {
 		return err
@@ -372,13 +394,24 @@ func (c *Consortium) verifyCascadingFields(chain consensus.ChainHeaderReader, he
 		return consortiumCommon.ErrExtraValidators
 	}
 
+	if isTrippEffective && isEpoch && len(extraData.BlockProducers) == 0 {
+		return consortiumCommon.ErrExtraValidators
+	}
+
+	if isTrippEffective && c.IsPeriodBlock(chain, header) && len(extraData.CheckpointValidators) == 0 {
+		return consortiumCommon.ErrExtraValidators
+	}
+
+	if !isTrippEffective && len(extraData.BlockProducers) != 0 {
+		return consortiumCommon.ErrExtraValidators
+	}
+
 	if isShillin && extraData.HasFinalityVote == 1 {
 		if err := c.verifyFinalitySignatures(
 			chain,
 			extraData.FinalityVotedValidators,
 			extraData.AggregatedFinalityVotes,
-			header.Number.Uint64()-1,
-			header.ParentHash,
+			header,
 			parents,
 		); err != nil {
 			return err
@@ -433,7 +466,7 @@ func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, 
 
 		// this case is only happened in mock mode
 		if number == 0 {
-			validators, err := c.contract.GetValidators(common.Big0)
+			validators, err := c.contract.GetBlockProducers(common.Big0)
 			if err != nil {
 				return nil, err
 			}
@@ -454,7 +487,7 @@ func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, 
 
 			// get validators set from number
 			_, _, _, contract := c.readSignerAndContract()
-			validators, err := contract.GetValidators(big.NewInt(0).SetUint64(number))
+			validators, err := contract.GetBlockProducers(big.NewInt(0).SetUint64(number))
 			if err != nil {
 				log.Error("Load validators at the beginning failed", "err", err)
 				return nil, err
@@ -665,28 +698,67 @@ func (c *Consortium) verifyHeaderTime(header, parent *types.Header, snapshot *Sn
 }
 
 func (c *Consortium) getCheckpointValidatorsFromContract(
+	chain consensus.ChainHeaderReader,
+	isPeriodBlock bool,
 	header *types.Header,
-) ([]finality.ValidatorWithBlsPub, error) {
-
+) ([]finality.ValidatorWithBlsPub, []common.Address, error) {
 	parentBlockNumber := new(big.Int).Sub(header.Number, common.Big1)
 	_, _, _, contract := c.readSignerAndContract()
-	newValidators, err := contract.GetValidators(parentBlockNumber)
+
+	blockProducers, err := contract.GetBlockProducers(parentBlockNumber)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
+	}
+
+	var checkpointValidators []finality.ValidatorWithBlsPub
+
+	// After Tripp, bls key and staked amount are read only once at
+	// the start of new period, whereas block producer address is read
+	// at the start of every epoch.
+	if c.IsTrippEffective(chain, header) {
+		sort.Sort(validatorsAscending(blockProducers))
+		if !isPeriodBlock {
+			return nil, blockProducers, nil
+		}
+		validatorCandidates, err := contract.GetValidatorCandidates(parentBlockNumber)
+		if err != nil {
+			return nil, nil, err
+		}
+		// After Tripp, there is a upper bound for the number of validator candidates
+		// (aka voters for blocks) during a period, which is ensured by the contract.
+		// However, we add additional check here to ensure that the field FinalityVoteBitSet
+		// (of type uint64) works in proper manner.
+		if len(validatorCandidates) > MaxValidatorCandidates {
+			validatorCandidates = validatorCandidates[:MaxValidatorCandidates]
+		}
+		stakedAmounts, err := c.contract.GetStakedAmount(header.Number, validatorCandidates)
+		if err != nil {
+			return nil, nil, err
+		}
+		weights := consortiumCommon.NormalizeFinalityVoteWeight(stakedAmounts)
+		for i, candidate := range validatorCandidates {
+			blsPublicKey, err := contract.GetBlsPublicKey(parentBlockNumber, candidate)
+			if err == nil {
+				checkpointValidators = append(checkpointValidators, finality.ValidatorWithBlsPub{
+					Address:      candidate,
+					BlsPublicKey: blsPublicKey,
+					Weight:       weights[i],
+				})
+			}
+		}
+		return checkpointValidators, blockProducers, nil
 	}
 
 	var (
-		blsPublicKeys       []blsCommon.PublicKey
-		checkpointValidator []finality.ValidatorWithBlsPub
-		filteredValidators  []common.Address = newValidators
+		blsPublicKeys      []blsCommon.PublicKey
+		filteredValidators []common.Address = blockProducers
 	)
-
 	isShillin := c.chainConfig.IsShillin(header.Number)
 	if isShillin {
 		// The filteredValidators shares the same underlying array with newValidators
 		// See more: https://github.com/golang/go/wiki/SliceTricks#filtering-without-allocating
 		filteredValidators = filteredValidators[:0]
-		for _, validator := range newValidators {
+		for _, validator := range blockProducers {
 			blsPublicKey, err := contract.GetBlsPublicKey(parentBlockNumber, validator)
 			if err == nil {
 				filteredValidators = append(filteredValidators, validator)
@@ -702,13 +774,12 @@ func (c *Consortium) getCheckpointValidatorsFromContract(
 		if isShillin {
 			validatorWithBlsPub.BlsPublicKey = blsPublicKeys[i]
 		}
-
-		checkpointValidator = append(checkpointValidator, validatorWithBlsPub)
+		checkpointValidators = append(checkpointValidators, validatorWithBlsPub)
 	}
 
 	// sort validator by address
-	sort.Sort(finality.CheckpointValidatorAscending(checkpointValidator))
-	return checkpointValidator, nil
+	sort.Sort(finality.CheckpointValidatorAscending(checkpointValidators))
+	return checkpointValidators, nil, nil
 }
 
 // Prepare implements consensus.Engine, preparing all the consensus fields of the
@@ -730,11 +801,22 @@ func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.He
 	var extraData finality.HeaderExtraData
 
 	if number%c.config.EpochV2 == 0 || c.chainConfig.IsOnConsortiumV2(big.NewInt(int64(number))) {
-		checkpointValidator, err := c.getCheckpointValidatorsFromContract(header)
+		isPeriodBlock := c.IsPeriodBlock(chain, header)
+		checkpointValidator, blockProducers, err := c.getCheckpointValidatorsFromContract(chain, isPeriodBlock, header)
 		if err != nil {
 			return err
 		}
-		extraData.CheckpointValidators = checkpointValidator
+		// After Tripp, validator candidates are read only once at
+		// the start of new period, whereas block producer address is read
+		// at the start of every epoch.
+		if c.IsTrippEffective(chain, header) {
+			if isPeriodBlock {
+				extraData.CheckpointValidators = checkpointValidator
+			}
+			extraData.BlockProducers = blockProducers
+		} else {
+			extraData.CheckpointValidators = checkpointValidator
+		}
 	}
 
 	// After Shillin, extraData.hasFinalityVote = 0 here as we does
@@ -896,12 +978,11 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 		EthAPI:      c.ethAPI,
 	}
 
-	isShillin := c.chainConfig.IsShillin(header.Number)
-
 	// If the block is an epoch end block, verify the validator list
 	// The verification can only be done when the state is ready, it can't be done in VerifyHeader.
 	if header.Number.Uint64()%c.config.EpochV2 == 0 {
-		checkpointValidator, err := c.getCheckpointValidatorsFromContract(header)
+		isPeriodBlock := c.IsPeriodBlock(chain, header)
+		checkpointValidators, blockProducers, err := c.getCheckpointValidatorsFromContract(chain, isPeriodBlock, header)
 		if err != nil {
 			return err
 		}
@@ -910,18 +991,48 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 			return err
 		}
 
-		if len(checkpointValidator) != len(extraData.CheckpointValidators) {
-			return errMismatchingEpochValidators
-		}
-
-		for i := range checkpointValidator {
-			if checkpointValidator[i].Address != extraData.CheckpointValidators[i].Address {
-				return errMismatchingEpochValidators
+		// If isTripp and new period, read all validator candidates and
+		// their amounts, check with stored data in header
+		if c.IsTrippEffective(chain, header) {
+			if len(blockProducers) != len(extraData.BlockProducers) {
+				return errMismatchingValidators
+			}
+			for i := range blockProducers {
+				if blockProducers[i] != extraData.BlockProducers[i] {
+					return errMismatchingValidators
+				}
+			}
+			if isPeriodBlock {
+				if len(checkpointValidators) != len(extraData.CheckpointValidators) {
+					return errMismatchingValidators
+				}
+				for i := range checkpointValidators {
+					if checkpointValidators[i].Address != extraData.CheckpointValidators[i].Address {
+						return errMismatchingValidators
+					}
+					if !checkpointValidators[i].BlsPublicKey.Equals(extraData.CheckpointValidators[i].BlsPublicKey) {
+						return errMismatchingValidators
+					}
+					if checkpointValidators[i].Weight != extraData.CheckpointValidators[i].Weight {
+						return errMismatchingValidators
+					}
+				}
+			}
+		} else {
+			if len(checkpointValidators) != len(extraData.CheckpointValidators) {
+				return errMismatchingValidators
 			}
 
-			if isShillin {
-				if !checkpointValidator[i].BlsPublicKey.Equals(extraData.CheckpointValidators[i].BlsPublicKey) {
-					return errMismatchingEpochValidators
+			isShillin := c.chainConfig.IsShillin(header.Number)
+			for i := range checkpointValidators {
+				if checkpointValidators[i].Address != extraData.CheckpointValidators[i].Address {
+					return errMismatchingValidators
+				}
+
+				if isShillin {
+					if !checkpointValidators[i].BlsPublicKey.Equals(extraData.CheckpointValidators[i].BlsPublicKey) {
+						return errMismatchingValidators
+					}
 				}
 			}
 		}
@@ -1074,7 +1185,7 @@ func (c *Consortium) Seal(chain consensus.ChainHeaderReader, block *types.Block,
 		case <-stop:
 			return
 		case <-time.After(delay - assemblingFinalityVoteDuration):
-			c.assembleFinalityVote(header, snap)
+			c.assembleFinalityVote(chain, header, snap)
 
 			// Sign all the things!
 			sig, err := signFn(accounts.Account{Address: val}, accounts.MimetypeConsortium, consortiumRLP(header, c.chainConfig.ChainID))
@@ -1247,19 +1358,29 @@ func (c *Consortium) GetJustifiedBlock(chain consensus.ChainHeaderReader, blockN
 // snapshot (N)
 // So here when including the vote for header.Number - 1 into header.Number, the
 // snapshot provided must be at header.Number - 1
-func (c *Consortium) assembleFinalityVote(header *types.Header, snap *Snapshot) {
+func (c *Consortium) assembleFinalityVote(chain consensus.ChainHeaderReader, header *types.Header, snap *Snapshot) {
 	if c.chainConfig.IsShillin(header.Number) {
 		var (
 			signatures              []blsCommon.Signature
 			finalityVotedValidators finality.FinalityVoteBitSet
-			finalityThreshold       int = int(math.Floor(finalityRatio*float64(len(snap.ValidatorsWithBlsPub)))) + 1
+			finalityThreshold       int
+			accumulatedVoteWeight   int
 		)
+
+		isTrippEffective := c.IsTrippEffective(chain, header)
+		if isTrippEffective {
+			finalityThreshold = int(math.Floor(finalityRatio*float64(consortiumCommon.MaxFinalityVotePercentage))) + 1
+		} else {
+			finalityThreshold = int(math.Floor(finalityRatio*float64(len(snap.ValidatorsWithBlsPub)))) + 1
+		}
 
 		// We assume the signature has been verified in vote pool
 		// so we do not verify signature here
 		if c.votePool != nil {
 			votes := c.votePool.FetchVoteByBlockHash(header.ParentHash)
-			if len(votes) >= finalityThreshold {
+			// Before Tripp (!isTripp), every vote has the same weight so if the number of votes
+			// is lower than threshold, we can short-circuit and skip all the checks
+			if isTrippEffective || len(votes) >= finalityThreshold {
 				for _, vote := range votes {
 					publicKey, err := blst.PublicKeyFromBytes(vote.PublicKey[:])
 					if err != nil {
@@ -1269,14 +1390,22 @@ func (c *Consortium) assembleFinalityVote(header *types.Header, snap *Snapshot) 
 					authorized := false
 					for valPosition, validator := range snap.ValidatorsWithBlsPub {
 						if publicKey.Equals(validator.BlsPublicKey) {
+							authorized = true
 							signature, err := blst.SignatureFromBytes(vote.Signature[:])
 							if err != nil {
 								log.Warn("Malformed signature from vote pool", "err", err)
 								break
 							}
+							if finalityVotedValidators.GetBit(valPosition) != 0 {
+								log.Warn("More than 1 vote from validator", "address", validator.Address.Hex(),
+									"blockHash", header.Hash(), "blockNumber", header.Number)
+								break
+							}
 							signatures = append(signatures, signature)
 							finalityVotedValidators.SetBit(valPosition)
-							authorized = true
+							if isTrippEffective {
+								accumulatedVoteWeight += int(snap.ValidatorsWithBlsPub[valPosition].Weight)
+							}
 							break
 						}
 					}
@@ -1285,8 +1414,10 @@ func (c *Consortium) assembleFinalityVote(header *types.Header, snap *Snapshot) 
 					}
 				}
 
-				bitSetCount := len(finalityVotedValidators.Indices())
-				if bitSetCount >= finalityThreshold {
+				if !isTrippEffective {
+					accumulatedVoteWeight = len(finalityVotedValidators.Indices())
+				}
+				if accumulatedVoteWeight >= finalityThreshold {
 					extraData, err := finality.DecodeExtraV2(header.Extra, c.chainConfig, header.Number)
 					if err != nil {
 						// This should not happen
@@ -1305,7 +1436,6 @@ func (c *Consortium) assembleFinalityVote(header *types.Header, snap *Snapshot) 
 			}
 		}
 	}
-
 }
 
 // GetFinalizedBlock gets the fast finality finalized block
@@ -1374,24 +1504,29 @@ func (c *Consortium) SetVotePool(votePool consensus.VotePool) {
 	c.votePool = votePool
 }
 
-// IsActiveValidatorAt is used to check if we can vote for header.Number (the vote
+// IsFinalityVoterAt is used to check if we can vote for header.Number (the vote
 // is included at header.Number + 1). As explained in assembleFinalityVote, the vote
 // for header.Number is verified by the validator set at snapshot at block.Number.
 // So here we get the snapshot at block.Number not at block.Number - 1
-func (c *Consortium) IsActiveValidatorAt(chain consensus.ChainHeaderReader, header *types.Header) bool {
+func (c *Consortium) IsFinalityVoterAt(chain consensus.ChainHeaderReader, header *types.Header) bool {
 	snap, err := c.snapshot(chain, header.Number.Uint64(), header.Hash(), nil)
 	if err != nil {
 		return false
 	}
 
 	nodeValidator, _, _, _ := c.readSignerAndContract()
+	// After Tripp, voting process is openned for a wider set of validator candidates
+	// (at most 64 validators), which are stored in ValidatorsWithBlsPub of HeaderExtraData
+	if c.IsTrippEffective(chain, header) {
+		return snap.inVoterSet(nodeValidator)
+	}
 	return snap.inInValidatorSet(nodeValidator)
 }
 
-// GetActiveValidatorAt gets the validator that can vote for block number
+// GetFinalityVoterAt gets the validator that can vote for block number
 // (the vote is included in block number + 1), so get the snapshot at
 // block number
-func (c *Consortium) GetActiveValidatorAt(
+func (c *Consortium) GetFinalityVoterAt(
 	chain consensus.ChainHeaderReader,
 	blockNumber uint64,
 	blockHash common.Hash,
@@ -1475,4 +1610,89 @@ func encodeSigHeader(w io.Writer, header *types.Header, chainId *big.Int) {
 	if err != nil {
 		panic("can't encode: " + err.Error())
 	}
+}
+
+// getLastCheckpointHeader returns the last checkpoint header, this function is used as a fallback when we cannot
+// get the snapshot to query the period number
+func (c *Consortium) getLastCheckpointHeader(chain consensus.ChainHeaderReader, currentHeader *types.Header) *types.Header {
+	current := currentHeader
+	for {
+		parentNumber := current.Number.Uint64() - 1
+		parentHash := current.ParentHash
+		current = chain.GetHeader(parentHash, parentNumber)
+		if current == nil {
+			log.Error("Failed to get block", "number", parentNumber, "hash", parentHash.Hex())
+			return nil
+		}
+
+		if current.Number.Uint64()%c.config.EpochV2 == 0 {
+			break
+		}
+	}
+
+	return current
+}
+
+// IsPeriodBlock returns indicator whether a block is a period checkpoint block or not,
+// which is the first checkpoint block (block % EpochV2 == 0) after 00:00 UTC everyday.
+func (c *Consortium) IsPeriodBlock(chain consensus.ChainHeaderReader, header *types.Header) bool {
+	number := header.Number.Uint64()
+	if number%c.config.EpochV2 != 0 || !chain.Config().IsTripp(header.Number) {
+		return false
+	}
+	snap, err := c.snapshot(chain, number-1, header.ParentHash, nil)
+
+	// If error happens when derive snapshot or current period is absent, we recursively find
+	// the nearest epoch block; and determine whether the header is one day ahead of that neighbor.
+	if err != nil {
+		log.Warn("Fail to get snapshot at", "block", number-1, "err", err)
+		parent := c.getLastCheckpointHeader(chain, header)
+		if parent == nil {
+			return false
+		}
+		return uint64(header.Time/dayInSeconds) > uint64(parent.Time/dayInSeconds)
+	}
+	if snap.CurrentPeriod == 0 {
+		return false
+	}
+	return uint64(header.Time/dayInSeconds) > snap.CurrentPeriod
+}
+
+// IsTrippEffective returns if the finality vote rule change is effective. This change is effective
+// after the period of Tripp block not right after the Tripp block.
+func (c *Consortium) IsTrippEffective(chain consensus.ChainHeaderReader, header *types.Header) bool {
+	if c.chainConfig.IsTripp(header.Number) {
+		if c.testTrippEffective {
+			return true
+		}
+
+		// This is a small optimization. When we pass the Tripp block with so
+		// many blocks, we don't need to go through checks below
+		if header.Number.Uint64() > c.chainConfig.TrippBlock.Uint64()+28800 {
+			return true
+		}
+
+		// If it is the checkpoint block, check its period number with the configured one
+		if header.Number.Uint64()%c.chainConfig.Consortium.EpochV2 == 0 {
+			return uint64(header.Time/dayInSeconds) > c.chainConfig.TrippPeriod.Uint64()
+		}
+
+		// else check the period number of the last checkpoint header with the configured one
+		snap, err := c.snapshot(chain, header.Number.Uint64()-1, header.ParentHash, nil)
+		if err != nil {
+			log.Error("Failed to get snapshot", "err", err)
+			parent := c.getLastCheckpointHeader(chain, header)
+			if parent == nil {
+				return false
+			}
+
+			return uint64(parent.Time/dayInSeconds) > c.chainConfig.TrippPeriod.Uint64()
+		}
+
+		if snap.CurrentPeriod > c.chainConfig.TrippPeriod.Uint64() {
+			return true
+		}
+	}
+
+	return false
 }

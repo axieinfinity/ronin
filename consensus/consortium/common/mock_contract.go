@@ -14,7 +14,7 @@ import (
 var Validators *MockValidators
 
 type MockValidators struct {
-	validators []common.Address
+	validators    []common.Address
 	blsPublicKeys map[common.Address]blsCommon.PublicKey
 }
 
@@ -25,7 +25,7 @@ func SetMockValidators(validators, publicKeys string) error {
 		return errors.New("mismatch length between mock validators and mock blsPubKey")
 	}
 	Validators = &MockValidators{
-		validators: make([]common.Address, len(vals)),
+		validators:    make([]common.Address, len(vals)),
 		blsPublicKeys: make(map[common.Address]blsCommon.PublicKey),
 	}
 	for i, val := range vals {
@@ -53,8 +53,12 @@ func (m *MockValidators) GetPublicKey(addr common.Address) (blsCommon.PublicKey,
 type MockContract struct {
 }
 
-func (contract *MockContract) GetValidators(*big.Int) ([]common.Address, error) {
+func (contract *MockContract) GetBlockProducers(*big.Int) ([]common.Address, error) {
 	return Validators.GetValidators(), nil
+}
+
+func (contract *MockContract) GetValidatorCandidates(*big.Int) ([]common.Address, error) {
+	return nil, nil
 }
 
 func (contract *MockContract) WrapUpEpoch(*ApplyTransactOpts) error {
@@ -79,4 +83,8 @@ func (contract *MockContract) FinalityReward(*ApplyTransactOpts, []common.Addres
 
 func (contract *MockContract) GetBlsPublicKey(_ *big.Int, addr common.Address) (blsCommon.PublicKey, error) {
 	return Validators.GetPublicKey(addr)
+}
+
+func (contract *MockContract) GetStakedAmount(_ *big.Int, _ []common.Address) ([]*big.Int, error) {
+	return nil, nil
 }
