@@ -19,6 +19,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/consortium/generated_contracts/profile"
 	roninValidatorSet "github.com/ethereum/go-ethereum/consensus/consortium/generated_contracts/ronin_validator_set"
 	slashIndicator "github.com/ethereum/go-ethereum/consensus/consortium/generated_contracts/slash_indicator"
+	"github.com/ethereum/go-ethereum/consensus/consortium/generated_contracts/staking"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -53,12 +54,14 @@ func getTransactionOpts(from common.Address, nonce uint64, chainId *big.Int, sig
 }
 
 type ContractInteraction interface {
-	GetValidators(blockNumber *big.Int) ([]common.Address, error)
+	GetBlockProducers(blockNumber *big.Int) ([]common.Address, error)
+	GetValidatorCandidates(blockNumber *big.Int) ([]common.Address, error)
 	WrapUpEpoch(opts *ApplyTransactOpts) error
 	SubmitBlockReward(opts *ApplyTransactOpts) error
 	Slash(opts *ApplyTransactOpts, spoiledValidator common.Address) error
 	FinalityReward(opts *ApplyTransactOpts, votedValidators []common.Address) error
 	GetBlsPublicKey(blockNumber *big.Int, validator common.Address) (blsCommon.PublicKey, error)
+	GetStakedAmount(blockNumber *big.Int, validators []common.Address) ([]*big.Int, error)
 }
 
 // ContractIntegrator is a contract facing to interact with smart contract that supports DPoS
@@ -69,6 +72,7 @@ type ContractIntegrator struct {
 	slashIndicatorSC    *slashIndicator.SlashIndicator
 	profileSC           *profile.Profile
 	finalityTrackingSC  *finalityTracking.FinalityTracking
+	stakingSC           *staking.Staking
 	signTxFn            SignerTxFn
 	coinbase            common.Address
 }
@@ -99,24 +103,42 @@ func NewContractIntegrator(config *chainParams.ChainConfig, backend bind.Contrac
 		return nil, err
 	}
 
+	// Create Staking contract instance
+	stakingSC, err := staking.NewStaking(config.ConsortiumV2Contracts.StakingContract, backend)
+	if err != nil {
+		return nil, err
+	}
+
 	return &ContractIntegrator{
 		chainId:             config.ChainID,
 		roninValidatorSetSC: roninValidatorSetSC,
 		slashIndicatorSC:    slashIndicatorSC,
 		profileSC:           profileSC,
 		finalityTrackingSC:  finalityTrackingSC,
+		stakingSC:           stakingSC,
 		signTxFn:            signTxFn,
 		signer:              types.LatestSignerForChainID(config.ChainID),
 		coinbase:            coinbase,
 	}, nil
 }
 
-// GetValidators retrieves top validators addresses
-func (c *ContractIntegrator) GetValidators(blockNumber *big.Int) ([]common.Address, error) {
+// GetBlockProducers retrieves block producer addresses
+func (c *ContractIntegrator) GetBlockProducers(blockNumber *big.Int) ([]common.Address, error) {
 	callOpts := bind.CallOpts{
 		BlockNumber: blockNumber,
 	}
 	addresses, err := c.roninValidatorSetSC.GetBlockProducers(&callOpts)
+	if err != nil {
+		return nil, err
+	}
+	return addresses, nil
+}
+
+func (c *ContractIntegrator) GetValidatorCandidates(blockNumber *big.Int) ([]common.Address, error) {
+	callOpts := bind.CallOpts{
+		BlockNumber: blockNumber,
+	}
+	addresses, err := c.roninValidatorSetSC.GetValidatorCandidates(&callOpts)
 	if err != nil {
 		return nil, err
 	}
@@ -261,6 +283,19 @@ func (c *ContractIntegrator) GetBlsPublicKey(blockNumber *big.Int, validator com
 	}
 
 	return blsPublicKey, nil
+}
+
+func (c *ContractIntegrator) GetStakedAmount(blockNumber *big.Int, validators []common.Address) ([]*big.Int, error) {
+	callOpts := bind.CallOpts{
+		BlockNumber: blockNumber,
+	}
+
+	stakedAmount, err := c.stakingSC.GetManyStakingTotals(&callOpts, validators)
+	if err != nil {
+		return nil, err
+	}
+
+	return stakedAmount, nil
 }
 
 // ApplyMessageOpts is the collection of options to fine tune a contract call request.

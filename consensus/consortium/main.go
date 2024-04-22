@@ -229,10 +229,10 @@ func (c *Consortium) SetVotePool(votePool consensus.VotePool) {
 	c.v2.SetVotePool(votePool)
 }
 
-// IsActiveValidatorAt always returns false before Shillin
-func (c *Consortium) IsActiveValidatorAt(chain consensus.ChainHeaderReader, header *types.Header) bool {
+// IsFinalityVoterAt always returns false before Shillin
+func (c *Consortium) IsFinalityVoterAt(chain consensus.ChainHeaderReader, header *types.Header) bool {
 	if c.chainConfig.IsShillin(header.Number) {
-		return c.v2.IsActiveValidatorAt(chain, header)
+		return c.v2.IsFinalityVoterAt(chain, header)
 	}
 
 	return false
@@ -244,16 +244,16 @@ func (c *Consortium) VerifyVote(chain consensus.ChainHeaderReader, vote *types.V
 	return c.v2.VerifyVote(chain, vote)
 }
 
-// GetActiveValidatorAt always return false before Shillin
-// See the comment for GetActiveValidatorAt in v2 package
+// GetFinalityVoterAt always return false before Shillin
+// See the comment for GetFinalityVoterAt in v2 package
 // for more information
-func (c *Consortium) GetActiveValidatorAt(
+func (c *Consortium) GetFinalityVoterAt(
 	chain consensus.ChainHeaderReader,
 	blockNumber uint64,
 	blockHash common.Hash,
 ) []finality.ValidatorWithBlsPub {
 	if c.chainConfig.IsShillin(big.NewInt(int64(blockNumber))) {
-		return c.v2.GetActiveValidatorAt(chain, blockNumber, blockHash)
+		return c.v2.GetFinalityVoterAt(chain, blockNumber, blockHash)
 	}
 
 	return nil
