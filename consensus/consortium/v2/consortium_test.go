@@ -1009,7 +1009,7 @@ func (contract *mockContract) FinalityReward(opts *consortiumCommon.ApplyTransac
 	return nil
 }
 
-func (contract *mockContract) GetBlockProducers(*big.Int) ([]common.Address, error) {
+func (contract *mockContract) GetBlockProducers(_ common.Hash, _ *big.Int) ([]common.Address, error) {
 	var validatorAddresses []common.Address
 	for address := range contract.validators {
 		validatorAddresses = append(validatorAddresses, address)
@@ -1017,11 +1017,11 @@ func (contract *mockContract) GetBlockProducers(*big.Int) ([]common.Address, err
 	return validatorAddresses, nil
 }
 
-func (contract *mockContract) GetValidatorCandidates(blockNumber *big.Int) ([]common.Address, error) {
+func (contract *mockContract) GetValidatorCandidates(_ common.Hash, _ *big.Int) ([]common.Address, error) {
 	return nil, nil
 }
 
-func (contract *mockContract) GetBlsPublicKey(_ *big.Int, address common.Address) (blsCommon.PublicKey, error) {
+func (contract *mockContract) GetBlsPublicKey(_ common.Hash, _ *big.Int, address common.Address) (blsCommon.PublicKey, error) {
 	if key, ok := contract.validators[address]; ok {
 		if key != nil {
 			return key, nil
@@ -1033,7 +1033,7 @@ func (contract *mockContract) GetBlsPublicKey(_ *big.Int, address common.Address
 	}
 }
 
-func (contract *mockContract) GetStakedAmount(_ *big.Int, _ []common.Address) ([]*big.Int, error) {
+func (contract *mockContract) GetStakedAmount(_ common.Hash, _ *big.Int, _ []common.Address) ([]*big.Int, error) {
 	return nil, nil
 }
 

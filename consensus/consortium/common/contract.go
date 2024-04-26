@@ -10,6 +10,7 @@ import (
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts"
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
@@ -58,14 +59,14 @@ func getTransactionOpts(from common.Address, nonce uint64, chainId *big.Int, sig
 }
 
 type ContractInteraction interface {
-	GetBlockProducers(blockNumber *big.Int) ([]common.Address, error)
-	GetValidatorCandidates(blockNumber *big.Int) ([]common.Address, error)
 	WrapUpEpoch(opts *ApplyTransactOpts) error
 	SubmitBlockReward(opts *ApplyTransactOpts) error
 	Slash(opts *ApplyTransactOpts, spoiledValidator common.Address) error
 	FinalityReward(opts *ApplyTransactOpts, votedValidators []common.Address) error
-	GetBlsPublicKey(blockNumber *big.Int, validator common.Address) (blsCommon.PublicKey, error)
-	GetStakedAmount(blockNumber *big.Int, validators []common.Address) ([]*big.Int, error)
+	GetBlockProducers(blockHash common.Hash, blockNumber *big.Int) ([]common.Address, error)
+	GetValidatorCandidates(blockHash common.Hash, blockNumber *big.Int) ([]common.Address, error)
+	GetBlsPublicKey(blockHash common.Hash, blockNumber *big.Int, validator common.Address) (blsCommon.PublicKey, error)
+	GetStakedAmount(blockHash common.Hash, blockNumber *big.Int, validators []common.Address) ([]*big.Int, error)
 }
 
 // ContractIntegrator is a contract facing to interact with smart contract that supports DPoS
@@ -74,41 +75,46 @@ type ContractIntegrator struct {
 	signer              types.Signer
 	roninValidatorSetSC *roninValidatorSet.RoninValidatorSet
 	slashIndicatorSC    *slashIndicator.SlashIndicator
-	profileSC           *profile.Profile
 	finalityTrackingSC  *finalityTracking.FinalityTracking
-	stakingSC           *staking.Staking
-	signTxFn            SignerTxFn
-	coinbase            common.Address
+
+	roninValidatorSetABI *abi.ABI
+	profileABI           *abi.ABI
+	stakingABI           *abi.ABI
+
+	chainConfig *chainParams.ChainConfig
+	ethAPI      *ethapi.PublicBlockChainAPI
+
+	signTxFn SignerTxFn
+	coinbase common.Address
 }
 
 // NewContractIntegrator creates new ContractIntegrator with custom backend and signTxFn
-func NewContractIntegrator(config *chainParams.ChainConfig, backend bind.ContractBackend, signTxFn SignerTxFn, coinbase common.Address) (*ContractIntegrator, error) {
+func NewContractIntegrator(config *chainParams.ChainConfig, backend bind.ContractBackend, signTxFn SignerTxFn, coinbase common.Address, ethAPI *ethapi.PublicBlockChainAPI) (*ContractIntegrator, error) {
 	// Create Ronin Validator Set smart contract
 	roninValidatorSetSC, err := roninValidatorSet.NewRoninValidatorSet(config.ConsortiumV2Contracts.RoninValidatorSet, backend)
 	if err != nil {
 		return nil, err
 	}
-
 	// Create Slash Indicator smart contract
 	slashIndicatorSC, err := slashIndicator.NewSlashIndicator(config.ConsortiumV2Contracts.SlashIndicator, backend)
 	if err != nil {
 		return nil, err
 	}
-
-	// Create Profile contract instance
-	profileSC, err := profile.NewProfile(config.ConsortiumV2Contracts.ProfileContract, backend)
-	if err != nil {
-		return nil, err
-	}
-
 	// Create Finality Tracking contract instance
 	finalityTrackingSC, err := finalityTracking.NewFinalityTracking(config.ConsortiumV2Contracts.FinalityTracking, backend)
 	if err != nil {
 		return nil, err
 	}
 
-	// Create Staking contract instance
-	stakingSC, err := staking.NewStaking(config.ConsortiumV2Contracts.StakingContract, backend)
+	roninValidatorSetABI, err := roninValidatorSet.RoninValidatorSetMetaData.GetAbi()
+	if err != nil {
+		return nil, err
+	}
+	stakingABI, err := staking.StakingMetaData.GetAbi()
+	if err != nil {
+		return nil, err
+	}
+	profileABI, err := profile.ProfileMetaData.GetAbi()
 	if err != nil {
 		return nil, err
 	}
@@ -117,36 +123,80 @@ func NewContractIntegrator(config *chainParams.ChainConfig, backend bind.Contrac
 		chainId:             config.ChainID,
 		roninValidatorSetSC: roninValidatorSetSC,
 		slashIndicatorSC:    slashIndicatorSC,
-		profileSC:           profileSC,
 		finalityTrackingSC:  finalityTrackingSC,
-		stakingSC:           stakingSC,
-		signTxFn:            signTxFn,
-		signer:              types.LatestSignerForChainID(config.ChainID),
-		coinbase:            coinbase,
+
+		roninValidatorSetABI: roninValidatorSetABI,
+		profileABI:           profileABI,
+		stakingABI:           stakingABI,
+
+		chainConfig: config,
+		ethAPI:      ethAPI,
+
+		signTxFn: signTxFn,
+		signer:   types.LatestSignerForChainID(config.ChainID),
+		coinbase: coinbase,
 	}, nil
 }
 
 // GetBlockProducers retrieves block producer addresses
-func (c *ContractIntegrator) GetBlockProducers(blockNumber *big.Int) ([]common.Address, error) {
-	callOpts := bind.CallOpts{
-		BlockNumber: blockNumber,
+func (c *ContractIntegrator) GetBlockProducers(blockHash common.Hash, blockNumber *big.Int) ([]common.Address, error) {
+	blockNr := rpc.BlockNumberOrHashWithNumber(rpc.BlockNumber(blockNumber.Int64()))
+	if c.chainConfig.IsTripp(blockNumber) {
+		blockNr = rpc.BlockNumberOrHashWithHash(blockHash, false)
 	}
-	addresses, err := c.roninValidatorSetSC.GetBlockProducers(&callOpts)
+
+	method := "getBlockProducers"
+	data, err := c.roninValidatorSetABI.Pack(method)
+	if err != nil {
+		log.Error("Failed to pack tx to get block producers", "error", err)
+		return nil, err
+	}
+	// do smart contract call
+	msgData := (hexutil.Bytes)(data)
+	to := c.chainConfig.ConsortiumV2Contracts.RoninValidatorSet
+	gas := (hexutil.Uint64)(uint64(math.MaxUint64 / 2))
+	result, err := c.ethAPI.Call(context.Background(), ethapi.TransactionArgs{
+		Gas:  &gas,
+		To:   &to,
+		Data: &msgData,
+	}, blockNr, nil, nil)
 	if err != nil {
 		return nil, err
 	}
-	return addresses, nil
+
+	var addresses []common.Address
+	err = c.roninValidatorSetABI.UnpackIntoInterface(&addresses, method, result)
+	return addresses, err
 }
 
-func (c *ContractIntegrator) GetValidatorCandidates(blockNumber *big.Int) ([]common.Address, error) {
-	callOpts := bind.CallOpts{
-		BlockNumber: blockNumber,
+func (c *ContractIntegrator) GetValidatorCandidates(blockHash common.Hash, blockNumber *big.Int) ([]common.Address, error) {
+	blockNr := rpc.BlockNumberOrHashWithNumber(rpc.BlockNumber(blockNumber.Int64()))
+	if c.chainConfig.IsTripp(blockNumber) {
+		blockNr = rpc.BlockNumberOrHashWithHash(blockHash, false)
 	}
-	addresses, err := c.roninValidatorSetSC.GetValidatorCandidates(&callOpts)
+
+	method := "getValidatorCandidates"
+	data, err := c.roninValidatorSetABI.Pack(method)
+	if err != nil {
+		log.Error("Failed to pack tx to get validator candidates", "error", err)
+		return nil, err
+	}
+	// do smart contract call
+	msgData := (hexutil.Bytes)(data)
+	to := c.chainConfig.ConsortiumV2Contracts.RoninValidatorSet
+	gas := (hexutil.Uint64)(uint64(math.MaxUint64 / 2))
+	result, err := c.ethAPI.Call(context.Background(), ethapi.TransactionArgs{
+		Gas:  &gas,
+		To:   &to,
+		Data: &msgData,
+	}, blockNr, nil, nil)
 	if err != nil {
 		return nil, err
 	}
-	return addresses, nil
+
+	var addresses []common.Address
+	err = c.roninValidatorSetABI.UnpackIntoInterface(&addresses, method, result)
+	return addresses, err
 }
 
 // WrapUpEpoch distributes rewards to validators and updates validators set
@@ -273,33 +323,71 @@ func (c *ContractIntegrator) FinalityReward(opts *ApplyTransactOpts, votedValida
 	return nil
 }
 
-func (c *ContractIntegrator) GetBlsPublicKey(blockNumber *big.Int, validator common.Address) (blsCommon.PublicKey, error) {
-	callOpts := bind.CallOpts{
-		BlockNumber: blockNumber,
+func (c *ContractIntegrator) GetBlsPublicKey(blockHash common.Hash, blockNumber *big.Int, validator common.Address) (blsCommon.PublicKey, error) {
+	blockNr := rpc.BlockNumberOrHashWithNumber(rpc.BlockNumber(blockNumber.Int64()))
+	if c.chainConfig.IsTripp(blockNumber) {
+		blockNr = rpc.BlockNumberOrHashWithHash(blockHash, false)
 	}
-	validatorProfile, err := c.profileSC.GetId2Profile(&callOpts, validator)
+
+	method := "getId2Profile"
+	data, err := c.profileABI.Pack(method, validator)
+	if err != nil {
+		log.Error("Failed to pack tx to get bls public key", "error", err)
+		return nil, err
+	}
+	// do smart contract call
+	msgData := (hexutil.Bytes)(data)
+	to := c.chainConfig.ConsortiumV2Contracts.ProfileContract
+	gas := (hexutil.Uint64)(uint64(math.MaxUint64 / 2))
+	result, err := c.ethAPI.Call(context.Background(), ethapi.TransactionArgs{
+		Gas:  &gas,
+		To:   &to,
+		Data: &msgData,
+	}, blockNr, nil, nil)
 	if err != nil {
 		return nil, err
 	}
+
+	var validatorProfile profile.IProfileCandidateProfile
+	if err := c.profileABI.UnpackIntoInterface(&validatorProfile, method, result); err != nil {
+		return nil, err
+	}
+
 	blsPublicKey, err := blst.PublicKeyFromBytes(validatorProfile.Pubkey)
 	if err != nil {
 		return nil, err
 	}
-
 	return blsPublicKey, nil
 }
 
-func (c *ContractIntegrator) GetStakedAmount(blockNumber *big.Int, validators []common.Address) ([]*big.Int, error) {
-	callOpts := bind.CallOpts{
-		BlockNumber: blockNumber,
+func (c *ContractIntegrator) GetStakedAmount(blockHash common.Hash, blockNumber *big.Int, validators []common.Address) ([]*big.Int, error) {
+	blockNr := rpc.BlockNumberOrHashWithNumber(rpc.BlockNumber(blockNumber.Int64()))
+	if c.chainConfig.IsTripp(blockNumber) {
+		blockNr = rpc.BlockNumberOrHashWithHash(blockHash, false)
 	}
 
-	stakedAmount, err := c.stakingSC.GetManyStakingTotals(&callOpts, validators)
+	method := "getManyStakingTotals"
+	data, err := c.stakingABI.Pack(method, validators)
+	if err != nil {
+		log.Error("Failed to pack tx to get staked amount", "error", err)
+		return nil, err
+	}
+	// do smart contract call
+	msgData := (hexutil.Bytes)(data)
+	to := c.chainConfig.ConsortiumV2Contracts.StakingContract
+	gas := (hexutil.Uint64)(uint64(math.MaxUint64 / 2))
+	result, err := c.ethAPI.Call(context.Background(), ethapi.TransactionArgs{
+		Gas:  &gas,
+		To:   &to,
+		Data: &msgData,
+	}, blockNr, nil, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	return stakedAmount, nil
+	var stakedAmounts []*big.Int
+	err = c.stakingABI.UnpackIntoInterface(&stakedAmounts, method, result)
+	return stakedAmounts, err
 }
 
 // ApplyMessageOpts is the collection of options to fine tune a contract call request.
