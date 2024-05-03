@@ -48,7 +48,7 @@ const (
 
 	finalityRatio                  float64 = 2.0 / 3
 	assemblingFinalityVoteDuration         = 1 * time.Second
-	MaxValidatorCandidates                 = 64 // Maximum number of validator candidates (aka voters for a block).
+	MaxValidatorCandidates                 = 64 // Maximum number of validator candidates.
 	dayInSeconds                           = uint64(86400)
 )
 
@@ -462,7 +462,7 @@ func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, 
 
 		// this case is only happened in mock mode
 		if number == 0 {
-			validators, err := c.contract.GetBlockProducers(common.Big0)
+			validators, err := c.contract.GetBlockProducers(common.Hash{}, common.Big0)
 			if err != nil {
 				return nil, err
 			}
@@ -481,9 +481,8 @@ func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, 
 				break
 			}
 
-			// get validators set from number
 			_, _, _, contract := c.readSignerAndContract()
-			validators, err := contract.GetBlockProducers(big.NewInt(0).SetUint64(number))
+			validators, err := contract.GetBlockProducers(common.Hash{}, new(big.Int).SetUint64(number))
 			if err != nil {
 				log.Error("Load validators at the beginning failed", "err", err)
 				return nil, err
@@ -699,41 +698,35 @@ func (c *Consortium) getCheckpointValidatorsFromContract(
 	header *types.Header,
 ) ([]finality.ValidatorWithBlsPub, []common.Address, error) {
 	parentBlockNumber := new(big.Int).Sub(header.Number, common.Big1)
+	parentHash := header.ParentHash
 	_, _, _, contract := c.readSignerAndContract()
 
-	blockProducers, err := contract.GetBlockProducers(parentBlockNumber)
+	blockProducers, err := contract.GetBlockProducers(parentHash, parentBlockNumber)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	var checkpointValidators []finality.ValidatorWithBlsPub
 
-	// After Tripp, bls key and staked amount are read only once at
-	// the start of new period, whereas block producer address is read
-	// at the start of every epoch.
 	if c.IsTrippEffective(chain, header) {
 		sort.Sort(validatorsAscending(blockProducers))
 		if !isPeriodBlock {
 			return nil, blockProducers, nil
 		}
-		validatorCandidates, err := contract.GetValidatorCandidates(parentBlockNumber)
+		validatorCandidates, err := contract.GetValidatorCandidates(parentHash, parentBlockNumber)
 		if err != nil {
 			return nil, nil, err
 		}
-		// After Tripp, there is a upper bound for the number of validator candidates
-		// (aka voters for blocks) during a period, which is ensured by the contract.
-		// However, we add additional check here to ensure that the field FinalityVoteBitSet
-		// (of type uint64) works in proper manner.
 		if len(validatorCandidates) > MaxValidatorCandidates {
 			validatorCandidates = validatorCandidates[:MaxValidatorCandidates]
 		}
-		stakedAmounts, err := c.contract.GetStakedAmount(header.Number, validatorCandidates)
+		stakedAmounts, err := c.contract.GetStakedAmount(parentHash, parentBlockNumber, validatorCandidates)
 		if err != nil {
 			return nil, nil, err
 		}
 		weights := consortiumCommon.NormalizeFinalityVoteWeight(stakedAmounts)
 		for i, candidate := range validatorCandidates {
-			blsPublicKey, err := contract.GetBlsPublicKey(parentBlockNumber, candidate)
+			blsPublicKey, err := contract.GetBlsPublicKey(parentHash, parentBlockNumber, candidate)
 			if err == nil {
 				checkpointValidators = append(checkpointValidators, finality.ValidatorWithBlsPub{
 					Address:      candidate,
@@ -755,7 +748,7 @@ func (c *Consortium) getCheckpointValidatorsFromContract(
 		// See more: https://github.com/golang/go/wiki/SliceTricks#filtering-without-allocating
 		filteredValidators = filteredValidators[:0]
 		for _, validator := range blockProducers {
-			blsPublicKey, err := contract.GetBlsPublicKey(parentBlockNumber, validator)
+			blsPublicKey, err := contract.GetBlsPublicKey(parentHash, parentBlockNumber, validator)
 			if err == nil {
 				filteredValidators = append(filteredValidators, validator)
 				blsPublicKeys = append(blsPublicKeys, blsPublicKey)
@@ -1270,7 +1263,7 @@ func (c *Consortium) initContract(coinbase common.Address, signTxFn consortiumCo
 		return nil
 	}
 	var err error
-	c.contract, err = consortiumCommon.NewContractIntegrator(c.chainConfig, consortiumCommon.NewConsortiumBackend(c.ethAPI), signTxFn, coinbase)
+	c.contract, err = consortiumCommon.NewContractIntegrator(c.chainConfig, consortiumCommon.NewConsortiumBackend(c.ethAPI), signTxFn, coinbase, c.ethAPI)
 	return err
 }
 

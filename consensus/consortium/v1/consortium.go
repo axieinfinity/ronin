@@ -793,7 +793,7 @@ func (c *Consortium) signerInTurn(signer common.Address, number uint64, validato
 
 func (c *Consortium) initContract(coinbase common.Address, signTxFn consortiumCommon.SignerTxFn) error {
 	if c.chainConfig.ConsortiumV2Block != nil && c.chainConfig.ConsortiumV2Contracts != nil {
-		contract, err := consortiumCommon.NewContractIntegrator(c.chainConfig, consortiumCommon.NewConsortiumBackend(c.ethAPI), signTxFn, coinbase)
+		contract, err := consortiumCommon.NewContractIntegrator(c.chainConfig, consortiumCommon.NewConsortiumBackend(c.ethAPI), signTxFn, coinbase, c.ethAPI)
 		if err != nil {
 			return err
 		}
