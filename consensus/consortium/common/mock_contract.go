@@ -53,11 +53,11 @@ func (m *MockValidators) GetPublicKey(addr common.Address) (blsCommon.PublicKey,
 type MockContract struct {
 }
 
-func (contract *MockContract) GetBlockProducers(*big.Int) ([]common.Address, error) {
+func (contract *MockContract) GetBlockProducers(blockHash common.Hash, blockNumber *big.Int) ([]common.Address, error) {
 	return Validators.GetValidators(), nil
 }
 
-func (contract *MockContract) GetValidatorCandidates(*big.Int) ([]common.Address, error) {
+func (contract *MockContract) GetValidatorCandidates(blockHash common.Hash, blockNumber *big.Int) ([]common.Address, error) {
 	return nil, nil
 }
 
@@ -81,10 +81,10 @@ func (contract *MockContract) FinalityReward(*ApplyTransactOpts, []common.Addres
 	return nil
 }
 
-func (contract *MockContract) GetBlsPublicKey(_ *big.Int, addr common.Address) (blsCommon.PublicKey, error) {
+func (contract *MockContract) GetBlsPublicKey(blockHash common.Hash, blockNumber *big.Int, addr common.Address) (blsCommon.PublicKey, error) {
 	return Validators.GetPublicKey(addr)
 }
 
-func (contract *MockContract) GetStakedAmount(_ *big.Int, _ []common.Address) ([]*big.Int, error) {
+func (contract *MockContract) GetStakedAmount(blockHash common.Hash, blockNumber *big.Int, addr []common.Address) ([]*big.Int, error) {
 	return nil, nil
 }
