@@ -63,7 +63,7 @@ make all
 
 Before running a full node, init genesis block is necessary
 ```shell
-ronin init genesis/mainnet.json --datadir /opt/ronin
+ronin init --datadir /opt/ronin genesis/mainnet.json
 ```
 
 ### Full node on the main Ronin network

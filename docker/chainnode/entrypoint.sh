@@ -135,15 +135,17 @@ if [[ ! -z $PRIVATE_KEY ]]; then
   if [[ $accountsCount -le 0 ]]; then
     echo "No accounts found"
     echo "Creating account from private key"
-    ronin account import ./private_key \
+    ronin account import \
       --datadir $datadir \
       --keystore $KEYSTORE_DIR \
-      --password $PASSWORD_FILE
+      --password $PASSWORD_FILE \
+      ./private_key
   else
     set +e
-    ronin account check ./private_key \
+    ronin account check \
       --datadir $datadir \
-      --keystore $KEYSTORE_DIR 2> /dev/null
+      --keystore $KEYSTORE_DIR \
+      ./private_key 2> /dev/null
     exitCode=$?
     if [[ $exitCode -ne 0 ]]; then
       echo "An account with different address already exists in $KEYSTORE_DIR"
@@ -188,14 +190,16 @@ if [[ "$ENABLE_FAST_FINALITY_SIGN" = "true" ]]; then
     if [[ $blsAccountsCount -le 0 ]]; then
       echo "No BLS accounts found"
       echo "Creating BLS account from BLS private key"
-      ronin account importbls ./bls_private_key \
+      ronin account importbls \
         --finality.blspasswordpath $BLS_PASSWORD_FILE \
-        --finality.blswalletpath $BLS_PRIVATE_KEY_DIR
+        --finality.blswalletpath $BLS_PRIVATE_KEY_DIR \
+        ./bls_private_key
     else
       set +e
-      ronin account checkbls ./bls_private_key \
+      ronin account checkbls \
         --finality.blspasswordpath $BLS_PASSWORD_FILE \
-        --finality.blswalletpath $BLS_PRIVATE_KEY_DIR 2> /dev/null
+        --finality.blswalletpath $BLS_PRIVATE_KEY_DIR \
+        ./bls_private_key 2> /dev/null
       exitCode=$?
       if [[ $exitCode -ne 0 ]]; then
         echo "An account with different public key already exists in $KEYSTORE_DIR"
