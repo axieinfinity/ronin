@@ -31,11 +31,11 @@ import (
 	"github.com/ethereum/go-ethereum/crypto/bls/blst"
 	blsCommon "github.com/ethereum/go-ethereum/crypto/bls/common"
 	"github.com/ethereum/go-ethereum/log"
-	"gopkg.in/urfave/cli.v1"
+	"github.com/urfave/cli/v2"
 )
 
 var (
-	walletCommand = cli.Command{
+	walletCommand = &cli.Command{
 		Name:      "wallet",
 		Usage:     "Manage Ethereum presale wallets",
 		ArgsUsage: "",
@@ -46,13 +46,13 @@ var (
 will prompt for your password and imports your ether presale account.
 It can be used non-interactively with the --password option taking a
 passwordfile as argument containing the wallet password in plaintext.`,
-		Subcommands: []cli.Command{
+		Subcommands: []*cli.Command{
 			{
 
 				Name:      "import",
 				Usage:     "Import Ethereum presale wallet",
 				ArgsUsage: "<keyFile>",
-				Action:    utils.MigrateFlags(importWallet),
+				Action:    importWallet,
 				Category:  "ACCOUNT COMMANDS",
 				Flags: []cli.Flag{
 					utils.DataDirFlag,
@@ -70,7 +70,7 @@ passwordfile as argument containing the wallet password in plaintext.`,
 		},
 	}
 
-	accountCommand = cli.Command{
+	accountCommand = &cli.Command{
 		Name:     "account",
 		Usage:    "Manage accounts",
 		Category: "ACCOUNT COMMANDS",
@@ -94,11 +94,11 @@ It is safe to transfer the entire directory or the individual keys therein
 between ethereum nodes by simply copying.
 
 Make sure you backup your keys regularly.`,
-		Subcommands: []cli.Command{
+		Subcommands: []*cli.Command{
 			{
 				Name:   "list",
 				Usage:  "Print summary of existing accounts",
-				Action: utils.MigrateFlags(accountList),
+				Action: accountList,
 				Flags: []cli.Flag{
 					utils.DataDirFlag,
 					utils.KeyStoreDirFlag,
@@ -109,7 +109,7 @@ Print a short summary of all accounts`,
 			{
 				Name:   "new",
 				Usage:  "Create a new account",
-				Action: utils.MigrateFlags(accountCreate),
+				Action: accountCreate,
 				Flags: []cli.Flag{
 					utils.DataDirFlag,
 					utils.KeyStoreDirFlag,
@@ -134,7 +134,7 @@ password to file or expose in any other way.
 			{
 				Name:      "update",
 				Usage:     "Update an existing account",
-				Action:    utils.MigrateFlags(accountUpdate),
+				Action:    accountUpdate,
 				ArgsUsage: "<address>",
 				Flags: []cli.Flag{
 					utils.DataDirFlag,
@@ -163,7 +163,7 @@ changing your password is only possible interactively.
 			{
 				Name:   "import",
 				Usage:  "Import a private key into a new account",
-				Action: utils.MigrateFlags(accountImport),
+				Action: accountImport,
 				Flags: []cli.Flag{
 					utils.DataDirFlag,
 					utils.KeyStoreDirFlag,
@@ -196,7 +196,7 @@ nodes.
 			{
 				Name:   "check",
 				Usage:  "Check if the account corresponding to private key exists",
-				Action: utils.MigrateFlags(accountCheck),
+				Action: accountCheck,
 				Flags: []cli.Flag{
 					utils.DataDirFlag,
 					utils.KeyStoreDirFlag,
@@ -213,11 +213,11 @@ The keyfile is assumed to contain an unencrypted private key in hexadecimal form
 			{
 				Name:   "listbls",
 				Usage:  "Print information of BLS account",
-				Action: utils.MigrateFlags(blsAccountList),
+				Action: blsAccountList,
 				Flags: []cli.Flag{
 					utils.BlsWalletPath,
 					utils.BlsPasswordPath,
-					cli.BoolFlag{
+					&cli.BoolFlag{
 						Name:  "secret",
 						Usage: "include the secret key in the output",
 					},
@@ -227,7 +227,7 @@ The keyfile is assumed to contain an unencrypted private key in hexadecimal form
 			{
 				Name:   "importbls",
 				Usage:  "Import the BLS secret key",
-				Action: utils.MigrateFlags(blsAccountImport),
+				Action: blsAccountImport,
 				Flags: []cli.Flag{
 					utils.BlsWalletPath,
 					utils.BlsPasswordPath,
@@ -238,7 +238,7 @@ The keyfile is assumed to contain an unencrypted private key in hexadecimal form
 			{
 				Name:   "checkbls",
 				Usage:  "Check if the BLS account corresponding to secret key exists",
-				Action: utils.MigrateFlags(blsAccountCheck),
+				Action: blsAccountCheck,
 				Flags: []cli.Flag{
 					utils.BlsWalletPath,
 					utils.BlsPasswordPath,
@@ -249,11 +249,11 @@ The keyfile is assumed to contain an unencrypted private key in hexadecimal form
 			{
 				Name:   "generatebls",
 				Usage:  "Generate BLS secret key",
-				Action: utils.MigrateFlags(blsAccountGenerate),
+				Action: blsAccountGenerate,
 				Flags: []cli.Flag{
 					utils.BlsWalletPath,
 					utils.BlsPasswordPath,
-					cli.BoolFlag{
+					&cli.BoolFlag{
 						Name:  "secret",
 						Usage: "include the secret key in the output",
 					},
@@ -263,7 +263,7 @@ The keyfile is assumed to contain an unencrypted private key in hexadecimal form
 			{
 				Name:   "generate-bls-proof",
 				Usage:  "Generate BLS proof of possession",
-				Action: utils.MigrateFlags(blsProofGenerate),
+				Action: blsProofGenerate,
 				Flags: []cli.Flag{
 					utils.BlsWalletPath,
 					utils.BlsPasswordPath,
@@ -353,7 +353,7 @@ func ambiguousAddrRecovery(ks *keystore.KeyStore, err *keystore.AmbiguousAddrErr
 func accountCreate(ctx *cli.Context) error {
 	cfg := gethConfig{Node: defaultNodeConfig()}
 	// Load config file.
-	if file := ctx.GlobalString(configFileFlag.Name); file != "" {
+	if file := ctx.String(configFileFlag.Name); file != "" {
 		if err := loadConfig(file, &cfg); err != nil {
 			utils.Fatalf("%v", err)
 		}
@@ -390,13 +390,13 @@ func accountCreate(ctx *cli.Context) error {
 // accountUpdate transitions an account from a previous format to the current
 // one, also providing the possibility to change the pass-phrase.
 func accountUpdate(ctx *cli.Context) error {
-	if len(ctx.Args()) == 0 {
+	if ctx.Args().Len() == 0 {
 		utils.Fatalf("No accounts specified to update")
 	}
 	stack, _ := makeConfigNode(ctx)
 	ks := stack.AccountManager().Backends(keystore.KeyStoreType)[0].(*keystore.KeyStore)
 
-	for _, addr := range ctx.Args() {
+	for _, addr := range ctx.Args().Slice() {
 		account, oldPassword := unlockAccount(ks, addr, 0, nil)
 		newPassword := utils.GetPassPhraseWithList("Please give a new password. Do not forget this password.", true, 0, nil)
 		if err := ks.Update(account, oldPassword, newPassword); err != nil {
@@ -407,6 +407,9 @@ func accountUpdate(ctx *cli.Context) error {
 }
 
 func importWallet(ctx *cli.Context) error {
+	if ctx.Args().Len() != 1 {
+		utils.Fatalf("keyfile must be given as the only argument")
+	}
 	keyfile := ctx.Args().First()
 	if len(keyfile) == 0 {
 		utils.Fatalf("keyfile must be given as argument")
@@ -429,6 +432,9 @@ func importWallet(ctx *cli.Context) error {
 }
 
 func accountImport(ctx *cli.Context) error {
+	if ctx.Args().Len() != 1 {
+		utils.Fatalf("keyfile must be given as the only argument")
+	}
 	keyfile := ctx.Args().First()
 	if len(keyfile) == 0 {
 		utils.Fatalf("keyfile must be given as argument")
@@ -450,6 +456,9 @@ func accountImport(ctx *cli.Context) error {
 }
 
 func accountCheck(ctx *cli.Context) error {
+	if ctx.Args().Len() != 1 {
+		utils.Fatalf("keyfile must be given as the only argument")
+	}
 	keyfile := ctx.Args().First()
 	if len(keyfile) == 0 {
 		utils.Fatalf("keyfile must be given as argument")
@@ -474,8 +483,8 @@ func accountCheck(ctx *cli.Context) error {
 }
 
 func loadKeyManager(ctx *cli.Context) (*bls.KeyManager, []blsCommon.PublicKey, error) {
-	blsPasswordPath := ctx.GlobalString(utils.BlsPasswordPath.Name)
-	blsWalletPath := ctx.GlobalString(utils.BlsWalletPath.Name)
+	blsPasswordPath := ctx.String(utils.BlsPasswordPath.Name)
+	blsWalletPath := ctx.String(utils.BlsWalletPath.Name)
 
 	wallet, err := bls.New(blsWalletPath, blsPasswordPath)
 	if err != nil {
@@ -506,6 +515,9 @@ func loadKeyManager(ctx *cli.Context) (*bls.KeyManager, []blsCommon.PublicKey, e
 }
 
 func loadBlsSecretKey(ctx *cli.Context) (blsCommon.SecretKey, error) {
+	if ctx.Args().Len() != 1 {
+		utils.Fatalf("keyfile must be given as the only argument")
+	}
 	keyfile := ctx.Args().First()
 	if len(keyfile) == 0 {
 		return nil, fmt.Errorf("keyfile must be given as argument")
