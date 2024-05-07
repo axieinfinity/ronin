@@ -1037,6 +1037,10 @@ func (contract *mockTrippContract) GetStakedAmount(_ common.Hash, _ *big.Int, ad
 	return stakes, nil
 }
 
+func (contract *mockTrippContract) GetMaxValidatorNumber(blockHash common.Hash, blockNumber *big.Int) (*big.Int, error) {
+	return big.NewInt(int64(len(contract.blockProducers))), nil
+}
+
 func TestGetCheckpointValidatorFromContract(t *testing.T) {
 	var err error
 	secretKeys := make([]blsCommon.SecretKey, 4)
@@ -1179,6 +1183,10 @@ func (contract *mockContract) GetBlsPublicKey(_ common.Hash, _ *big.Int, address
 }
 
 func (contract *mockContract) GetStakedAmount(_ common.Hash, _ *big.Int, _ []common.Address) ([]*big.Int, error) {
+	return nil, nil
+}
+
+func (contract *mockContract) GetMaxValidatorNumber(blockHash common.Hash, blockNumber *big.Int) (*big.Int, error) {
 	return nil, nil
 }
 
