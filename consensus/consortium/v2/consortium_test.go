@@ -977,6 +977,151 @@ func TestSnapshotValidatorWithBlsKey(t *testing.T) {
 	}
 }
 
+type validatorWithBlsWeight struct {
+	Address      common.Address
+	BlsPublicKey blsCommon.PublicKey
+	StakedAmount *big.Int
+}
+
+type mockTrippContract struct {
+	blockProducers       []common.Address
+	checkpointValidators []validatorWithBlsWeight
+}
+
+func (contract *mockTrippContract) WrapUpEpoch(opts *consortiumCommon.ApplyTransactOpts) error {
+	return nil
+}
+
+func (contract *mockTrippContract) SubmitBlockReward(opts *consortiumCommon.ApplyTransactOpts) error {
+	return nil
+}
+
+func (contract *mockTrippContract) Slash(opts *consortiumCommon.ApplyTransactOpts, spoiledValidator common.Address) error {
+	return nil
+}
+
+func (contract *mockTrippContract) FinalityReward(opts *consortiumCommon.ApplyTransactOpts, votedValidators []common.Address) error {
+	return nil
+}
+
+func (contract *mockTrippContract) GetBlockProducers(_ common.Hash, _ *big.Int) ([]common.Address, error) {
+	return contract.blockProducers, nil
+}
+
+func (contract *mockTrippContract) GetValidatorCandidates(_ common.Hash, _ *big.Int) ([]common.Address, error) {
+	validatorCandidates := make([]common.Address, 0)
+	for _, val := range contract.checkpointValidators {
+		validatorCandidates = append(validatorCandidates, val.Address)
+	}
+	return validatorCandidates, nil
+}
+
+func (contract *mockTrippContract) GetBlsPublicKey(_ common.Hash, _ *big.Int, address common.Address) (blsCommon.PublicKey, error) {
+	for _, val := range contract.checkpointValidators {
+		if val.Address == address {
+			return val.BlsPublicKey, nil
+		}
+	}
+	return nil, errors.New("address is not in validator candidate list")
+}
+
+func (contract *mockTrippContract) GetStakedAmount(_ common.Hash, _ *big.Int, addrs []common.Address) ([]*big.Int, error) {
+	stakes := make([]*big.Int, 0)
+	for _, addr := range addrs {
+		for _, val := range contract.checkpointValidators {
+			if val.Address == addr {
+				stakes = append(stakes, val.StakedAmount)
+			}
+		}
+	}
+	return stakes, nil
+}
+
+func TestGetCheckpointValidatorFromContract(t *testing.T) {
+	var err error
+	secretKeys := make([]blsCommon.SecretKey, 4)
+	for i := 0; i < len(secretKeys); i++ {
+		secretKeys[i], err = blst.RandKey()
+		if err != nil {
+			t.Fatalf("Failed to generate secret key, err: %s", err)
+		}
+	}
+
+	mock := &mockTrippContract{
+		checkpointValidators: []validatorWithBlsWeight{
+			validatorWithBlsWeight{
+				Address:      common.Address{0x1},
+				BlsPublicKey: secretKeys[0].PublicKey(),
+				StakedAmount: new(big.Int).SetUint64(100),
+			},
+			validatorWithBlsWeight{
+				Address:      common.Address{0x2},
+				BlsPublicKey: secretKeys[1].PublicKey(),
+				StakedAmount: new(big.Int).SetUint64(200),
+			},
+			validatorWithBlsWeight{
+				Address:      common.Address{0x3},
+				BlsPublicKey: secretKeys[2].PublicKey(),
+				StakedAmount: new(big.Int).SetUint64(400),
+			},
+		},
+		blockProducers: []common.Address{
+			common.Address{0x11},
+			common.Address{0x22},
+		},
+	}
+	c := Consortium{
+		chainConfig: &params.ChainConfig{
+			ShillinBlock: big.NewInt(0),
+			TrippBlock:   big.NewInt(1),
+		},
+		config: &params.ConsortiumConfig{
+			EpochV2: 200,
+		},
+		contract:           mock,
+		testTrippEffective: true,
+		testTrippPeriod:    false,
+	}
+
+	validatorWithPubs, blockProducers, err := c.getCheckpointValidatorsFromContract(nil, &types.Header{Number: big.NewInt(3)})
+	if err != nil {
+		t.Fatalf("Failed to get checkpoint validators from contract, err: %s", err)
+	}
+	if validatorWithPubs != nil {
+		t.Fatalf("Expect nil returned list")
+	}
+	if len(blockProducers) != 2 {
+		t.Fatalf("Expect returned list, length: %d have: %d", 2, len(blockProducers))
+	}
+	if blockProducers[0] != (common.Address{0x11}) {
+		t.Fatalf("Wrong returned list")
+	}
+
+	c.testTrippPeriod = true
+	validatorWithPubs, blockProducers, err = c.getCheckpointValidatorsFromContract(nil, &types.Header{Number: big.NewInt(200)})
+	if err != nil {
+		t.Fatalf("Failed to get checkpoint validators from contract, err: %s", err)
+	}
+	if validatorWithPubs == nil {
+		t.Fatalf("Expect returned list")
+	}
+	if len(validatorWithPubs) != 3 {
+		t.Fatalf("Expect returned list, length: %d have: %d", 3, len(validatorWithPubs))
+	}
+	if validatorWithPubs[0].Address != (common.Address{0x1}) {
+		t.Fatalf("Wrong returned list")
+	}
+	if !validatorWithPubs[0].BlsPublicKey.Equals(secretKeys[0].PublicKey()) {
+		t.Fatalf("Wrong returned list")
+	}
+	if len(blockProducers) != 2 {
+		t.Fatalf("Expect returned list, length: %d have: %d", 2, len(blockProducers))
+	}
+	if blockProducers[0] != (common.Address{0x11}) {
+		t.Fatalf("Wrong returned list")
+	}
+}
+
 type mockContract struct {
 	validators map[common.Address]blsCommon.PublicKey
 }
@@ -1035,59 +1180,6 @@ func (contract *mockContract) GetBlsPublicKey(_ common.Hash, _ *big.Int, address
 
 func (contract *mockContract) GetStakedAmount(_ common.Hash, _ *big.Int, _ []common.Address) ([]*big.Int, error) {
 	return nil, nil
-}
-
-func TestGetCheckpointValidatorFromContract(t *testing.T) {
-	var err error
-	secretKeys := make([]blsCommon.SecretKey, 3)
-	for i := 0; i < len(secretKeys); i++ {
-		secretKeys[i], err = blst.RandKey()
-		if err != nil {
-			t.Fatalf("Failed to generate secret key, err: %s", err)
-		}
-	}
-
-	mock := &mockContract{
-		validators: map[common.Address]blsCommon.PublicKey{
-			common.Address{0x1}: secretKeys[1].PublicKey(),
-			common.Address{0x2}: nil,
-			common.Address{0x5}: secretKeys[0].PublicKey(),
-			common.Address{0x3}: secretKeys[2].PublicKey(),
-		},
-	}
-	c := Consortium{
-		chainConfig: &params.ChainConfig{
-			ShillinBlock: big.NewInt(0),
-		},
-		contract: mock,
-	}
-
-	validatorWithPubs, _, err := c.getCheckpointValidatorsFromContract(nil, false, &types.Header{Number: big.NewInt(3)})
-	if err != nil {
-		t.Fatalf("Failed to get checkpoint validators from contract, err: %s", err)
-	}
-
-	if len(validatorWithPubs) != 3 {
-		t.Fatalf("Expect returned list, length: %d have: %d", 3, len(validatorWithPubs))
-	}
-	if validatorWithPubs[0].Address != (common.Address{0x1}) {
-		t.Fatalf("Wrong returned list")
-	}
-	if !validatorWithPubs[0].BlsPublicKey.Equals(secretKeys[1].PublicKey()) {
-		t.Fatalf("Wrong returned list")
-	}
-	if validatorWithPubs[1].Address != (common.Address{0x3}) {
-		t.Fatalf("Wrong returned list")
-	}
-	if !validatorWithPubs[1].BlsPublicKey.Equals(secretKeys[2].PublicKey()) {
-		t.Fatalf("Wrong returned list")
-	}
-	if validatorWithPubs[2].Address != (common.Address{0x5}) {
-		t.Fatalf("Wrong returned list")
-	}
-	if !validatorWithPubs[2].BlsPublicKey.Equals(secretKeys[0].PublicKey()) {
-		t.Fatalf("Wrong returned list")
-	}
 }
 
 type mockVotePool struct {
