@@ -157,28 +157,13 @@ func (c *ContractIntegrator) GetBlockProducers(blockHash common.Hash, blockNumbe
 		blockNr = rpc.BlockNumberOrHashWithHash(blockHash, false)
 	}
 
-	method := "getBlockProducers"
-	data, err := c.roninValidatorSetABI.Pack(method)
-	if err != nil {
-		log.Error("Failed to pack tx to get block producers", "error", err)
-		return nil, err
-	}
-	// do smart contract call
-	msgData := (hexutil.Bytes)(data)
-	to := c.chainConfig.ConsortiumV2Contracts.RoninValidatorSet
-	gas := (hexutil.Uint64)(uint64(math.MaxUint64 / 2))
-	result, err := c.ethAPI.Call(context.Background(), ethapi.TransactionArgs{
-		Gas:  &gas,
-		To:   &to,
-		Data: &msgData,
-	}, blockNr, nil, nil)
-	if err != nil {
-		return nil, err
-	}
-
 	var addresses []common.Address
-	err = c.roninValidatorSetABI.UnpackIntoInterface(&addresses, method, result)
-	return addresses, err
+	err := c.contractCall(c.roninValidatorSetABI, c.chainConfig.ConsortiumV2Contracts.RoninValidatorSet,
+		"getBlockProducers", blockNr, &addresses)
+	if err != nil {
+		return nil, err
+	}
+	return addresses, nil
 }
 
 func (c *ContractIntegrator) GetValidatorCandidates(blockHash common.Hash, blockNumber *big.Int) ([]common.Address, error) {
@@ -187,28 +172,13 @@ func (c *ContractIntegrator) GetValidatorCandidates(blockHash common.Hash, block
 		blockNr = rpc.BlockNumberOrHashWithHash(blockHash, false)
 	}
 
-	method := "getValidatorCandidates"
-	data, err := c.roninValidatorSetABI.Pack(method)
-	if err != nil {
-		log.Error("Failed to pack tx to get validator candidates", "error", err)
-		return nil, err
-	}
-	// do smart contract call
-	msgData := (hexutil.Bytes)(data)
-	to := c.chainConfig.ConsortiumV2Contracts.RoninValidatorSet
-	gas := (hexutil.Uint64)(uint64(math.MaxUint64 / 2))
-	result, err := c.ethAPI.Call(context.Background(), ethapi.TransactionArgs{
-		Gas:  &gas,
-		To:   &to,
-		Data: &msgData,
-	}, blockNr, nil, nil)
-	if err != nil {
-		return nil, err
-	}
-
 	var addresses []common.Address
-	err = c.roninValidatorSetABI.UnpackIntoInterface(&addresses, method, result)
-	return addresses, err
+	err := c.contractCall(c.roninValidatorSetABI, c.chainConfig.ConsortiumV2Contracts.RoninValidatorSet,
+		"getValidatorCandidates", blockNr, &addresses)
+	if err != nil {
+		return nil, err
+	}
+	return addresses, nil
 }
 
 // WrapUpEpoch distributes rewards to validators and updates validators set
@@ -349,27 +319,10 @@ func (c *ContractIntegrator) getBlsPublicKeyLegacy(blockHash common.Hash, blockN
 		blockNr = rpc.BlockNumberOrHashWithHash(blockHash, false)
 	}
 
-	method := "getId2Profile"
-	data, err := c.legacyProfileABI.Pack(method, validator)
-	if err != nil {
-		log.Error("Failed to pack tx to get bls public key", "error", err)
-		return nil, err
-	}
-	// do smart contract call
-	msgData := (hexutil.Bytes)(data)
-	to := c.chainConfig.ConsortiumV2Contracts.ProfileContract
-	gas := (hexutil.Uint64)(uint64(math.MaxUint64 / 2))
-	result, err := c.ethAPI.Call(context.Background(), ethapi.TransactionArgs{
-		Gas:  &gas,
-		To:   &to,
-		Data: &msgData,
-	}, blockNr, nil, nil)
-	if err != nil {
-		return nil, err
-	}
-
 	var validatorProfile legacyProfile.IProfileCandidateProfile
-	if err := c.legacyProfileABI.UnpackIntoInterface(&validatorProfile, method, result); err != nil {
+	err := c.contractCall(c.legacyProfileABI, c.chainConfig.ConsortiumV2Contracts.ProfileContract,
+		"getId2Profile", blockNr, &validatorProfile, validator)
+	if err != nil {
 		return nil, err
 	}
 
@@ -386,51 +339,17 @@ func (c *ContractIntegrator) getBlsPublicKey(blockHash common.Hash, blockNumber 
 		blockNr = rpc.BlockNumberOrHashWithHash(blockHash, false)
 	}
 
-	method := "getConsensus2Id"
-	data, err := c.profileABI.Pack(method, validator)
-	if err != nil {
-		log.Error("Failed to pack tx to get bls public key", "error", err)
-		return nil, err
-	}
-	// do smart contract call
-	msgData := (hexutil.Bytes)(data)
-	to := c.chainConfig.ConsortiumV2Contracts.ProfileContract
-	gas := (hexutil.Uint64)(uint64(math.MaxUint64 / 2))
-	result, err := c.ethAPI.Call(context.Background(), ethapi.TransactionArgs{
-		Gas:  &gas,
-		To:   &to,
-		Data: &msgData,
-	}, blockNr, nil, nil)
-	if err != nil {
-		return nil, err
-	}
-
 	var validatorId common.Address
-	if err := c.profileABI.UnpackIntoInterface(&validatorId, method, result); err != nil {
-		return nil, err
-	}
-
-	method = "getId2PubKey"
-	data, err = c.profileABI.Pack(method, validatorId)
-	if err != nil {
-		log.Error("Failed to pack tx to get bls public key", "error", err)
-		return nil, err
-	}
-	// do smart contract call
-	msgData = (hexutil.Bytes)(data)
-	to = c.chainConfig.ConsortiumV2Contracts.ProfileContract
-	gas = (hexutil.Uint64)(uint64(math.MaxUint64 / 2))
-	result, err = c.ethAPI.Call(context.Background(), ethapi.TransactionArgs{
-		Gas:  &gas,
-		To:   &to,
-		Data: &msgData,
-	}, blockNr, nil, nil)
+	err := c.contractCall(c.profileABI, c.chainConfig.ConsortiumV2Contracts.ProfileContract,
+		"getConsensus2Id", blockNr, &validatorId, validator)
 	if err != nil {
 		return nil, err
 	}
 
 	var rawPublicKey []byte
-	if err := c.profileABI.UnpackIntoInterface(rawPublicKey, method, result); err != nil {
+	err = c.contractCall(c.profileABI, c.chainConfig.ConsortiumV2Contracts.ProfileContract,
+		"getId2Pubkey", blockNr, &rawPublicKey, validatorId)
+	if err != nil {
 		return nil, err
 	}
 
@@ -447,28 +366,13 @@ func (c *ContractIntegrator) GetStakedAmount(blockHash common.Hash, blockNumber 
 		blockNr = rpc.BlockNumberOrHashWithHash(blockHash, false)
 	}
 
-	method := "getManyStakingTotals"
-	data, err := c.stakingABI.Pack(method, validators)
-	if err != nil {
-		log.Error("Failed to pack tx to get staked amount", "error", err)
-		return nil, err
-	}
-	// do smart contract call
-	msgData := (hexutil.Bytes)(data)
-	to := c.chainConfig.ConsortiumV2Contracts.StakingContract
-	gas := (hexutil.Uint64)(uint64(math.MaxUint64 / 2))
-	result, err := c.ethAPI.Call(context.Background(), ethapi.TransactionArgs{
-		Gas:  &gas,
-		To:   &to,
-		Data: &msgData,
-	}, blockNr, nil, nil)
-	if err != nil {
-		return nil, err
-	}
-
 	var stakedAmounts []*big.Int
-	err = c.stakingABI.UnpackIntoInterface(&stakedAmounts, method, result)
-	return stakedAmounts, err
+	err := c.contractCall(c.stakingABI, c.chainConfig.ConsortiumV2Contracts.StakingContract,
+		"getManyStakingTotals", blockNr, &stakedAmounts, validators)
+	if err != nil {
+		return nil, err
+	}
+	return stakedAmounts, nil
 }
 
 func (c *ContractIntegrator) GetMaxValidatorNumber(blockHash common.Hash, blockNumber *big.Int) (*big.Int, error) {
@@ -477,28 +381,50 @@ func (c *ContractIntegrator) GetMaxValidatorNumber(blockHash common.Hash, blockN
 		blockNr = rpc.BlockNumberOrHashWithHash(blockHash, false)
 	}
 
-	method := "maxValidatorNumber"
-	data, err := c.roninValidatorSetABI.Pack(method)
-	if err != nil {
-		log.Error("Failed to pack tx to get max validator number", "error", err)
-		return nil, err
-	}
-	// do smart contract call
-	msgData := (hexutil.Bytes)(data)
-	to := c.chainConfig.ConsortiumV2Contracts.RoninValidatorSet
-	gas := (hexutil.Uint64)(uint64(math.MaxUint64 / 2))
-	result, err := c.ethAPI.Call(context.Background(), ethapi.TransactionArgs{
-		Gas:  &gas,
-		To:   &to,
-		Data: &msgData,
-	}, blockNr, nil, nil)
+	var maxValidatorNumber *big.Int
+	err := c.contractCall(c.roninValidatorSetABI, c.chainConfig.ConsortiumV2Contracts.RoninValidatorSet,
+		"maxValidatorNumber", blockNr, maxValidatorNumber)
 	if err != nil {
 		return nil, err
 	}
 
-	var maxValidatorNumber *big.Int
-	err = c.roninValidatorSetABI.UnpackIntoInterface(maxValidatorNumber, method, result)
-	return maxValidatorNumber, err
+	return maxValidatorNumber, nil
+}
+
+// Note: this function only supports 1 output
+func (c *ContractIntegrator) contractCall(
+	abi *abi.ABI,
+	address common.Address,
+	method string,
+	blockNrOrHash rpc.BlockNumberOrHash,
+	output interface{},
+	input ...interface{},
+) error {
+	data, err := abi.Pack(method, input...)
+	if err != nil {
+		log.Error("Failed to pack tx's data", "error", err)
+		return err
+	}
+
+	var result []byte
+	if c.contractCallHook != nil {
+		result = c.contractCallHook(method)
+	} else {
+		// do smart contract call
+		msgData := (hexutil.Bytes)(data)
+		to := address
+		gas := (hexutil.Uint64)(uint64(math.MaxUint64 / 2))
+		result, err = c.ethAPI.Call(context.Background(), ethapi.TransactionArgs{
+			Gas:  &gas,
+			To:   &to,
+			Data: &msgData,
+		}, blockNrOrHash, nil, nil)
+		if err != nil {
+			return err
+		}
+	}
+
+	return abi.UnpackIntoInterface(&output, method, result)
 }
 
 // ApplyMessageOpts is the collection of options to fine tune a contract call request.
