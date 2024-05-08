@@ -118,6 +118,7 @@ type Consortium struct {
 
 	// This is used in unit test only
 	testTrippEffective bool
+	testTrippPeriod    bool
 }
 
 // New creates a Consortium delegated proof-of-stake consensus engine
@@ -697,7 +698,6 @@ func (c *Consortium) verifyHeaderTime(header, parent *types.Header, snapshot *Sn
 
 func (c *Consortium) getCheckpointValidatorsFromContract(
 	chain consensus.ChainHeaderReader,
-	isPeriodBlock bool,
 	header *types.Header,
 ) ([]finality.ValidatorWithBlsPub, []common.Address, error) {
 	parentBlockNumber := new(big.Int).Sub(header.Number, common.Big1)
@@ -713,7 +713,7 @@ func (c *Consortium) getCheckpointValidatorsFromContract(
 
 	if c.IsTrippEffective(chain, header) {
 		sort.Sort(validatorsAscending(blockProducers))
-		if !isPeriodBlock {
+		if !c.IsPeriodBlock(chain, header) {
 			return nil, blockProducers, nil
 		}
 		validatorCandidates, err := contract.GetValidatorCandidates(parentHash, parentBlockNumber)
@@ -793,8 +793,7 @@ func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.He
 	var extraData finality.HeaderExtraData
 
 	if number%c.config.EpochV2 == 0 || c.chainConfig.IsOnConsortiumV2(big.NewInt(int64(number))) {
-		isPeriodBlock := c.IsPeriodBlock(chain, header)
-		checkpointValidator, blockProducers, err := c.getCheckpointValidatorsFromContract(chain, isPeriodBlock, header)
+		checkpointValidator, blockProducers, err := c.getCheckpointValidatorsFromContract(chain, header)
 		if err != nil {
 			return err
 		}
@@ -802,7 +801,7 @@ func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.He
 		// the start of new period, whereas block producer address is read
 		// at the start of every epoch.
 		if c.IsTrippEffective(chain, header) {
-			if isPeriodBlock {
+			if c.IsPeriodBlock(chain, header) {
 				extraData.CheckpointValidators = checkpointValidator
 			}
 			extraData.BlockProducers = blockProducers
@@ -963,8 +962,7 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 	// If the block is an epoch end block, verify the validator list
 	// The verification can only be done when the state is ready, it can't be done in VerifyHeader.
 	if header.Number.Uint64()%c.config.EpochV2 == 0 {
-		isPeriodBlock := c.IsPeriodBlock(chain, header)
-		checkpointValidators, blockProducers, err := c.getCheckpointValidatorsFromContract(chain, isPeriodBlock, header)
+		checkpointValidators, blockProducers, err := c.getCheckpointValidatorsFromContract(chain, header)
 		if err != nil {
 			return err
 		}
@@ -984,7 +982,7 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 					return errMismatchingValidators
 				}
 			}
-			if isPeriodBlock {
+			if c.IsPeriodBlock(chain, header) {
 				if len(checkpointValidators) != len(extraData.CheckpointValidators) {
 					return errMismatchingValidators
 				}
@@ -1614,38 +1612,39 @@ func (c *Consortium) getLastCheckpointHeader(chain consensus.ChainHeaderReader, 
 // IsPeriodBlock returns indicator whether a block is a period checkpoint block or not,
 // which is the first checkpoint block (block % EpochV2 == 0) after 00:00 UTC everyday.
 func (c *Consortium) IsPeriodBlock(chain consensus.ChainHeaderReader, header *types.Header) bool {
+	if c.testTrippPeriod {
+		return true
+	}
+	
 	number := header.Number.Uint64()
 	if number%c.config.EpochV2 != 0 || !chain.Config().IsTripp(header.Number) {
 		return false
 	}
-	snap, err := c.snapshot(chain, number-1, header.ParentHash, nil)
 
-	// If error happens when derive snapshot or current period is absent, we recursively find
-	// the nearest epoch block; and determine whether the header is one day ahead of that neighbor.
+	// Derive parent snapshot. If err, we recursively find the nearest epoch
+	// block, and determine whether the header period is ahead of that block period.
+	snap, err := c.snapshot(chain, number-1, header.ParentHash, nil)
 	if err != nil {
-		log.Warn("Fail to get snapshot at", "block", number-1, "err", err)
+		log.Warn("Fail to get snapshot at", "blockNumber", number-1, "blockHash", header.ParentHash, "err", err)
 		parent := c.getLastCheckpointHeader(chain, header)
 		if parent == nil {
 			return false
 		}
 		return uint64(header.Time/dayInSeconds) > uint64(parent.Time/dayInSeconds)
 	}
-	if snap.CurrentPeriod == 0 {
-		return false
-	}
 	return uint64(header.Time/dayInSeconds) > snap.CurrentPeriod
 }
 
-// IsTrippEffective returns if the finality vote rule change is effective. This change is effective
-// after the period of Tripp block not right after the Tripp block.
+// IsTrippEffective returns indicator whether the Tripp consensus rule is effective,
+// which is the first period that is greater than Tripp period, calculated by formula:
+// period := timestamp / dayInSeconds. 
 func (c *Consortium) IsTrippEffective(chain consensus.ChainHeaderReader, header *types.Header) bool {
 	if c.chainConfig.IsTripp(header.Number) {
 		if c.testTrippEffective {
 			return true
 		}
 
-		// This is a small optimization. When we pass the Tripp block with so
-		// many blocks, we don't need to go through checks below
+		// When Tripp has been effective for long enough, we return true without any additional checks.
 		if header.Number.Uint64() > c.chainConfig.TrippBlock.Uint64()+28800 {
 			return true
 		}
@@ -1663,10 +1662,8 @@ func (c *Consortium) IsTrippEffective(chain consensus.ChainHeaderReader, header 
 			if parent == nil {
 				return false
 			}
-
 			return uint64(parent.Time/dayInSeconds) > c.chainConfig.TrippPeriod.Uint64()
 		}
-
 		if snap.CurrentPeriod > c.chainConfig.TrippPeriod.Uint64() {
 			return true
 		}
