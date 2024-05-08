@@ -67,6 +67,7 @@ type ContractInteraction interface {
 	GetValidatorCandidates(blockHash common.Hash, blockNumber *big.Int) ([]common.Address, error)
 	GetBlsPublicKey(blockHash common.Hash, blockNumber *big.Int, validator common.Address) (blsCommon.PublicKey, error)
 	GetStakedAmount(blockHash common.Hash, blockNumber *big.Int, validators []common.Address) ([]*big.Int, error)
+	GetMaxValidatorNumber(blockHash common.Hash, blockNumber *big.Int) (*big.Int, error)
 }
 
 // ContractIntegrator is a contract facing to interact with smart contract that supports DPoS
@@ -388,6 +389,36 @@ func (c *ContractIntegrator) GetStakedAmount(blockHash common.Hash, blockNumber 
 	var stakedAmounts []*big.Int
 	err = c.stakingABI.UnpackIntoInterface(&stakedAmounts, method, result)
 	return stakedAmounts, err
+}
+
+func (c *ContractIntegrator) GetMaxValidatorNumber(blockHash common.Hash, blockNumber *big.Int) (*big.Int, error) {
+	blockNr := rpc.BlockNumberOrHashWithNumber(rpc.BlockNumber(blockNumber.Int64()))
+	if c.chainConfig.IsTripp(blockNumber) {
+		blockNr = rpc.BlockNumberOrHashWithHash(blockHash, false)
+	}
+
+	method := "maxValidatorNumber"
+	data, err := c.roninValidatorSetABI.Pack(method)
+	if err != nil {
+		log.Error("Failed to pack tx to get max validator number", "error", err)
+		return nil, err
+	}
+	// do smart contract call
+	msgData := (hexutil.Bytes)(data)
+	to := c.chainConfig.ConsortiumV2Contracts.RoninValidatorSet
+	gas := (hexutil.Uint64)(uint64(math.MaxUint64 / 2))
+	result, err := c.ethAPI.Call(context.Background(), ethapi.TransactionArgs{
+		Gas:  &gas,
+		To:   &to,
+		Data: &msgData,
+	}, blockNr, nil, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var maxValidatorNumber *big.Int
+	err = c.roninValidatorSetABI.UnpackIntoInterface(maxValidatorNumber, method, result)
+	return maxValidatorNumber, err
 }
 
 // ApplyMessageOpts is the collection of options to fine tune a contract call request.

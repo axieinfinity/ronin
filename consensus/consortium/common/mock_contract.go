@@ -88,3 +88,7 @@ func (contract *MockContract) GetBlsPublicKey(blockHash common.Hash, blockNumber
 func (contract *MockContract) GetStakedAmount(blockHash common.Hash, blockNumber *big.Int, addr []common.Address) ([]*big.Int, error) {
 	return nil, nil
 }
+
+func (contract *MockContract) GetMaxValidatorNumber(blockHash common.Hash, blockNumber *big.Int) (*big.Int, error) {
+	return nil, nil
+}
