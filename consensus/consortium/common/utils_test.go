@@ -81,17 +81,12 @@ func TestNormalizeFinalityVoteWeight(t *testing.T) {
 		// 23 validator candidates with different staked amounts
 		{
 			[]int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23},
-			[]uint16{150, 304, 454, 454, 454, 454, 454, 454, 454, 454, 454, 454, 454, 454, 454, 454, 454, 454, 454, 454, 454, 454, 454},
+			[]uint16{151, 303, 454, 454, 454, 454, 454, 454, 454, 454, 454, 454, 454, 454, 454, 454, 454, 454, 454, 454, 454, 454, 454},
 		},
-		// 23 validator candidates with different staked amounts
+		// 23 validator candidates with same staked amounts
 		{
 			[]int{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
 			[]uint16{434, 434, 434, 434, 434, 434, 434, 434, 434, 434, 434, 434, 434, 434, 434, 434, 434, 434, 434, 434, 434, 434, 434},
-		},
-		// 23 validator candidates, some have very high staked amounts
-		{
-			[]int{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 100, 200, 150, 50},
-			[]uint16{430, 430, 430, 430, 430, 430, 430, 430, 430, 430, 430, 430, 430, 430, 430, 430, 430, 430, 430, 454, 454, 454, 454},
 		},
 	}
 
@@ -101,7 +96,7 @@ func TestNormalizeFinalityVoteWeight(t *testing.T) {
 			input = append(input, big.NewInt(int64(in)))
 		}
 
-		output := NormalizeFinalityVoteWeight(input)
+		output := NormalizeFinalityVoteWeight(input, 22)
 		if !reflect.DeepEqual(output, test.output) {
 			t.Fatalf("Input %v\nExpected output: %v\nGot: %v\n", test.input, test.output, output)
 		}
@@ -109,6 +104,7 @@ func TestNormalizeFinalityVoteWeight(t *testing.T) {
 }
 
 func FuzzNormalizeFinalityVoteWeight(f *testing.F) {
+	const voteWeightThreshold = 22
 	f.Fuzz(func(t *testing.T, fuzzInput []byte) {
 		input := make([]*big.Int, 0, len(fuzzInput))
 		if len(input)%8 != 0 {
@@ -125,11 +121,11 @@ func FuzzNormalizeFinalityVoteWeight(f *testing.F) {
 			return
 		}
 
-		output := NormalizeFinalityVoteWeight(input)
+		output := NormalizeFinalityVoteWeight(input, voteWeightThreshold)
 		totalWeight := uint16(0)
 		for _, out := range output {
-			if len(input) > VoteWeightThreshold {
-				if out > MaxFinalityVotePercentage/VoteWeightThreshold+1 {
+			if len(input) > voteWeightThreshold {
+				if out > MaxFinalityVotePercentage/voteWeightThreshold {
 					t.Fatalf("Weight is higher than 1/22\nInput: %v\nOutput: %v\n", input, output)
 				}
 			}

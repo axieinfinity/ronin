@@ -727,7 +727,11 @@ func (c *Consortium) getCheckpointValidatorsFromContract(
 		if err != nil {
 			return nil, nil, err
 		}
-		weights := consortiumCommon.NormalizeFinalityVoteWeight(stakedAmounts)
+		maxValidatorNumber, err := c.contract.GetMaxValidatorNumber(parentHash, parentBlockNumber)
+		if err != nil {
+			return nil, nil, err
+		}
+		weights := consortiumCommon.NormalizeFinalityVoteWeight(stakedAmounts, int(maxValidatorNumber.Uint64()))
 		for i, candidate := range validatorCandidates {
 			blsPublicKey, err := contract.GetBlsPublicKey(parentHash, parentBlockNumber, candidate)
 			if err == nil {
