@@ -516,7 +516,7 @@ func loadKeyManager(ctx *cli.Context) (*bls.KeyManager, []blsCommon.PublicKey, e
 
 func loadBlsSecretKey(ctx *cli.Context) (blsCommon.SecretKey, error) {
 	if ctx.Args().Len() != 1 {
-		utils.Fatalf("keyfile must be given as the only argument")
+		return nil, fmt.Errorf("keyfile must be given as the only argument")
 	}
 	keyfile := ctx.Args().First()
 	if len(keyfile) == 0 {
