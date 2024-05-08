@@ -10,7 +10,6 @@ const (
 	ExtraSeal                        = crypto.SignatureLength
 	ExtraVanity                      = 32
 	MaxFinalityVotePercentage uint16 = 10_000
-	VoteWeightThreshold              = 22
 )
 
 var (
