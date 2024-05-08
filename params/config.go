@@ -560,7 +560,7 @@ type ChainConfig struct {
 	// Miko hardfork introduces sponsored transactions
 	MikoBlock   *big.Int `json:"mikoBlock,omitempty"`   // Miko switch block (nil = no fork, 0 = already on activated)
 	TrippBlock  *big.Int `json:"trippBlock,omitempty"`  // Tripp switch block (nil = no fork, 0 = already on activated)
-	TrippPeriod *big.Int `json:"trippPeriod,omitempty"` // The period number of Tripp block
+	TrippPeriod *big.Int `json:"trippPeriod,omitempty"` // The period number at Tripp fork block.
 
 	BlacklistContractAddress           *common.Address `json:"blacklistContractAddress,omitempty"`           // Address of Blacklist Contract (nil = no blacklist)
 	FenixValidatorContractAddress      *common.Address `json:"fenixValidatorContractAddress,omitempty"`      // Address of Ronin Contract in the Fenix hardfork (nil = no blacklist)
