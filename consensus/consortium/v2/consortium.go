@@ -797,6 +797,13 @@ func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.He
 
 	var extraData finality.HeaderExtraData
 
+	if header.Number.Uint64() % 20 == 0 {
+		num, err := c.contract.GetMaxValidatorNumber(header.ParentHash, new(big.Int).SetUint64(number - 1))
+		if err != nil {
+			return err
+		}
+		log.Info("dien number: %v", num)
+	}
 	if number%c.config.EpochV2 == 0 || c.chainConfig.IsOnConsortiumV2(big.NewInt(int64(number))) {
 		checkpointValidator, blockProducers, err := c.getCheckpointValidatorsFromContract(chain, header)
 		if err != nil {
