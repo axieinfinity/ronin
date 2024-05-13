@@ -383,7 +383,7 @@ func (c *ContractIntegrator) GetMaxValidatorNumber(blockHash common.Hash, blockN
 
 	var maxValidatorNumber *big.Int
 	err := c.contractCall(c.roninValidatorSetABI, c.chainConfig.ConsortiumV2Contracts.RoninValidatorSet,
-		"maxValidatorNumber", blockNr, maxValidatorNumber)
+		"maxValidatorNumber", blockNr, &maxValidatorNumber)
 	if err != nil {
 		return nil, err
 	}
