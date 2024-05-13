@@ -88,6 +88,9 @@ type ContractIntegrator struct {
 
 	signTxFn SignerTxFn
 	coinbase common.Address
+
+	// This is used in unit test only
+	contractCallHook func(method string) []byte
 }
 
 // NewContractIntegrator creates new ContractIntegrator with custom backend and signTxFn
