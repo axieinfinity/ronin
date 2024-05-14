@@ -277,8 +277,13 @@ func (s *Snapshot) apply(headers []*types.Header, chain consensus.ChainHeaderRea
 				}
 
 				if isTripp && len(extraData.BlockProducers) != 0 {
-					// if at the start of period, read BLS key, consensus and staked amount from header
-					snap.ValidatorsWithBlsPub = extraData.CheckpointValidators
+					// After Tripp is effective, the checkpoint validators in header's extra data
+					// is set only at the period block, not at all checkpoint blocks anymore. So
+					// only update snapshot's validator with bls public key when checkpoint
+					// validator is not empty.
+					if len(extraData.CheckpointValidators) != 0 {
+						snap.ValidatorsWithBlsPub = extraData.CheckpointValidators
+					}
 					snap.BlockProducers = extraData.BlockProducers
 					snap.Validators = nil
 				} else if chain.Config().IsShillin(checkpointHeader.Number) {
