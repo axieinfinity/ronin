@@ -107,12 +107,14 @@ func (validator *ValidatorWithBlsPub) UnmarshalJSON(input []byte) error {
 	if err != nil {
 		return err
 	}
+	validator.Weight = savedValidator.Weight
 	return nil
 }
 
-func (validator *ValidatorWithBlsPub) MarshalJSON() ([]byte, error) {
+func (validator ValidatorWithBlsPub) MarshalJSON() ([]byte, error) {
 	savedValidator := savedValidatorWithBlsPub{
 		Address: validator.Address,
+		Weight:  validator.Weight,
 	}
 
 	if validator.BlsPublicKey != nil {
