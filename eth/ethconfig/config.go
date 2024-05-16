@@ -239,7 +239,7 @@ func CreateConsensusEngine(
 		return clique.New(chainConfig.Clique, db)
 	}
 	if chainConfig.Consortium != nil {
-		return consortium.New(chainConfig, db, ee)
+		return consortium.New(chainConfig, db, ee, false)
 	}
 	// Otherwise assume proof-of-work
 	switch config.PowMode {

@@ -117,11 +117,13 @@ type Consortium struct {
 
 	getSCValidators    func() ([]common.Address, error) // Get the list of validator from contract
 	getFenixValidators func() ([]common.Address, error) // Get the validator list from Ronin Validator contract of Fenix hardfork
+
+	skipCheckpointHeaderCheck bool
 }
 
 // New creates a Consortium proof-of-authority consensus engine with the initial
 // signers set to the ones provided by the user.
-func New(chainConfig *params.ChainConfig, db ethdb.Database, ethAPI *ethapi.PublicBlockChainAPI) *Consortium {
+func New(chainConfig *params.ChainConfig, db ethdb.Database, ethAPI *ethapi.PublicBlockChainAPI, skipCheckpointHeaderCheck bool) *Consortium {
 	// Set any missing consensus parameters to their defaults
 	consortiumConfig := *chainConfig.Consortium
 	if consortiumConfig.Epoch == 0 {
@@ -132,14 +134,15 @@ func New(chainConfig *params.ChainConfig, db ethdb.Database, ethAPI *ethapi.Publ
 	signatures, _ := lru.NewARC(inmemorySignatures)
 
 	consortium := Consortium{
-		chainConfig: chainConfig,
-		config:      &consortiumConfig,
-		db:          db,
-		recents:     recents,
-		signatures:  signatures,
-		ethAPI:      ethAPI,
-		proposals:   make(map[common.Address]bool),
-		signer:      types.NewEIP155Signer(chainConfig.ChainID),
+		chainConfig:               chainConfig,
+		config:                    &consortiumConfig,
+		db:                        db,
+		recents:                   recents,
+		signatures:                signatures,
+		ethAPI:                    ethAPI,
+		proposals:                 make(map[common.Address]bool),
+		signer:                    types.NewEIP155Signer(chainConfig.ChainID),
+		skipCheckpointHeaderCheck: skipCheckpointHeaderCheck,
 	}
 
 	err := consortium.initContract(common.Address{}, nil)
@@ -277,17 +280,19 @@ func (c *Consortium) verifyCascadingFields(chain consensus.ChainHeaderReader, he
 		return c.verifySeal(chain, header, parents)
 	}
 
-	signers, err := c.getValidatorsFromContract(chain, number-1)
-	if err != nil {
-		return err
-	}
+	if !c.skipCheckpointHeaderCheck {
+		signers, err := c.getValidatorsFromContract(chain, number-1)
+		if err != nil {
+			return err
+		}
 
-	extraSuffix := len(header.Extra) - consortiumCommon.ExtraSeal
-	checkpointHeaders := consortiumCommon.ExtractAddressFromBytes(header.Extra[extraVanity:extraSuffix])
-	validSigners := consortiumCommon.CompareSignersLists(checkpointHeaders, signers)
-	if !validSigners {
-		log.Error("signers lists are different in checkpoint header and snapshot", "number", number, "signersHeader", checkpointHeaders, "signers", signers)
-		return consortiumCommon.ErrInvalidCheckpointSigners
+		extraSuffix := len(header.Extra) - consortiumCommon.ExtraSeal
+		checkpointHeaders := consortiumCommon.ExtractAddressFromBytes(header.Extra[extraVanity:extraSuffix])
+		validSigners := consortiumCommon.CompareSignersLists(checkpointHeaders, signers)
+		if !validSigners {
+			log.Error("signers lists are different in checkpoint header and snapshot", "number", number, "signersHeader", checkpointHeaders, "signers", signers)
+			return consortiumCommon.ErrInvalidCheckpointSigners
+		}
 	}
 
 	// All basic checks passed, verify the seal and return

@@ -2230,7 +2230,7 @@ func MakeChain(ctx *cli.Context, stack *node.Node) (chain *core.BlockChain, chai
 	} else if config.Consortium != nil {
 		ethApiBackend, fixupEth = eth.MakeEthApiBackend(chainDb)
 		ethApi := ethapi.NewPublicBlockChainAPI(ethApiBackend)
-		engine = consortium.New(config, chainDb, ethApi)
+		engine = consortium.New(config, chainDb, ethApi, true)
 	} else {
 		engine = ethash.NewFaker()
 		if !ctx.Bool(FakePoWFlag.Name) {
