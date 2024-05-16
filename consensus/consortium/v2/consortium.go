@@ -390,20 +390,24 @@ func (c *Consortium) verifyCascadingFields(chain consensus.ChainHeaderReader, he
 	// Check extra data
 	isEpoch := number%c.config.EpochV2 == 0 || c.chainConfig.IsOnConsortiumV2(header.Number)
 
-	if !isEpoch && len(extraData.CheckpointValidators) != 0 {
+	if !isEpoch && (len(extraData.CheckpointValidators) != 0 || len(extraData.BlockProducers) != 0) {
 		return consortiumCommon.ErrExtraValidators
 	}
 
-	if isTrippEffective && isEpoch && len(extraData.BlockProducers) == 0 {
-		return consortiumCommon.ErrExtraValidators
-	}
-
-	if isTrippEffective && c.IsPeriodBlock(chain, header) && len(extraData.CheckpointValidators) == 0 {
-		return consortiumCommon.ErrExtraValidators
-	}
-
-	if !isTrippEffective && len(extraData.BlockProducers) != 0 {
-		return consortiumCommon.ErrExtraValidators
+	if isTrippEffective{
+		if isEpoch && len(extraData.BlockProducers) == 0 {
+			return consortiumCommon.ErrExtraValidators
+		}
+		if c.IsPeriodBlock(chain, header) && len(extraData.CheckpointValidators) == 0 {
+			return consortiumCommon.ErrExtraValidators
+		}
+	} else {
+		if isEpoch && len(extraData.CheckpointValidators) == 0 {
+			return consortiumCommon.ErrExtraValidators
+		}
+		if len(extraData.BlockProducers) != 0 {
+			return consortiumCommon.ErrExtraValidators
+		}
 	}
 
 	if isShillin && extraData.HasFinalityVote == 1 {
@@ -740,6 +744,8 @@ func (c *Consortium) getCheckpointValidatorsFromContract(
 					BlsPublicKey: blsPublicKey,
 					Weight:       weights[i],
 				})
+			} else {
+				log.Info("Failed to get bls public key", "err", err, "candidate", candidate, "number", header.Number)
 			}
 		}
 		return checkpointValidators, blockProducers, nil
@@ -759,6 +765,8 @@ func (c *Consortium) getCheckpointValidatorsFromContract(
 			if err == nil {
 				filteredValidators = append(filteredValidators, validator)
 				blsPublicKeys = append(blsPublicKeys, blsPublicKey)
+			} else {
+				log.Info("Failed to get bls public key", "err", err, "validator", validator, "number", header.Number)
 			}
 		}
 	}
