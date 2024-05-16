@@ -110,7 +110,7 @@ func (validator *ValidatorWithBlsPub) UnmarshalJSON(input []byte) error {
 	return nil
 }
 
-func (validator *ValidatorWithBlsPub) MarshalJSON() ([]byte, error) {
+func (validator ValidatorWithBlsPub) MarshalJSON() ([]byte, error) {
 	savedValidator := savedValidatorWithBlsPub{
 		Address: validator.Address,
 	}
