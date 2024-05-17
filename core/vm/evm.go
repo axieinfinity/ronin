@@ -693,6 +693,15 @@ func (evm *EVM) PublishEvent(
 				err,
 			),
 		)
+		iTrans := *context.InternalTransactions
+		for i := len(iTrans) - 1; i > 0; {
+			if iTrans[i-1].InternalTransactionBody.Order > counter {
+				iTrans[i], iTrans[i-1] = iTrans[i-1], iTrans[i]
+				i--
+			} else {
+				break
+			}
+		}
 	}
 }
 
