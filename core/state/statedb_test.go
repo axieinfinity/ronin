@@ -943,8 +943,11 @@ func TestIntermediateUpdateConcurrently(t *testing.T) {
 		state2.SetCode(addr, code)
 	}
 
-	state1.IntermediateRoot(false, false) // sequential
-	state2.IntermediateRoot(false, true)  // concurrent
+	state1.ConcurrentUpdateThreshold = 0
+	state2.ConcurrentUpdateThreshold = 1
+
+	state1.IntermediateRoot(false) // sequential
+	state2.IntermediateRoot(false) // concurrent
 
 	root1, err1 := state1.Commit(false)
 	root2, err2 := state2.Commit(false)

@@ -124,6 +124,9 @@ type StateDB struct {
 	StorageUpdated int
 	AccountDeleted int
 	StorageDeleted int
+
+	// Minimum stateObjects (updating accounts) to apply concurrent updates, 0 to disable
+	ConcurrentUpdateThreshold int
 }
 
 // New creates a new state from a given trie.
@@ -834,15 +837,7 @@ func (s *StateDB) Finalise(deleteEmptyObjects bool) {
 // IntermediateRoot computes the current root hash of the state trie.
 // It is called in between transactions to get the root hash that
 // goes into transaction receipts.
-func (s *StateDB) IntermediateRoot(deleteEmptyObjects bool, updateRootConcurrencyOption ...bool) common.Hash {
-	// concurrent by default
-	updateRootConcurrency := true
-	if len(updateRootConcurrencyOption) == 1 {
-		updateRootConcurrency = updateRootConcurrencyOption[0]
-	} else if len(updateRootConcurrencyOption) > 1 {
-		panic("IntermediateRoot: invalid number of arguments")
-	}
-
+func (s *StateDB) IntermediateRoot(deleteEmptyObjects bool) common.Hash {
 	// Finalise all the dirty storage states and write them into the tries
 	s.Finalise(deleteEmptyObjects)
 
@@ -866,21 +861,20 @@ func (s *StateDB) IntermediateRoot(deleteEmptyObjects bool, updateRootConcurrenc
 	// first, giving the account prefeches just a few more milliseconds of time
 	// to pull useful data from disk.
 
-	if !updateRootConcurrency {
+	// Get the stateObjects needed to be updated
+	updateObjs := []*stateObject{}
+	for addr := range s.stateObjectsPending {
+		if obj := s.stateObjects[addr]; !obj.deleted {
+			updateObjs = append(updateObjs, obj)
+		}
+	}
+
+	if len(updateObjs) < s.ConcurrentUpdateThreshold || s.ConcurrentUpdateThreshold == 0 {
 		// Update the state objects sequentially
-		for addr := range s.stateObjectsPending {
-			if obj := s.stateObjects[addr]; !obj.deleted {
-				obj.updateRoot(s.db)
-			}
+		for _, obj := range updateObjs {
+			obj.updateRoot(s.db)
 		}
 	} else {
-		// Get the stateObjects needed to be updated
-		updateObjs := []*stateObject{}
-		for addr := range s.stateObjectsPending {
-			if obj := s.stateObjects[addr]; !obj.deleted {
-				updateObjs = append(updateObjs, obj)
-			}
-		}
 		// Declare min function
 		min := func(a, b int) int {
 			if a < b {
@@ -890,18 +884,20 @@ func (s *StateDB) IntermediateRoot(deleteEmptyObjects bool, updateRootConcurrenc
 		}
 		// Update the state objects using goroutines, with maximum of NumCPU goroutines
 		nRoutines := min(runtime.NumCPU(), len(updateObjs))
-		nObjPerRoutine := (len(updateObjs) + nRoutines - 1) / nRoutines
-		wg := sync.WaitGroup{}
-		wg.Add(nRoutines)
-		for i := 0; i < len(updateObjs); i += nObjPerRoutine {
-			go func(objs []*stateObject) {
-				defer wg.Done()
-				for _, obj := range objs {
-					obj.updateRoot(s.db)
-				}
-			}(updateObjs[i:min(i+nObjPerRoutine, len(updateObjs))])
+		if nRoutines != 0 {
+			nObjPerRoutine := (len(updateObjs) + nRoutines - 1) / nRoutines
+			wg := sync.WaitGroup{}
+			wg.Add(nRoutines)
+			for i := 0; i < len(updateObjs); i += nObjPerRoutine {
+				go func(objs []*stateObject) {
+					defer wg.Done()
+					for _, obj := range objs {
+						obj.updateRoot(s.db)
+					}
+				}(updateObjs[i:min(i+nObjPerRoutine, len(updateObjs))])
+			}
+			wg.Wait()
 		}
-		wg.Wait()
 	}
 
 	// Now we're about to start to write changes to the trie. The trie is so far

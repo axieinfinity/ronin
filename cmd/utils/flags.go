@@ -1071,6 +1071,13 @@ var (
 		Usage:    "List of mock bls public keys which are reflect 1:1 with mock.validators",
 		Category: flags.MockCategory,
 	}
+
+	ConcurrentUpdateThresholdFlag = &cli.IntFlag{
+		Name:     "concurrencyupdatethreashold",
+		Usage:    "The threshold of concurrent update",
+		Value:    0, // disable concurrent update by default
+		Category: flags.EthCategory,
+	}
 )
 
 // MakeDataDir retrieves the currently requested data directory, terminating

@@ -222,6 +222,9 @@ type Config struct {
 
 	// Send additional chain event
 	EnableAdditionalChainEvent bool
+
+	// Minimum stateObjects (updating accounts) to apply concurrent updates, 0 to disable
+	ConcurrentUpdateThreshold int
 }
 
 // CreateConsensusEngine creates a consensus engine for the given chain configuration.
