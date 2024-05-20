@@ -1,7 +1,7 @@
 // Code generated - DO NOT EDIT.
 // This file is a generated binding and any manual changes will be lost.
 
-package profile
+package legacyProfile
 
 import (
 	"errors"
@@ -26,11 +26,22 @@ var (
 	_ = common.Big1
 	_ = types.BloomLookup
 	_ = event.NewSubscription
+	_ = abi.ConvertType
 )
+
+// IProfileCandidateProfile is an auto generated low-level Go binding around an user-defined struct.
+type IProfileCandidateProfile struct {
+	Id        common.Address
+	Consensus common.Address
+	Admin     common.Address
+	Treasury  common.Address
+	Governor  common.Address
+	Pubkey    []byte
+}
 
 // ProfileMetaData contains all meta data concerning the Profile contract.
 var ProfileMetaData = &bind.MetaData{
-	ABI: "[{\"type\":\"function\",\"name\":\"getConsensus2Id\",\"inputs\":[{\"name\":\"consensus\",\"type\":\"address\",\"internalType\":\"TConsensus\"}],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"address\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getId2Pubkey\",\"inputs\":[{\"name\":\"id\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[{\"name\":\"\",\"type\":\"bytes\",\"internalType\":\"bytes\"}],\"stateMutability\":\"view\"},{\"type\":\"function\",\"name\":\"getId2OldConsensus\",\"inputs\":[{\"name\":\"id\",\"type\":\"address\",\"internalType\":\"address\"}],\"outputs\":[{\"name\":\"\",\"type\":\"address\",\"internalType\":\"TConsensus\"}],\"stateMutability\":\"view\"}]",
+	ABI: "[{\"inputs\":[{\"internalType\":\"address\",\"name\":\"id\",\"type\":\"address\"}],\"name\":\"getId2Profile\",\"outputs\":[{\"components\":[{\"internalType\":\"address\",\"name\":\"id\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"consensus\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"admin\",\"type\":\"address\"},{\"internalType\":\"addresspayable\",\"name\":\"treasury\",\"type\":\"address\"},{\"internalType\":\"address\",\"name\":\"governor\",\"type\":\"address\"},{\"internalType\":\"bytes\",\"name\":\"pubkey\",\"type\":\"bytes\"}],\"internalType\":\"structIProfile.CandidateProfile\",\"name\":\"\",\"type\":\"tuple\"}],\"stateMutability\":\"view\",\"type\":\"function\"}]",
 }
 
 // ProfileABI is the input ABI used to generate the binding from.
@@ -134,11 +145,11 @@ func NewProfileFilterer(address common.Address, filterer bind.ContractFilterer) 
 
 // bindProfile binds a generic wrapper to an already deployed contract.
 func bindProfile(address common.Address, caller bind.ContractCaller, transactor bind.ContractTransactor, filterer bind.ContractFilterer) (*bind.BoundContract, error) {
-	parsed, err := abi.JSON(strings.NewReader(ProfileABI))
+	parsed, err := ProfileMetaData.GetAbi()
 	if err != nil {
 		return nil, err
 	}
-	return bind.NewBoundContract(address, parsed, caller, transactor, filterer), nil
+	return bind.NewBoundContract(address, *parsed, caller, transactor, filterer), nil
 }
 
 // Call invokes the (constant) contract method with params as input values and
@@ -179,95 +190,33 @@ func (_Profile *ProfileTransactorRaw) Transact(opts *bind.TransactOpts, method s
 	return _Profile.Contract.contract.Transact(opts, method, params...)
 }
 
-// GetConsensus2Id is a free data retrieval call binding the contract method 0x50a9fc29.
+// GetId2Profile is a free data retrieval call binding the contract method 0xf4660940.
 //
-// Solidity: function getConsensus2Id(address consensus) view returns(address)
-func (_Profile *ProfileCaller) GetConsensus2Id(opts *bind.CallOpts, consensus common.Address) (common.Address, error) {
+// Solidity: function getId2Profile(address id) view returns((address,address,address,address,address,bytes))
+func (_Profile *ProfileCaller) GetId2Profile(opts *bind.CallOpts, id common.Address) (IProfileCandidateProfile, error) {
 	var out []interface{}
-	err := _Profile.contract.Call(opts, &out, "getConsensus2Id", consensus)
+	err := _Profile.contract.Call(opts, &out, "getId2Profile", id)
 
 	if err != nil {
-		return *new(common.Address), err
+		return *new(IProfileCandidateProfile), err
 	}
 
-	out0 := *abi.ConvertType(out[0], new(common.Address)).(*common.Address)
+	out0 := *abi.ConvertType(out[0], new(IProfileCandidateProfile)).(*IProfileCandidateProfile)
 
 	return out0, err
 
 }
 
-// GetConsensus2Id is a free data retrieval call binding the contract method 0x50a9fc29.
+// GetId2Profile is a free data retrieval call binding the contract method 0xf4660940.
 //
-// Solidity: function getConsensus2Id(address consensus) view returns(address)
-func (_Profile *ProfileSession) GetConsensus2Id(consensus common.Address) (common.Address, error) {
-	return _Profile.Contract.GetConsensus2Id(&_Profile.CallOpts, consensus)
+// Solidity: function getId2Profile(address id) view returns((address,address,address,address,address,bytes))
+func (_Profile *ProfileSession) GetId2Profile(id common.Address) (IProfileCandidateProfile, error) {
+	return _Profile.Contract.GetId2Profile(&_Profile.CallOpts, id)
 }
 
-// GetConsensus2Id is a free data retrieval call binding the contract method 0x50a9fc29.
+// GetId2Profile is a free data retrieval call binding the contract method 0xf4660940.
 //
-// Solidity: function getConsensus2Id(address consensus) view returns(address)
-func (_Profile *ProfileCallerSession) GetConsensus2Id(consensus common.Address) (common.Address, error) {
-	return _Profile.Contract.GetConsensus2Id(&_Profile.CallOpts, consensus)
-}
-
-// GetId2OldConsensus is a free data retrieval call binding the contract method 0xae768b33.
-//
-// Solidity: function getId2OldConsensus(address id) view returns(address)
-func (_Profile *ProfileCaller) GetId2OldConsensus(opts *bind.CallOpts, id common.Address) (common.Address, error) {
-	var out []interface{}
-	err := _Profile.contract.Call(opts, &out, "getId2OldConsensus", id)
-
-	if err != nil {
-		return *new(common.Address), err
-	}
-
-	out0 := *abi.ConvertType(out[0], new(common.Address)).(*common.Address)
-
-	return out0, err
-
-}
-
-// GetId2OldConsensus is a free data retrieval call binding the contract method 0xae768b33.
-//
-// Solidity: function getId2OldConsensus(address id) view returns(address)
-func (_Profile *ProfileSession) GetId2OldConsensus(id common.Address) (common.Address, error) {
-	return _Profile.Contract.GetId2OldConsensus(&_Profile.CallOpts, id)
-}
-
-// GetId2OldConsensus is a free data retrieval call binding the contract method 0xae768b33.
-//
-// Solidity: function getId2OldConsensus(address id) view returns(address)
-func (_Profile *ProfileCallerSession) GetId2OldConsensus(id common.Address) (common.Address, error) {
-	return _Profile.Contract.GetId2OldConsensus(&_Profile.CallOpts, id)
-}
-
-// GetId2Pubkey is a free data retrieval call binding the contract method 0x458969f2.
-//
-// Solidity: function getId2Pubkey(address id) view returns(bytes)
-func (_Profile *ProfileCaller) GetId2Pubkey(opts *bind.CallOpts, id common.Address) ([]byte, error) {
-	var out []interface{}
-	err := _Profile.contract.Call(opts, &out, "getId2Pubkey", id)
-
-	if err != nil {
-		return *new([]byte), err
-	}
-
-	out0 := *abi.ConvertType(out[0], new([]byte)).(*[]byte)
-
-	return out0, err
-
-}
-
-// GetId2Pubkey is a free data retrieval call binding the contract method 0x458969f2.
-//
-// Solidity: function getId2Pubkey(address id) view returns(bytes)
-func (_Profile *ProfileSession) GetId2Pubkey(id common.Address) ([]byte, error) {
-	return _Profile.Contract.GetId2Pubkey(&_Profile.CallOpts, id)
-}
-
-// GetId2Pubkey is a free data retrieval call binding the contract method 0x458969f2.
-//
-// Solidity: function getId2Pubkey(address id) view returns(bytes)
-func (_Profile *ProfileCallerSession) GetId2Pubkey(id common.Address) ([]byte, error) {
-	return _Profile.Contract.GetId2Pubkey(&_Profile.CallOpts, id)
+// Solidity: function getId2Profile(address id) view returns((address,address,address,address,address,bytes))
+func (_Profile *ProfileCallerSession) GetId2Profile(id common.Address) (IProfileCandidateProfile, error) {
+	return _Profile.Contract.GetId2Profile(&_Profile.CallOpts, id)
 }
