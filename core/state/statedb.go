@@ -21,7 +21,9 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"runtime"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -832,7 +834,15 @@ func (s *StateDB) Finalise(deleteEmptyObjects bool) {
 // IntermediateRoot computes the current root hash of the state trie.
 // It is called in between transactions to get the root hash that
 // goes into transaction receipts.
-func (s *StateDB) IntermediateRoot(deleteEmptyObjects bool) common.Hash {
+func (s *StateDB) IntermediateRoot(deleteEmptyObjects bool, updateRootConcurrencyOption ...bool) common.Hash {
+	// concurrent by default
+	updateRootConcurrency := true
+	if len(updateRootConcurrencyOption) == 1 {
+		updateRootConcurrency = updateRootConcurrencyOption[0]
+	} else if len(updateRootConcurrencyOption) > 1 {
+		panic("IntermediateRoot: invalid number of arguments")
+	}
+
 	// Finalise all the dirty storage states and write them into the tries
 	s.Finalise(deleteEmptyObjects)
 
@@ -855,11 +865,45 @@ func (s *StateDB) IntermediateRoot(deleteEmptyObjects bool) common.Hash {
 	// the account prefetcher. Instead, let's process all the storage updates
 	// first, giving the account prefeches just a few more milliseconds of time
 	// to pull useful data from disk.
-	for addr := range s.stateObjectsPending {
-		if obj := s.stateObjects[addr]; !obj.deleted {
-			obj.updateRoot(s.db)
+
+	if !updateRootConcurrency {
+		// Update the state objects sequentially
+		for addr := range s.stateObjectsPending {
+			if obj := s.stateObjects[addr]; !obj.deleted {
+				obj.updateRoot(s.db)
+			}
 		}
+	} else {
+		// Get the stateObjects needed to be updated
+		updateObjs := []*stateObject{}
+		for addr := range s.stateObjectsPending {
+			if obj := s.stateObjects[addr]; !obj.deleted {
+				updateObjs = append(updateObjs, obj)
+			}
+		}
+		// Declare min function
+		min := func(a, b int) int {
+			if a < b {
+				return a
+			}
+			return b
+		}
+		// Update the state objects using goroutines, with maximum of NumCPU goroutines
+		nRoutines := min(runtime.NumCPU(), len(updateObjs))
+		nObjPerRoutine := (len(updateObjs) + nRoutines - 1) / nRoutines
+		wg := sync.WaitGroup{}
+		wg.Add(nRoutines)
+		for i := 0; i < len(updateObjs); i += nObjPerRoutine {
+			go func(objs []*stateObject) {
+				defer wg.Done()
+				for _, obj := range objs {
+					obj.updateRoot(s.db)
+				}
+			}(updateObjs[i:min(i+nObjPerRoutine, len(updateObjs))])
+		}
+		wg.Wait()
 	}
+
 	// Now we're about to start to write changes to the trie. The trie is so far
 	// _untouched_. We can check with the prefetcher, if it can give us a trie
 	// which has the same root, but also has some content loaded into it.
