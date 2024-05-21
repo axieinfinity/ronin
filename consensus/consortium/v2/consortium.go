@@ -94,7 +94,6 @@ type Consortium struct {
 	chainConfig *params.ChainConfig
 	config      *params.ConsortiumConfig // Consensus engine configuration parameters
 	forkedBlock uint64
-	genesisHash common.Hash
 	db          ethdb.Database // Database to store and retrieve snapshot checkpoints
 
 	recents    *lru.ARCCache // Snapshots for recent block to speed up reorgs
@@ -120,7 +119,6 @@ func New(
 	chainConfig *params.ChainConfig,
 	db ethdb.Database,
 	ethAPI *ethapi.PublicBlockChainAPI,
-	genesisHash common.Hash,
 	v1 consortiumCommon.ConsortiumAdapter,
 ) *Consortium {
 	consortiumConfig := chainConfig.Consortium
@@ -136,7 +134,6 @@ func New(
 	consortium := Consortium{
 		chainConfig: chainConfig,
 		config:      consortiumConfig,
-		genesisHash: genesisHash,
 		db:          db,
 		ethAPI:      ethAPI,
 		recents:     recents,

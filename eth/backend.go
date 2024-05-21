@@ -163,7 +163,7 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 		log.Info("Unprotected transactions allowed")
 	}
 	ethAPI := ethapi.NewPublicBlockChainAPI(eth.APIBackend)
-	eth.engine = ethconfig.CreateConsensusEngine(stack, chainConfig, &ethashConfig, config.Miner.Notify, config.Miner.Noverify, chainDb, ethAPI, genesisHash)
+	eth.engine = ethconfig.CreateConsensusEngine(stack, chainConfig, &ethashConfig, config.Miner.Notify, config.Miner.Noverify, chainDb, ethAPI)
 
 	bcVersion := rawdb.ReadDatabaseVersion(chainDb)
 	var dbVer = "<nil>"
@@ -350,6 +350,24 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 		}
 	}
 	return eth, nil
+}
+
+// MakeEthApiBackend is used by MakeChain to create a minimal eth API backend for consortium
+// engine.
+// This code looks hacky as it returns a function to set the private blockchain, engine field.
+// This is due to the circular dependency as blockchain needs consortium engine which requires
+// eth API backend. As the eth API backend is not used right after being created, we create a
+// eth API backend without blockchain here and set that field later when blockchain is available.
+func MakeEthApiBackend(chainDb ethdb.Database) (*EthAPIBackend, func(chain *core.BlockChain, engine consensus.Engine)) {
+	eth := &Ethereum{
+		chainDb: chainDb,
+		config:  &ethconfig.Defaults,
+	}
+	apiBackend := &EthAPIBackend{eth: eth}
+	return apiBackend, func(chain *core.BlockChain, engine consensus.Engine) {
+		eth.blockchain = chain
+		eth.engine = engine
+	}
 }
 
 func makeExtraData(extra []byte) []byte {
