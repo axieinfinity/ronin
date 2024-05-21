@@ -52,9 +52,15 @@ import (
 
 var ErrMethodNotSupport = errors.New("method is not supported")
 
-// estimateGasErrorRatio is the amount of overestimation eth_estimateGas is
-// allowed to produce in order to speed up calculations.
-const estimateGasErrorRatio = 0.015
+const (
+	// estimateGasErrorRatio is the amount of overestimation eth_estimateGas is
+	// allowed to produce in order to speed up calculations.
+	estimateGasErrorRatio = 0.015
+
+	// storageKeyLimit is the limit number of storage keys when requesting
+	// eth_getProof
+	storageKeyLimit = 100
+)
 
 // PublicEthereumAPI provides an API to access Ethereum related information.
 // It offers only methods that operate on public data that is freely available to anyone.
@@ -667,6 +673,10 @@ type StorageResult struct {
 
 // GetProof returns the Merkle-proof for a given account and optionally some storage keys.
 func (s *PublicBlockChainAPI) GetProof(ctx context.Context, address common.Address, storageKeys []string, blockNrOrHash rpc.BlockNumberOrHash) (*AccountResult, error) {
+	if len(storageKeys) > storageKeyLimit {
+		return nil, fmt.Errorf("invalid storage keys: over the query limit %d", storageKeyLimit)
+	}
+
 	state, _, err := s.b.StateAndHeaderByNumberOrHash(ctx, blockNrOrHash)
 	if state == nil || err != nil {
 		return nil, err
