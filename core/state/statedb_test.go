@@ -28,6 +28,7 @@ import (
 	"sync"
 	"testing"
 	"testing/quick"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
@@ -913,5 +914,80 @@ func TestStateDBAccessList(t *testing.T) {
 	}
 	if got, exp := len(state.accessList.slots), 1; got != exp {
 		t.Fatalf("expected empty, got %d", got)
+	}
+}
+
+func TestIntermediateUpdateConcurrently(t *testing.T) {
+	rng := rand.New(rand.NewSource(time.Now().Unix()))
+	// Create an empty state
+	db1 := rawdb.NewMemoryDatabase()
+	db2 := rawdb.NewMemoryDatabase()
+	state1, _ := New(common.Hash{}, NewDatabase(db1), nil)
+	state2, _ := New(common.Hash{}, NewDatabase(db2), nil)
+
+	// Update it with random data
+	for i := int64(0); i < 1000; i++ {
+		addr := common.BigToAddress(big.NewInt(i))
+		balance := big.NewInt(int64(rng.Int63()))
+		nonce := rng.Uint64()
+		key := common.BigToHash(big.NewInt(int64(rng.Int63())))
+		value := common.BigToHash(big.NewInt(int64(rng.Int63())))
+		code := []byte{byte(rng.Uint64()), byte(rng.Uint64()), byte(rng.Uint64())}
+		state1.SetBalance(addr, balance)
+		state2.SetBalance(addr, balance)
+		state1.SetNonce(addr, nonce)
+		state2.SetNonce(addr, nonce)
+		state1.SetState(addr, key, value)
+		state2.SetState(addr, key, value)
+		state1.SetCode(addr, code)
+		state2.SetCode(addr, code)
+	}
+
+	state1.ConcurrentUpdateThreshold = 0
+	state2.ConcurrentUpdateThreshold = 1
+
+	state1.IntermediateRoot(false) // sequential
+	state2.IntermediateRoot(false) // concurrent
+
+	root1, err1 := state1.Commit(false)
+	root2, err2 := state2.Commit(false)
+
+	if err1 != nil {
+		t.Fatalf("sequential commit failed: %v", err1)
+	}
+	if err1 = state1.Database().TrieDB().Commit(root1, false, nil); err1 != nil {
+		t.Errorf("cannot commit trie %v to persistent database", root1.Hex())
+	}
+	if err2 != nil {
+		t.Fatalf("concurrent commit failed: %v", err2)
+	}
+	if err2 = state2.Database().TrieDB().Commit(root2, false, nil); err2 != nil {
+		t.Errorf("cannot commit trie %v to persistent database", root2.Hex())
+	}
+
+	it1 := db1.NewIterator(nil, nil)
+	it2 := db2.NewIterator(nil, nil)
+	for it1.Next() {
+		if !it2.Next() {
+			t.Fatalf("concurrent iterator ended prematurely")
+		}
+		if !bytes.Equal(it1.Key(), it2.Key()) {
+			t.Fatalf("concurrent iterator key mismatch: " + string(it1.Key()) + " != " + string(it2.Key()))
+		}
+		if !bytes.Equal(it1.Value(), it2.Value()) {
+			t.Fatalf("concurrent iterator value mismatch: " + string(it1.Value()) + " != " + string(it2.Value()))
+		}
+	}
+	if it1.Error() != nil {
+		t.Fatalf("sequential iterator error: %v", it1.Error())
+	}
+	if it2.Error() != nil {
+		t.Fatalf("concurrent iterator error: %v", it2.Error())
+	}
+	if it1.Next() {
+		t.Fatalf("sequential iterator has extra data")
+	}
+	if it2.Next() {
+		t.Fatalf("concurrent iterator has extra data")
 	}
 }

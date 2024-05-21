@@ -139,6 +139,9 @@ type CacheConfig struct {
 	TriesInMemory       int           // The number of tries is kept in memory before pruning
 
 	SnapshotWait bool // Wait for snapshot construction on startup. TODO(karalabe): This is a dirty hack for testing, nuke it
+
+	// Minimum stateObjects (updating accounts) to apply concurrent updates, 0 to disable
+	ConcurrentUpdateThreshold int
 }
 
 // defaultCacheConfig are the default caching values if none are specified by the
@@ -1814,6 +1817,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, er
 			parent = bc.GetHeader(block.ParentHash(), block.NumberU64()-1)
 		}
 		statedb, err := state.New(parent.Root, bc.stateCache, bc.snaps)
+		statedb.ConcurrentUpdateThreshold = bc.cacheConfig.ConcurrentUpdateThreshold
 		if err != nil {
 			return it.index, err
 		}
