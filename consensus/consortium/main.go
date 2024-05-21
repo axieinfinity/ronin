@@ -27,10 +27,10 @@ type Consortium struct {
 }
 
 // New creates a Consortium proxy that decides what Consortium version will be called
-func New(chainConfig *params.ChainConfig, db ethdb.Database, ee *ethapi.PublicBlockChainAPI, genesisHash common.Hash) *Consortium {
+func New(chainConfig *params.ChainConfig, db ethdb.Database, ee *ethapi.PublicBlockChainAPI, skipV1Check bool) *Consortium {
 	// Set any missing consensus parameters to their defaults
-	consortiumV1 := v1.New(chainConfig, db, ee)
-	consortiumV2 := v2.New(chainConfig, db, ee, genesisHash, consortiumV1)
+	consortiumV1 := v1.New(chainConfig, db, ee, skipV1Check)
+	consortiumV2 := v2.New(chainConfig, db, ee, consortiumV1)
 
 	return &Consortium{
 		chainConfig: chainConfig,
