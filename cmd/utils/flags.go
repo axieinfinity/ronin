@@ -2036,6 +2036,10 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 	if ctx.Bool(MonitorFinalityVoteFlag.Name) {
 		cfg.EnableMonitorFinalityVote = true
 	}
+	// Set concurrent update threshold
+	if ctx.IsSet(ConcurrentUpdateThresholdFlag.Name) {
+		cfg.ConcurrentUpdateThreshold = ctx.Int(ConcurrentUpdateThresholdFlag.Name)
+	}
 }
 
 // SetDNSDiscoveryDefaults configures DNS discovery with the given URL if

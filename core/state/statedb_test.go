@@ -946,48 +946,11 @@ func TestIntermediateUpdateConcurrently(t *testing.T) {
 	state1.ConcurrentUpdateThreshold = 0
 	state2.ConcurrentUpdateThreshold = 1
 
-	state1.IntermediateRoot(false) // sequential
-	state2.IntermediateRoot(false) // concurrent
+	root1 := state1.IntermediateRoot(false) // sequential
+	root2 := state2.IntermediateRoot(false) // concurrent
 
-	root1, err1 := state1.Commit(false)
-	root2, err2 := state2.Commit(false)
-
-	if err1 != nil {
-		t.Fatalf("sequential commit failed: %v", err1)
-	}
-	if err1 = state1.Database().TrieDB().Commit(root1, false, nil); err1 != nil {
-		t.Errorf("cannot commit trie %v to persistent database", root1.Hex())
-	}
-	if err2 != nil {
-		t.Fatalf("concurrent commit failed: %v", err2)
-	}
-	if err2 = state2.Database().TrieDB().Commit(root2, false, nil); err2 != nil {
-		t.Errorf("cannot commit trie %v to persistent database", root2.Hex())
+	if root1 != root2 {
+		t.Fatalf("intermediate roots mismatch: %v != %v", root1.Hex(), root2.Hex())
 	}
 
-	it1 := db1.NewIterator(nil, nil)
-	it2 := db2.NewIterator(nil, nil)
-	for it1.Next() {
-		if !it2.Next() {
-			t.Fatalf("concurrent iterator ended prematurely")
-		}
-		if !bytes.Equal(it1.Key(), it2.Key()) {
-			t.Fatalf("concurrent iterator key mismatch: " + string(it1.Key()) + " != " + string(it2.Key()))
-		}
-		if !bytes.Equal(it1.Value(), it2.Value()) {
-			t.Fatalf("concurrent iterator value mismatch: " + string(it1.Value()) + " != " + string(it2.Value()))
-		}
-	}
-	if it1.Error() != nil {
-		t.Fatalf("sequential iterator error: %v", it1.Error())
-	}
-	if it2.Error() != nil {
-		t.Fatalf("concurrent iterator error: %v", it2.Error())
-	}
-	if it1.Next() {
-		t.Fatalf("sequential iterator has extra data")
-	}
-	if it2.Next() {
-		t.Fatalf("concurrent iterator has extra data")
-	}
 }

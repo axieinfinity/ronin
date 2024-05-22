@@ -363,7 +363,7 @@ func (s *StateDB) StorageTrie(addr common.Address) Trie {
 		return nil
 	}
 	cpy := stateObject.deepCopy(s)
-	cpy.updateTrie(s.db)
+	cpy.updateTrie(s.db, false)
 	return cpy.getTrie(s.db)
 }
 
@@ -875,30 +875,101 @@ func (s *StateDB) IntermediateRoot(deleteEmptyObjects bool) common.Hash {
 			obj.updateRoot(s.db)
 		}
 	} else {
-		// Declare min function
+		var pendingStorage []struct {
+			s     *stateObject
+			key   common.Hash
+			value common.Hash
+			v     []byte
+			tr    Trie
+		}
+		var pendingRootUpdate []*stateObject
+
+		for addr := range s.stateObjectsPending {
+			if obj := s.stateObjects[addr]; !obj.deleted {
+				trie, savedStorage := obj.updateTrie(s.db, true)
+				pendingStorage = append(pendingStorage, savedStorage...)
+				if trie != nil {
+					pendingRootUpdate = append(pendingRootUpdate, obj)
+				}
+			}
+		}
+
+		// Update the account trie
 		min := func(a, b int) int {
 			if a < b {
 				return a
 			}
 			return b
 		}
-		// Update the state objects using goroutines, with maximum of NumCPU goroutines
-		nRoutines := min(runtime.NumCPU(), len(updateObjs))
+		nRoutines := min(runtime.NumCPU(), len(pendingStorage))
 		if nRoutines != 0 {
-			nObjPerRoutine := (len(updateObjs) + nRoutines - 1) / nRoutines
+			nUpdatePerRoutine := (len(pendingStorage) + nRoutines - 1) / nRoutines
 			wg := sync.WaitGroup{}
 			wg.Add(nRoutines)
-			for i := 0; i < len(updateObjs); i += nObjPerRoutine {
-				go func(objs []*stateObject) {
+			for i := 0; i < len(pendingStorage); i += nUpdatePerRoutine {
+				go func(stores []struct {
+					s     *stateObject
+					key   common.Hash
+					value common.Hash
+					v     []byte
+					tr    Trie
+				}) {
 					defer wg.Done()
-					for _, obj := range objs {
-						obj.updateRoot(s.db)
+					for _, store := range stores {
+						if (store.value == common.Hash{}) {
+							s.setError(store.tr.TryDelete(store.key[:]))
+						} else {
+							// Encoding []byte cannot fail, ok to ignore the error.
+							store.v, _ = rlp.EncodeToBytes(common.TrimLeftZeroes(store.value[:]))
+							s.setError(store.tr.TryUpdate(store.key[:], store.v))
+						}
 					}
-				}(updateObjs[i:min(i+nObjPerRoutine, len(updateObjs))])
+				}(pendingStorage[i:min(i+nUpdatePerRoutine, len(pendingStorage))])
 			}
 			wg.Wait()
 		}
+		for _, obj := range pendingRootUpdate {
+			obj.data.Root = obj.trie.Hash()
+		}
 	}
+	// // Get the stateObjects needed to be updated
+	// updateObjs := []*stateObject{}
+	// for addr := range s.stateObjectsPending {
+	// 	if obj := s.stateObjects[addr]; !obj.deleted {
+	// 		updateObjs = append(updateObjs, obj)
+	// 	}
+	// }
+
+	// if len(updateObjs) < s.ConcurrentUpdateThreshold || s.ConcurrentUpdateThreshold == 0 {
+	// 	// Update the state objects sequentially
+	// 	for _, obj := range updateObjs {
+	// 		obj.updateRoot(s.db)
+	// 	}
+	// } else {
+	// 	// Declare min function
+	// 	min := func(a, b int) int {
+	// 		if a < b {
+	// 			return a
+	// 		}
+	// 		return b
+	// 	}
+	// 	// Update the state objects using goroutines, with maximum of NumCPU goroutines
+	// 	nRoutines := min(runtime.NumCPU(), len(updateObjs))
+	// 	if nRoutines != 0 {
+	// 		nObjPerRoutine := (len(updateObjs) + nRoutines - 1) / nRoutines
+	// 		wg := sync.WaitGroup{}
+	// 		wg.Add(nRoutines)
+	// 		for i := 0; i < len(updateObjs); i += nObjPerRoutine {
+	// 			go func(objs []*stateObject) {
+	// 				defer wg.Done()
+	// 				for _, obj := range objs {
+	// 					obj.updateRoot(s.db)
+	// 				}
+	// 			}(updateObjs[i:min(i+nObjPerRoutine, len(updateObjs))])
+	// 		}
+	// 		wg.Wait()
+	// 	}
+	// }
 
 	// Now we're about to start to write changes to the trie. The trie is so far
 	// _untouched_. We can check with the prefetcher, if it can give us a trie
