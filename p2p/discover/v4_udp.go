@@ -142,7 +142,7 @@ func ListenV4(c UDPConn, ln *enode.LocalNode, cfg Config) (*UDPv4, error) {
 		log:             cfg.Log,
 	}
 
-	tab, err := newMeteredTable(t, ln.Database(), cfg.Bootnodes, t.log, cfg.FilterFunction)
+	tab, err := newMeteredTable(t, ln.Database(), cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -165,7 +165,7 @@ func (t *UDPv4) NodesInDHT() [][]enode.Node {
 	for i, bucket := range t.tab.buckets {
 		nodes[i] = make([]enode.Node, len(bucket.entries))
 		for j, entry := range bucket.entries {
-			nodes[i][j] = entry.Node
+			nodes[i][j] = *entry.Node
 		}
 	}
 	return nodes
@@ -685,10 +685,10 @@ func (t *UDPv4) handlePing(h *packetHandlerV4, from *net.UDPAddr, fromID enode.I
 	n := wrapNode(enode.NewV4(h.senderKey, from.IP, int(req.From.TCP), from.Port))
 	if time.Since(t.db.LastPongReceived(n.ID(), from.IP)) > bondExpiration {
 		t.sendPing(fromID, from, func() {
-			t.tab.addVerifiedNode(n)
+			t.tab.addInboundNode(n)
 		})
 	} else {
-		t.tab.addVerifiedNode(n)
+		t.tab.addInboundNode(n)
 	}
 
 	// Update node database and endpoint predictor.
