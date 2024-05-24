@@ -34,7 +34,12 @@ var (
 	slotRoninValidatorMapping = map[string]uint64{
 		VALIDATORS: 6,
 	}
+	valueOne common.Hash
 )
+
+func init() {
+	valueOne.SetBytes([]byte{0x1})
+}
 
 // IsWhitelistedDeployer reads the contract storage to check if an address is allow to deploy
 func IsWhitelistedDeployerV2(statedb *StateDB, address common.Address, blockTime uint64, whiteListContract *common.Address) bool {
@@ -94,15 +99,16 @@ func IsAddressBlacklisted(statedb *StateDB, blacklistAddr *common.Address, addre
 
 	contract := *blacklistAddr
 	disabledSlot := slotBlacklistContractMapping[DISABLED]
-	disabled := statedb.GetState(contract, GetLocSimpleVariable(disabledSlot))
-	if disabled.Big().Cmp(big.NewInt(1)) == 0 {
+	disabledStateValue := statedb.GetState(contract, GetLocSimpleVariable(disabledSlot))
+
+	if disabledStateValue == valueOne {
 		return false
 	}
 
 	blacklistedSlot := slotBlacklistContractMapping[BLACKLISTED]
 	valueLoc := GetLocMappingAtKey(address.Hash(), blacklistedSlot)
-	blacklisted := statedb.GetState(contract, valueLoc)
-	return blacklisted.Big().Cmp(big.NewInt(1)) == 0
+	blacklistedStateValue := statedb.GetState(contract, valueLoc)
+	return blacklistedStateValue == valueOne
 }
 
 func GetSCValidators(statedb *StateDB) []common.Address {
