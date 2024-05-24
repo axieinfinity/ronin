@@ -9,7 +9,9 @@ import (
 )
 
 func GetLocSimpleVariable(slot uint64) common.Hash {
-	slotHash := common.BigToHash(new(big.Int).SetUint64(slot))
+	var slotHash common.Hash
+
+	binary.BigEndian.PutUint64(slotHash[len(slotHash)-8:], slot)
 	return slotHash
 }
 

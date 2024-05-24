@@ -7,6 +7,15 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 )
 
+func TestGetLocSimpleVariable(t *testing.T) {
+	hash := GetLocSimpleVariable(12)
+	expect := common.BigToHash(big.NewInt(12))
+
+	if hash != expect {
+		t.Fatalf("Hash mismatches, got %s expect %s", hash, expect)
+	}
+}
+
 func TestGetLocMappingAtKey(t *testing.T) {
 	hash := GetLocMappingAtKey(common.BigToHash(big.NewInt(10)), 12)
 
