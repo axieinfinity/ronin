@@ -319,17 +319,11 @@ func (s *stateObject) finalise(prefetch bool) {
 
 // updateTrie writes cached storage modifications into the object's storage trie.
 // It will return nil if the trie has not been loaded and no changes have been made
-func (s *stateObject) updateTrie(db Database, concurrent bool) (Trie, []struct {
-	s     *stateObject
-	key   common.Hash
-	value common.Hash
-	v     []byte
-	tr    Trie
-}) {
+func (s *stateObject) updateTrie(db Database, concurrent bool) Trie {
 	// Make sure all dirty slots are finalized into the pending storage area
 	s.finalise(false) // Don't prefetch anymore, pull directly if need be
 	if len(s.pendingStorage) == 0 {
-		return s.trie, nil
+		return s.trie
 	}
 	// Track the amount of time wasted on updating the storage trie
 	if metrics.EnabledExpensive {
@@ -338,53 +332,34 @@ func (s *stateObject) updateTrie(db Database, concurrent bool) (Trie, []struct {
 	// The snapshot storage map for the object
 	var storage map[common.Hash][]byte
 	// Insert all the pending updates into the trie
-	tr := s.getTrie(db)
-	hasher := s.db.hasher
-	// Storage saved for later update
-	var savedStorage []struct {
-		s     *stateObject
-		key   common.Hash
-		value common.Hash
-		v     []byte
-		tr    Trie
+	var tr Trie = nil
+	if !concurrent {
+		tr = s.getTrie(db)
 	}
-
+	hasher := s.db.hasher
 	usedStorage := make([][]byte, 0, len(s.pendingStorage))
 	for key, value := range s.pendingStorage {
 		// Skip noop changes, persist actual changes
 		if value == s.originStorage[key] {
 			continue
 		}
-		s.originStorage[key] = value
-
+		if !concurrent {
+			s.originStorage[key] = value
+		}
 		var v []byte
-
-		if concurrent {
-			if (value == common.Hash{}) {
-				s.db.StorageDeleted += 1
-			} else {
-				v, _ = rlp.EncodeToBytes(common.TrimLeftZeroes(value[:]))
-				s.db.StorageUpdated += 1
-			}
-			savedStorage = append(savedStorage, struct {
-				s     *stateObject
-				key   common.Hash
-				value common.Hash
-				v     []byte
-				tr    Trie
-			}{s, key, value, v, tr})
-		} else {
-			if (value == common.Hash{}) {
+		if (value == common.Hash{}) {
+			if !concurrent {
 				s.setError(tr.TryDelete(key[:]))
 				s.db.StorageDeleted += 1
-			} else {
-				// Encoding []byte cannot fail, ok to ignore the error.
-				v, _ = rlp.EncodeToBytes(common.TrimLeftZeroes(value[:]))
+			}
+		} else {
+			// Encoding []byte cannot fail, ok to ignore the error.
+			v, _ = rlp.EncodeToBytes(common.TrimLeftZeroes(value[:]))
+			if !concurrent {
 				s.setError(tr.TryUpdate(key[:], v))
 				s.db.StorageUpdated += 1
 			}
 		}
-
 		// If state snapshotting is active, cache the data til commit
 		if s.db.snap != nil {
 			if storage == nil {
@@ -401,16 +376,46 @@ func (s *stateObject) updateTrie(db Database, concurrent bool) (Trie, []struct {
 	if s.db.prefetcher != nil {
 		s.db.prefetcher.used(s.data.Root, usedStorage)
 	}
+	if !concurrent {
+		if len(s.pendingStorage) > 0 {
+			s.pendingStorage = make(Storage)
+		}
+	}
+	return tr
+}
+
+func (s *stateObject) updateTrieConcurrent(db Database) {
+	tr := s.getTrie(db)
+	for key, value := range s.pendingStorage {
+		// Skip noop changes, persist actual changes
+		if value == s.originStorage[key] {
+			continue
+		}
+		s.originStorage[key] = value
+
+		var v []byte
+
+		if (value == common.Hash{}) {
+			s.setError(tr.TryDelete(key[:]))
+			s.db.StorageDeleted += 1
+		} else {
+			v, _ = rlp.EncodeToBytes(common.TrimLeftZeroes(value[:]))
+			s.setError(tr.TryUpdate(key[:], v))
+			s.db.StorageUpdated += 1
+		}
+	}
 	if len(s.pendingStorage) > 0 {
 		s.pendingStorage = make(Storage)
 	}
-	return tr, savedStorage
+	if tr != nil {
+		s.data.Root = s.trie.Hash()
+	}
 }
 
 // UpdateRoot sets the trie root to the current root hash of
 func (s *stateObject) updateRoot(db Database) {
 	// If nothing changed, don't bother with hashing anything
-	if trie, _ := s.updateTrie(db, false); trie == nil {
+	if s.updateTrie(db, false) == nil {
 		return
 	}
 	// Track the amount of time wasted on hashing the storage trie
@@ -424,7 +429,7 @@ func (s *stateObject) updateRoot(db Database) {
 // This updates the trie root.
 func (s *stateObject) CommitTrie(db Database) (int, error) {
 	// If nothing changed, don't bother with hashing anything
-	if trie, _ := s.updateTrie(db, false); trie == nil {
+	if s.updateTrie(db, false) == nil {
 		return 0, nil
 	}
 	if s.dbErr != nil {
