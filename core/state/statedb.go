@@ -127,9 +127,6 @@ type StateDB struct {
 
 	// Minimum stateObjects (updating accounts) to apply concurrent updates, 0 to disable
 	ConcurrentUpdateThreshold int
-
-	// Lock for concurrent access
-	lock sync.RWMutex
 }
 
 // New creates a new state from a given trie.
@@ -864,50 +861,56 @@ func (s *StateDB) IntermediateRoot(deleteEmptyObjects bool) common.Hash {
 	// first, giving the account prefeches just a few more milliseconds of time
 	// to pull useful data from disk.
 
-	// ---------------------------------------------- DEBUGGING -------------------------------------------------------------------------------------------
-
 	// Get the stateObjects needed to be updated
 	updateObjs := []*stateObject{}
 	for addr := range s.stateObjectsPending {
 		if obj := s.stateObjects[addr]; !obj.deleted {
 			updateObjs = append(updateObjs, obj)
-			obj.updateTrie(s.db, true)
 		}
-	}
-	min := func(a, b int) int {
-		if a < b {
-			return a
-		}
-		return b
-	}
-	nGoroutines := min(runtime.NumCPU(), len(updateObjs))
-	if nGoroutines != 0 {
-		nObjectsPerRoutine := len(updateObjs) / nGoroutines
-		nObjectsRemaining := len(updateObjs) % nGoroutines
-		wg := sync.WaitGroup{}
-		wg.Add(nGoroutines)
-		i := 0
-		for {
-			nObjects := nObjectsPerRoutine
-			if nObjectsRemaining > 0 {
-				nObjects++
-				nObjectsRemaining--
-			}
-			go func(objs []*stateObject) {
-				defer wg.Done()
-				for _, obj := range objs {
-					obj.updateTrieConcurrent(s.db)
-				}
-			}(updateObjs[i : i+nObjects])
-			i += nObjects
-			if i == len(updateObjs) {
-				break
-			}
-		}
-		wg.Wait()
 	}
 
-	// ---------------------------------------------- DEBUGGING -------------------------------------------------------------------------------------------
+	if len(updateObjs) < s.ConcurrentUpdateThreshold || s.ConcurrentUpdateThreshold == 0 {
+		// Update the state trie sequentially
+		for _, obj := range updateObjs {
+			obj.updateRoot(s.db)
+		}
+	} else {
+		// Update the state trie concurrently
+		for _, obj := range updateObjs {
+			obj.updateTrie(s.db, true)
+		}
+
+		nGoroutines := runtime.NumCPU()
+		if nGoroutines > len(updateObjs) {
+			nGoroutines = len(updateObjs)
+		}
+
+		if nGoroutines != 0 {
+			nObjectsPerRoutine := len(updateObjs) / nGoroutines
+			nObjectsRemaining := len(updateObjs) % nGoroutines
+			wg := sync.WaitGroup{}
+			wg.Add(nGoroutines)
+			i := 0
+			for {
+				nObjects := nObjectsPerRoutine
+				if nObjectsRemaining > 0 {
+					nObjects++
+					nObjectsRemaining--
+				}
+				go func(objs []*stateObject) {
+					defer wg.Done()
+					for _, obj := range objs {
+						obj.updateTrieConcurrent(s.db)
+					}
+				}(updateObjs[i : i+nObjects])
+				i += nObjects
+				if i == len(updateObjs) {
+					break
+				}
+			}
+			wg.Wait()
+		}
+	}
 
 	// Now we're about to start to write changes to the trie. The trie is so far
 	// _untouched_. We can check with the prefetcher, if it can give us a trie

@@ -2261,13 +2261,14 @@ func MakeChain(ctx *cli.Context, stack *node.Node) (chain *core.BlockChain, chai
 		Fatalf("--%s must be either 'full' or 'archive'", GCModeFlag.Name)
 	}
 	cache := &core.CacheConfig{
-		TrieCleanLimit:      ethconfig.Defaults.TrieCleanCache,
-		TrieCleanNoPrefetch: ctx.Bool(CacheNoPrefetchFlag.Name),
-		TrieDirtyLimit:      ethconfig.Defaults.TrieDirtyCache,
-		TrieDirtyDisabled:   ctx.String(GCModeFlag.Name) == "archive",
-		TrieTimeLimit:       ethconfig.Defaults.TrieTimeout,
-		SnapshotLimit:       ethconfig.Defaults.SnapshotCache,
-		Preimages:           ctx.Bool(CachePreimagesFlag.Name),
+		TrieCleanLimit:            ethconfig.Defaults.TrieCleanCache,
+		TrieCleanNoPrefetch:       ctx.Bool(CacheNoPrefetchFlag.Name),
+		TrieDirtyLimit:            ethconfig.Defaults.TrieDirtyCache,
+		TrieDirtyDisabled:         ctx.String(GCModeFlag.Name) == "archive",
+		TrieTimeLimit:             ethconfig.Defaults.TrieTimeout,
+		SnapshotLimit:             ethconfig.Defaults.SnapshotCache,
+		Preimages:                 ctx.Bool(CachePreimagesFlag.Name),
+		ConcurrentUpdateThreshold: ctx.Int(ConcurrentUpdateThresholdFlag.Name),
 	}
 	if cache.TrieDirtyDisabled && !cache.Preimages {
 		cache.Preimages = true

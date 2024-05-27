@@ -319,7 +319,7 @@ func (s *stateObject) finalise(prefetch bool) {
 
 // updateTrie writes cached storage modifications into the object's storage trie.
 // It will return nil if the trie has not been loaded and no changes have been made
-func (s *stateObject) updateTrie(db Database, concurrent bool) Trie {
+func (s *stateObject) updateTrie(db Database, skipTrieUpdate bool) Trie {
 	// Make sure all dirty slots are finalized into the pending storage area
 	s.finalise(false) // Don't prefetch anymore, pull directly if need be
 	if len(s.pendingStorage) == 0 {
@@ -332,8 +332,8 @@ func (s *stateObject) updateTrie(db Database, concurrent bool) Trie {
 	// The snapshot storage map for the object
 	var storage map[common.Hash][]byte
 	// Insert all the pending updates into the trie
-	var tr Trie = nil
-	if !concurrent {
+	var tr Trie
+	if !skipTrieUpdate {
 		tr = s.getTrie(db)
 	}
 	hasher := s.db.hasher
@@ -343,22 +343,22 @@ func (s *stateObject) updateTrie(db Database, concurrent bool) Trie {
 		if value == s.originStorage[key] {
 			continue
 		}
-		if !concurrent {
+		if !skipTrieUpdate {
 			s.originStorage[key] = value
 		}
 		var v []byte
 		if (value == common.Hash{}) {
-			if !concurrent {
+			if !skipTrieUpdate {
 				s.setError(tr.TryDelete(key[:]))
-				s.db.StorageDeleted += 1
 			}
+			s.db.StorageDeleted += 1
 		} else {
 			// Encoding []byte cannot fail, ok to ignore the error.
 			v, _ = rlp.EncodeToBytes(common.TrimLeftZeroes(value[:]))
-			if !concurrent {
+			if !skipTrieUpdate {
 				s.setError(tr.TryUpdate(key[:], v))
-				s.db.StorageUpdated += 1
 			}
+			s.db.StorageUpdated += 1
 		}
 		// If state snapshotting is active, cache the data til commit
 		if s.db.snap != nil {
@@ -376,7 +376,7 @@ func (s *stateObject) updateTrie(db Database, concurrent bool) Trie {
 	if s.db.prefetcher != nil {
 		s.db.prefetcher.used(s.data.Root, usedStorage)
 	}
-	if !concurrent {
+	if !skipTrieUpdate {
 		if len(s.pendingStorage) > 0 {
 			s.pendingStorage = make(Storage)
 		}
@@ -397,11 +397,9 @@ func (s *stateObject) updateTrieConcurrent(db Database) {
 
 		if (value == common.Hash{}) {
 			s.setError(tr.TryDelete(key[:]))
-			s.db.StorageDeleted += 1
 		} else {
 			v, _ = rlp.EncodeToBytes(common.TrimLeftZeroes(value[:]))
 			s.setError(tr.TryUpdate(key[:], v))
-			s.db.StorageUpdated += 1
 		}
 	}
 	if len(s.pendingStorage) > 0 {
