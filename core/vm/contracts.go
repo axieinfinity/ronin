@@ -20,6 +20,8 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"errors"
+	"math/big"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -27,7 +29,6 @@ import (
 	"github.com/ethereum/go-ethereum/crypto/bls12381"
 	"github.com/ethereum/go-ethereum/crypto/bn256"
 	"github.com/ethereum/go-ethereum/params"
-	"math/big"
 
 	//lint:ignore SA1019 Needed for precompile
 	"golang.org/x/crypto/ripemd160"
@@ -39,56 +40,6 @@ import (
 type PrecompiledContract interface {
 	RequiredGas(input []byte) uint64  // RequiredPrice calculates the contract gas use
 	Run(input []byte) ([]byte, error) // Run runs the precompiled contract
-}
-
-// PrecompiledContractsHomestead contains the default set of pre-compiled Ethereum
-// contracts used in the Frontier and Homestead releases.
-var PrecompiledContractsHomestead = map[common.Address]PrecompiledContract{
-	common.BytesToAddress([]byte{1}): &ecrecover{},
-	common.BytesToAddress([]byte{2}): &sha256hash{},
-	common.BytesToAddress([]byte{3}): &ripemd160hash{},
-	common.BytesToAddress([]byte{4}): &dataCopy{},
-}
-
-// PrecompiledContractsByzantium contains the default set of pre-compiled Ethereum
-// contracts used in the Byzantium release.
-var PrecompiledContractsByzantium = map[common.Address]PrecompiledContract{
-	common.BytesToAddress([]byte{1}): &ecrecover{},
-	common.BytesToAddress([]byte{2}): &sha256hash{},
-	common.BytesToAddress([]byte{3}): &ripemd160hash{},
-	common.BytesToAddress([]byte{4}): &dataCopy{},
-	common.BytesToAddress([]byte{5}): &bigModExp{eip2565: false},
-	common.BytesToAddress([]byte{6}): &bn256AddByzantium{},
-	common.BytesToAddress([]byte{7}): &bn256ScalarMulByzantium{},
-	common.BytesToAddress([]byte{8}): &bn256PairingByzantium{},
-}
-
-// PrecompiledContractsIstanbul contains the default set of pre-compiled Ethereum
-// contracts used in the Istanbul release.
-var PrecompiledContractsIstanbul = map[common.Address]PrecompiledContract{
-	common.BytesToAddress([]byte{1}): &ecrecover{},
-	common.BytesToAddress([]byte{2}): &sha256hash{},
-	common.BytesToAddress([]byte{3}): &ripemd160hash{},
-	common.BytesToAddress([]byte{4}): &dataCopy{},
-	common.BytesToAddress([]byte{5}): &bigModExp{eip2565: false},
-	common.BytesToAddress([]byte{6}): &bn256AddIstanbul{},
-	common.BytesToAddress([]byte{7}): &bn256ScalarMulIstanbul{},
-	common.BytesToAddress([]byte{8}): &bn256PairingIstanbul{},
-	common.BytesToAddress([]byte{9}): &blake2F{},
-}
-
-// PrecompiledContractsBerlin contains the default set of pre-compiled Ethereum
-// contracts used in the Berlin release.
-var PrecompiledContractsBerlin = map[common.Address]PrecompiledContract{
-	common.BytesToAddress([]byte{1}): &ecrecover{},
-	common.BytesToAddress([]byte{2}): &sha256hash{},
-	common.BytesToAddress([]byte{3}): &ripemd160hash{},
-	common.BytesToAddress([]byte{4}): &dataCopy{},
-	common.BytesToAddress([]byte{5}): &bigModExp{eip2565: true},
-	common.BytesToAddress([]byte{6}): &bn256AddIstanbul{},
-	common.BytesToAddress([]byte{7}): &bn256ScalarMulIstanbul{},
-	common.BytesToAddress([]byte{8}): &bn256PairingIstanbul{},
-	common.BytesToAddress([]byte{9}): &blake2F{},
 }
 
 // PrecompiledContractsBLS contains the set of pre-compiled Ethereum
@@ -106,13 +57,78 @@ var PrecompiledContractsBLS = map[common.Address]PrecompiledContract{
 }
 
 var (
-	PrecompiledAddressesBerlin    []common.Address
-	PrecompiledAddressesIstanbul  []common.Address
-	PrecompiledAddressesByzantium []common.Address
-	PrecompiledAddressesHomestead []common.Address
+	PrecompiledAddressesBerlin     []common.Address
+	PrecompiledAddressesMiko       []common.Address
+	PrecompiledAddressesConsortium []common.Address
+	PrecompiledAddressesIstanbul   []common.Address
+	PrecompiledAddressesByzantium  []common.Address
+	PrecompiledAddressesHomestead  []common.Address
+
+	// PrecompiledContractsHomestead contains the default set of pre-compiled Ethereum
+	// contracts used in the Frontier and Homestead releases.
+	PrecompiledContractsHomestead map[common.Address]PrecompiledContract
+
+	// PrecompiledContractsByzantium contains the default set of pre-compiled Ethereum
+	// contracts used in the Byzantium release.
+	PrecompiledContractsByzantium map[common.Address]PrecompiledContract
+
+	// PrecompiledContractsIstanbul contains the default set of pre-compiled Ethereum
+	// contracts used in the Istanbul release.
+	PrecompiledContractsIstanbul map[common.Address]PrecompiledContract
+
+	// PrecompiledContractsConsortium contains additional Consortium precompiled contract
+	// beside PrecompiledContractsIstanbul
+	PrecompiledContractsConsortium map[common.Address]PrecompiledContract
+
+	// PrecompiledContractsConsortium contains proof of possession precompiled contract
+	// beside PrecompiledContractsConsortium
+	PrecompiledContractsConsortiumMiko map[common.Address]PrecompiledContract
+
+	// PrecompiledContractsBerlin contains the default set of pre-compiled Ethereum
+	// contracts used in the Berlin release.
+	PrecompiledContractsBerlin map[common.Address]PrecompiledContract
 )
 
+func copyPrecompiledContract(contracts map[common.Address]PrecompiledContract) map[common.Address]PrecompiledContract {
+	cpy := make(map[common.Address]PrecompiledContract)
+
+	for address, contract := range contracts {
+		cpy[address] = contract
+	}
+
+	return cpy
+}
+
 func init() {
+	PrecompiledContractsHomestead = map[common.Address]PrecompiledContract{
+		common.BytesToAddress([]byte{1}): &ecrecover{},
+		common.BytesToAddress([]byte{2}): &sha256hash{},
+		common.BytesToAddress([]byte{3}): &ripemd160hash{},
+		common.BytesToAddress([]byte{4}): &dataCopy{},
+	}
+
+	PrecompiledContractsByzantium = copyPrecompiledContract(PrecompiledContractsHomestead)
+	PrecompiledContractsByzantium[common.BytesToAddress([]byte{5})] = &bigModExp{eip2565: false}
+	PrecompiledContractsByzantium[common.BytesToAddress([]byte{6})] = &bn256AddByzantium{}
+	PrecompiledContractsByzantium[common.BytesToAddress([]byte{7})] = &bn256ScalarMulByzantium{}
+	PrecompiledContractsByzantium[common.BytesToAddress([]byte{8})] = &bn256PairingByzantium{}
+
+	PrecompiledContractsIstanbul = copyPrecompiledContract(PrecompiledContractsByzantium)
+	PrecompiledContractsIstanbul[common.BytesToAddress([]byte{9})] = &blake2F{}
+
+	PrecompiledContractsConsortium = copyPrecompiledContract(PrecompiledContractsIstanbul)
+	PrecompiledContractsConsortium[common.BytesToAddress([]byte{101})] = &consortiumLog{}
+	PrecompiledContractsConsortium[common.BytesToAddress([]byte{102})] = &consortiumValidatorSorting{}
+	PrecompiledContractsConsortium[common.BytesToAddress([]byte{103})] = &consortiumVerifyHeaders{}
+	PrecompiledContractsConsortium[common.BytesToAddress([]byte{104})] = &consortiumPickValidatorSet{}
+	PrecompiledContractsConsortium[common.BytesToAddress([]byte{105})] = &consortiumValidateFinalityProof{}
+
+	PrecompiledContractsConsortiumMiko = copyPrecompiledContract(PrecompiledContractsConsortium)
+	PrecompiledContractsConsortiumMiko[common.BytesToAddress([]byte{106})] = &consortiumValidateProofOfPossession{}
+
+	PrecompiledContractsBerlin = copyPrecompiledContract(PrecompiledContractsConsortiumMiko)
+	PrecompiledContractsBerlin[common.BytesToAddress([]byte{5})] = &bigModExp{eip2565: true}
+
 	for k := range PrecompiledContractsHomestead {
 		PrecompiledAddressesHomestead = append(PrecompiledAddressesHomestead, k)
 	}
@@ -121,6 +137,12 @@ func init() {
 	}
 	for k := range PrecompiledContractsIstanbul {
 		PrecompiledAddressesIstanbul = append(PrecompiledAddressesIstanbul, k)
+	}
+	for k := range PrecompiledContractsConsortium {
+		PrecompiledAddressesConsortium = append(PrecompiledAddressesConsortium, k)
+	}
+	for k := range PrecompiledContractsConsortiumMiko {
+		PrecompiledAddressesMiko = append(PrecompiledAddressesMiko, k)
 	}
 	for k := range PrecompiledContractsBerlin {
 		PrecompiledAddressesBerlin = append(PrecompiledAddressesBerlin, k)
@@ -132,6 +154,10 @@ func ActivePrecompiles(rules params.Rules) []common.Address {
 	switch {
 	case rules.IsBerlin:
 		return PrecompiledAddressesBerlin
+	case rules.IsMiko:
+		return PrecompiledAddressesMiko
+	case rules.IsConsortiumV2:
+		return PrecompiledAddressesConsortium
 	case rules.IsIstanbul:
 		return PrecompiledAddressesIstanbul
 	case rules.IsByzantium:
