@@ -16,6 +16,7 @@ import (
 	blsCommon "github.com/ethereum/go-ethereum/crypto/bls/common"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	lru "github.com/hashicorp/golang-lru"
 )
@@ -112,11 +113,57 @@ func loadSnapshot(
 	return snap, nil
 }
 
+// snapshot pruning
+// delete the nSnapshotsPrune oldest snapshots
+func pruneSnapshot(db ethdb.Database, nSnapshotsPrune int) error {
+	// Get all snapshots (hash, block number) from the database
+	nSnapShots := 0
+	snapshots := make(map[common.Hash]uint64)
+	it := db.NewIterator(rawdb.ConsortiumSnapshotPrefix, nil)
+	defer it.Release()
+	for it.Next() {
+		snap := new(Snapshot)
+		if err := json.Unmarshal(it.Value(), snap); err != nil {
+			return err
+		}
+		snapshots[snap.Hash] = snap.Number
+		nSnapShots++
+	}
+
+	// Sort the snapshots by block number
+	hashes := make([]common.Hash, 0, nSnapShots)
+	for hash := range snapshots {
+		hashes = append(hashes, hash)
+	}
+	sort.Slice(hashes, func(i, j int) bool {
+		return snapshots[hashes[i]] < snapshots[hashes[j]]
+	})
+
+	// Prune the snapshots
+	if nSnapshotsPrune > nSnapShots {
+		nSnapshotsPrune = nSnapShots - 1
+	}
+	for i := 0; i < nSnapshotsPrune; i++ {
+		if err := db.Delete(append(rawdb.ConsortiumSnapshotPrefix, hashes[i][:]...)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // store inserts the snapshot into the database.
 func (s *Snapshot) store(db ethdb.Database) error {
 	blob, err := json.Marshal(s)
 	if err != nil {
 		return err
+	}
+	// prune nSnapshotPrune snapshots every prunePeriod blocks
+	nSnapshotsPrune := 200 * 144 // 1 day
+	prunePeriod := 200 * 144     // 1 day
+	if s.Number%uint64(prunePeriod) == 0 {
+		if err := pruneSnapshot(db, nSnapshotsPrune); err != nil {
+			log.Error("Failed to prune snapshots", "err", err)
+		}
 	}
 	return db.Put(append(rawdb.ConsortiumSnapshotPrefix, s.Hash[:]...), blob)
 }
