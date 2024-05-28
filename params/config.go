@@ -23,6 +23,7 @@ import (
 	"reflect"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"golang.org/x/crypto/sha3"
 )
 
@@ -573,16 +574,23 @@ type ChainConfig struct {
 	TerminalTotalDifficulty *big.Int `json:"terminalTotalDifficulty,omitempty"`
 
 	// Various consensus engines
-	Ethash                 *EthashConfig          `json:"ethash,omitempty"`
-	Clique                 *CliqueConfig          `json:"clique,omitempty"`
-	Consortium             *ConsortiumConfig      `json:"consortium,omitempty"`
-	ConsortiumV2Contracts  *ConsortiumV2Contracts `json:"consortiumV2Contracts"`
-	RoninTrustedOrgUpgrade *ContractUpgrade       `json:"roninTrustedOrgUpgrade"`
+	Ethash                      *EthashConfig          `json:"ethash,omitempty"`
+	Clique                      *CliqueConfig          `json:"clique,omitempty"`
+	Consortium                  *ConsortiumConfig      `json:"consortium,omitempty"`
+	ConsortiumV2Contracts       *ConsortiumV2Contracts `json:"consortiumV2Contracts"`
+	RoninTrustedOrgUpgrade      *ContractUpgrade       `json:"roninTrustedOrgUpgrade"`
+	TransparentProxyCodeUpgrade *ContractCodeUpgrade   `json:"transparentProxyCodeUpgrade"`
 }
 
 type ContractUpgrade struct {
 	ProxyAddress          common.Address `json:"proxyAddress"`
 	ImplementationAddress common.Address `json:"implementationAddress"`
+}
+
+type ContractCodeUpgrade struct {
+	AxieAddress common.Address `json:"axieAddress"`
+	LandAddress common.Address `json:"landAddress"`
+	Code        hexutil.Bytes  `json:"code"`
 }
 
 // EthashConfig is the consensus engine configs for proof-of-work based sealing.

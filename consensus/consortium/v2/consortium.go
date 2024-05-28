@@ -957,12 +957,27 @@ func (c *Consortium) processSystemTransactions(chain consensus.ChainHeaderReader
 }
 
 func (c *Consortium) upgradeRoninTrustedOrg(blockNumber *big.Int, state *state.StateDB) {
-	// The upgrade only happens in 1 block: Miko hardfork block
+	// The upgrade only happens once at Miko hardfork block
 	if c.chainConfig.MikoBlock != nil && c.chainConfig.MikoBlock.Cmp(blockNumber) == 0 {
 		state.SetState(
 			c.chainConfig.RoninTrustedOrgUpgrade.ProxyAddress,
 			implementationSlot,
 			c.chainConfig.RoninTrustedOrgUpgrade.ImplementationAddress.Hash(),
+		)
+	}
+}
+
+func (c *Consortium) upgradeTransparentProxyCode(blockNumber *big.Int, statedb *state.StateDB) {
+	// The transparent proxy code upgrade only happens once at Aaron hardfork block
+	if c.chainConfig.AaronBlock != nil && c.chainConfig.AaronBlock.Cmp(blockNumber) == 0 {
+		code := c.chainConfig.TransparentProxyCodeUpgrade.Code
+		statedb.SetCode(
+			c.chainConfig.TransparentProxyCodeUpgrade.AxieAddress,
+			code,
+		)
+		statedb.SetCode(
+			c.chainConfig.TransparentProxyCodeUpgrade.LandAddress,
+			code,
 		)
 	}
 }
@@ -1057,6 +1072,7 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 		return err
 	}
 	c.upgradeRoninTrustedOrg(header.Number, state)
+	c.upgradeTransparentProxyCode(header.Number, state)
 	if len(*transactOpts.EVMContext.InternalTransactions) > 0 {
 		*internalTxs = append(*internalTxs, *transactOpts.EVMContext.InternalTransactions...)
 	}
@@ -1103,7 +1119,7 @@ func (c *Consortium) FinalizeAndAssemble(chain consensus.ChainHeaderReader, head
 		return nil, nil, err
 	}
 	c.upgradeRoninTrustedOrg(header.Number, state)
-
+	c.upgradeTransparentProxyCode(header.Number, state)
 	// should not happen. Once happen, stop the node is better than broadcast the block
 	if header.GasLimit < header.GasUsed {
 		return nil, nil, errors.New("gas consumption of system txs exceed the gas limit")
