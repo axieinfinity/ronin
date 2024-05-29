@@ -425,6 +425,7 @@ func (c *Consortium) verifyCascadingFields(chain consensus.ChainHeaderReader, he
 	err = c.verifyValidatorFieldsInExtraData(chain, extraData, header)
 	if err != nil {
 		return err
+
 	}
 
 	if isShillin && extraData.HasFinalityVote == 1 {
@@ -536,7 +537,7 @@ func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, 
 			// 	So the final result must be [998: addressN - 1,999: addressN]
 			snap.Recents = consortiumCommon.RemoveOutdatedRecents(snapV1.Recents, number)
 
-			if err := snap.store(c.db); err != nil {
+			if err := snap.store(c.db, chain); err != nil {
 				return nil, err
 			}
 			log.Info("Stored checkpoint snapshot to disk", "number", number, "hash", hash)
@@ -595,7 +596,7 @@ func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, 
 
 	// If we've generated a new checkpoint snapshot, save to disk
 	if snap.Number%c.config.EpochV2 == 0 && len(headers) > 0 {
-		if err = snap.store(c.db); err != nil {
+		if err = snap.store(c.db, chain); err != nil {
 			return nil, err
 		}
 		log.Trace("Stored snapshot to disk", "number", snap.Number, "hash", snap.Hash)
@@ -1742,6 +1743,7 @@ func (c *Consortium) IsPeriodBlock(chain consensus.ChainHeaderReader, header *ty
 	if c.isTest {
 		return c.testTrippPeriod
 	}
+
 	number := header.Number.Uint64()
 	if number%c.config.EpochV2 != 0 || !chain.Config().IsTripp(header.Number) {
 		return false
