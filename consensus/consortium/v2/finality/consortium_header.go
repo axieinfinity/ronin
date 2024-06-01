@@ -136,11 +136,11 @@ func (validator CheckpointValidatorAscending) Swap(i, j int) {
 	validator[i], validator[j] = validator[j], validator[i]
 }
 
-type FinalityVoteBitSet uint64
+type BitSet uint64
 
 const finalityVoteBitSetByteLength int = 8
 
-func (bitSet *FinalityVoteBitSet) Indices() []int {
+func (bitSet *BitSet) Indices() []int {
 	var votedValidatorPositions []int
 
 	for i := 0; i < finalityVoteBitSetByteLength*8; i++ {
@@ -151,7 +151,7 @@ func (bitSet *FinalityVoteBitSet) Indices() []int {
 	return votedValidatorPositions
 }
 
-func (bitSet *FinalityVoteBitSet) GetBit(index int) int {
+func (bitSet *BitSet) GetBit(index int) int {
 	if index >= finalityVoteBitSetByteLength*8 {
 		return 0
 	}
@@ -159,12 +159,12 @@ func (bitSet *FinalityVoteBitSet) GetBit(index int) int {
 	return int((uint64(*bitSet) >> index) & 1)
 }
 
-func (bitSet *FinalityVoteBitSet) SetBit(index int) {
+func (bitSet *BitSet) SetBit(index int) {
 	if index >= finalityVoteBitSetByteLength*8 {
 		return
 	}
 
-	*bitSet = FinalityVoteBitSet(uint64(*bitSet) | (1 << index))
+	*bitSet = BitSet(uint64(*bitSet) | (1 << index))
 }
 
 // HeaderExtraData represents the information in the extra data of header,
@@ -172,10 +172,11 @@ func (bitSet *FinalityVoteBitSet) SetBit(index int) {
 type HeaderExtraData struct {
 	Vanity                  [ExtraVanity]byte     // unused in Consortium, filled with zero
 	HasFinalityVote         uint8                 // determine if the header extra has the finality vote
-	FinalityVotedValidators FinalityVoteBitSet    // the bit set of validators that vote for finality
+	FinalityVotedValidators BitSet                // the bit set of validators that vote for finality
 	AggregatedFinalityVotes blsCommon.Signature   // aggregated BLS signatures for finality vote
 	CheckpointValidators    []ValidatorWithBlsPub // validator addresses and BLS public key updated at period block
 	BlockProducers          []common.Address      // block producer addresses updated at epoch block
+	BlockProducersBitSet    BitSet                // the bit set of validators that can produce blocks
 	Seal                    [ExtraSeal]byte       // the sealing block signature
 }
 
@@ -232,7 +233,7 @@ func DecodeExtra(rawBytes []byte, isShillin bool) (*HeaderExtraData, error) {
 			if rawBytesLength-currentPosition < finalityVoteBitSetByteLength {
 				return nil, ErrMissingFinalityVoteBitSet
 			}
-			extraData.FinalityVotedValidators = FinalityVoteBitSet(
+			extraData.FinalityVotedValidators = BitSet(
 				binary.LittleEndian.Uint64(rawBytes[currentPosition : currentPosition+finalityVoteBitSetByteLength]),
 			)
 			currentPosition += finalityVoteBitSetByteLength
@@ -274,10 +275,11 @@ func DecodeExtra(rawBytes []byte, isShillin bool) (*HeaderExtraData, error) {
 // by AggregatedFinalityVotes and FinalityVotedValidators. On the other hand, seal is
 // appended manually, enabling encodeSigHeader easily to exclude Seal before signing process
 type extraDataRLP struct {
-	FinalityVotedValidators FinalityVoteBitSet
+	FinalityVotedValidators BitSet
 	AggregatedFinalityVotes []byte
 	CheckpointValidators    []validatorWithBlsPubRLP
 	BlockProducers          []common.Address
+	BlockProducersBitSet    BitSet  `rlp:"optional"`
 }
 
 type validatorWithBlsPubRLP struct {
@@ -315,6 +317,7 @@ func (extraData *HeaderExtraData) EncodeRLP() ([]byte, error) {
 	}
 	ext.CheckpointValidators = cp
 	ext.BlockProducers = extraData.BlockProducers
+	ext.BlockProducersBitSet = extraData.BlockProducersBitSet
 
 	enc, err := rlp.EncodeToBytes(ext)
 	if err != nil {
@@ -354,6 +357,7 @@ func DecodeExtraRLP(enc []byte) (*HeaderExtraData, error) {
 	}
 	ret.CheckpointValidators = cp
 	ret.BlockProducers = dec.BlockProducers
+	ret.BlockProducersBitSet = dec.BlockProducersBitSet
 
 	if len(dec.AggregatedFinalityVotes) != 0 && len(dec.FinalityVotedValidators.Indices()) != 0 {
 		ret.HasFinalityVote = 1

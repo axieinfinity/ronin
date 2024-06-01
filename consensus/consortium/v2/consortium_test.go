@@ -9,6 +9,8 @@ import (
 	"errors"
 	"io"
 	"math/big"
+	mrand "math/rand"
+	"sort"
 	"testing"
 	"time"
 
@@ -535,20 +537,20 @@ func TestExtraDataDecode(t *testing.T) {
 
 func mockExtraData(nVal int, bits uint32) *finality.HeaderExtraData {
 	var (
-		finalityVotedValidators finality.FinalityVoteBitSet
+		finalityVotedValidators finality.BitSet
 		aggregatedFinalityVotes blsCommon.Signature
 		checkpointValidators    []finality.ValidatorWithBlsPub
 		seal                    = make([]byte, finality.ExtraSeal)
 		ret                     = &finality.HeaderExtraData{}
 	)
 
-	bits = bits % 32
-	for i := 0; i < 5; i++ {
+	bits = bits % 64
+	for i := 0; i < 6; i++ {
 		if bits&(1<<i) != 0 {
 			switch i {
 			case 0:
 				ret.HasFinalityVote = 1
-				finalityVotedValidators = finality.FinalityVoteBitSet(uint64(8))
+				finalityVotedValidators = finality.BitSet(uint64(8))
 				ret.FinalityVotedValidators = finalityVotedValidators
 
 				delegated, _ := blst.RandKey()
@@ -586,6 +588,8 @@ func mockExtraData(nVal int, bits uint32) *finality.HeaderExtraData {
 					common.Address{0x22},
 					common.Address{0x33},
 				}
+			case 5:
+				ret.BlockProducersBitSet = finality.BitSet(mrand.Uint64())
 			}
 		}
 	}
@@ -671,6 +675,9 @@ func TestExtraDataDecodeRLP(t *testing.T) {
 		if !bytes.Equal(dec.Seal[:], ext.Seal[:]) {
 			t.Errorf("Mismatch decoded data")
 		}
+		if dec.BlockProducersBitSet != ext.BlockProducersBitSet {
+			t.Errorf("Mismatch decoded data")
+		}
 	}
 
 	_, err := finality.DecodeExtraRLP([]byte{})
@@ -683,43 +690,12 @@ func TestExtraDataDecodeRLP(t *testing.T) {
 	if !errors.Is(err, io.EOF) {
 		t.Fatalf("Expect error: %s, got: %s", io.EOF, err)
 	}
-}
 
-func BenchmarkEncodeRLP(b *testing.B) {
-	nVal := 22
-	ext := mockExtraData(nVal, 7)
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		ext.EncodeRLP()
-	}
-}
-
-func BenchmarkEncode(b *testing.B) {
-	nVal := 22
-	ext := mockExtraData(nVal, 7)
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		ext.Encode(true)
-	}
-}
-
-func BenchmarkDecodeRLP(b *testing.B) {
-	nVal := 22
-	ext := mockExtraData(nVal, 7)
-	dec, _ := ext.EncodeRLP()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		finality.DecodeExtraRLP(dec)
-	}
-}
-
-func BenchmarkDecode(b *testing.B) {
-	nVal := 22
-	ext := mockExtraData(nVal, 7)
-	dec := ext.Encode(true)
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		finality.DecodeExtra(dec, true)
+	// test case extra encoding with rlp optional
+	enc := common.Hex2Bytes("f905fd821fdfb860b84d08d4923f9833f1217bdaab39ae7210200ea854429e2a0324a278639fa5e61cfe81ad05d2058cb2256ecb674fbc6b0a78772372afc2361e7476e83f2829cf4a312bb9a44b12b8539df408d15448b5feb06ede96871e6ce8147a9f590f03fbf904acf84994847c2b1f0138e82c0e12c23d9b1f58bffbe8e43bb0afa23456ca3bd535b4308ec0496eb98f60d0ecf332263cf92337c56f7468cf824a5f3078cf9d727a483754e546a40b958202b1f849949f1abc67bea4db5560371ff3089f4bfe934c36bcb0b5902528277a835bd7d779d43aacbedaa5266f7cbbebe783950c5832ccdad1c98e00408276677711e57814da4bb10091820344f84994e9bf2a788c27dadc6b169d52408b710d267b9bffb08aeb082b66e80ee32e3f29a787ed41914f9ddd37041108fbc207801dfb7207628ecdb2524d8f8f1e0863dfdf19e93b888202b3f84994a85ddddceeab43dccaa259dd4936ac104386f9aab09256ab3792329b85dc7b633a3f7f99d8f84a8924a27576d89323988f09871deaeb82a18248cd02af3e7837c91d38b62982033ff84994d086d2e3fac052a3f695a4e8905ce1722531163cb0a548cc15b37218e9b402465ccfc4f7f9bff8c9bc552286287c261c6818f2e811653bafb9fb921b0e3cb1883261a60a708202fff84894f4ff69528abdf88ec509fdd950497f54d7890bc8b091850ea30f0d24e5b458d72820d5b2f1b0c9a88239f990779231531ccee857ea20d96da1ff6c60bf3ee65280ca21547681edf84994a325fd3a2f4f5cafe2c151ee428b5ceded628193b099210a94511cacc37ba3c972618ef8f805dcdb484a09e2d3660c3a468b39021b21093d2ad62244d698de69ebaf951c79820320f849949422d990acdc3f2b3aa3b97303ad3060f09d7ffcb0ab948584bc2b98314144e78361b684fe1b14fa05cf38fbb549e988522ca1ab97dc9593460c2d2b2afd0a2a31f56557ff82038df84994c3c97512421bf3e339e9fd412f18584e53138bfab0811c1cb10f63e1ad0fd0a8e5ab9a535f78ad8b12de3761ac7e70df6ca9768ee046b0b78bf722c700ab61e984a622c40f82038df84994a49541ee1bbdd6aca7aadcdf5b591cce0f460795b0a54c52c9ac032fa63d2c5a892ccb28f94ce23a1af9044f2e5086bef79e62e778c81d8a6d9ebd78c6dcef021fda31bcd782017bf84994614381cbb8afebd58a55937e6a47b678adb0c2c6b084704f4c348684cf80be54a63c557bc0b63b9bfe8d1351f279f8d1347fc507121d6cf8bdfd48a2925508fa826b37c64a8202b1f849948b5608c77cb1309f2e06a3473bf4bf43aff5144cb0b30585ee4a72a987dfed0e3b7390b52d4351120d40f8566b1dc59117987acbea48e165510209c0ec25d12b1a316a05ce8202b1f84994726f02987863f4aeeacc94a81ef6755a58ed676bb0966f03c7be65bc0e771901857f517d67f11615090030cab29a4dfdcf440b31819e7e0aa763be68028b60afa082614a3a820179f84894786e3c84a3a8ccc38a6994d4fa7f37219ba6a98bb0a8e75014e6c7b4d09b3af3aa73fdd9f8ede55d916b535893584aa9b2c29d1a2a3886424e0ee429e6e414a0518b71e3c981edf84894bb79150e2774dc627869f750aa59246d4d8f3a63b0b8eea2bb0567c225d0dec7abe2d2e49a86a15099e034b5c46d43cdb723cc17f0d93e04a5cfc34597eccfd4f6655cb56481edf84894d0fa4a759b94aae2767d7bfcbbfe739b6d6f20c6b0a8d544a46f35384348128403a76cca5c437c20bc922766918017993e10afa439b4bd049c28bc1a8d415f27c253e371f181edf8e794726f02987863f4aeeacc94a81ef6755a58ed676b94847c2b1f0138e82c0e12c23d9b1f58bffbe8e43b948b5608c77cb1309f2e06a3473bf4bf43aff5144c949422d990acdc3f2b3aa3b97303ad3060f09d7ffc949f1abc67bea4db5560371ff3089f4bfe934c36bc94a325fd3a2f4f5cafe2c151ee428b5ceded62819394a49541ee1bbdd6aca7aadcdf5b591cce0f46079594a85ddddceeab43dccaa259dd4936ac104386f9aa94c3c97512421bf3e339e9fd412f18584e53138bfa94d086d2e3fac052a3f695a4e8905ce1722531163c94e9bf2a788c27dadc6b169d52408b710d267b9bffa81f644242489cf62023766d1e0768d0471740d034b37d4d36c77efb36e1e6f576fbdfe968389adb3b05e5edaf0f4ea070649102bd0cb6dbb784f382bbe84b9600")
+	_, err = finality.DecodeExtraRLP(enc[:])
+	if err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -772,14 +748,14 @@ func TestVerifyFinalitySignature(t *testing.T) {
 	c.recents.Add(snap.Hash, snap)
 
 	header := types.Header{Number: big.NewInt(int64(blockNumber + 1)), ParentHash: blockHash}
-	var votedBitSet finality.FinalityVoteBitSet
+	var votedBitSet finality.BitSet
 	votedBitSet.SetBit(0)
 	err = c.verifyFinalitySignatures(nil, votedBitSet, nil, &header, nil)
 	if !errors.Is(err, finality.ErrNotEnoughFinalityVote) {
 		t.Errorf("Expect error %v have %v", finality.ErrNotEnoughFinalityVote, err)
 	}
 
-	votedBitSet = finality.FinalityVoteBitSet(0)
+	votedBitSet = finality.BitSet(0)
 	votedBitSet.SetBit(0)
 	votedBitSet.SetBit(1)
 	votedBitSet.SetBit(3)
@@ -788,7 +764,7 @@ func TestVerifyFinalitySignature(t *testing.T) {
 		t.Errorf("Expect error %v have %v", finality.ErrInvalidFinalityVotedBitSet, err)
 	}
 
-	votedBitSet = finality.FinalityVoteBitSet(0)
+	votedBitSet = finality.BitSet(0)
 	votedBitSet.SetBit(0)
 	votedBitSet.SetBit(1)
 	votedBitSet.SetBit(2)
@@ -802,7 +778,7 @@ func TestVerifyFinalitySignature(t *testing.T) {
 		t.Errorf("Expect error %v have %v", finality.ErrFinalitySignatureVerificationFailed, err)
 	}
 
-	votedBitSet = finality.FinalityVoteBitSet(0)
+	votedBitSet = finality.BitSet(0)
 	votedBitSet.SetBit(0)
 	votedBitSet.SetBit(1)
 	votedBitSet.SetBit(2)
@@ -817,7 +793,7 @@ func TestVerifyFinalitySignature(t *testing.T) {
 		t.Errorf("Expect error %v have %v", finality.ErrFinalitySignatureVerificationFailed, err)
 	}
 
-	votedBitSet = finality.FinalityVoteBitSet(0)
+	votedBitSet = finality.BitSet(0)
 	votedBitSet.SetBit(0)
 	votedBitSet.SetBit(1)
 	votedBitSet.SetBit(2)
@@ -886,7 +862,7 @@ func TestVerifyFinalitySignatureTripp(t *testing.T) {
 
 	header := types.Header{Number: big.NewInt(int64(blockNumber + 1)), ParentHash: blockHash}
 	// 1 voter with vote weight 6666 does not reach the threshold
-	votedBitSet := finality.FinalityVoteBitSet(0)
+	votedBitSet := finality.BitSet(0)
 	votedBitSet.SetBit(0)
 	aggregatedSignature := blst.AggregateSignatures([]blsCommon.Signature{
 		signature[0],
@@ -897,7 +873,7 @@ func TestVerifyFinalitySignatureTripp(t *testing.T) {
 	}
 
 	// 2 voters with total vote weight 3333 + 1 does not reach the threshold
-	votedBitSet = finality.FinalityVoteBitSet(0)
+	votedBitSet = finality.BitSet(0)
 	votedBitSet.SetBit(1)
 	votedBitSet.SetBit(2)
 	aggregatedSignature = blst.AggregateSignatures([]blsCommon.Signature{
@@ -910,7 +886,7 @@ func TestVerifyFinalitySignatureTripp(t *testing.T) {
 	}
 
 	// 2 voters with total vote weight 6666 + 1 reach the threshold
-	votedBitSet = finality.FinalityVoteBitSet(0)
+	votedBitSet = finality.BitSet(0)
 	votedBitSet.SetBit(0)
 	votedBitSet.SetBit(1)
 	aggregatedSignature = blst.AggregateSignatures([]blsCommon.Signature{
@@ -923,7 +899,7 @@ func TestVerifyFinalitySignatureTripp(t *testing.T) {
 	}
 
 	// All voters vote
-	votedBitSet = finality.FinalityVoteBitSet(0)
+	votedBitSet = finality.BitSet(0)
 	votedBitSet.SetBit(0)
 	votedBitSet.SetBit(1)
 	votedBitSet.SetBit(2)
@@ -1266,7 +1242,7 @@ func TestAssembleFinalityVote(t *testing.T) {
 		t.Fatal("Missing finality vote in header")
 	}
 
-	bitSet := finality.FinalityVoteBitSet(0)
+	bitSet := finality.BitSet(0)
 	for i := 0; i < 9; i++ {
 		bitSet.SetBit(i)
 	}
@@ -1395,7 +1371,7 @@ func TestAssembleFinalityVoteTripp(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to decode extradata, err %s", err)
 	}
-	bitSet := finality.FinalityVoteBitSet(0)
+	bitSet := finality.BitSet(0)
 	bitSet.SetBit(0)
 	bitSet.SetBit(1)
 	if uint64(extraData.FinalityVotedValidators) != uint64(bitSet) {
@@ -1424,7 +1400,7 @@ func TestAssembleFinalityVoteTripp(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to decode extradata, err %s", err)
 	}
-	bitSet = finality.FinalityVoteBitSet(0)
+	bitSet = finality.BitSet(0)
 	bitSet.SetBit(0)
 	if uint64(extraData.FinalityVotedValidators) != uint64(bitSet) {
 		t.Fatalf("Expect vote bit set to be %d, got %d", uint64(bitSet), uint64(extraData.FinalityVotedValidators))
@@ -1736,7 +1712,7 @@ func TestKnownBlockReorg(t *testing.T) {
 
 				var (
 					extra      finality.HeaderExtraData
-					voteBitset finality.FinalityVoteBitSet
+					voteBitset finality.BitSet
 					signatures []blsCommon.Signature
 				)
 				voteBitset.SetBit(0)
@@ -2457,5 +2433,48 @@ func TestHeaderExtraDataCheckAfterTripp(t *testing.T) {
 	err = c.verifyValidatorFieldsInExtraData(nil, &extraData, &header)
 	if err == nil {
 		t.Fatalf("Expect an error")
+	}
+}
+
+func TestEncodeDecodeValidatorBitSet(t *testing.T) {
+	candidates := make([]finality.ValidatorWithBlsPub, 10)
+	producers := make([]common.Address, 0)
+	for i := 0; i < 10; i++ {
+		secret, err := ecdsa.GenerateKey(crypto.S256(), rand.Reader)
+		if err != nil {
+			t.Fatal(err)
+		}
+		addr := crypto.PubkeyToAddress(secret.PublicKey)
+		candidates[i] = finality.ValidatorWithBlsPub{Address: addr}
+		if i%2 == 0 {
+			producers = append(producers, addr)
+		}
+	}
+	sort.Sort(finality.CheckpointValidatorAscending(candidates))
+	enc := encodeValidatorBitSet(candidates, producers)
+
+	// Test encode bit set
+	sort.Sort(validatorsAscending(producers))
+	indices := enc.Indices()
+	if len(indices) != 5 {
+		t.Fatalf("mismatch validator1, %v", indices)
+	}
+	var i int = 0
+	for _, idx := range indices {
+		if producers[i] != candidates[idx].Address {
+			t.Fatal("mismatch validator")
+		}
+		i += 1
+	}
+
+	// Test decode bit set
+	dec := decodeValidatorBitSet(enc, candidates)
+	if len(dec) != 5 {
+		t.Fatal("mismatch validator")
+	}
+	for i := 0; i < 5; i++ {
+		if producers[i] != dec[i] {
+			t.Fatal("mismatch validator")
+		}
 	}
 }

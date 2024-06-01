@@ -271,7 +271,7 @@ func (c *Consortium) VerifyVote(chain consensus.ChainHeaderReader, vote *types.V
 // verifyFinalitySignatures verifies the finality signatures in the block header
 func (c *Consortium) verifyFinalitySignatures(
 	chain consensus.ChainHeaderReader,
-	finalityVotedValidators finality.FinalityVoteBitSet,
+	finalityVotedValidators finality.BitSet,
 	finalitySignatures blsCommon.Signature,
 	header *types.Header,
 	parents []*types.Header,
@@ -361,12 +361,16 @@ func (c *Consortium) verifyValidatorFieldsInExtraData(
 	header *types.Header,
 ) error {
 	isEpoch := header.Number.Uint64()%c.config.EpochV2 == 0 || c.chainConfig.IsOnConsortiumV2(header.Number)
-	if !isEpoch && (len(extraData.CheckpointValidators) != 0 || len(extraData.BlockProducers) != 0) {
+	if !isEpoch && (len(extraData.CheckpointValidators) != 0 || len(extraData.BlockProducers) != 0) || extraData.BlockProducersBitSet != 0 {
 		return consortiumCommon.ErrExtraValidators
 	}
 
 	if c.IsTrippEffective(chain, header) {
-		if isEpoch && len(extraData.BlockProducers) == 0 {
+		if c.chainConfig.IsAaron(header.Number) {
+			if isEpoch && (extraData.BlockProducersBitSet == 0 || len(extraData.BlockProducers) != 0) {
+				return consortiumCommon.ErrExtraValidators
+			}
+		} else if isEpoch && (extraData.BlockProducersBitSet != 0 || len(extraData.BlockProducers) == 0) {
 			return consortiumCommon.ErrExtraValidators
 		}
 		if c.IsPeriodBlock(chain, header) {
@@ -382,7 +386,7 @@ func (c *Consortium) verifyValidatorFieldsInExtraData(
 		if isEpoch && len(extraData.CheckpointValidators) == 0 {
 			return consortiumCommon.ErrExtraValidators
 		}
-		if len(extraData.BlockProducers) != 0 {
+		if len(extraData.BlockProducers) != 0 || extraData.BlockProducersBitSet != 0 {
 			return consortiumCommon.ErrExtraValidators
 		}
 	}
@@ -739,7 +743,10 @@ func (c *Consortium) getCheckpointValidatorsFromContract(
 	var checkpointValidators []finality.ValidatorWithBlsPub
 
 	if c.IsTrippEffective(chain, header) {
-		sort.Sort(validatorsAscending(blockProducers))
+		isAaron := c.chainConfig.IsAaron(header.Number)
+		if !isAaron {
+			sort.Sort(validatorsAscending(blockProducers))
+		}
 		if !c.IsPeriodBlock(chain, header) {
 			return nil, blockProducers, nil
 		}
@@ -750,6 +757,14 @@ func (c *Consortium) getCheckpointValidatorsFromContract(
 		if len(validatorCandidates) > MaxValidatorCandidates {
 			validatorCandidates = validatorCandidates[:MaxValidatorCandidates]
 		}
+
+		// After Aaron, bit set is used, it is necessary to keep
+		// the validator candidate list in a ascending order, which
+		// enable block producer list to be consistent after reconstruction.
+		if isAaron {
+			sort.Sort(validatorsAscending(validatorCandidates))
+		}
+
 		stakedAmounts, err := c.contract.GetStakedAmount(parentHash, parentBlockNumber, validatorCandidates)
 		if err != nil {
 			return nil, nil, err
@@ -828,20 +843,39 @@ func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.He
 	var extraData finality.HeaderExtraData
 
 	if number%c.config.EpochV2 == 0 || c.chainConfig.IsOnConsortiumV2(big.NewInt(int64(number))) {
-		checkpointValidator, blockProducers, err := c.getCheckpointValidatorsFromContract(chain, header)
+		checkpointValidators, blockProducers, err := c.getCheckpointValidatorsFromContract(chain, header)
 		if err != nil {
 			return err
 		}
-		// After Tripp, validator candidates are read only once at
-		// the start of new period, whereas block producer address is read
-		// at the start of every epoch.
+		// After Tripp, validator candidate list is read only once at
+		// the start of new period and does not change over the whole
+		// period; whereas block producer list is changed and read at
+		// the start of every new epoch.
 		if c.IsTrippEffective(chain, header) {
+			// latestValidatorCandidates is the latest validator candidate list at the
+			// current epoch, which is used to calculate block producer bit set later on.
+			var latestValidatorCandidates []finality.ValidatorWithBlsPub
+
 			if c.IsPeriodBlock(chain, header) {
-				extraData.CheckpointValidators = checkpointValidator
+				extraData.CheckpointValidators = checkpointValidators
+				latestValidatorCandidates = checkpointValidators
+			} else {
+				// Except period block, checkpoint validator list get from contract
+				// is nil at other epoch blocks. From the fact that validator candidate list
+				// does not change over the whole period, it's possible to get the latest
+				// validator candidate set from the snapshot.
+				latestValidatorCandidates = snap.ValidatorsWithBlsPub
 			}
-			extraData.BlockProducers = blockProducers
+			// After Aaron, to reduce memory to store block producer list
+			// in header, block producer bit set is constructed to store the
+			// indices of block producer in validator candidate lists.
+			if c.chainConfig.IsAaron(header.Number) {
+				extraData.BlockProducersBitSet = encodeValidatorBitSet(latestValidatorCandidates, blockProducers)
+			} else {
+				extraData.BlockProducers = blockProducers
+			}
 		} else {
-			extraData.CheckpointValidators = checkpointValidator
+			extraData.CheckpointValidators = checkpointValidators
 		}
 	}
 
@@ -1008,6 +1042,10 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 		SignTxFn:    signTxFn,
 		EthAPI:      c.ethAPI,
 	}
+	snap, err := c.snapshot(chain, header.Number.Uint64()-1, header.ParentHash, nil)
+	if err != nil {
+		return err
+	}
 
 	// If the block is an epoch end block, verify the validator list
 	// The verification can only be done when the state is ready, it can't be done in VerifyHeader.
@@ -1024,12 +1062,26 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 		// If isTripp and new period, read all validator candidates and
 		// their amounts, check with stored data in header
 		if c.IsTrippEffective(chain, header) {
-			if len(blockProducers) != len(extraData.BlockProducers) {
-				return errMismatchingValidators
-			}
-			for i := range blockProducers {
-				if blockProducers[i] != extraData.BlockProducers[i] {
+			if c.chainConfig.IsAaron(header.Number) {
+				if !c.IsPeriodBlock(chain, header) {
+					// Except period block, checkpoint validator list get from contract
+					// is nil at other epoch blocks. From the fact that validator candidate list
+					// does not change over the whole period, it's possible to get the latest
+					// validator candidate set from the snapshot.
+					checkpointValidators = snap.ValidatorsWithBlsPub
+				}
+				bitSet := encodeValidatorBitSet(checkpointValidators, blockProducers)
+				if bitSet != extraData.BlockProducersBitSet {
 					return errMismatchingValidators
+				}
+			} else {
+				if len(blockProducers) != len(extraData.BlockProducers) {
+					return errMismatchingValidators
+				}
+				for i := range blockProducers {
+					if blockProducers[i] != extraData.BlockProducers[i] {
+						return errMismatchingValidators
+					}
 				}
 			}
 			if c.IsPeriodBlock(chain, header) {
@@ -1389,7 +1441,7 @@ func (c *Consortium) assembleFinalityVote(chain consensus.ChainHeaderReader, hea
 	if c.chainConfig.IsShillin(header.Number) {
 		var (
 			signatures              []blsCommon.Signature
-			finalityVotedValidators finality.FinalityVoteBitSet
+			finalityVotedValidators finality.BitSet
 			finalityThreshold       int
 			accumulatedVoteWeight   int
 		)
@@ -1640,6 +1692,27 @@ func encodeSigHeader(w io.Writer, header *types.Header, chainId *big.Int) {
 	if err := rlp.Encode(w, enc); err != nil {
 		panic("can't encode: " + err.Error())
 	}
+}
+
+func encodeValidatorBitSet(validatorCandidates []finality.ValidatorWithBlsPub, blockProducers []common.Address) finality.BitSet {
+	var bitSet finality.BitSet
+	for _, validator := range blockProducers {
+		for idx, candidate := range validatorCandidates {
+			if validator == candidate.Address {
+				bitSet.SetBit(idx)
+			}
+		}
+	}
+	return bitSet
+}
+
+func decodeValidatorBitSet(bitSet finality.BitSet, validatorCandidates []finality.ValidatorWithBlsPub) []common.Address {
+	indices := bitSet.Indices()
+	blockProducers := make([]common.Address, len(indices))
+	for i, idx := range indices {
+		blockProducers[i] = validatorCandidates[idx].Address
+	}
+	return blockProducers
 }
 
 // getLastCheckpointHeader returns the last checkpoint header, this function is used as a fallback when we cannot

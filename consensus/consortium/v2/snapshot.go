@@ -236,6 +236,7 @@ func (s *Snapshot) apply(headers []*types.Header, chain consensus.ChainHeaderRea
 		}
 
 		isTripp := chain.Config().IsTripp(header.Number)
+		isAaron := s.chainConfig.IsAaron(header.Number)
 		if isTripp && number%s.config.EpochV2 == 0 && header.Time/dayInSeconds > snap.CurrentPeriod {
 			snap.CurrentPeriod = header.Time / dayInSeconds
 		}
@@ -265,7 +266,9 @@ func (s *Snapshot) apply(headers []*types.Header, chain consensus.ChainHeaderRea
 				var newLimit int
 				// After Tripp, list of block producers is retrieved from the
 				// field BlockProducer, instead of field CheckpointValidators.
-				if isTripp && len(extraData.BlockProducers) != 0 {
+				if isAaron && extraData.BlockProducersBitSet != 0 {
+					newLimit = len(extraData.BlockProducersBitSet.Indices())/2 + 1
+				} else if isTripp && len(extraData.BlockProducers) != 0 {
 					newLimit = len(extraData.BlockProducers)/2 + 1
 				} else {
 					newLimit = len(extraData.CheckpointValidators)/2 + 1
@@ -276,7 +279,15 @@ func (s *Snapshot) apply(headers []*types.Header, chain consensus.ChainHeaderRea
 					}
 				}
 
-				if isTripp && len(extraData.BlockProducers) != 0 {
+				// After Aaron, block producer list in snapshot is
+				// reconstructed from bit set and validator candidate list.
+				if isAaron && extraData.BlockProducersBitSet != 0 {
+					if len(extraData.CheckpointValidators) != 0 {
+						snap.ValidatorsWithBlsPub = extraData.CheckpointValidators
+					}
+					snap.BlockProducers = decodeValidatorBitSet(extraData.BlockProducersBitSet, snap.ValidatorsWithBlsPub)
+					snap.Validators = nil
+				} else if isTripp && len(extraData.BlockProducers) != 0 {
 					// After Tripp is effective, the checkpoint validators in header's extra data
 					// is set only at the period block, not at all checkpoint blocks anymore. So
 					// only update snapshot's validator with bls public key when checkpoint

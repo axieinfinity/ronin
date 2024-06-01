@@ -10,7 +10,7 @@ import (
 )
 
 func TestFinalityVoteBitSet(t *testing.T) {
-	var bitSet FinalityVoteBitSet
+	var bitSet BitSet
 
 	bitSet.SetBit(0)
 	bitSet.SetBit(40)
