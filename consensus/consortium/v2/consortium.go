@@ -373,6 +373,10 @@ func (c *Consortium) verifyValidatorFieldsInExtraData(
 			if len(extraData.CheckpointValidators) == 0 {
 				return consortiumCommon.ErrExtraValidators
 			}
+		} else {
+			if len(extraData.CheckpointValidators) != 0 {
+				return consortiumCommon.ErrExtraValidators
+			}
 		}
 	} else {
 		if isEpoch && len(extraData.CheckpointValidators) == 0 {
