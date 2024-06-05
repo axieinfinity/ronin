@@ -1083,6 +1083,7 @@ func TestGetCheckpointValidatorFromContract(t *testing.T) {
 			EpochV2: 200,
 		},
 		contract:           mock,
+		isTest:             true,
 		testTrippEffective: true,
 		testTrippPeriod:    false,
 	}
@@ -2267,5 +2268,55 @@ func TestIsTrippEffective(t *testing.T) {
 	// this header must be Tripp effective
 	if !c.IsTrippEffective(chain, header) {
 		t.Error("fail test Tripp effective")
+	}
+}
+
+func TestHeaderExtraDataCheckAfterTripp(t *testing.T) {
+	c := Consortium{
+		chainConfig: &params.ChainConfig{
+			TrippBlock: common.Big0,
+		},
+		config: &params.ConsortiumConfig{
+			EpochV2: 200,
+		},
+		isTest:             true,
+		testTrippEffective: true,
+	}
+
+	// Not an epoch block, every validator field must be empty
+	header := types.Header{Number: big.NewInt(100)}
+	extraData := finality.HeaderExtraData{
+		CheckpointValidators: []finality.ValidatorWithBlsPub{
+			{},
+		},
+	}
+	err := c.verifyValidatorFieldsInExtraData(nil, &extraData, &header)
+	if err == nil {
+		t.Fatalf("Expect an error")
+	}
+
+	extraData = finality.HeaderExtraData{
+		BlockProducers: []common.Address{
+			{},
+		},
+	}
+	err = c.verifyValidatorFieldsInExtraData(nil, &extraData, &header)
+	if err == nil {
+		t.Fatalf("Expect an error")
+	}
+
+	// Not a period block, checkpoint validators must be empty
+	header = types.Header{Number: big.NewInt(200)}
+	extraData = finality.HeaderExtraData{
+		CheckpointValidators: []finality.ValidatorWithBlsPub{
+			{},
+		},
+		BlockProducers: []common.Address{
+			{},
+		},
+	}
+	err = c.verifyValidatorFieldsInExtraData(nil, &extraData, &header)
+	if err == nil {
+		t.Fatalf("Expect an error")
 	}
 }
