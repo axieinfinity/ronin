@@ -116,6 +116,7 @@ type Consortium struct {
 	votePool consensus.VotePool
 
 	// This is used in unit test only
+	isTest             bool
 	testTrippEffective bool
 	testTrippPeriod    bool
 }
@@ -354,6 +355,40 @@ func (c *Consortium) VerifyHeaderAndParents(chain consensus.ChainHeaderReader, h
 	return c.verifyCascadingFields(chain, header, parents)
 }
 
+func (c *Consortium) verifyValidatorFieldsInExtraData(
+	chain consensus.ChainHeaderReader,
+	extraData *finality.HeaderExtraData,
+	header *types.Header,
+) error {
+	isEpoch := header.Number.Uint64()%c.config.EpochV2 == 0 || c.chainConfig.IsOnConsortiumV2(header.Number)
+	if !isEpoch && (len(extraData.CheckpointValidators) != 0 || len(extraData.BlockProducers) != 0) {
+		return consortiumCommon.ErrExtraValidators
+	}
+
+	if c.IsTrippEffective(chain, header) {
+		if isEpoch && len(extraData.BlockProducers) == 0 {
+			return consortiumCommon.ErrExtraValidators
+		}
+		if c.IsPeriodBlock(chain, header) {
+			if len(extraData.CheckpointValidators) == 0 {
+				return consortiumCommon.ErrExtraValidators
+			}
+		} else {
+			if len(extraData.CheckpointValidators) != 0 {
+				return consortiumCommon.ErrExtraValidators
+			}
+		}
+	} else {
+		if isEpoch && len(extraData.CheckpointValidators) == 0 {
+			return consortiumCommon.ErrExtraValidators
+		}
+		if len(extraData.BlockProducers) != 0 {
+			return consortiumCommon.ErrExtraValidators
+		}
+	}
+	return nil
+}
+
 // verifyCascadingFields verifies all the header fields that are not standalone,
 // rather depend on a batch of previous headers. The caller may optionally pass
 // in a batch of parents (ascending order) to avoid looking those up from the
@@ -378,33 +413,14 @@ func (c *Consortium) verifyCascadingFields(chain consensus.ChainHeaderReader, he
 
 	// Check extra data
 	isShillin := c.chainConfig.IsShillin(header.Number)
-	isTrippEffective := c.IsTrippEffective(chain, header)
 	extraData, err := finality.DecodeExtraV2(header.Extra, c.chainConfig, header.Number)
 	if err != nil {
 		return err
 	}
 
-	// Check extra data
-	isEpoch := number%c.config.EpochV2 == 0 || c.chainConfig.IsOnConsortiumV2(header.Number)
-
-	if !isEpoch && (len(extraData.CheckpointValidators) != 0 || len(extraData.BlockProducers) != 0) {
-		return consortiumCommon.ErrExtraValidators
-	}
-
-	if isTrippEffective{
-		if isEpoch && len(extraData.BlockProducers) == 0 {
-			return consortiumCommon.ErrExtraValidators
-		}
-		if c.IsPeriodBlock(chain, header) && len(extraData.CheckpointValidators) == 0 {
-			return consortiumCommon.ErrExtraValidators
-		}
-	} else {
-		if isEpoch && len(extraData.CheckpointValidators) == 0 {
-			return consortiumCommon.ErrExtraValidators
-		}
-		if len(extraData.BlockProducers) != 0 {
-			return consortiumCommon.ErrExtraValidators
-		}
+	err = c.verifyValidatorFieldsInExtraData(chain, extraData, header)
+	if err != nil {
+		return err
 	}
 
 	if isShillin && extraData.HasFinalityVote == 1 {
@@ -1634,10 +1650,9 @@ func (c *Consortium) getLastCheckpointHeader(chain consensus.ChainHeaderReader, 
 // IsPeriodBlock returns indicator whether a block is a period checkpoint block or not,
 // which is the first checkpoint block (block % EpochV2 == 0) after 00:00 UTC everyday.
 func (c *Consortium) IsPeriodBlock(chain consensus.ChainHeaderReader, header *types.Header) bool {
-	if c.testTrippPeriod {
-		return true
+	if c.isTest {
+		return c.testTrippPeriod
 	}
-	
 	number := header.Number.Uint64()
 	if number%c.config.EpochV2 != 0 || !chain.Config().IsTripp(header.Number) {
 		return false
@@ -1659,8 +1674,11 @@ func (c *Consortium) IsPeriodBlock(chain consensus.ChainHeaderReader, header *ty
 
 // IsTrippEffective returns indicator whether the Tripp consensus rule is effective,
 // which is the first period that is greater than Tripp period, calculated by formula:
-// period := timestamp / dayInSeconds. 
+// period := timestamp / dayInSeconds.
 func (c *Consortium) IsTrippEffective(chain consensus.ChainHeaderReader, header *types.Header) bool {
+	if c.isTest {
+		return c.testTrippEffective
+	}
 	if c.chainConfig.IsTripp(header.Number) {
 		if c.testTrippEffective {
 			return true
