@@ -492,7 +492,7 @@ func (tab *Table) addSeenNode(n *node) {
 		tab.nodeAddedHook(n)
 	}
 	if metrics.Enabled {
-		bucketGauge[b.index].Inc(1)
+		bucketsCounter[b.index].Inc(1)
 	}
 }
 
@@ -537,7 +537,7 @@ func (tab *Table) addVerifiedNode(n *node) {
 		tab.nodeAddedHook(n)
 	}
 	if metrics.Enabled {
-		bucketGauge[b.index].Inc(1)
+		bucketsCounter[b.index].Inc(1)
 	}
 }
 
@@ -637,7 +637,7 @@ func (tab *Table) bumpInBucket(b *bucket, n *node) bool {
 
 func (tab *Table) deleteInBucket(b *bucket, n *node) {
 	if metrics.Enabled {
-		bucketGauge[b.index].Dec(1)
+		bucketsCounter[b.index].Dec(1)
 	}
 	b.entries = deleteNode(b.entries, n)
 	tab.removeIP(b, n.IP())
