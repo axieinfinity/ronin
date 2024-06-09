@@ -34,6 +34,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/p2p/netutil"
 )
@@ -97,6 +98,7 @@ type bucket struct {
 	entries      []*node // live entries, sorted by time of last contact
 	replacements []*node // recently seen nodes to be used if revalidation fails
 	ips          netutil.DistinctNetSet
+	index        int
 }
 
 func newTable(t transport, db *enode.DB, bootnodes []*enode.Node, log log.Logger) (*Table, error) {
@@ -116,7 +118,8 @@ func newTable(t transport, db *enode.DB, bootnodes []*enode.Node, log log.Logger
 	}
 	for i := range tab.buckets {
 		tab.buckets[i] = &bucket{
-			ips: netutil.DistinctNetSet{Subnet: bucketSubnet, Limit: bucketIPLimit},
+			index: i,
+			ips:   netutil.DistinctNetSet{Subnet: bucketSubnet, Limit: bucketIPLimit},
 		}
 	}
 	tab.seedRand()
@@ -488,6 +491,9 @@ func (tab *Table) addSeenNode(n *node) {
 	if tab.nodeAddedHook != nil {
 		tab.nodeAddedHook(n)
 	}
+	if metrics.Enabled {
+		bucketGauge[b.index].Inc(1)
+	}
 }
 
 // addVerifiedNode adds a node whose existence has been verified recently to the front of a
@@ -529,6 +535,9 @@ func (tab *Table) addVerifiedNode(n *node) {
 	n.addedAt = time.Now()
 	if tab.nodeAddedHook != nil {
 		tab.nodeAddedHook(n)
+	}
+	if metrics.Enabled {
+		bucketGauge[b.index].Inc(1)
 	}
 }
 
@@ -627,6 +636,9 @@ func (tab *Table) bumpInBucket(b *bucket, n *node) bool {
 }
 
 func (tab *Table) deleteInBucket(b *bucket, n *node) {
+	if metrics.Enabled {
+		bucketGauge[b.index].Dec(1)
+	}
 	b.entries = deleteNode(b.entries, n)
 	tab.removeIP(b, n.IP())
 }

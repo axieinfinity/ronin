@@ -1,6 +1,10 @@
 package discover
 
-import "github.com/ethereum/go-ethereum/metrics"
+import (
+	"fmt"
+
+	"github.com/ethereum/go-ethereum/metrics"
+)
 
 const (
 	moduleName = "discover"
@@ -13,9 +17,16 @@ const (
 )
 
 var (
+	bucketGauge         []metrics.Gauge
 	ingressTrafficMeter = metrics.NewRegisteredMeter(ingressMeterName, nil)
 	egressTrafficMeter  = metrics.NewRegisteredMeter(egressMeterName, nil)
 )
+
+func init() {
+	for i := 0; i < nBuckets; i++ {
+		bucketGauge = append(bucketGauge, metrics.NewRegisteredGauge(fmt.Sprintf("%s/bucket/%d/count", moduleName, i), nil))
+	}
+}
 
 type meteredUdpConn struct {
 	UDPConn
@@ -29,4 +40,4 @@ func newMeteredConn(conn UDPConn) UDPConn {
 	return &meteredUdpConn{UDPConn: conn}
 }
 
-// Read delegates a network read to the underlying connection, bumpding the 
+// Read delegates a network read to the underlying connection, bumpding the
