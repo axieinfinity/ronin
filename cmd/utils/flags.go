@@ -1020,7 +1020,7 @@ var (
 	MaxCurVoteAmountPerBlock = &cli.IntFlag{
 		Name:     "votepool.maxcurvoteperblock",
 		Usage:    "The maximum finality vote per current block",
-		Value:    22,
+		Value:    64,
 		Category: flags.FastFinalityCategory,
 	}
 

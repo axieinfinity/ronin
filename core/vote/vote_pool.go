@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	maxFutureVoteAmountPerBlock = 50
+	maxFutureVoteAmountPerBlock = 64
 	maxFutureVotePerPeer        = 25
 
 	voteBufferForPut = 256
