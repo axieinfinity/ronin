@@ -340,9 +340,11 @@ var (
 			ProxyAddress:          common.HexToAddress("0x7507dc433a98E1fE105d69f19f3B40E4315A4F32"),
 			ImplementationAddress: common.HexToAddress("0x6A51C2B073a6daDBeCAC1A420AFcA7788C81612f"),
 		},
-		// TODO: fill this
-		TrippBlock: common.Big0,
-		AaronBlock: common.Big0,
+		LondonBlock: big.NewInt(27580600),
+		BerlinBlock: big.NewInt(27580600),
+		TrippBlock:  big.NewInt(27580600),
+		TrippPeriod: big.NewInt(19866),
+		AaronBlock:  big.NewInt(28174200),
 	}
 
 	// GoerliTrustedCheckpoint contains the light client trusted checkpoint for the Görli test network.
@@ -689,7 +691,7 @@ func (c *ChainConfig) String() string {
 	chainConfigFmt += "Petersburg: %v, Istanbul: %v, Odysseus: %v, Fenix: %v, Muir Glacier: %v, Berlin: %v, London: %v, Arrow Glacier: %v, "
 	chainConfigFmt += "Engine: %v, Blacklist Contract: %v, Fenix Validator Contract: %v, ConsortiumV2: %v, ConsortiumV2.RoninValidatorSet: %v, "
 	chainConfigFmt += "ConsortiumV2.SlashIndicator: %v, ConsortiumV2.StakingContract: %v, Puffy: %v, Buba: %v, Olek: %v, Shillin: %v, Antenna: %v, "
-	chainConfigFmt += "ConsortiumV2.ProfileContract: %v, ConsortiumV2.FinalityTracking: %v, whiteListDeployerContractV2Address: %v, Miko: %v, Tripp: %v,"
+	chainConfigFmt += "ConsortiumV2.ProfileContract: %v, ConsortiumV2.FinalityTracking: %v, whiteListDeployerContractV2Address: %v, Miko: %v, Tripp: %v, "
 	chainConfigFmt += "TrippPeriod: %v, Aaron: %v}"
 
 	return fmt.Sprintf(chainConfigFmt,
