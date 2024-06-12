@@ -928,7 +928,7 @@ func TestSnapshotValidatorWithBlsKey(t *testing.T) {
 	}
 	snap := newSnapshot(nil, nil, nil, 10, common.Hash{0x2}, nil, validators, nil)
 	db := rawdb.NewMemoryDatabase()
-	err = snap.store(db)
+	err = snap.store(db, &core.BlockChain{})
 	if err != nil {
 		t.Fatalf("Failed to store snapshot, err: %s", err)
 	}
