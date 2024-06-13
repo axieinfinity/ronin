@@ -53,4 +53,18 @@ var (
 	// ErrWrongDifficulty is returned if the difficulty of a block doesn't match the
 	// turn of the signer.
 	ErrWrongDifficulty = errors.New("wrong difficulty")
+
+	ErrNonEpochExtraData = errors.New("non epoch block contains invalid validator fields")
+
+	ErrAaronEpochExtraData = errors.New("aaron epoch block contains invalid validator fields")
+
+	ErrTrippEpochExtraData = errors.New("tripp epoch block contains invalid validator fields")
+
+	ErrPeriodBlockExtraData = errors.New("period block contains empty checkpoint validator fields")
+
+	ErrNonPeriodBlockExtraData = errors.New("non-period block contains non-empty checkpoint validator fields")
+
+	ErrPreTrippEpochExtraData = errors.New("pre-tripp epoch block contains empty checkpoint validator fields")
+
+	ErrPreTrippEpochProducerExtraData = errors.New("pre-tripp epoch block contains invalid block producer fields")
 )

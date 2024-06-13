@@ -362,32 +362,65 @@ func (c *Consortium) verifyValidatorFieldsInExtraData(
 ) error {
 	isEpoch := header.Number.Uint64()%c.config.EpochV2 == 0 || c.chainConfig.IsOnConsortiumV2(header.Number)
 	if !isEpoch && (len(extraData.CheckpointValidators) != 0 || len(extraData.BlockProducers) != 0) || extraData.BlockProducersBitSet != 0 {
-		return consortiumCommon.ErrExtraValidators
+		return fmt.Errorf(
+			"%w: checkpoint validator: %v, block producer: %v, block producer bitset: %v",
+			consortiumCommon.ErrNonEpochExtraData,
+			extraData.CheckpointValidators,
+			extraData.BlockProducers,
+			extraData.BlockProducersBitSet,
+		)
 	}
 
 	if c.IsTrippEffective(chain, header) {
 		if c.chainConfig.IsAaron(header.Number) {
 			if isEpoch && (extraData.BlockProducersBitSet == 0 || len(extraData.BlockProducers) != 0) {
-				return consortiumCommon.ErrExtraValidators
+				return fmt.Errorf(
+					"%w: block producer: %v, block producer bitset: %v",
+					consortiumCommon.ErrAaronEpochExtraData,
+					extraData.BlockProducers,
+					extraData.BlockProducersBitSet,
+				)
 			}
 		} else if isEpoch && (extraData.BlockProducersBitSet != 0 || len(extraData.BlockProducers) == 0) {
-			return consortiumCommon.ErrExtraValidators
+			return fmt.Errorf(
+				"%w: block producer: %v, block producer bitset: %v",
+				consortiumCommon.ErrTrippEpochExtraData,
+				extraData.BlockProducers,
+				extraData.BlockProducersBitSet,
+			)
 		}
 		if c.IsPeriodBlock(chain, header) {
 			if len(extraData.CheckpointValidators) == 0 {
-				return consortiumCommon.ErrExtraValidators
+				return fmt.Errorf(
+					"%w: checkpoint validator: %v",
+					consortiumCommon.ErrPeriodBlockExtraData,
+					extraData.CheckpointValidators,
+				)
 			}
 		} else {
 			if len(extraData.CheckpointValidators) != 0 {
-				return consortiumCommon.ErrExtraValidators
+				return fmt.Errorf(
+					"%w: checkpoint validator: %v",
+					consortiumCommon.ErrNonPeriodBlockExtraData,
+					extraData.CheckpointValidators,
+				)
 			}
 		}
 	} else {
 		if isEpoch && len(extraData.CheckpointValidators) == 0 {
-			return consortiumCommon.ErrExtraValidators
+			return fmt.Errorf(
+				"%w: checkpoint validator: %v",
+				consortiumCommon.ErrPreTrippEpochExtraData,
+				extraData.CheckpointValidators,
+			)
 		}
 		if len(extraData.BlockProducers) != 0 || extraData.BlockProducersBitSet != 0 {
-			return consortiumCommon.ErrExtraValidators
+			return fmt.Errorf(
+				"%w: block producer: %v, block producer bitset: %v",
+				consortiumCommon.ErrPreTrippEpochProducerExtraData,
+				extraData.BlockProducers,
+				extraData.BlockProducersBitSet,
+			)
 		}
 	}
 	return nil
