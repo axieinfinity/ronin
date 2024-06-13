@@ -1802,10 +1802,6 @@ func (c *Consortium) IsTrippEffective(chain consensus.ChainHeaderReader, header 
 		return c.testTrippEffective
 	}
 	if c.chainConfig.IsTripp(header.Number) {
-		if c.testTrippEffective {
-			return true
-		}
-
 		// When Tripp has been effective for long enough, we return true without any additional checks.
 		if header.Number.Uint64() > c.chainConfig.TrippBlock.Uint64()+28800 {
 			return true
