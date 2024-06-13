@@ -361,14 +361,16 @@ func (c *Consortium) verifyValidatorFieldsInExtraData(
 	header *types.Header,
 ) error {
 	isEpoch := header.Number.Uint64()%c.config.EpochV2 == 0 || c.chainConfig.IsOnConsortiumV2(header.Number)
-	if !isEpoch && (len(extraData.CheckpointValidators) != 0 || len(extraData.BlockProducers) != 0) || extraData.BlockProducersBitSet != 0 {
-		return fmt.Errorf(
-			"%w: checkpoint validator: %v, block producer: %v, block producer bitset: %v",
-			consortiumCommon.ErrNonEpochExtraData,
-			extraData.CheckpointValidators,
-			extraData.BlockProducers,
-			extraData.BlockProducersBitSet,
-		)
+	if !isEpoch {
+		if len(extraData.CheckpointValidators) != 0 || len(extraData.BlockProducers) != 0 || extraData.BlockProducersBitSet != 0 {
+			return fmt.Errorf(
+				"%w: checkpoint validator: %v, block producer: %v, block producer bitset: %v",
+				consortiumCommon.ErrNonEpochExtraData,
+				extraData.CheckpointValidators,
+				extraData.BlockProducers,
+				extraData.BlockProducersBitSet,
+			)
+		}
 	}
 
 	if c.IsTrippEffective(chain, header) {
