@@ -344,7 +344,7 @@ var (
 		BerlinBlock: big.NewInt(27580600),
 		TrippBlock:  big.NewInt(27580600),
 		TrippPeriod: big.NewInt(19866),
-		AaronBlock:  big.NewInt(28174200),
+		AaronBlock:  big.NewInt(28231200),
 	}
 
 	// GoerliTrustedCheckpoint contains the light client trusted checkpoint for the Görli test network.

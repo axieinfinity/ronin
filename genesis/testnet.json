@@ -36,7 +36,7 @@
     "londonBlock": 27580600,
     "trippBlock": 27580600,
     "trippPeriod": 19866,
-    "aaronBlock": 28174200,
+    "aaronBlock": 28231200,
     "whiteListDeployerContractV2Address": "0x50a7e07Aa75eB9C04281713224f50403cA79851F",
     "roninTrustedOrgUpgrade": {
       "proxyAddress": "0x7507dc433a98E1fE105d69f19f3B40E4315A4F32",
