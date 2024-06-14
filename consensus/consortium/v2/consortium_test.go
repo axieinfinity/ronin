@@ -855,6 +855,7 @@ func TestVerifyFinalitySignatureTripp(t *testing.T) {
 			EpochV2: 300,
 		},
 		recents:            recents,
+		isTest:             true,
 		testTrippEffective: true,
 	}
 	snap.Hash = blockHash
@@ -1311,6 +1312,7 @@ func TestAssembleFinalityVoteTripp(t *testing.T) {
 	c := Consortium{
 		chainConfig:        &chainConfig,
 		votePool:           &mock,
+		isTest:             true,
 		testTrippEffective: true,
 	}
 
@@ -1979,6 +1981,7 @@ func TestUpgradeAxieProxyCode(t *testing.T) {
 		config: &params.ConsortiumConfig{
 			EpochV2: 200,
 		},
+		isTest:             true,
 		testTrippEffective: true,
 	}
 
@@ -2386,7 +2389,7 @@ func TestIsTrippEffective(t *testing.T) {
 	}
 }
 
-func TestHeaderExtraDataCheckAfterTripp(t *testing.T) {
+func TestHeaderExtraDataCheck(t *testing.T) {
 	c := Consortium{
 		chainConfig: &params.ChainConfig{
 			TrippBlock: common.Big0,
@@ -2398,7 +2401,8 @@ func TestHeaderExtraDataCheckAfterTripp(t *testing.T) {
 		testTrippEffective: true,
 	}
 
-	// Not an epoch block, every validator field must be empty
+	// Case 1: not an epoch block, every validator field must be empty
+	// non-empty checkpoint validators
 	header := types.Header{Number: big.NewInt(100)}
 	extraData := finality.HeaderExtraData{
 		CheckpointValidators: []finality.ValidatorWithBlsPub{
@@ -2406,21 +2410,31 @@ func TestHeaderExtraDataCheckAfterTripp(t *testing.T) {
 		},
 	}
 	err := c.verifyValidatorFieldsInExtraData(nil, &extraData, &header)
-	if err == nil {
-		t.Fatalf("Expect an error")
+	if !errors.Is(err, consortiumCommon.ErrNonEpochExtraData) {
+		t.Fatalf("Expect err: %v got: %v", consortiumCommon.ErrNonEpochExtraData, err)
 	}
 
+	// non-empty block producers
 	extraData = finality.HeaderExtraData{
 		BlockProducers: []common.Address{
 			{},
 		},
 	}
 	err = c.verifyValidatorFieldsInExtraData(nil, &extraData, &header)
-	if err == nil {
-		t.Fatalf("Expect an error")
+	if !errors.Is(err, consortiumCommon.ErrNonEpochExtraData) {
+		t.Fatalf("Expect err: %v got: %v", consortiumCommon.ErrNonEpochExtraData, err)
 	}
 
-	// Not a period block, checkpoint validators must be empty
+	// non-empty block producer bitset
+	extraData = finality.HeaderExtraData{
+		BlockProducersBitSet: 10,
+	}
+	err = c.verifyValidatorFieldsInExtraData(nil, &extraData, &header)
+	if !errors.Is(err, consortiumCommon.ErrNonEpochExtraData) {
+		t.Fatalf("Expect err: %v got: %v", consortiumCommon.ErrNonEpochExtraData, err)
+	}
+
+	// Case 2: Not a period block, checkpoint validators must be empty
 	header = types.Header{Number: big.NewInt(200)}
 	extraData = finality.HeaderExtraData{
 		CheckpointValidators: []finality.ValidatorWithBlsPub{
@@ -2431,8 +2445,48 @@ func TestHeaderExtraDataCheckAfterTripp(t *testing.T) {
 		},
 	}
 	err = c.verifyValidatorFieldsInExtraData(nil, &extraData, &header)
-	if err == nil {
-		t.Fatalf("Expect an error")
+	if !errors.Is(err, consortiumCommon.ErrNonPeriodBlockExtraData) {
+		t.Fatalf("Expect err: %v got: %v", consortiumCommon.ErrNonPeriodBlockExtraData, err)
+	}
+
+	// Case 3: Before Tripp effective, block producer, block producer bitset must be empty
+	c.testTrippEffective = false
+	header = types.Header{Number: big.NewInt(200)}
+	extraData = finality.HeaderExtraData{
+		CheckpointValidators: []finality.ValidatorWithBlsPub{
+			{},
+		},
+		BlockProducers: []common.Address{
+			{},
+		},
+	}
+	err = c.verifyValidatorFieldsInExtraData(nil, &extraData, &header)
+	if !errors.Is(err, consortiumCommon.ErrPreTrippEpochProducerExtraData) {
+		t.Fatalf("Expect err: %v got: %v", consortiumCommon.ErrPreTrippEpochProducerExtraData, err)
+	}
+
+	header = types.Header{Number: big.NewInt(200)}
+	extraData = finality.HeaderExtraData{
+		CheckpointValidators: []finality.ValidatorWithBlsPub{
+			{},
+		},
+		BlockProducersBitSet: 5,
+	}
+	err = c.verifyValidatorFieldsInExtraData(nil, &extraData, &header)
+	if !errors.Is(err, consortiumCommon.ErrPreTrippEpochProducerExtraData) {
+		t.Fatalf("Expect err: %v got: %v", consortiumCommon.ErrPreTrippEpochProducerExtraData, err)
+	}
+
+	// Case 4: A valid Aaron epoch block
+	c.chainConfig.AaronBlock = common.Big0
+	c.testTrippEffective = true
+	header = types.Header{Number: big.NewInt(200)}
+	extraData = finality.HeaderExtraData{
+		BlockProducersBitSet: 5,
+	}
+	err = c.verifyValidatorFieldsInExtraData(nil, &extraData, &header)
+	if err != nil {
+		t.Fatalf("Expect no error, got: %v", err)
 	}
 }
 
