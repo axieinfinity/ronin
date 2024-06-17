@@ -288,9 +288,11 @@ var (
 			ProxyAddress:          common.HexToAddress("0x98D0230884448B3E2f09a177433D60fb1E19C090"),
 			ImplementationAddress: common.HexToAddress("0x59646258Ec25CC329f5ce93223e0A50ccfA3e885"),
 		},
-		// TODO: fill this
-		TrippBlock: common.Big0,
-		AaronBlock: common.Big0,
+		LondonBlock: big.NewInt(36052600),
+		BerlinBlock: big.NewInt(36052600),
+		TrippBlock:  big.NewInt(36052600),
+		TrippPeriod: big.NewInt(19907),
+		AaronBlock:  big.NewInt(36052600),
 	}
 
 	RoninTestnetBlacklistContract                  = common.HexToAddress("0xF53EED5210c9cF308abFe66bA7CF14884c95A8aC")
