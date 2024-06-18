@@ -66,6 +66,7 @@ type prestateTracer struct {
 	reason    error       // Textual reason for the interruption
 	created   map[common.Address]bool
 	deleted   map[common.Address]bool
+	payer     *common.Address // Pointer to payer address in sponsored transaction, nil otherwise
 }
 
 type prestateTracerConfig struct {
@@ -94,6 +95,9 @@ func (t *prestateTracer) CaptureStart(env *vm.EVM, from common.Address, to commo
 	t.create = create
 	t.to = to
 
+	if t.payer != nil {
+		t.lookupAccount(*t.payer)
+	}
 	t.lookupAccount(from)
 	t.lookupAccount(to)
 	t.lookupAccount(env.Context.Coinbase)
@@ -102,12 +106,18 @@ func (t *prestateTracer) CaptureStart(env *vm.EVM, from common.Address, to commo
 	toBal := new(big.Int).Sub(t.pre[to].Balance, value)
 	t.pre[to].Balance = toBal
 
-	// The sender balance is after reducing: value and gasLimit.
+	// The sender/payer balance is after reducing: value and gasLimit.
 	// We need to re-add them to get the pre-tx balance.
 	fromBal := new(big.Int).Set(t.pre[from].Balance)
 	gasPrice := env.TxContext.GasPrice
 	consumedGas := new(big.Int).Mul(gasPrice, new(big.Int).SetUint64(t.gasLimit))
-	fromBal.Add(fromBal, new(big.Int).Add(value, consumedGas))
+	diffFromBal := new(big.Int).Set(value)
+	if t.payer != nil {
+		t.pre[*t.payer].Balance = new(big.Int).Add(t.pre[*t.payer].Balance, consumedGas)
+	} else {
+		diffFromBal.Add(diffFromBal, consumedGas)
+	}
+	fromBal.Add(fromBal, diffFromBal)
 	t.pre[from].Balance = fromBal
 	t.pre[from].Nonce--
 
@@ -174,8 +184,9 @@ func (t *prestateTracer) CaptureState(pc uint64, op vm.OpCode, gas, cost uint64,
 	}
 }
 
-func (t *prestateTracer) CaptureTxStart(gasLimit uint64) {
+func (t *prestateTracer) CaptureTxStart(gasLimit uint64, payer *common.Address) {
 	t.gasLimit = gasLimit
+	t.payer = payer
 }
 
 func (t *prestateTracer) CaptureTxEnd(restGas uint64) {

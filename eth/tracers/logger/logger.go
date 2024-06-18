@@ -261,7 +261,7 @@ func (l *StructLogger) Stop(err error) {
 	l.interrupt.Store(true)
 }
 
-func (l *StructLogger) CaptureTxStart(gasLimit uint64) {
+func (l *StructLogger) CaptureTxStart(gasLimit uint64, payer *common.Address) {
 	l.gasLimit = gasLimit
 }
 
@@ -394,7 +394,7 @@ func (t *mdLogger) CaptureEnter(typ vm.OpCode, from common.Address, to common.Ad
 
 func (t *mdLogger) CaptureExit(output []byte, gasUsed uint64, err error) {}
 
-func (*mdLogger) CaptureTxStart(gasLimit uint64) {}
+func (*mdLogger) CaptureTxStart(gasLimit uint64, payer *common.Address) {}
 
 func (*mdLogger) CaptureTxEnd(restGas uint64) {}
 

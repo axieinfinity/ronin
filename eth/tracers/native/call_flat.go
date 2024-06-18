@@ -201,8 +201,8 @@ func (t *flatCallTracer) CaptureExit(output []byte, gasUsed uint64, err error) {
 	}
 }
 
-func (t *flatCallTracer) CaptureTxStart(gasLimit uint64) {
-	t.tracer.CaptureTxStart(gasLimit)
+func (t *flatCallTracer) CaptureTxStart(gasLimit uint64, payer *common.Address) {
+	t.tracer.CaptureTxStart(gasLimit, payer)
 }
 
 func (t *flatCallTracer) CaptureTxEnd(restGas uint64) {
