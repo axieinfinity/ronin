@@ -26,5 +26,5 @@ type BaseSnapshot struct {
 // ConsortiumAdapter defines a small collection of methods needed to access the private
 // methods between consensus engines
 type ConsortiumAdapter interface {
-	GetSnapshot(chain consensus.ChainHeaderReader, number uint64, parents []*types.Header) *BaseSnapshot
+	GetSnapshot(chain consensus.ChainHeaderReader, number uint64, hash common.Hash, parents []*types.Header) *BaseSnapshot
 }
