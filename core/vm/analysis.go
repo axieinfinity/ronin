@@ -16,36 +16,15 @@
 
 package vm
 
-const (
-	set2BitsMask = uint16(0b1100_0000_0000_0000)
-	set3BitsMask = uint16(0b1110_0000_0000_0000)
-	set4BitsMask = uint16(0b1111_0000_0000_0000)
-	set5BitsMask = uint16(0b1111_1000_0000_0000)
-	set6BitsMask = uint16(0b1111_1100_0000_0000)
-	set7BitsMask = uint16(0b1111_1110_0000_0000)
-)
-
 // bitvec is a bit vector which maps bytes in a program.
 // An unset bit means the byte is an opcode, a set bit means
 // it's data (i.e. argument of PUSHxx).
 type bitvec []byte
 
-var lookup = [8]byte{
-	0x80, 0x40, 0x20, 0x10, 0x8, 0x4, 0x2, 0x1,
-}
-
-func (bits bitvec) set1(pos uint64) {
-	bits[pos/8] |= lookup[pos%8]
-}
-
 func (bits bitvec) setN(flag uint16, pos uint64) {
 	a := flag >> (pos % 8)
 	bits[pos/8] |= byte(a >> 8)
-	if b := byte(a); b != 0 {
-		//	If the bit-setting affects the neighbouring byte, we can assign - no need to OR it,
-		//	since it's the first write to that byte
-		bits[pos/8+1] = b
-	}
+	bits[pos/8+1] = byte(a)
 }
 
 func (bits bitvec) set8(pos uint64) {
@@ -71,7 +50,7 @@ func codeBitmap(code []byte) bitvec {
 	// The bitmap is 4 bytes longer than necessary, in case the code
 	// ends with a PUSH32, the algorithm will push zeroes onto the
 	// bitvector outside the bounds of the actual code.
-	bits := make(bitvec, len(code)/8+1+4)
+	bits := make(bitvec, len(code)/8+1+5)
 	return codeBitmapInternal(code, bits)
 }
 
@@ -96,29 +75,18 @@ func codeBitmapInternal(code, bits bitvec) bitvec {
 				pc += 8
 			}
 		}
-		switch numbits {
-		case 1:
-			bits.set1(pc)
-			pc += 1
-		case 2:
-			bits.setN(set2BitsMask, pc)
-			pc += 2
-		case 3:
-			bits.setN(set3BitsMask, pc)
-			pc += 3
-		case 4:
-			bits.setN(set4BitsMask, pc)
-			pc += 4
-		case 5:
-			bits.setN(set5BitsMask, pc)
-			pc += 5
-		case 6:
-			bits.setN(set6BitsMask, pc)
-			pc += 6
-		case 7:
-			bits.setN(set7BitsMask, pc)
-			pc += 7
-		}
+
+		// create the mask based on numbits
+		// set2BitsMask = uint16(0b1100_0000_0000_0000)
+		// set3BitsMask = uint16(0b1110_0000_0000_0000)
+		// set4BitsMask = uint16(0b1111_0000_0000_0000)
+		// set5BitsMask = uint16(0b1111_1000_0000_0000)
+		// set6BitsMask = uint16(0b1111_1100_0000_0000)
+		// set7BitsMask = uint16(0b1111_1110_0000_0000)
+		var mask uint16 = (1 << numbits) - 1
+		mask = mask << (16 - numbits)
+		bits.setN(mask, pc)
+		pc += uint64(numbits)
 	}
 	return bits
 }
