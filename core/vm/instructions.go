@@ -526,6 +526,13 @@ func opJump(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byt
 		return nil, ErrInvalidJump
 	}
 	*pc = pos.Uint64()
+
+	// Next instruction is definitely opJumpDest, which does nothing, so execute it immediately by consuming the gas required and skipping it 
+	interpreter.evm.Context.Counter++
+	if !scope.Contract.UseGas(params.JumpdestGas) {
+		return nil, ErrOutOfGas
+	}
+	*pc++
 	return nil, nil
 }
 
@@ -536,6 +543,13 @@ func opJumpi(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]by
 			return nil, ErrInvalidJump
 		}
 		*pc = pos.Uint64()
+
+		// Next instruction is definitely opJumpDest, which does nothing, so execute it immediately by consuming the gas required and skipping it 
+		interpreter.evm.Context.Counter++
+		if !scope.Contract.UseGas(params.JumpdestGas) {
+			return nil, ErrOutOfGas
+		}
+		*pc++
 	} else {
 		*pc++
 	}
