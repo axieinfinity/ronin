@@ -39,6 +39,7 @@ func NewFinalityVoteMonitor(
 	}
 
 	return &FinalityVoteMonitor{
+		chain:         chain,
 		engine:        engine,
 		observedVotes: observedVotes,
 		alerter:       NewSlackAlert(),
