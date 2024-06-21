@@ -202,6 +202,16 @@ func (in *EVMInterpreter) Run(contract *Contract, input []byte, readOnly bool) (
 		if operation == nil {
 			return nil, &ErrInvalidOpCode{opcode: op}
 		}
+
+		// If not debug, execute the wrapper of each operation instead of run all the checks
+		if !debug {
+			res, err = operation.executeWrapper(operation, &pc, in, callContext)
+			if operation.halts || err != nil {
+				return res, err
+			}
+			continue
+		}
+
 		// increase context's counter
 		in.evm.Context.Counter++
 		// Validate stack
