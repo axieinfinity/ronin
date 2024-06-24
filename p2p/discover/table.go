@@ -40,10 +40,10 @@ import (
 )
 
 const (
-	alpha           = 3  // Kademlia concurrency factor
-	bucketSize      = 16 // Kademlia bucket size
-	maxReplacements = 10 // Size of per-bucket replacement list
-
+	alpha           = 3   // Kademlia concurrency factor
+	bucketSize      = 16  // Kademlia bucket size
+	maxReplacements = 10  // Size of per-bucket replacement list
+	maxWorkerTask   = 100 // Maximum number of worker tasks
 	// We keep buckets for the upper 1/15 of distances because
 	// it's very unlikely we'll ever encounter a node that's closer.
 	hashBits          = len(common.Hash{}) * 8
@@ -72,13 +72,14 @@ type Table struct {
 	rand    *mrand.Rand       // source of randomness, periodically reseeded
 	ips     netutil.DistinctNetSet
 
-	log        log.Logger
-	db         *enode.DB // database of known nodes
-	net        transport
-	refreshReq chan chan struct{}
-	initDone   chan struct{}
-	closeReq   chan struct{}
-	closed     chan struct{}
+	log            log.Logger
+	db             *enode.DB // database of known nodes
+	net            transport
+	refreshReq     chan chan struct{}
+	initDone       chan struct{}
+	closeReq       chan struct{}
+	closed         chan struct{}
+	workerPoolTask chan struct{}
 
 	nodeAddedHook   func(*bucket, *node)
 	nodeRemovedHook func(*bucket, *node)
@@ -105,16 +106,17 @@ type bucket struct {
 
 func newTable(t transport, db *enode.DB, bootnodes []*enode.Node, log log.Logger, filter NodeFilterFunc) (*Table, error) {
 	tab := &Table{
-		net:        t,
-		db:         db,
-		refreshReq: make(chan chan struct{}),
-		initDone:   make(chan struct{}),
-		closeReq:   make(chan struct{}),
-		closed:     make(chan struct{}),
-		rand:       mrand.New(mrand.NewSource(0)),
-		ips:        netutil.DistinctNetSet{Subnet: tableSubnet, Limit: tableIPLimit},
-		log:        log,
-		enrFilter:  filter,
+		net:            t,
+		db:             db,
+		refreshReq:     make(chan chan struct{}),
+		initDone:       make(chan struct{}),
+		closeReq:       make(chan struct{}),
+		closed:         make(chan struct{}),
+		workerPoolTask: make(chan struct{}, maxWorkerTask),
+		rand:           mrand.New(mrand.NewSource(0)),
+		ips:            netutil.DistinctNetSet{Subnet: tableSubnet, Limit: tableIPLimit},
+		log:            log,
+		enrFilter:      filter,
 	}
 	if err := tab.setFallbackNodes(bootnodes); err != nil {
 		return nil, err
@@ -125,6 +127,10 @@ func newTable(t transport, db *enode.DB, bootnodes []*enode.Node, log log.Logger
 			ips:   netutil.DistinctNetSet{Subnet: bucketSubnet, Limit: bucketIPLimit},
 		}
 	}
+	for i := 0; i < maxWorkerTask; i++ {
+		tab.workerPoolTask <- struct{}{}
+	}
+
 	tab.seedRand()
 	tab.loadSeedNodes()
 
@@ -494,10 +500,23 @@ func (tab *Table) bucketAtDistance(d int) *bucket {
 //
 // The caller must not hold tab.mutex.
 func (tab *Table) addSeenNode(n *node) {
-	go tab.addSeenNodeSync(n)
+	select {
+	case <-tab.workerPoolTask:
+		go tab.addSeenNodeSync(n)
+	default:
+		tab.log.Debug("workerPoolTask is not filled yet, dropping node", "id", n.ID(), "addr", n.addr())
+	}
 }
 
 func (tab *Table) addSeenNodeSync(n *node) {
+	defer func() {
+		select {
+		case tab.workerPoolTask <- struct{}{}:
+		default:
+			tab.log.Debug("workerPoolTask full, dropping node", "id", n.ID(), "addr", n.addr())
+		}
+	}()
+
 	if n.ID() == tab.self().ID() {
 		return
 	}
@@ -559,10 +578,22 @@ func (tab *Table) filterNode(n *node) bool {
 // The caller must not hold tab.mutex.
 
 func (tab *Table) addVerifiedNode(n *node) {
-	go tab.addVerifiedNodeSync(n)
+	select {
+	case <-tab.workerPoolTask:
+		go tab.addVerifiedNodeSync(n)
+	default:
+		tab.log.Debug("workerPoolTask is not filled yet, dropping node", "id", n.ID(), "addr", n.addr())
+	}
 }
 
 func (tab *Table) addVerifiedNodeSync(n *node) {
+	defer func() {
+		select {
+		case tab.workerPoolTask <- struct{}{}:
+		default:
+			tab.log.Debug("workerPoolTask task queue full, dropping node", "id", n.ID(), "addr", n.addr())
+		}
+	}()
 	if !tab.isInitDone() {
 		return
 	}
