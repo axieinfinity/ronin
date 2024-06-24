@@ -343,20 +343,25 @@ func (tab *Table) doRevalidate(done chan<- struct{}) {
 		// No non-empty bucket found.
 		return
 	}
-
+	var errHandle error
 	// Ping the selected node and wait for a pong.
 	remoteSeq, err := tab.net.ping(unwrapNode(last))
 
+	if err != nil {
+		errHandle = err
+	}
+
 	// Also fetch record if the node replied and returned a higher sequence number.
 	if last.Seq() < remoteSeq {
-		n, enrErr := tab.net.RequestENR(unwrapNode(last))
-		if enrErr != nil {
-			tab.log.Debug("ENR request failed", "id", last.ID(), "addr", last.addr(), "err", enrErr)
+		n, err := tab.net.RequestENR(unwrapNode(last))
+		if err != nil {
+			tab.log.Debug("ENR request failed", "id", last.ID(), "addr", last.addr(), "err", err)
+			errHandle = err
 		} else {
 			if tab.enrFilter != nil {
 				if !tab.enrFilter(n.Record()) {
 					tab.log.Trace("ENR record filter out", "id", last.ID(), "addr", last.addr())
-					err = fmt.Errorf("filtered node")
+					errHandle = fmt.Errorf("filtered node")
 				}
 			}
 			last = &node{Node: *n, addedAt: last.addedAt, livenessChecks: last.livenessChecks}
@@ -366,7 +371,7 @@ func (tab *Table) doRevalidate(done chan<- struct{}) {
 	tab.mutex.Lock()
 	defer tab.mutex.Unlock()
 	b := tab.buckets[bi]
-	if err == nil {
+	if errHandle == nil {
 		// The node responded, move it to the front.
 		last.livenessChecks++
 		tab.log.Debug("Revalidated node", "b", bi, "id", last.ID(), "checks", last.livenessChecks)
