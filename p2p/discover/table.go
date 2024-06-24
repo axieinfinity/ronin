@@ -497,7 +497,10 @@ func (tab *Table) addSeenNodeSync(n *node) {
 		return
 	}
 
+	filterEnrTotalCounter.Inc(1)
+
 	if tab.filterNode(n) {
+		filterEnrSuccessCounter.Inc(1)
 		return
 	}
 
@@ -561,7 +564,11 @@ func (tab *Table) addVerifiedNodeSync(n *node) {
 	if n.ID() == tab.self().ID() {
 		return
 	}
+
+	filterEnrTotalCounter.Inc(1)
+
 	if tab.filterNode(n) {
+		filterEnrSuccessCounter.Inc(1)
 		return
 	}
 	tab.mutex.Lock()

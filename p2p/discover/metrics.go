@@ -30,12 +30,17 @@ const (
 
 	// egressMeterName is the prefix of the per-packet outbound metrics.
 	egressMeterName = moduleName + "/egress"
+
+	// filterENRName is the prefix of the per-packet filter ENR metrics.
+	filterEnrName = moduleName + "/filter/enr"
 )
 
 var (
-	bucketsCounter      []metrics.Counter
-	ingressTrafficMeter = metrics.NewRegisteredMeter(ingressMeterName, nil)
-	egressTrafficMeter  = metrics.NewRegisteredMeter(egressMeterName, nil)
+	bucketsCounter          []metrics.Counter
+	ingressTrafficMeter     = metrics.NewRegisteredMeter(ingressMeterName, nil)
+	egressTrafficMeter      = metrics.NewRegisteredMeter(egressMeterName, nil)
+	filterEnrTotalCounter   = metrics.NewRegisteredCounter(fmt.Sprintf("%s/total", filterEnrName), nil)
+	filterEnrSuccessCounter = metrics.NewRegisteredCounter(fmt.Sprintf("%s/success", filterEnrName), nil)
 )
 
 func init() {
