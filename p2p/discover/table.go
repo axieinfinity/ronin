@@ -40,10 +40,11 @@ import (
 )
 
 const (
-	alpha           = 3   // Kademlia concurrency factor
-	bucketSize      = 16  // Kademlia bucket size
-	maxReplacements = 10  // Size of per-bucket replacement list
-	maxWorkerTask   = 100 // Maximum number of worker tasks
+	alpha                  = 3               // Kademlia concurrency factor
+	bucketSize             = 16              // Kademlia bucket size
+	maxReplacements        = 10              // Size of per-bucket replacement list
+	maxWorkerTask          = 60              // Maximum number of worker tasks
+	timeoutWorkerTaskClose = 1 * time.Second // Timeout for waiting workerPoolTask is refill full
 	// We keep buckets for the upper 1/15 of distances because
 	// it's very unlikely we'll ever encounter a node that's closer.
 	hashBits          = len(common.Hash{}) * 8
@@ -203,6 +204,25 @@ func (tab *Table) getNode(id enode.ID) *enode.Node {
 	return nil
 }
 
+func (tab *Table) closeWorkerTask() {
+	waitTicker := time.NewTicker(1 * time.Millisecond)
+	defer waitTicker.Stop()
+	timeoutChan := time.After(timeoutWorkerTaskClose)
+	for {
+		select {
+		case <-waitTicker.C:
+			if len(tab.workerPoolTask) == cap(tab.workerPoolTask) {
+				log.Info("workerPoolTask is refill full, closing channel.")
+				return
+			}
+
+		case <-timeoutChan:
+			log.Warn("Timeout waiting for workerPoolTask is refill full , force exit it.")
+			return
+		}
+	}
+}
+
 // close terminates the network listener and flushes the node database.
 func (tab *Table) close() {
 	close(tab.closeReq)
@@ -301,6 +321,8 @@ loop:
 	if revalidateDone != nil {
 		<-revalidateDone
 	}
+
+	tab.closeWorkerTask()
 	close(tab.closed)
 }
 
