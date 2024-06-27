@@ -40,10 +40,11 @@ import (
 )
 
 const (
-	alpha           = 3  // Kademlia concurrency factor
-	bucketSize      = 16 // Kademlia bucket size
-	maxReplacements = 10 // Size of per-bucket replacement list
-
+	alpha                  = 3               // Kademlia concurrency factor
+	bucketSize             = 16              // Kademlia bucket size
+	maxReplacements        = 10              // Size of per-bucket replacement list
+	maxWorkerTask          = 90              // Maximum number of worker tasks
+	timeoutWorkerTaskClose = 1 * time.Second // Timeout for waiting workerPoolTask is refill full
 	// We keep buckets for the upper 1/15 of distances because
 	// it's very unlikely we'll ever encounter a node that's closer.
 	hashBits          = len(common.Hash{}) * 8
@@ -72,16 +73,18 @@ type Table struct {
 	rand    *mrand.Rand       // source of randomness, periodically reseeded
 	ips     netutil.DistinctNetSet
 
-	log        log.Logger
-	db         *enode.DB // database of known nodes
-	net        transport
-	refreshReq chan chan struct{}
-	initDone   chan struct{}
-	closeReq   chan struct{}
-	closed     chan struct{}
+	log            log.Logger
+	db             *enode.DB // database of known nodes
+	net            transport
+	refreshReq     chan chan struct{}
+	initDone       chan struct{}
+	closeReq       chan struct{}
+	closed         chan struct{}
+	workerPoolTask chan struct{}
 
 	nodeAddedHook   func(*bucket, *node)
 	nodeRemovedHook func(*bucket, *node)
+	enrFilter       NodeFilterFunc
 }
 
 // transport is implemented by the UDP transports.
@@ -102,17 +105,19 @@ type bucket struct {
 	index        int
 }
 
-func newTable(t transport, db *enode.DB, bootnodes []*enode.Node, log log.Logger) (*Table, error) {
+func newTable(t transport, db *enode.DB, bootnodes []*enode.Node, log log.Logger, filter NodeFilterFunc) (*Table, error) {
 	tab := &Table{
-		net:        t,
-		db:         db,
-		refreshReq: make(chan chan struct{}),
-		initDone:   make(chan struct{}),
-		closeReq:   make(chan struct{}),
-		closed:     make(chan struct{}),
-		rand:       mrand.New(mrand.NewSource(0)),
-		ips:        netutil.DistinctNetSet{Subnet: tableSubnet, Limit: tableIPLimit},
-		log:        log,
+		net:            t,
+		db:             db,
+		refreshReq:     make(chan chan struct{}),
+		initDone:       make(chan struct{}),
+		closeReq:       make(chan struct{}),
+		closed:         make(chan struct{}),
+		workerPoolTask: make(chan struct{}, maxWorkerTask),
+		rand:           mrand.New(mrand.NewSource(0)),
+		ips:            netutil.DistinctNetSet{Subnet: tableSubnet, Limit: tableIPLimit},
+		log:            log,
+		enrFilter:      filter,
 	}
 	if err := tab.setFallbackNodes(bootnodes); err != nil {
 		return nil, err
@@ -123,14 +128,18 @@ func newTable(t transport, db *enode.DB, bootnodes []*enode.Node, log log.Logger
 			ips:   netutil.DistinctNetSet{Subnet: bucketSubnet, Limit: bucketIPLimit},
 		}
 	}
+	for i := 0; i < maxWorkerTask; i++ {
+		tab.workerPoolTask <- struct{}{}
+	}
+
 	tab.seedRand()
 	tab.loadSeedNodes()
 
 	return tab, nil
 }
 
-func newMeteredTable(t transport, db *enode.DB, bootnodes []*enode.Node, log log.Logger) (*Table, error) {
-	tab, err := newTable(t, db, bootnodes, log)
+func newMeteredTable(t transport, db *enode.DB, bootnodes []*enode.Node, log log.Logger, filter NodeFilterFunc) (*Table, error) {
+	tab, err := newTable(t, db, bootnodes, log, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -193,6 +202,25 @@ func (tab *Table) getNode(id enode.ID) *enode.Node {
 		}
 	}
 	return nil
+}
+
+func (tab *Table) closeWorkerTask() {
+	waitTicker := time.NewTicker(1 * time.Millisecond)
+	defer waitTicker.Stop()
+	timeoutChan := time.After(timeoutWorkerTaskClose)
+	for {
+		select {
+		case <-waitTicker.C:
+			if len(tab.workerPoolTask) == cap(tab.workerPoolTask) {
+				log.Info("workerPoolTask is refill full, closing channel.")
+				return
+			}
+
+		case <-timeoutChan:
+			log.Warn("Timeout waiting for workerPoolTask is refill full , force exit it.")
+			return
+		}
+	}
 }
 
 // close terminates the network listener and flushes the node database.
@@ -293,6 +321,8 @@ loop:
 	if revalidateDone != nil {
 		<-revalidateDone
 	}
+
+	tab.closeWorkerTask()
 	close(tab.closed)
 }
 
@@ -341,16 +371,27 @@ func (tab *Table) doRevalidate(done chan<- struct{}) {
 		// No non-empty bucket found.
 		return
 	}
-
+	var errHandle error
 	// Ping the selected node and wait for a pong.
 	remoteSeq, err := tab.net.ping(unwrapNode(last))
+
+	if err != nil {
+		errHandle = err
+	}
 
 	// Also fetch record if the node replied and returned a higher sequence number.
 	if last.Seq() < remoteSeq {
 		n, err := tab.net.RequestENR(unwrapNode(last))
 		if err != nil {
 			tab.log.Debug("ENR request failed", "id", last.ID(), "addr", last.addr(), "err", err)
+			errHandle = err
 		} else {
+			if tab.enrFilter != nil {
+				if !tab.enrFilter(n.Record()) {
+					tab.log.Trace("ENR record filter out", "id", last.ID(), "addr", last.addr())
+					errHandle = fmt.Errorf("filtered node")
+				}
+			}
 			last = &node{Node: *n, addedAt: last.addedAt, livenessChecks: last.livenessChecks}
 		}
 	}
@@ -358,7 +399,7 @@ func (tab *Table) doRevalidate(done chan<- struct{}) {
 	tab.mutex.Lock()
 	defer tab.mutex.Unlock()
 	b := tab.buckets[bi]
-	if err == nil {
+	if errHandle == nil {
 		// The node responded, move it to the front.
 		last.livenessChecks++
 		tab.log.Debug("Revalidated node", "b", bi, "id", last.ID(), "checks", last.livenessChecks)
@@ -481,7 +522,31 @@ func (tab *Table) bucketAtDistance(d int) *bucket {
 //
 // The caller must not hold tab.mutex.
 func (tab *Table) addSeenNode(n *node) {
+	select {
+	case <-tab.workerPoolTask:
+		go tab.addSeenNodeSync(n)
+	default:
+		tab.log.Debug("workerPoolTask is not filled yet, dropping node", "id", n.ID(), "addr", n.addr())
+	}
+}
+
+func (tab *Table) addSeenNodeSync(n *node) {
+	defer func() {
+		select {
+		case tab.workerPoolTask <- struct{}{}:
+		default:
+			tab.log.Debug("workerPoolTask full, dropping node", "id", n.ID(), "addr", n.addr())
+		}
+	}()
+
 	if n.ID() == tab.self().ID() {
+		return
+	}
+
+	filterEnrTotalCounter.Inc(1)
+
+	if tab.filterNode(n) {
+		filterEnrSuccessCounter.Inc(1)
 		return
 	}
 
@@ -510,6 +575,20 @@ func (tab *Table) addSeenNode(n *node) {
 	}
 }
 
+func (tab *Table) filterNode(n *node) bool {
+	if tab.enrFilter == nil {
+		return false
+	}
+	if node, err := tab.net.RequestENR(unwrapNode(n)); err != nil {
+		tab.log.Debug("ENR request failed", "id", n.ID(), "addr", n.addr(), "err", err)
+		return false
+	} else if !tab.enrFilter(node.Record()) {
+		tab.log.Trace("ENR record filter out", "id", n.ID(), "addr", n.addr())
+		return true
+	}
+	return false
+}
+
 // addVerifiedNode adds a node whose existence has been verified recently to the front of a
 // bucket. If the node is already in the bucket, it is moved to the front. If the bucket
 // has no space, the node is added to the replacements list.
@@ -519,7 +598,24 @@ func (tab *Table) addSeenNode(n *node) {
 // ping repeatedly.
 //
 // The caller must not hold tab.mutex.
+
 func (tab *Table) addVerifiedNode(n *node) {
+	select {
+	case <-tab.workerPoolTask:
+		go tab.addVerifiedNodeSync(n)
+	default:
+		tab.log.Debug("workerPoolTask is not filled yet, dropping node", "id", n.ID(), "addr", n.addr())
+	}
+}
+
+func (tab *Table) addVerifiedNodeSync(n *node) {
+	defer func() {
+		select {
+		case tab.workerPoolTask <- struct{}{}:
+		default:
+			tab.log.Debug("workerPoolTask task queue full, dropping node", "id", n.ID(), "addr", n.addr())
+		}
+	}()
 	if !tab.isInitDone() {
 		return
 	}
@@ -527,6 +623,12 @@ func (tab *Table) addVerifiedNode(n *node) {
 		return
 	}
 
+	filterEnrTotalCounter.Inc(1)
+
+	if tab.filterNode(n) {
+		filterEnrSuccessCounter.Inc(1)
+		return
+	}
 	tab.mutex.Lock()
 	defer tab.mutex.Unlock()
 	b := tab.bucket(n.ID())
