@@ -16,6 +16,7 @@ import (
 	blsCommon "github.com/ethereum/go-ethereum/crypto/bls/common"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	lru "github.com/hashicorp/golang-lru"
 )
@@ -112,11 +113,47 @@ func loadSnapshot(
 	return snap, nil
 }
 
+// snapshot pruning
+// delete the nSnapshotsPrune oldest snapshots
+func (s *Snapshot) pruneSnapshot(db ethdb.Database, nSnapshotPrune int, chain consensus.ChainHeaderReader) error {
+	log.Info("Pruning snapshots at block", "block", s.Number, "nSnapshotPrune", nSnapshotPrune)
+	// Get block number to start pruning
+	curBlockNumber := s.Number
+	curBlockNumber -= curBlockNumber % 200 // make sure the block number is multiple of 200
+	curBlockNumber -= 200 * 144 * 5        // keep the last 5 days of snapshots
+
+	// delete nSnapshotPrune snapshots starting from curBlockNumber to the older ones
+	batch := db.NewBatch()
+	for nSnapshotPrune > 0 {
+		nSnapshotPrune--
+		header := chain.GetHeaderByNumber(curBlockNumber)
+		if header == nil {
+			// no more snapshots to prune
+			break
+		}
+		curHash := header.Hash()
+		if err := batch.Delete(append(rawdb.ConsortiumSnapshotPrefix, curHash[:]...)); err != nil {
+			return err
+		}
+		curBlockNumber -= 200
+	}
+	log.Info("Pruned snapshots done")
+	return batch.Write()
+}
+
 // store inserts the snapshot into the database.
-func (s *Snapshot) store(db ethdb.Database) error {
+func (s *Snapshot) store(db ethdb.Database, chain consensus.ChainHeaderReader) error {
 	blob, err := json.Marshal(s)
 	if err != nil {
 		return err
+	}
+	// prune nSnapshotPrune snapshots every prunePeriod blocks
+	nSnapshotPrune := 144 * 2 // 2 days
+	prunePeriod := 200 * 144  // 1 day
+	if s.Number%uint64(prunePeriod) == 0 {
+		if err := s.pruneSnapshot(db, nSnapshotPrune, chain); err != nil {
+			log.Error("Failed to prune snapshots", "err", err)
+		}
 	}
 	return db.Put(append(rawdb.ConsortiumSnapshotPrefix, s.Hash[:]...), blob)
 }
