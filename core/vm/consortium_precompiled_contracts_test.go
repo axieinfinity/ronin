@@ -1840,7 +1840,7 @@ func newEVM(caller common.Address, statedb StateDB) (*EVM, error) {
 		},
 		chainConfig: params.TestChainConfig,
 		StateDB:     statedb,
-		chainRules:  params.Rules{IsIstanbul: true, IsEIP150: true},
+		chainRules:  params.Rules{IsIstanbul: true, IsEIP150: true, IsConsortiumV2: true},
 	}
 	evm.chainConfig.ConsortiumV2Block = common.Big1
 	evm.interpreter = NewEVMInterpreter(evm, Config{NoBaseFee: true})
