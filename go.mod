@@ -11,7 +11,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.1.1
 	github.com/aws/aws-sdk-go-v2/credentials v1.1.1
 	github.com/aws/aws-sdk-go-v2/service/route53 v1.1.1
-	github.com/btcsuite/btcd v0.20.1-beta
 	github.com/cespare/cp v1.1.1
 	github.com/cloudflare/cloudflare-go v0.14.0
 	github.com/consensys/gnark-crypto v0.12.1
@@ -58,8 +57,8 @@ require (
 	github.com/syndtr/goleveldb v1.0.1-0.20210819022825-2ae1ddf74ef7
 	github.com/tklauser/go-sysconf v0.3.11 // indirect
 	github.com/tyler-smith/go-bip39 v1.1.0
-	golang.org/x/crypto v0.21.0
 	github.com/urfave/cli/v2 v2.27.1
+	golang.org/x/crypto v0.21.0
 	golang.org/x/sync v0.1.0
 	golang.org/x/sys v0.18.0
 	golang.org/x/text v0.14.0
