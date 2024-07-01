@@ -21,7 +21,9 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"runtime"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -122,6 +124,9 @@ type StateDB struct {
 	StorageUpdated int
 	AccountDeleted int
 	StorageDeleted int
+
+	// Minimum stateObjects (updating accounts) to apply concurrent updates, 0 to disable
+	ConcurrentUpdateThreshold int
 }
 
 // New creates a new state from a given trie.
@@ -358,7 +363,7 @@ func (s *StateDB) StorageTrie(addr common.Address) Trie {
 		return nil
 	}
 	cpy := stateObject.deepCopy(s)
-	cpy.updateTrie(s.db)
+	cpy.updateTrie(s.db, false)
 	return cpy.getTrie(s.db)
 }
 
@@ -855,11 +860,58 @@ func (s *StateDB) IntermediateRoot(deleteEmptyObjects bool) common.Hash {
 	// the account prefetcher. Instead, let's process all the storage updates
 	// first, giving the account prefeches just a few more milliseconds of time
 	// to pull useful data from disk.
+
+	// Get the stateObjects needed to be updated
+	updateObjs := []*stateObject{}
 	for addr := range s.stateObjectsPending {
 		if obj := s.stateObjects[addr]; !obj.deleted {
-			obj.updateRoot(s.db)
+			updateObjs = append(updateObjs, obj)
 		}
 	}
+
+	if len(updateObjs) < s.ConcurrentUpdateThreshold || s.ConcurrentUpdateThreshold == 0 {
+		// Update the state trie sequentially
+		for _, obj := range updateObjs {
+			obj.updateRoot(s.db)
+		}
+	} else {
+		// Update the state trie concurrently
+		for _, obj := range updateObjs {
+			obj.updateTrie(s.db, true)
+		}
+
+		nGoroutines := runtime.NumCPU()
+		if nGoroutines > len(updateObjs) {
+			nGoroutines = len(updateObjs)
+		}
+
+		if nGoroutines != 0 {
+			nObjectsPerRoutine := len(updateObjs) / nGoroutines
+			nObjectsRemaining := len(updateObjs) % nGoroutines
+			wg := sync.WaitGroup{}
+			wg.Add(nGoroutines)
+			i := 0
+			for {
+				nObjects := nObjectsPerRoutine
+				if nObjectsRemaining > 0 {
+					nObjects++
+					nObjectsRemaining--
+				}
+				go func(objs []*stateObject) {
+					defer wg.Done()
+					for _, obj := range objs {
+						obj.updateTrieConcurrent(s.db)
+					}
+				}(updateObjs[i : i+nObjects])
+				i += nObjects
+				if i == len(updateObjs) {
+					break
+				}
+			}
+			wg.Wait()
+		}
+	}
+
 	// Now we're about to start to write changes to the trie. The trie is so far
 	// _untouched_. We can check with the prefetcher, if it can give us a trie
 	// which has the same root, but also has some content loaded into it.

@@ -178,6 +178,7 @@ var (
 		utils.DisableRoninProtocol,
 		utils.AdditionalChainEventFlag,
 		utils.DBEngineFlag,
+		utils.ConcurrentUpdateThresholdFlag,
 	}
 
 	rpcFlags = []cli.Flag{

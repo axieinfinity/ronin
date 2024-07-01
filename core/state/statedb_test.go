@@ -28,6 +28,7 @@ import (
 	"sync"
 	"testing"
 	"testing/quick"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
@@ -914,4 +915,42 @@ func TestStateDBAccessList(t *testing.T) {
 	if got, exp := len(state.accessList.slots), 1; got != exp {
 		t.Fatalf("expected empty, got %d", got)
 	}
+}
+
+func TestIntermediateUpdateConcurrently(t *testing.T) {
+	rng := rand.New(rand.NewSource(time.Now().Unix()))
+	// Create an empty state
+	db1 := rawdb.NewMemoryDatabase()
+	db2 := rawdb.NewMemoryDatabase()
+	state1, _ := New(common.Hash{}, NewDatabase(db1), nil)
+	state2, _ := New(common.Hash{}, NewDatabase(db2), nil)
+
+	// Update it with random data
+	for i := int64(0); i < 1000; i++ {
+		addr := common.BigToAddress(big.NewInt(i))
+		balance := big.NewInt(int64(rng.Int63()))
+		nonce := rng.Uint64()
+		key := common.BigToHash(big.NewInt(int64(rng.Int63())))
+		value := common.BigToHash(big.NewInt(int64(rng.Int63())))
+		code := []byte{byte(rng.Uint64()), byte(rng.Uint64()), byte(rng.Uint64())}
+		state1.SetBalance(addr, balance)
+		state2.SetBalance(addr, balance)
+		state1.SetNonce(addr, nonce)
+		state2.SetNonce(addr, nonce)
+		state1.SetState(addr, key, value)
+		state2.SetState(addr, key, value)
+		state1.SetCode(addr, code)
+		state2.SetCode(addr, code)
+	}
+
+	state1.ConcurrentUpdateThreshold = 0
+	state2.ConcurrentUpdateThreshold = 1
+
+	root1 := state1.IntermediateRoot(false) // sequential
+	root2 := state2.IntermediateRoot(false) // concurrent
+
+	if root1 != root2 {
+		t.Fatalf("intermediate roots mismatch: %v != %v", root1.Hex(), root2.Hex())
+	}
+
 }

@@ -1073,6 +1073,13 @@ var (
 		Usage:    "List of mock bls public keys which are reflect 1:1 with mock.validators",
 		Category: flags.MockCategory,
 	}
+
+	ConcurrentUpdateThresholdFlag = &cli.IntFlag{
+		Name:     "concurrent-update-threshold",
+		Usage:    "The threshold of concurrent update",
+		Value:    0, // disable concurrent update by default
+		Category: flags.EthCategory,
+	}
 )
 
 // MakeDataDir retrieves the currently requested data directory, terminating
@@ -2029,6 +2036,10 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 	if ctx.Bool(MonitorFinalityVoteFlag.Name) {
 		cfg.EnableMonitorFinalityVote = true
 	}
+	// Set concurrent update threshold
+	if ctx.IsSet(ConcurrentUpdateThresholdFlag.Name) {
+		cfg.ConcurrentUpdateThreshold = ctx.Int(ConcurrentUpdateThresholdFlag.Name)
+	}
 }
 
 // SetDNSDiscoveryDefaults configures DNS discovery with the given URL if
@@ -2250,13 +2261,14 @@ func MakeChain(ctx *cli.Context, stack *node.Node) (chain *core.BlockChain, chai
 		Fatalf("--%s must be either 'full' or 'archive'", GCModeFlag.Name)
 	}
 	cache := &core.CacheConfig{
-		TrieCleanLimit:      ethconfig.Defaults.TrieCleanCache,
-		TrieCleanNoPrefetch: ctx.Bool(CacheNoPrefetchFlag.Name),
-		TrieDirtyLimit:      ethconfig.Defaults.TrieDirtyCache,
-		TrieDirtyDisabled:   ctx.String(GCModeFlag.Name) == "archive",
-		TrieTimeLimit:       ethconfig.Defaults.TrieTimeout,
-		SnapshotLimit:       ethconfig.Defaults.SnapshotCache,
-		Preimages:           ctx.Bool(CachePreimagesFlag.Name),
+		TrieCleanLimit:            ethconfig.Defaults.TrieCleanCache,
+		TrieCleanNoPrefetch:       ctx.Bool(CacheNoPrefetchFlag.Name),
+		TrieDirtyLimit:            ethconfig.Defaults.TrieDirtyCache,
+		TrieDirtyDisabled:         ctx.String(GCModeFlag.Name) == "archive",
+		TrieTimeLimit:             ethconfig.Defaults.TrieTimeout,
+		SnapshotLimit:             ethconfig.Defaults.SnapshotCache,
+		Preimages:                 ctx.Bool(CachePreimagesFlag.Name),
+		ConcurrentUpdateThreshold: ctx.Int(ConcurrentUpdateThresholdFlag.Name),
 	}
 	if cache.TrieDirtyDisabled && !cache.Preimages {
 		cache.Preimages = true
