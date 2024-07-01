@@ -16,6 +16,7 @@ import (
 	blsCommon "github.com/ethereum/go-ethereum/crypto/bls/common"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	lru "github.com/hashicorp/golang-lru"
 )
@@ -243,7 +244,7 @@ func (s *Snapshot) apply(headers []*types.Header, chain consensus.ChainHeaderRea
 		// Change the validator set base on the size of the validators set
 		if number > 0 && number%s.config.EpochV2 == uint64(len(snap.validators())/2) {
 			// Get the most recent checkpoint header
-			checkpointHeader := FindAncientHeader(header, uint64(len(snap.validators())/2), chain, parents)
+			checkpointHeader := findCheckpointHeader(number-uint64(len(snap.validators())/2), chain, parents, header)
 			if checkpointHeader == nil {
 				return nil, consensus.ErrUnknownAncestor
 			}
@@ -420,36 +421,58 @@ func (s *Snapshot) IsRecentlySigned(validator common.Address) bool {
 	return false
 }
 
-// FindAncientHeader finds the most recent checkpoint header
-// Travel through the candidateParents to find the ancient header.
-// If all headers in candidateParents have the number is larger than the header number,
-// the search function will return the index, but it is not valid if we check with the
-// header since the number and hash is not equals. The candidateParents is
-// only available when it downloads blocks from the network.
-// Otherwise, the candidateParents is nil, and it will be found by header hash and number.
-func FindAncientHeader(header *types.Header, ite uint64, chain consensus.ChainHeaderReader, candidateParents []*types.Header) *types.Header {
-	ancient := header
-	for i := uint64(1); i <= ite; i++ {
-		parentHash := ancient.ParentHash
-		parentHeight := ancient.Number.Uint64() - 1
-		found := false
-		if len(candidateParents) > 0 {
-			index := sort.Search(len(candidateParents), func(i int) bool {
-				return candidateParents[i].Number.Uint64() >= parentHeight
-			})
-			if index < len(candidateParents) && candidateParents[index].Number.Uint64() == parentHeight &&
-				candidateParents[index].Hash() == parentHash {
-				ancient = candidateParents[index]
-				found = true
+// findCheckpointHeader traverses back to look for the most recent checkpoint
+// header in parents list or in chaindata
+//
+// parents are guaranteed to be ordered and linked by the check when InsertChain
+//
+// There are 2 possible cases:
+// Case 1: checkpoint header is in parents list
+// <-         parents       ->
+// [    checkpointHeader     ]
+//
+// Case 2: checkpoint header's height is lower than parents list
+//                      <-  parents ->
+// checkpointHeader ... [            ]
+
+func findCheckpointHeader(
+	checkpointBlockNumber uint64,
+	chain consensus.ChainHeaderReader,
+	parents []*types.Header,
+	header *types.Header,
+) *types.Header {
+	// Find the first header in parents list that is higher or equal to checkpoint block
+	index := sort.Search(len(parents), func(i int) bool {
+		return parents[i].Number.Uint64() >= checkpointBlockNumber
+	})
+
+	// This must not happen, checkpoint header's height cannot be higher the parents list
+	if len(parents) != 0 && index >= len(parents) {
+		log.Warn(
+			"Checkpoint header's height is higher than parents list",
+			"checkpointNumber", checkpointBlockNumber,
+			"last parent", parents[len(parents)-1].Number,
+		)
+		return nil
+	}
+
+	if len(parents) != 0 && parents[index].Number.Uint64() == checkpointBlockNumber {
+		// Case 1: checkpoint header is in parents list
+		return parents[index]
+	} else {
+		// Case 2: checkpoint header's height is lower than parents list
+		var headerIterator *types.Header
+		if len(parents) != 0 {
+			headerIterator = parents[0]
+		} else {
+			headerIterator = header
+		}
+		for headerIterator.Number.Uint64() != checkpointBlockNumber {
+			headerIterator = chain.GetHeader(headerIterator.ParentHash, headerIterator.Number.Uint64()-1)
+			if headerIterator == nil {
+				return nil
 			}
 		}
-		if !found {
-			ancient = chain.GetHeader(parentHash, parentHeight)
-			found = true
-		}
-		if ancient == nil || !found {
-			return nil
-		}
+		return headerIterator
 	}
-	return ancient
 }
