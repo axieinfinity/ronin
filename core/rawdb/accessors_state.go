@@ -41,15 +41,8 @@ func WritePreimages(db ethdb.KeyValueWriter, preimages map[common.Hash][]byte) {
 
 // ReadCode retrieves the contract code of the provided code hash.
 func ReadCode(db ethdb.KeyValueReader, hash common.Hash) []byte {
-	// Try with the legacy code scheme first, if not then try with current
-	// scheme. Since most of the code will be found with legacy scheme.
-	//
-	// todo(rjl493456442) change the order when we forcibly upgrade the code
-	// scheme with snapshot.
-	data, _ := db.Get(hash[:])
-	if len(data) != 0 {
-		return data
-	}
+	// On Ronin, code is not stored with legacy scheme from the start, so just
+	// query using the new scheme.
 	return ReadCodeWithPrefix(db, hash)
 }
 
