@@ -293,6 +293,8 @@ var (
 		TrippBlock:  big.NewInt(36052600),
 		TrippPeriod: big.NewInt(19907),
 		AaronBlock:  big.NewInt(36052600),
+		// TODO: Fill this
+		ShanghaiBlock: nil,
 	}
 
 	RoninTestnetBlacklistContract                  = common.HexToAddress("0xF53EED5210c9cF308abFe66bA7CF14884c95A8aC")
@@ -347,6 +349,8 @@ var (
 		TrippBlock:  big.NewInt(27580600),
 		TrippPeriod: big.NewInt(19866),
 		AaronBlock:  big.NewInt(28231200),
+		// TODO: Fill this
+		ShanghaiBlock: nil,
 	}
 
 	// GoerliTrustedCheckpoint contains the light client trusted checkpoint for the Görli test network.
@@ -570,6 +574,8 @@ type ChainConfig struct {
 	TrippPeriod *big.Int `json:"trippPeriod,omitempty"` // The period number at Tripp fork block.
 	AaronBlock  *big.Int `json:"aaronBlock,omitempty"`  // Aaron switch block (nil = no fork, 0 = already on activated)
 
+	ShanghaiBlock *big.Int `json:"shanghaiBlock,omitempty"` // Shanghai switch block (nil = no fork, 0 = already on activated)
+
 	BlacklistContractAddress           *common.Address `json:"blacklistContractAddress,omitempty"`           // Address of Blacklist Contract (nil = no blacklist)
 	FenixValidatorContractAddress      *common.Address `json:"fenixValidatorContractAddress,omitempty"`      // Address of Ronin Contract in the Fenix hardfork (nil = no blacklist)
 	WhiteListDeployerContractV2Address *common.Address `json:"whiteListDeployerContractV2Address,omitempty"` // Address of Whitelist Ronin Contract V2 (nil = no blacklist)
@@ -694,7 +700,7 @@ func (c *ChainConfig) String() string {
 	chainConfigFmt += "Engine: %v, Blacklist Contract: %v, Fenix Validator Contract: %v, ConsortiumV2: %v, ConsortiumV2.RoninValidatorSet: %v, "
 	chainConfigFmt += "ConsortiumV2.SlashIndicator: %v, ConsortiumV2.StakingContract: %v, Puffy: %v, Buba: %v, Olek: %v, Shillin: %v, Antenna: %v, "
 	chainConfigFmt += "ConsortiumV2.ProfileContract: %v, ConsortiumV2.FinalityTracking: %v, whiteListDeployerContractV2Address: %v, Miko: %v, Tripp: %v, "
-	chainConfigFmt += "TrippPeriod: %v, Aaron: %v}"
+	chainConfigFmt += "TrippPeriod: %v, Aaron: %v, Shanghai: %v}"
 
 	return fmt.Sprintf(chainConfigFmt,
 		c.ChainID,
@@ -733,6 +739,7 @@ func (c *ChainConfig) String() string {
 		c.TrippBlock,
 		c.TrippPeriod,
 		c.AaronBlock,
+		c.ShanghaiBlock,
 	)
 }
 
@@ -869,6 +876,11 @@ func (c *ChainConfig) IsTripp(num *big.Int) bool {
 // IsAaron returns whether the num is equals to or larger than the aaron fork block.
 func (c *ChainConfig) IsAaron(num *big.Int) bool {
 	return isForked(c.AaronBlock, num)
+}
+
+// IsShanghai returns whether the num is equals to or larger than the shanghai fork block.
+func (c *ChainConfig) IsShanghai(num *big.Int) bool {
+	return isForked(c.ShanghaiBlock, num)
 }
 
 // CheckCompatible checks whether scheduled fork transitions have been imported
@@ -1017,6 +1029,9 @@ func (c *ChainConfig) checkCompatible(newcfg *ChainConfig, head *big.Int) *Confi
 	if isForkIncompatible(c.AaronBlock, newcfg.AaronBlock, head) {
 		return newCompatError("Aaron fork block", c.AaronBlock, newcfg.AaronBlock)
 	}
+	if isForkIncompatible(c.ShanghaiBlock, newcfg.ShanghaiBlock, head) {
+		return newCompatError("Shanghai fork block", c.ShanghaiBlock, newcfg.ShanghaiBlock)
+	}
 	return nil
 }
 
@@ -1086,7 +1101,7 @@ type Rules struct {
 	IsByzantium, IsConstantinople, IsPetersburg, IsIstanbul bool
 	IsBerlin, IsLondon                                      bool
 	IsOdysseusFork, IsFenix, IsConsortiumV2, IsAntenna      bool
-	IsMiko, IsTripp, IsAaron                                bool
+	IsMiko, IsTripp, IsAaron, IsShanghai                    bool
 }
 
 // Rules ensures c's ChainID is not nil.
@@ -1114,5 +1129,6 @@ func (c *ChainConfig) Rules(num *big.Int) Rules {
 		IsMiko:           c.IsMiko(num),
 		IsTripp:          c.IsTripp(num),
 		IsAaron:          c.IsAaron(num),
+		IsShanghai:       c.IsShanghai(num),
 	}
 }
