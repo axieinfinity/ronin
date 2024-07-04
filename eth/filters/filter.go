@@ -19,6 +19,7 @@ package filters
 import (
 	"context"
 	"errors"
+	"fmt"
 	"math"
 	"math/big"
 	"os"
@@ -243,7 +244,9 @@ func (f *Filter) unindexedLogs(ctx context.Context, end uint64) ([]*types.Log, e
 
 	for ; f.begin <= int64(end); f.begin++ {
 		header, err := f.backend.HeaderByNumber(ctx, rpc.BlockNumber(f.begin))
-		if header == nil || err != nil {
+		if header == nil {
+			return logs, fmt.Errorf("block %d not found", f.begin)
+		} else if err != nil {
 			return logs, err
 		}
 		found, err := f.blockLogs(ctx, header)
