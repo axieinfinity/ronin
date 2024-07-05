@@ -263,7 +263,7 @@ type TxPool struct {
 	eip1559  bool // Fork indicator whether we are using EIP-1559 type transactions.
 	odysseus bool // Fork indicator whether we are in the Odysseus stage.
 	antenna  bool // Fork indicator whether we are in Antenna stage.
-	miko     bool // Fork indicator whether we are using sponsored trnasactions.
+	miko     bool // Fork indicator whether we are using sponsored transactions.
 	shanghai bool // Fork indicator whether we are in the Shanghai stage.
 
 	currentTime   uint64         // Current block time in blockchain head
