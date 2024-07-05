@@ -19,6 +19,7 @@ package vm
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"math/big"
@@ -702,5 +703,71 @@ func TestCreate2Addreses(t *testing.T) {
 		if !bytes.Equal(expected.Bytes(), address.Bytes()) {
 			t.Errorf("test %d: expected %s, got %s", i, expected.String(), address.String())
 		}
+	}
+}
+
+func TestMaxContractSize(t *testing.T) {
+	var (
+		statedb, _ = state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
+		env        = NewEVM(
+			BlockContext{
+				BlockNumber: big.NewInt(0),
+				CanTransfer: func(_ StateDB, _ common.Address, _ *big.Int) bool { return true },
+				Transfer:    func(_ StateDB, _, _ common.Address, _ *big.Int) {},
+			},
+			TxContext{},
+			statedb,
+			&params.ChainConfig{
+				EIP158Block: big.NewInt(0),
+			},
+			Config{},
+		)
+		evmInterpreter = NewEVMInterpreter(env, env.Config)
+		caller         = common.Address{}
+		contractRef    = contractRef{caller}
+	)
+
+	env.interpreter = evmInterpreter
+
+	// Before Shanghai, the code size limit is 0x6000
+	// return(offset=0, size=0x6001)
+	// PUSH2 0x6001, PUSH1 0, RETURN
+	code := common.Hex2Bytes("616001" + "6000" + "f3")
+	_, _, _, err := evmInterpreter.evm.Create(contractRef, code, 10_000_000, new(big.Int))
+	if !errors.Is(err, ErrMaxCodeSizeExceeded) {
+		t.Fatalf("Expect err %v, got %v", ErrMaxCodeSizeExceeded, err)
+	}
+
+	// After Shanghai, the code size limit increases to 0x8000
+	env = NewEVM(
+		BlockContext{
+			BlockNumber: big.NewInt(0),
+			CanTransfer: func(_ StateDB, _ common.Address, _ *big.Int) bool { return true },
+			Transfer:    func(_ StateDB, _, _ common.Address, _ *big.Int) {},
+		},
+		TxContext{},
+		statedb,
+		&params.ChainConfig{
+			EIP158Block:   big.NewInt(0),
+			ShanghaiBlock: big.NewInt(0),
+		},
+		Config{},
+	)
+	evmInterpreter = NewEVMInterpreter(env, env.Config)
+
+	// return(offset=0, size=0x8000)
+	// PUSH2 0x8000, PUSH1 0, RETURN
+	code = common.Hex2Bytes("618000" + "6000" + "f3")
+	_, _, _, err = evmInterpreter.evm.Create(contractRef, code, 10_000_000, new(big.Int))
+	if err != nil {
+		t.Fatalf("Expect no error, got %v", err)
+	}
+
+	// return(offset=0, size=0x8001)
+	// PUSH2 0x8001, PUSH1 0, RETURN
+	code = common.Hex2Bytes("618001" + "6000" + "f3")
+	_, _, _, err = evmInterpreter.evm.Create(contractRef, code, 10_000_000, new(big.Int))
+	if !errors.Is(err, ErrMaxCodeSizeExceeded) {
+		t.Fatalf("Expect err %v, got %v", ErrMaxCodeSizeExceeded, err)
 	}
 }
