@@ -16,8 +16,20 @@ import (
 	blsCommon "github.com/ethereum/go-ethereum/crypto/bls/common"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/hashicorp/golang-lru/arc/v2"
+)
+
+const (
+	blocksPerEpoch  = 200
+	epochsPerPeriod = 144
+)
+
+var (
+	latestSnapshotsKeep = blocksPerEpoch * epochsPerPeriod * 5 // 5 days
+	snapshotsToBePruned = epochsPerPeriod * 2                  // 2 days
+	pruningPeriod       = blocksPerEpoch * epochsPerPeriod * 1 // every 1 day
 )
 
 // Snapshot is the state of the authorization validators at a given point in time.
@@ -111,6 +123,42 @@ func loadSnapshot(
 	snap.chainConfig = chainConfig
 
 	return snap, nil
+}
+
+// snapshot pruning
+// delete the nSnapshotsPrune oldest snapshots, keep the latestSnapshotsKeep snapshots
+func (s *Snapshot) pruneSnapshot(db ethdb.Database, nSnapshotPrune int, chain consensus.ChainHeaderReader) error {
+	log.Info("Pruning snapshots at block", "block", s.Number, "nSnapshotPrune", nSnapshotPrune)
+	// Get block number to start pruning
+	curBlockNumber := s.Number
+	curBlockNumber -= curBlockNumber % uint64(blocksPerEpoch) // start of the current epoch
+	curBlockNumber -= uint64(latestSnapshotsKeep)             // start of the oldest epoch to keep
+
+	// delete nSnapshotPrune snapshots starting from curBlockNumber to the older ones
+	batch := db.NewBatch()
+	for nSnapshotPrune > 0 {
+		nSnapshotPrune--
+		header := chain.GetHeaderByNumber(curBlockNumber)
+		if header == nil {
+			// no more snapshots to prune
+			break
+		}
+		curHash := header.Hash()
+		if err := batch.Delete(append(rawdb.ConsortiumSnapshotPrefix, curHash[:]...)); err != nil {
+			return err
+		}
+		curBlockNumber -= uint64(blocksPerEpoch)
+	}
+	log.Info("Pruned snapshots done")
+	return batch.Write()
+}
+
+// periodically prune the snapshots at the start of each pruningPeriod
+func (s *Snapshot) pruneSnapshotPeriodically(db ethdb.Database, chain consensus.ChainHeaderReader) error {
+	if s.Number%uint64(pruningPeriod) == 0 {
+		return s.pruneSnapshot(db, snapshotsToBePruned, chain)
+	}
+	return nil
 }
 
 // store inserts the snapshot into the database.

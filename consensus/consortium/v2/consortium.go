@@ -723,6 +723,9 @@ func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, 
 			if err := snap.store(c.db); err != nil {
 				return nil, err
 			}
+			if err := snap.pruneSnapshotPeriodically(c.db, chain); err != nil {
+				return nil, err
+			}
 			log.Info("Stored checkpoint snapshot to disk", "number", number, "hash", hash)
 			figure.NewColorFigure("Welcome to DPOS", "", "green", true).Print()
 			break
@@ -780,6 +783,10 @@ func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, 
 	// If we've generated a new checkpoint snapshot, save to disk
 	if snap.Number%c.config.EpochV2 == 0 && len(headers) > 0 {
 		if err = snap.store(c.db); err != nil {
+			return nil, err
+		}
+		// Prune the snapshot periodically
+		if err := snap.pruneSnapshotPeriodically(c.db, chain); err != nil {
 			return nil, err
 		}
 		log.Trace("Stored snapshot to disk", "number", snap.Number, "hash", snap.Hash)
