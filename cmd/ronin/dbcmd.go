@@ -18,6 +18,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -32,6 +33,7 @@ import (
 	"github.com/ethereum/go-ethereum/cmd/utils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	v2 "github.com/ethereum/go-ethereum/consensus/consortium/v2"
 	"github.com/ethereum/go-ethereum/console/prompt"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/ethdb"
@@ -69,6 +71,7 @@ Remove blockchain and state databases`,
 			dbDumpFreezerIndex,
 			dbImportCmd,
 			dbExportCmd,
+			dbPruneConsortiumSnapshotCmd,
 		},
 	}
 	dbInspectCmd = &cli.Command{
@@ -242,6 +245,20 @@ WARNING: This is a low-level operation which may cause database corruption!`,
 			utils.GoerliFlag,
 		},
 		Description: "Exports the specified chain data to an RLP encoded stream, optionally gzip-compressed.",
+	}
+	dbPruneConsortiumSnapshotCmd = &cli.Command{
+		Name:     "prune-consortium-snapshot",
+		Usage:    "Prune all snapshots except the latest ones",
+		Action:   pruneSnapshot,
+		Category: "MISCELLANEOUS COMMANDS",
+		Flags: []cli.Flag{
+			utils.SnapshotKeepAfterPruningFlag,
+			utils.DataDirFlag,
+		},
+		Description: `
+Prune all consortium snapshots except the latest ones. The number of snapshots to keep
+can be specified via "--snapshot.keep-after-pruning" flag. The default value is 10.
+`,
 	}
 )
 
@@ -694,4 +711,61 @@ func exportChaindata(ctx *cli.Context) error {
 	}()
 	db := utils.MakeChainDatabase(ctx, stack, true)
 	return utils.ExportChaindata(ctx.Args().Get(1), kind, exporter(db), stop)
+}
+
+func pruneSnapshot(ctx *cli.Context) error {
+	keep := ctx.Int(utils.SnapshotKeepAfterPruningFlag.Name)
+	if keep < 0 {
+		log.Error("Invalid keep value", "keep", keep)
+		return errors.New("invalid keep value")
+	}
+	log.Info("Snapshot pruning", "latest snapshots keep: ", keep)
+	// Open the chain database
+	stack, _ := makeConfigNode(ctx)
+	defer stack.Close()
+
+	db := utils.MakeChainDatabase(ctx, stack, false)
+
+	// Get all snapshots (hash, block number) from the database
+	nSnapshots := 0
+	snapshots := make(map[common.Hash]uint64)
+	it := rawdb.GetSnapshotsIterator(db)
+	defer it.Release()
+	for it.Next() {
+		snap := new(v2.Snapshot)
+		if err := json.Unmarshal(it.Value(), snap); err != nil {
+			return err
+		}
+		snapshots[snap.Hash] = snap.Number
+		nSnapshots++
+	}
+	log.Info("Found all snapshots", "nSnapshots", nSnapshots)
+
+	// Sort the snapshots by block number
+	hashes := make([]common.Hash, 0, nSnapshots)
+	for hash := range snapshots {
+		hashes = append(hashes, hash)
+	}
+	sort.Slice(hashes, func(i, j int) bool {
+		return snapshots[hashes[i]] < snapshots[hashes[j]]
+	})
+
+	// Prune the snapshots
+	if nSnapshots < keep {
+		keep = nSnapshots
+	}
+	nSnapshotsPrune := nSnapshots - keep
+	batch := db.NewBatch()
+	for i := 0; i < nSnapshotsPrune; i++ {
+		if err := rawdb.DeleteSnapshotConsortium(batch, hashes[i]); err != nil {
+			log.Error("Failed to delete snapshot", "hash", hashes[i], "err", err)
+			return err
+		}
+	}
+	if err := batch.Write(); err != nil {
+		log.Error("Failed to write batch", "err", err)
+		return err
+	}
+	log.Info("Pruned snapshots", "snapshots", nSnapshotsPrune)
+	return nil
 }
