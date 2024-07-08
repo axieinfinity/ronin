@@ -2237,19 +2237,19 @@ func TestIsPeriodBlock(t *testing.T) {
 	// header of block 0
 	// this must not a period block
 	header = genesis.Header()
-	if c.IsPeriodBlock(chain, header) {
+	if c.IsPeriodBlock(chain, header, nil) {
 		t.Errorf("wrong period block")
 	}
 
 	// header of block 200
 	// this must not a period block
 	header = bs[199].Header()
-	if c.IsPeriodBlock(chain, header) {
+	if c.IsPeriodBlock(chain, header, nil) {
 		t.Error("wrong period block")
 	}
 
 	header = bs[351].Header()
-	if c.IsPeriodBlock(chain, header) {
+	if c.IsPeriodBlock(chain, header, nil) {
 		t.Error("wrong period block")
 	}
 
@@ -2270,14 +2270,14 @@ func TestIsPeriodBlock(t *testing.T) {
 	// this must be a period block
 	header = bs[399].Header()
 	// this header must be period header
-	if !c.IsPeriodBlock(chain, header) {
+	if !c.IsPeriodBlock(chain, header, nil) {
 		t.Errorf("wrong period block")
 	}
 
 	// header of block 500
 	// this must not be a period block
 	header = bs[499].Header()
-	if c.IsPeriodBlock(chain, header) {
+	if c.IsPeriodBlock(chain, header, nil) {
 		t.Errorf("wrong period block")
 	}
 }
@@ -2409,7 +2409,7 @@ func TestHeaderExtraDataCheck(t *testing.T) {
 			{},
 		},
 	}
-	err := c.verifyValidatorFieldsInExtraData(nil, &extraData, &header)
+	err := c.verifyValidatorFieldsInExtraData(nil, &extraData, &header, nil)
 	if !errors.Is(err, consortiumCommon.ErrNonEpochExtraData) {
 		t.Fatalf("Expect err: %v got: %v", consortiumCommon.ErrNonEpochExtraData, err)
 	}
@@ -2420,7 +2420,7 @@ func TestHeaderExtraDataCheck(t *testing.T) {
 			{},
 		},
 	}
-	err = c.verifyValidatorFieldsInExtraData(nil, &extraData, &header)
+	err = c.verifyValidatorFieldsInExtraData(nil, &extraData, &header, nil)
 	if !errors.Is(err, consortiumCommon.ErrNonEpochExtraData) {
 		t.Fatalf("Expect err: %v got: %v", consortiumCommon.ErrNonEpochExtraData, err)
 	}
@@ -2429,7 +2429,7 @@ func TestHeaderExtraDataCheck(t *testing.T) {
 	extraData = finality.HeaderExtraData{
 		BlockProducersBitSet: 10,
 	}
-	err = c.verifyValidatorFieldsInExtraData(nil, &extraData, &header)
+	err = c.verifyValidatorFieldsInExtraData(nil, &extraData, &header, nil)
 	if !errors.Is(err, consortiumCommon.ErrNonEpochExtraData) {
 		t.Fatalf("Expect err: %v got: %v", consortiumCommon.ErrNonEpochExtraData, err)
 	}
@@ -2444,7 +2444,7 @@ func TestHeaderExtraDataCheck(t *testing.T) {
 			{},
 		},
 	}
-	err = c.verifyValidatorFieldsInExtraData(nil, &extraData, &header)
+	err = c.verifyValidatorFieldsInExtraData(nil, &extraData, &header, nil)
 	if !errors.Is(err, consortiumCommon.ErrNonPeriodBlockExtraData) {
 		t.Fatalf("Expect err: %v got: %v", consortiumCommon.ErrNonPeriodBlockExtraData, err)
 	}
@@ -2460,7 +2460,7 @@ func TestHeaderExtraDataCheck(t *testing.T) {
 			{},
 		},
 	}
-	err = c.verifyValidatorFieldsInExtraData(nil, &extraData, &header)
+	err = c.verifyValidatorFieldsInExtraData(nil, &extraData, &header, nil)
 	if !errors.Is(err, consortiumCommon.ErrPreTrippEpochProducerExtraData) {
 		t.Fatalf("Expect err: %v got: %v", consortiumCommon.ErrPreTrippEpochProducerExtraData, err)
 	}
@@ -2472,7 +2472,7 @@ func TestHeaderExtraDataCheck(t *testing.T) {
 		},
 		BlockProducersBitSet: 5,
 	}
-	err = c.verifyValidatorFieldsInExtraData(nil, &extraData, &header)
+	err = c.verifyValidatorFieldsInExtraData(nil, &extraData, &header, nil)
 	if !errors.Is(err, consortiumCommon.ErrPreTrippEpochProducerExtraData) {
 		t.Fatalf("Expect err: %v got: %v", consortiumCommon.ErrPreTrippEpochProducerExtraData, err)
 	}
@@ -2484,7 +2484,7 @@ func TestHeaderExtraDataCheck(t *testing.T) {
 	extraData = finality.HeaderExtraData{
 		BlockProducersBitSet: 5,
 	}
-	err = c.verifyValidatorFieldsInExtraData(nil, &extraData, &header)
+	err = c.verifyValidatorFieldsInExtraData(nil, &extraData, &header, nil)
 	if err != nil {
 		t.Fatalf("Expect no error, got: %v", err)
 	}

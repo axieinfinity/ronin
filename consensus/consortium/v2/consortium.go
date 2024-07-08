@@ -359,6 +359,7 @@ func (c *Consortium) verifyValidatorFieldsInExtraData(
 	chain consensus.ChainHeaderReader,
 	extraData *finality.HeaderExtraData,
 	header *types.Header,
+	parents []*types.Header,
 ) error {
 	isEpoch := header.Number.Uint64()%c.config.EpochV2 == 0 || c.chainConfig.IsOnConsortiumV2(header.Number)
 	if !isEpoch {
@@ -391,7 +392,7 @@ func (c *Consortium) verifyValidatorFieldsInExtraData(
 				extraData.BlockProducersBitSet,
 			)
 		}
-		if c.IsPeriodBlock(chain, header) {
+		if c.IsPeriodBlock(chain, header, parents) {
 			if len(extraData.CheckpointValidators) == 0 {
 				return fmt.Errorf(
 					"%w: checkpoint validator: %v",
@@ -462,7 +463,7 @@ func (c *Consortium) verifyCascadingFields(chain consensus.ChainHeaderReader, he
 		return err
 	}
 
-	err = c.verifyValidatorFieldsInExtraData(chain, extraData, header)
+	err = c.verifyValidatorFieldsInExtraData(chain, extraData, header, parents)
 	if err != nil {
 		return err
 	}
@@ -837,7 +838,7 @@ func (c *Consortium) getCheckpointValidatorsFromContract(
 		if !isAaron {
 			sort.Sort(validatorsAscending(blockProducers))
 		}
-		if !c.IsPeriodBlock(chain, header) {
+		if !c.IsPeriodBlock(chain, header, nil) {
 			return nil, blockProducers, nil
 		}
 		validatorCandidates, err := contract.GetValidatorCandidates(parentHash, parentBlockNumber)
@@ -946,7 +947,7 @@ func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.He
 			// current epoch, which is used to calculate block producer bit set later on.
 			var latestValidatorCandidates []finality.ValidatorWithBlsPub
 
-			if c.IsPeriodBlock(chain, header) {
+			if c.IsPeriodBlock(chain, header, nil) {
 				extraData.CheckpointValidators = checkpointValidators
 				latestValidatorCandidates = checkpointValidators
 			} else {
@@ -1153,7 +1154,7 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 		// their amounts, check with stored data in header
 		if c.IsTrippEffective(chain, header) {
 			if c.chainConfig.IsAaron(header.Number) {
-				if !c.IsPeriodBlock(chain, header) {
+				if !c.IsPeriodBlock(chain, header, nil) {
 					// Except period block, checkpoint validator list get from contract
 					// is nil at other epoch blocks. From the fact that validator candidate list
 					// does not change over the whole period, it's possible to get the latest
@@ -1174,7 +1175,7 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 					}
 				}
 			}
-			if c.IsPeriodBlock(chain, header) {
+			if c.IsPeriodBlock(chain, header, nil) {
 				if len(checkpointValidators) != len(extraData.CheckpointValidators) {
 					return errMismatchingValidators
 				}
@@ -1828,7 +1829,7 @@ func (c *Consortium) getLastCheckpointHeader(chain consensus.ChainHeaderReader, 
 
 // IsPeriodBlock returns indicator whether a block is a period checkpoint block or not,
 // which is the first checkpoint block (block % EpochV2 == 0) after 00:00 UTC everyday.
-func (c *Consortium) IsPeriodBlock(chain consensus.ChainHeaderReader, header *types.Header) bool {
+func (c *Consortium) IsPeriodBlock(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header) bool {
 	if c.isTest {
 		return c.testTrippPeriod
 	}
@@ -1839,7 +1840,7 @@ func (c *Consortium) IsPeriodBlock(chain consensus.ChainHeaderReader, header *ty
 
 	// Derive parent snapshot. If err, we recursively find the nearest epoch
 	// block, and determine whether the header period is ahead of that block period.
-	snap, err := c.snapshot(chain, number-1, header.ParentHash, nil)
+	snap, err := c.snapshot(chain, number-1, header.ParentHash, parents)
 	if err != nil {
 		log.Warn("Fail to get snapshot at", "blockNumber", number-1, "blockHash", header.ParentHash, "err", err)
 		parent := c.getLastCheckpointHeader(chain, header)
