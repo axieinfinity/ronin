@@ -93,11 +93,11 @@ func benchmarkEVM(b *testing.B, suite *testSuite) {
 
 func BenchmarkEvmInsertionSort(b *testing.B) {
 	contractAbi, _ := abi.JSON(strings.NewReader(`[{"inputs": [{"internalType": "uint256[]","name": "a","type": "uint256[]"}],"name": "insertionSort","outputs": [],"stateMutability": "pure","type": "function"}]`))
-	rand.New(rand.NewSource(0))
+	rng := rand.New(rand.NewSource(0))
 	const inputLen = 1_000
 	input := make([]*big.Int, inputLen)
 	for i := 0; i < inputLen; i++ {
-		input[i] = big.NewInt(int64(rand.Int31()))
+		input[i] = big.NewInt(int64(rng.Int31()))
 	}
 	data, err := contractAbi.Pack("insertionSort", input)
 	if err != nil {
@@ -128,11 +128,11 @@ func BenchmarkEvmInsertionSort(b *testing.B) {
 
 func BenchmarkEvmQuickSort(b *testing.B) {
 	contractAbi, _ := abi.JSON(strings.NewReader(`[{"inputs": [{"internalType": "uint256[]","name": "a","type": "uint256[]"}],"name": "sort","outputs": [],"stateMutability": "pure","type": "function"}]`))
-	rand.New(rand.NewSource(0))
+	rng := rand.New(rand.NewSource(0))
 	const inputLen = 1_000
 	input := make([]*big.Int, inputLen)
 	for i := 0; i < inputLen; i++ {
-		input[i] = big.NewInt(int64(rand.Int31()))
+		input[i] = big.NewInt(int64(rng.Int31()))
 	}
 	data, err := contractAbi.Pack("sort", input)
 	if err != nil {
