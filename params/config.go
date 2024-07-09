@@ -295,6 +295,7 @@ var (
 		AaronBlock:  big.NewInt(36052600),
 		// TODO: Fill this
 		ShanghaiBlock: nil,
+		CancunBlock:   nil,
 	}
 
 	RoninTestnetBlacklistContract                  = common.HexToAddress("0xF53EED5210c9cF308abFe66bA7CF14884c95A8aC")
@@ -351,6 +352,7 @@ var (
 		AaronBlock:  big.NewInt(28231200),
 		// TODO: Fill this
 		ShanghaiBlock: nil,
+		CancunBlock:   nil,
 	}
 
 	// GoerliTrustedCheckpoint contains the light client trusted checkpoint for the Görli test network.
@@ -573,6 +575,7 @@ type ChainConfig struct {
 	TrippBlock  *big.Int `json:"trippBlock,omitempty"`  // Tripp switch block (nil = no fork, 0 = already on activated)
 	TrippPeriod *big.Int `json:"trippPeriod,omitempty"` // The period number at Tripp fork block.
 	AaronBlock  *big.Int `json:"aaronBlock,omitempty"`  // Aaron switch block (nil = no fork, 0 = already on activated)
+	CancunBlock *big.Int `json:"cancunBlock,omitempty"` // Cancun switch block (nil = no fork, 0 = already on activated)
 
 	ShanghaiBlock *big.Int `json:"shanghaiBlock,omitempty"` // Shanghai switch block (nil = no fork, 0 = already on activated)
 
@@ -700,7 +703,7 @@ func (c *ChainConfig) String() string {
 	chainConfigFmt += "Engine: %v, Blacklist Contract: %v, Fenix Validator Contract: %v, ConsortiumV2: %v, ConsortiumV2.RoninValidatorSet: %v, "
 	chainConfigFmt += "ConsortiumV2.SlashIndicator: %v, ConsortiumV2.StakingContract: %v, Puffy: %v, Buba: %v, Olek: %v, Shillin: %v, Antenna: %v, "
 	chainConfigFmt += "ConsortiumV2.ProfileContract: %v, ConsortiumV2.FinalityTracking: %v, whiteListDeployerContractV2Address: %v, Miko: %v, Tripp: %v, "
-	chainConfigFmt += "TrippPeriod: %v, Aaron: %v, Shanghai: %v}"
+	chainConfigFmt += "TrippPeriod: %v, Aaron: %v, Shanghai: %v, Cancun: %v}"
 
 	return fmt.Sprintf(chainConfigFmt,
 		c.ChainID,
@@ -740,6 +743,7 @@ func (c *ChainConfig) String() string {
 		c.TrippPeriod,
 		c.AaronBlock,
 		c.ShanghaiBlock,
+		c.CancunBlock,
 	)
 }
 
@@ -881,6 +885,11 @@ func (c *ChainConfig) IsAaron(num *big.Int) bool {
 // IsShanghai returns whether the num is equals to or larger than the shanghai fork block.
 func (c *ChainConfig) IsShanghai(num *big.Int) bool {
 	return isForked(c.ShanghaiBlock, num)
+}
+
+// IsCancun returns whether the num is equals to or larger than the cancun fork block.
+func (c *ChainConfig) IsCancun(num *big.Int) bool {
+	return isForked(c.CancunBlock, num)
 }
 
 // CheckCompatible checks whether scheduled fork transitions have been imported
@@ -1032,6 +1041,9 @@ func (c *ChainConfig) checkCompatible(newcfg *ChainConfig, head *big.Int) *Confi
 	if isForkIncompatible(c.ShanghaiBlock, newcfg.ShanghaiBlock, head) {
 		return newCompatError("Shanghai fork block", c.ShanghaiBlock, newcfg.ShanghaiBlock)
 	}
+	if isForkIncompatible(c.CancunBlock, newcfg.CancunBlock, head) {
+		return newCompatError("Cancun fork block", c.CancunBlock, newcfg.CancunBlock)
+	}
 	return nil
 }
 
@@ -1101,7 +1113,7 @@ type Rules struct {
 	IsByzantium, IsConstantinople, IsPetersburg, IsIstanbul bool
 	IsBerlin, IsLondon                                      bool
 	IsOdysseusFork, IsFenix, IsConsortiumV2, IsAntenna      bool
-	IsMiko, IsTripp, IsAaron, IsShanghai                    bool
+	IsMiko, IsTripp, IsAaron, IsShanghai, IsCancun          bool
 }
 
 // Rules ensures c's ChainID is not nil.
@@ -1130,5 +1142,6 @@ func (c *ChainConfig) Rules(num *big.Int) Rules {
 		IsTripp:          c.IsTripp(num),
 		IsAaron:          c.IsAaron(num),
 		IsShanghai:       c.IsShanghai(num),
+		IsCancun:         c.IsCancun(num),
 	}
 }
