@@ -30,6 +30,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 	"github.com/ethereum/go-ethereum/rlp"
 )
 
@@ -171,18 +172,25 @@ type Header struct {
 
 	// BaseFee was added by EIP-1559 and is ignored in legacy headers.
 	BaseFee *big.Int `json:"baseFeePerGas" rlp:"optional"`
+
+	// These fields were added by EIP-4844 and is ignored in legacy headers.
+	BlobGasUsed     *uint64              `json:"blobGasUsed" rlp:"optional"`
+	ExcessBlobGas   *uint64              `json:"excessBlobGas" rlp:"optional"`
+	BlobCommitments []kzg4844.Commitment `json:"blobCommitments" rlp:"optional"`
 }
 
 // field type overrides for gencodec
 type headerMarshaling struct {
-	Difficulty *hexutil.Big
-	Number     *hexutil.Big
-	GasLimit   hexutil.Uint64
-	GasUsed    hexutil.Uint64
-	Time       hexutil.Uint64
-	Extra      hexutil.Bytes
-	BaseFee    *hexutil.Big
-	Hash       common.Hash `json:"hash"` // adds call to Hash() in MarshalJSON
+	Difficulty    *hexutil.Big
+	Number        *hexutil.Big
+	GasLimit      hexutil.Uint64
+	GasUsed       hexutil.Uint64
+	Time          hexutil.Uint64
+	Extra         hexutil.Bytes
+	BaseFee       *hexutil.Big
+	Hash          common.Hash `json:"hash"` // adds call to Hash() in MarshalJSON
+	BlobGasUsed   *hexutil.Uint64
+	ExcessBlobGas *hexutil.Uint64
 }
 
 // Hash returns the block hash of the header, which is simply the keccak256 hash of its
@@ -191,12 +199,19 @@ func (h *Header) Hash() common.Hash {
 	return rlpHash(h)
 }
 
-var headerSize = common.StorageSize(reflect.TypeOf(Header{}).Size())
+var (
+	headerSize     = common.StorageSize(reflect.TypeOf(Header{}).Size())
+	commitmentSize = len(kzg4844.Commitment{})
+)
 
 // Size returns the approximate memory used by all internal contents. It is used
 // to approximate and limit the memory consumption of various caches.
 func (h *Header) Size() common.StorageSize {
-	return headerSize + common.StorageSize(len(h.Extra)+(h.Difficulty.BitLen()+h.Number.BitLen())/8)
+	return headerSize + common.StorageSize(
+		len(h.Extra)+
+			(h.Difficulty.BitLen()+h.Number.BitLen())/8+
+			len(h.BlobCommitments)*commitmentSize,
+	)
 }
 
 // SanityCheck checks a few basic things -- these checks are way beyond what
@@ -331,6 +346,18 @@ func CopyHeader(h *Header) *Header {
 		cpy.Extra = make([]byte, len(h.Extra))
 		copy(cpy.Extra, h.Extra)
 	}
+	if h.BlobGasUsed != nil {
+		blobGasUsed := *h.BlobGasUsed
+		cpy.BlobGasUsed = &blobGasUsed
+	}
+	if h.ExcessBlobGas != nil {
+		excessBlobGas := *h.ExcessBlobGas
+		cpy.ExcessBlobGas = &excessBlobGas
+	}
+	if len(h.BlobCommitments) > 0 {
+		cpy.BlobCommitments = make([]kzg4844.Commitment, 0, len(h.BlobCommitments))
+		cpy.BlobCommitments = append(cpy.BlobCommitments, h.BlobCommitments...)
+	}
 	return &cpy
 }
 
@@ -392,6 +419,30 @@ func (b *Block) BaseFee() *big.Int {
 		return nil
 	}
 	return new(big.Int).Set(b.header.BaseFee)
+}
+
+func (b *Block) BlobGasUsed() *uint64 {
+	if b.header.BlobGasUsed == nil {
+		return nil
+	}
+	blobGasUsed := *b.header.BlobGasUsed
+	return &blobGasUsed
+}
+
+func (b *Block) ExcessBlobGas() *uint64 {
+	if b.header.ExcessBlobGas == nil {
+		return nil
+	}
+	excessBlobGas := *b.header.ExcessBlobGas
+	return &excessBlobGas
+}
+
+// BlobCommitments returns the header.BlobCommitments
+// This function returns the original slice not the copied
+// one to reduce the copy overhead. Don't edit the returned
+// slice directly.
+func (b *Block) BlobCommitments() []kzg4844.Commitment {
+	return b.header.BlobCommitments
 }
 
 func (b *Block) Header() *Header { return CopyHeader(b.header) }
