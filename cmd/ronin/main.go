@@ -125,6 +125,7 @@ var (
 		utils.CacheNoPrefetchFlag,
 		utils.CachePreimagesFlag,
 		utils.FDLimitFlag,
+		utils.CryptoKZGFlag,
 		utils.ListenPortFlag,
 		utils.MaxPeersFlag,
 		utils.MaxPendingPeersFlag,
