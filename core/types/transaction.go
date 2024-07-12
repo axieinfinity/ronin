@@ -409,8 +409,8 @@ func (tx *Transaction) BlobHashes() []common.Hash {
 	return nil
 }
 
-// BlobSidecar returns the sidecar of a blob transaction, nil otherwise.
-func (tx *Transaction) BlobSidecar() *BlobSidecar {
+// BlobTxSidecar returns the sidecar of a blob transaction, nil otherwise.
+func (tx *Transaction) BlobTxSidecar() *BlobTxSidecar {
 	if blobtx, ok := tx.inner.(*BlobTx); ok {
 		return blobtx.Sidecar
 	}
