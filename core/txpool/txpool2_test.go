@@ -79,11 +79,11 @@ func TestTransactionFutureAttack(t *testing.T) {
 
 	// Create the pool to test the limit enforcement with
 	statedb, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
-	blockchain := &testBlockChain{1000000, statedb, new(event.Feed)}
+	blockchain := &testBlockChain{1000000, statedb, new(event.Feed), 0}
 	config := testTxPoolConfig
 	config.GlobalQueue = 100
 	config.GlobalSlots = 100
-	pool := NewTxPool(config, eip1559Config, blockchain)
+	pool := New(config, eip1559Config, blockchain)
 	defer pool.Stop()
 	fillPool(t, pool)
 	pending, _ := pool.Stats()
@@ -115,8 +115,8 @@ func TestTransactionFuture1559(t *testing.T) {
 	t.Parallel()
 	// Create the pool to test the pricing enforcement with
 	statedb, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
-	blockchain := &testBlockChain{1000000, statedb, new(event.Feed)}
-	pool := NewTxPool(testTxPoolConfig, eip1559Config, blockchain)
+	blockchain := &testBlockChain{1000000, statedb, new(event.Feed), 0}
+	pool := New(testTxPoolConfig, eip1559Config, blockchain)
 	defer pool.Stop()
 
 	// Create a number of test accounts, fund them and make transactions
@@ -147,8 +147,8 @@ func TestTransactionZAttack(t *testing.T) {
 	t.Parallel()
 	// Create the pool to test the pricing enforcement with
 	statedb, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
-	blockchain := &testBlockChain{1000000, statedb, new(event.Feed)}
-	pool := NewTxPool(testTxPoolConfig, eip1559Config, blockchain)
+	blockchain := &testBlockChain{1000000, statedb, new(event.Feed), 0}
+	pool := New(testTxPoolConfig, eip1559Config, blockchain)
 	defer pool.Stop()
 	mikoSigner := types.NewMikoSigner(common.Big1)
 	// Create a number of test accounts, fund them and make transactions
