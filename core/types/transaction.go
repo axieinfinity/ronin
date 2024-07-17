@@ -417,6 +417,26 @@ func (tx *Transaction) BlobTxSidecar() *BlobTxSidecar {
 	return nil
 }
 
+// WithoutBlobSidecar returns a copy of tx with the blob sidecar removed.
+func (tx *Transaction) WithoutBlobTxSidecar() *Transaction {
+	blobtx, ok := tx.inner.(*BlobTx)
+	if !ok {
+		return tx
+	}
+	cpy := &Transaction{
+		inner: blobtx.withoutSidecar(),
+		time:  tx.time,
+	}
+	// Note: tx.size cache not carried over because the sidecar is included in size!
+	if h := tx.hash.Load(); h != nil {
+		cpy.hash.Store(h)
+	}
+	if f := tx.from.Load(); f != nil {
+		cpy.from.Store(f)
+	}
+	return cpy
+}
+
 // BlobGasFeeCapCmp compares the blob fee cap of two transactions.
 func (tx *Transaction) BlobGasFeeCapCmp(other *Transaction) int {
 	return tx.BlobGasFeeCap().Cmp(other.BlobGasFeeCap())

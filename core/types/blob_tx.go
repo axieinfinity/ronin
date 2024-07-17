@@ -18,6 +18,7 @@ package types
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -56,6 +57,16 @@ type BlobTxSidecar struct {
 	Blobs       []kzg4844.Blob       // Blobs needed by the blob pool
 	Commitments []kzg4844.Commitment // Commitments needed by the blob pool
 	Proofs      []kzg4844.Proof      // Proofs needed by the blob pool
+}
+
+// BlobHashes computes the blob hashes of the given blobs.
+func (sc *BlobTxSidecar) BlobHashes() []common.Hash {
+	hasher := sha256.New()
+	h := make([]common.Hash, len(sc.Commitments))
+	for i := range sc.Blobs {
+		h[i] = kzg4844.CalcBlobHashV1(hasher, &sc.Commitments[i])
+	}
+	return h
 }
 
 // blobTxWithBlobs is used for encoding of transactions when blobs are present.
@@ -151,6 +162,12 @@ func (tx *BlobTx) setSignatureValues(chainID, v, r, s *big.Int) {
 	tx.V.SetFromBig(v)
 	tx.R.SetFromBig(r)
 	tx.S.SetFromBig(s)
+}
+
+func (tx *BlobTx) withoutSidecar() *BlobTx {
+	cpy := *tx
+	cpy.Sidecar = nil
+	return &cpy
 }
 
 func (tx *BlobTx) encode(b *bytes.Buffer) error {
