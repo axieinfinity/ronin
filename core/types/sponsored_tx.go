@@ -1,9 +1,11 @@
 package types
 
 import (
+	"bytes"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/rlp"
 )
 
 type SponsoredTx struct {
@@ -96,4 +98,12 @@ func (tx *SponsoredTx) rawSignatureValues() (v, r, s *big.Int) {
 
 func (tx *SponsoredTx) setSignatureValues(chainID, v, r, s *big.Int) {
 	tx.ChainID, tx.V, tx.R, tx.S = chainID, v, r, s
+}
+
+func (tx *SponsoredTx) encode(b *bytes.Buffer) error {
+	return rlp.Encode(b, tx)
+}
+
+func (tx *SponsoredTx) decode(input []byte) error {
+	return rlp.DecodeBytes(input, tx)
 }
