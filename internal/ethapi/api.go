@@ -1246,6 +1246,17 @@ func RPCMarshalHeader(head *types.Header) map[string]interface{} {
 		result["baseFeePerGas"] = (*hexutil.Big)(head.BaseFee)
 	}
 
+	if head.BlobGasUsed != nil {
+		result["blobGasUsed"] = (*hexutil.Uint64)(head.BlobGasUsed)
+	}
+
+	if head.ExcessBlobGas != nil {
+		result["excessBlobGas"] = (*hexutil.Uint64)(head.ExcessBlobGas)
+	}
+
+	if len(head.BlobCommitments) > 0 {
+		result["blobCommitments"] = head.BlobCommitments
+	}
 	return result
 }
 
