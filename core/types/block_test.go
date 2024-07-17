@@ -26,6 +26,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
 	"golang.org/x/crypto/sha3"
@@ -280,4 +281,29 @@ func makeBenchBlock() *Block {
 		}
 	}
 	return NewBlock(header, txs, uncles, receipts, newHasher())
+}
+
+func TestCopyHeaderEIP4844(t *testing.T) {
+	blobGasUsed := uint64(1 << 17)
+	excessBlobGas := 2 * blobGasUsed
+	header := Header{
+		BlobGasUsed:     &blobGasUsed,
+		ExcessBlobGas:   &excessBlobGas,
+		BlobCommitments: []kzg4844.Commitment{kzg4844.Commitment{}},
+	}
+	cpyHeader := CopyHeader(&header)
+	*cpyHeader.BlobGasUsed = 0
+	*cpyHeader.ExcessBlobGas = 0
+	cpyHeader.BlobCommitments[0] = kzg4844.Commitment{0x1}
+
+	// Check that changes in cpyHeader does not affect the original header
+	if *header.BlobGasUsed != blobGasUsed {
+		t.Fatalf("Blob gas used mismatches, expect %d got %d", blobGasUsed, *header.BlobGasUsed)
+	}
+	if *header.ExcessBlobGas != excessBlobGas {
+		t.Fatalf("Excess blob gas mismatches, expect %d got %d", excessBlobGas, *header.ExcessBlobGas)
+	}
+	if len(header.BlobCommitments) != 1 || header.BlobCommitments[0] != (kzg4844.Commitment{}) {
+		t.Fatalf("Blob commitment mismatches, got %+v", header.BlobCommitments)
+	}
 }
