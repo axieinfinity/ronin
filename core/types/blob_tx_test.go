@@ -28,6 +28,36 @@ func TestBlobTxHashing(t *testing.T) {
 	}
 }
 
+// This test verifies that tx.Size() takes BlobTxSidecar into account.
+func TestBlobTxSize(t *testing.T) {
+	key, _ := crypto.GenerateKey()
+	withBlobs := createEmptyBlobTx(key, true)
+	withBlobsStripped := withBlobs.WithoutBlobTxSidecar()
+	withoutBlobs := createEmptyBlobTx(key, false)
+
+	withBlobsEnc, _ := withBlobs.MarshalBinary()
+	withoutBlobsEnc, _ := withoutBlobs.MarshalBinary()
+
+	size := withBlobs.Size()
+	t.Log("size with blobs:", size)
+
+	sizeNoBlobs := withoutBlobs.Size()
+	t.Log("size without blobs:", sizeNoBlobs)
+
+	if uint64(size) != uint64(len(withBlobsEnc)) {
+		t.Error("wrong size with blobs:", size, "encoded length:", len(withBlobsEnc))
+	}
+	if uint64(sizeNoBlobs) != uint64(len(withoutBlobsEnc)) {
+		t.Error("wrong size without blobs:", sizeNoBlobs, "encoded length:", len(withoutBlobsEnc))
+	}
+	if sizeNoBlobs >= size {
+		t.Error("size without blobs >= size with blobs")
+	}
+	if sz := withBlobsStripped.Size(); sz != sizeNoBlobs {
+		t.Fatal("wrong size on tx after WithoutBlobTxSidecar:", sz)
+	}
+}
+
 var (
 	emptyBlob          = kzg4844.Blob{}
 	emptyBlobCommit, _ = kzg4844.BlobToCommitment(&emptyBlob)

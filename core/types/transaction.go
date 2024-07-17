@@ -472,12 +472,20 @@ func (tx *Transaction) Size() common.StorageSize {
 	c := writeCounter(0)
 
 	rlp.Encode(&c, &tx.inner)
+	size := uint64(c)
+
+	// For blob transactions, add the size of the blob content and the outer list of the
+	// tx + sidecar encoding.
+	if sc := tx.BlobTxSidecar(); sc != nil {
+		size += rlp.ListSize(sc.encodedSize())
+	}
 
 	if tx.Type() != LegacyTxType {
-		c += 1 // type byte
+		size += 1 // type byte
 	}
-	tx.size.Store(common.StorageSize(c))
-	return common.StorageSize(c)
+
+	tx.size.Store(common.StorageSize(size))
+	return common.StorageSize(size)
 }
 
 // WithSignature returns a new transaction with the given signature.

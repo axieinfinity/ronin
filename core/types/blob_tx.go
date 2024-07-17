@@ -69,6 +69,22 @@ func (sc *BlobTxSidecar) BlobHashes() []common.Hash {
 	return h
 }
 
+// encodedSize computes the RLP size of the sidecar elements. This does NOT return the
+// encoded size of the BlobTxSidecar, it's just a helper for tx.Size().
+func (sc *BlobTxSidecar) encodedSize() uint64 {
+	var blobs, commitments, proofs uint64
+	for i := range sc.Blobs {
+		blobs += rlp.BytesSize(sc.Blobs[i][:])
+	}
+	for i := range sc.Commitments {
+		commitments += rlp.BytesSize(sc.Commitments[i][:])
+	}
+	for i := range sc.Proofs {
+		proofs += rlp.BytesSize(sc.Proofs[i][:])
+	}
+	return rlp.ListSize(blobs) + rlp.ListSize(commitments) + rlp.ListSize(proofs)
+}
+
 // blobTxWithBlobs is used for encoding of transactions when blobs are present.
 type blobTxWithBlobs struct {
 	BlobTx      *BlobTx
