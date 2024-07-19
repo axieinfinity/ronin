@@ -27,6 +27,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/txpool"
+	"github.com/ethereum/go-ethereum/core/txpool/legacypool"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/eth/downloader"
@@ -253,8 +254,12 @@ func createMiner(t *testing.T) (*Miner, *event.TypeMux) {
 	statedb, _ := state.New(common.Hash{}, state.NewDatabase(chainDB), nil)
 	blockchain := &testBlockChain{statedb, 10000000, new(event.Feed)}
 
-	pool := txpool.New(testTxPoolConfig, chainConfig, blockchain)
-	backend := NewMockBackend(bc, pool)
+	legacyPool := legacypool.New(testTxPoolConfig, chainConfig, blockchain)
+	txPool, err := txpool.New(testTxPoolConfig.PriceLimit, blockchain, []txpool.SubPool{legacyPool})
+	if err != nil {
+		t.Fatal(err)
+	}
+	backend := NewMockBackend(bc, txPool)
 	// Create event Mux
 	mux := new(event.TypeMux)
 	// Create Miner

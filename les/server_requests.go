@@ -518,10 +518,14 @@ func handleSendTx(msg Decoder) (serveRequestFn, uint64, uint64, error) {
 			hash := tx.Hash()
 			stats[i] = txStatus(backend, hash)
 			if stats[i].Status == txpool.TxStatusUnknown {
-				addFn := backend.TxPool().AddRemotes
+				addFn := func(txs []*types.Transaction) []error {
+					return backend.TxPool().Add(txs, false, false)
+				}
 				// Add txs synchronously for testing purpose
 				if backend.AddTxsSync() {
-					addFn = backend.TxPool().AddRemotesSync
+					addFn = func(txs []*types.Transaction) []error {
+						return backend.TxPool().Add(txs, false, true)
+					}
 				}
 				if errs := addFn([]*types.Transaction{tx}); errs[0] != nil {
 					stats[i].Error = errs[0].Error()
@@ -556,7 +560,7 @@ func handleGetTxStatus(msg Decoder) (serveRequestFn, uint64, uint64, error) {
 func txStatus(b serverBackend, hash common.Hash) light.TxStatus {
 	var stat light.TxStatus
 	// Looking the transaction in txpool first.
-	stat.Status = b.TxPool().Status([]common.Hash{hash})[0]
+	stat.Status = b.TxPool().Status(hash)
 
 	// If the transaction is unknown to the pool, try looking it up locally.
 	if stat.Status == txpool.TxStatusUnknown {

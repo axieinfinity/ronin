@@ -247,7 +247,7 @@ func testRecvTransactions(t *testing.T, protocol uint) {
 	handler.handler.acceptTxs = 1 // mark synced to accept transactions
 
 	txs := make(chan core.NewTxsEvent)
-	sub := handler.txpool.SubscribeNewTxsEvent(txs)
+	sub := handler.txpool.SubscribeTransactions(txs, false)
 	defer sub.Unsubscribe()
 
 	// Create a source peer to send messages through and a sink handler to receive them
@@ -308,8 +308,8 @@ func testSendTransactions(t *testing.T, protocol uint) {
 
 		insert[nonce] = tx
 	}
-	go handler.txpool.AddRemotes(insert) // Need goroutine to not block on feed
-	time.Sleep(250 * time.Millisecond)   // Wait until tx events get out of the system (can't use events, tx broadcaster races with peer join)
+	go handler.txpool.Add(insert, false, false) // Need goroutine to not block on feed
+	time.Sleep(250 * time.Millisecond)          // Wait until tx events get out of the system (can't use events, tx broadcaster races with peer join)
 
 	// Create a source handler to send messages through and a sink peer to receive them
 	p2pSrc, p2pSink := p2p.MsgPipe()
@@ -420,7 +420,7 @@ func testTransactionPropagation(t *testing.T, protocol uint) {
 	for i := 0; i < len(sinks); i++ {
 		txChs[i] = make(chan core.NewTxsEvent, 1024)
 
-		sub := sinks[i].txpool.SubscribeNewTxsEvent(txChs[i])
+		sub := sinks[i].txpool.SubscribeTransactions(txChs[i], false)
 		defer sub.Unsubscribe()
 	}
 	// Fill the source pool with transactions and wait for them at the sinks
@@ -431,7 +431,7 @@ func testTransactionPropagation(t *testing.T, protocol uint) {
 
 		txs[nonce] = tx
 	}
-	source.txpool.AddRemotes(txs)
+	source.txpool.Add(txs, false, false)
 
 	// Iterate through all the sinks and ensure they all got the transactions
 	for i := range sinks {

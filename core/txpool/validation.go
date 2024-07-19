@@ -38,11 +38,22 @@ type ValidationOptions struct {
 	Accept  uint8    // Bitmap of transaction types that should be accepted for the calling pool
 	MaxSize uint64   // Maximum size of a transaction that the caller can meaningfully handle
 	MinTip  *big.Int // Minimum gas tip needed to allow a transaction into the caller pool
-	MaxGas  uint64   // The current max gas limit per block
 
 	// As the Accept bitmap cannot store the sponsored transaction type which is 0x64 (100),
 	// we need to create a separate bool for this case
 	AcceptSponsoredTx bool
+}
+
+func CurrentBlockMaxGas(chainConfig *params.ChainConfig, header *types.Header) uint64 {
+	var reservedGas uint64 = 0
+	if chainConfig.Consortium != nil {
+		if header.Number.Uint64()%chainConfig.Consortium.EpochV2 == chainConfig.Consortium.EpochV2-1 {
+			reservedGas = params.ReservedGasForCheckpointSystemTransactions
+		} else {
+			reservedGas = params.ReservedGasForNormalSystemTransactions
+		}
+	}
+	return header.GasLimit - reservedGas
 }
 
 // ValidateTransaction is a helper method to check whether a transaction is valid
@@ -92,7 +103,7 @@ func ValidateTransaction(tx *types.Transaction, blobs []kzg4844.Blob, commits []
 		return ErrNegativeValue
 	}
 	// Ensure the transaction doesn't exceed the current block limit gas
-	if opts.MaxGas < tx.Gas() {
+	if CurrentBlockMaxGas(opts.Config, head) < tx.Gas() {
 		return ErrGasLimit
 	}
 	// Sanity check for extremely large numbers (supported by RLP or RPC)
@@ -317,30 +328,32 @@ func ValidateTransactionWithState(tx *types.Transaction, signer types.Signer, op
 		}
 	}
 
-	if tx.To() == nil && opts.Config.Consortium != nil {
-		var whitelisted bool
-		if opts.Config.IsAntenna(opts.Head.Number) {
-			whitelisted = state.IsWhitelistedDeployerV2(
-				opts.State,
-				from,
-				opts.Head.Time,
-				opts.Config.WhiteListDeployerContractV2Address,
-			)
-		} else {
-			whitelisted = state.IsWhitelistedDeployer(opts.State, from)
+	if opts.Config != nil {
+		if tx.To() == nil && opts.Config.Consortium != nil {
+			var whitelisted bool
+			if opts.Config.IsAntenna(opts.Head.Number) {
+				whitelisted = state.IsWhitelistedDeployerV2(
+					opts.State,
+					from,
+					opts.Head.Time,
+					opts.Config.WhiteListDeployerContractV2Address,
+				)
+			} else {
+				whitelisted = state.IsWhitelistedDeployer(opts.State, from)
+			}
+			if !whitelisted {
+				return ErrUnauthorizedDeployer
+			}
 		}
-		if !whitelisted {
-			return ErrUnauthorizedDeployer
-		}
-	}
 
-	// Check if sender, payer and recipient are blacklisted
-	if opts.Config.Consortium != nil && opts.Config.IsOdysseus(opts.Head.Number) {
-		contractAddr := opts.Config.BlacklistContractAddress
-		if state.IsAddressBlacklisted(opts.State, contractAddr, &from) ||
-			state.IsAddressBlacklisted(opts.State, contractAddr, tx.To()) ||
-			state.IsAddressBlacklisted(opts.State, contractAddr, &payer) {
-			return ErrAddressBlacklisted
+		// Check if sender, payer and recipient are blacklisted
+		if opts.Config.Consortium != nil && opts.Config.IsOdysseus(opts.Head.Number) {
+			contractAddr := opts.Config.BlacklistContractAddress
+			if state.IsAddressBlacklisted(opts.State, contractAddr, &from) ||
+				state.IsAddressBlacklisted(opts.State, contractAddr, tx.To()) ||
+				state.IsAddressBlacklisted(opts.State, contractAddr, &payer) {
+				return ErrAddressBlacklisted
+			}
 		}
 	}
 
