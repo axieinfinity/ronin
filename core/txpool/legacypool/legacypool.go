@@ -36,6 +36,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/holiman/uint256"
 )
 
 const (
@@ -505,7 +506,7 @@ func (pool *LegacyPool) ContentFrom(addr common.Address) ([]*types.Transaction, 
 
 // Pending retrieves all currently processable transactions, grouped by origin
 // account and sorted by nonce.
-func (pool *LegacyPool) Pending(filter *txpool.PendingFilter) map[common.Address]types.Transactions {
+func (pool *LegacyPool) Pending(filter *txpool.PendingFilter) map[common.Address][]*txpool.LazyTransaction {
 	if filter.OnlyBlobTxs {
 		return nil
 	}
@@ -516,7 +517,7 @@ func (pool *LegacyPool) Pending(filter *txpool.PendingFilter) map[common.Address
 	// Convert the new uint256.Int types to the old big.Int ones used by the legacy pool
 	baseFeeBig := filter.BaseFee.ToBig()
 
-	pending := make(map[common.Address]types.Transactions)
+	pending := make(map[common.Address][]*txpool.LazyTransaction, len(pool.pending))
 	for addr, list := range pool.pending {
 		txs := list.Flatten()
 
@@ -530,7 +531,20 @@ func (pool *LegacyPool) Pending(filter *txpool.PendingFilter) map[common.Address
 			}
 		}
 		if len(txs) > 0 {
-			pending[addr] = txs
+			lazies := make([]*txpool.LazyTransaction, len(txs))
+			for i := 0; i < len(txs); i++ {
+				lazies[i] = &txpool.LazyTransaction{
+					Pool:      pool,
+					Hash:      txs[i].Hash(),
+					Tx:        txs[i],
+					Time:      txs[i].Time(),
+					GasFeeCap: uint256.MustFromBig(txs[i].GasFeeCap()),
+					GasTipCap: uint256.MustFromBig(txs[i].GasTipCap()),
+					Gas:       txs[i].Gas(),
+					BlobGas:   txs[i].BlobGas(),
+				}
+			}
+			pending[addr] = lazies
 		}
 	}
 	return pending
@@ -589,7 +603,7 @@ func (pool *LegacyPool) validateTxBasics(tx *types.Transaction, local bool) erro
 	if local {
 		opts.MinTip = new(big.Int)
 	}
-	if err := txpool.ValidateTransaction(tx, nil, nil, nil, pool.currentHead.Load(), pool.signer, opts); err != nil {
+	if err := txpool.ValidateTransaction(tx, pool.currentHead.Load(), pool.signer, opts); err != nil {
 		return err
 	}
 	return nil
@@ -603,6 +617,17 @@ func (pool *LegacyPool) validateTx(tx *types.Transaction, local bool) error {
 		State:         pool.currentState,
 		Head:          pool.currentHead.Load(),
 		FirstNonceGap: nil, // Pool allows arbitrary arrival order, don't invalidate nonce gaps
+		// The global and account slot and queue are checked later
+		UsedAndLeftSlots: func(addr common.Address) (int, int) {
+			var have int
+			if list := pool.pending[addr]; list != nil {
+				have += list.Len()
+			}
+			if list := pool.queue[addr]; list != nil {
+				have += list.Len()
+			}
+			return have, math.MaxInt
+		},
 		ExistingExpenditure: func(addr common.Address) *big.Int {
 			return pool.getAccountPendingCost(addr)
 		},

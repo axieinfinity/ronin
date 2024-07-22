@@ -344,7 +344,13 @@ func (p *TxPool) Pending(filter *PendingFilter) map[common.Address]types.Transac
 	txs := make(map[common.Address]types.Transactions)
 	for _, subpool := range p.subpools {
 		for addr, set := range subpool.Pending(filter) {
-			txs[addr] = set
+			// TODO: This is not a correct implementation, we should only resolve
+			// lazy transaction before committing to block. However, the correct
+			// implementation requires the miner to change, this will be done
+			// in later PR to reduce the complexity of current PR
+			for _, lazy := range set {
+				txs[addr] = append(txs[addr], lazy.Resolve())
+			}
 		}
 	}
 	return txs
