@@ -216,6 +216,34 @@ func (bc *BlockChain) GetReceiptsByHash(hash common.Hash) types.Receipts {
 	return receipts
 }
 
+// GetBlobSidecarsByNumber retrieves the blobSidecars by a given block number
+// if the blob sidecars are not pruned yet
+func (bc *BlockChain) GetBlobSidecarsByNumber(number uint64) *types.BlobSidecars {
+	hash := rawdb.ReadCanonicalHash(bc.db, number)
+	if hash == (common.Hash{}) {
+		return nil
+	}
+	return bc.GetBlobSidecarsByHash(hash)
+}
+
+// GetBlobSidecarsByHash retrieves the blobSidecars by a given block hash 
+// if the blob sidecars are not pruned yet
+func (bc *BlockChain) GetBlobSidecarsByHash(hash common.Hash) *types.BlobSidecars {
+	if sidecars, ok := bc.blobSidecarsCache.Get(hash); ok {
+		return sidecars.(*types.BlobSidecars)
+	}
+	number := rawdb.ReadHeaderNumber(bc.db, hash)
+	if number == nil {
+		return nil
+	}
+	sidecars := rawdb.ReadBlobSidecars(bc.db, hash, *number)
+	if sidecars != nil {
+		return nil
+	}
+	bc.blobSidecarsCache.Add(hash, sidecars)
+	return &sidecars
+}
+
 // GetUnclesInChain retrieves all the uncles from a given block backwards until
 // a specific distance is reached.
 func (bc *BlockChain) GetUnclesInChain(block *types.Block, length int) []*types.Header {
