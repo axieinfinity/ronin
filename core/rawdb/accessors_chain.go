@@ -1036,12 +1036,12 @@ func WriteBlobSidecarsRLP(db ethdb.KeyValueWriter, hash common.Hash, number uint
 }
 
 // ReadBlobSidecars retrieves the block sidecars corresponding to the hash.
-func ReadBlobSidecars(db ethdb.Reader, hash common.Hash, number uint64) []*types.BlobTxSidecar {
+func ReadBlobSidecars(db ethdb.Reader, hash common.Hash, number uint64) types.BlobSidecars {
 	data := ReadBlobSidecarsRLP(db, hash, number)
 	if len(data) == 0 {
 		return nil
 	}
-	var sidecars []*types.BlobTxSidecar
+	var sidecars types.BlobSidecars
 	if err := rlp.Decode(bytes.NewReader(data), &sidecars); err != nil {
 		log.Crit("Invalid block sidecars RLP", "hash", hash, "err", err)
 		return nil
@@ -1050,7 +1050,7 @@ func ReadBlobSidecars(db ethdb.Reader, hash common.Hash, number uint64) []*types
 }
 
 // WriteBlobSidecars stores the block sidecars into the database.
-func WriteBlobSidecars(db ethdb.KeyValueWriter, hash common.Hash, number uint64, sidecars []*types.BlobTxSidecar) {
+func WriteBlobSidecars(db ethdb.KeyValueWriter, hash common.Hash, number uint64, sidecars types.BlobSidecars) {
 	data, err := rlp.EncodeToBytes(sidecars)
 	if err != nil {
 		log.Crit("Failed to RLP encode sidecars", "err", err)
