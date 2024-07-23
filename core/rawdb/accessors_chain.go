@@ -1018,3 +1018,49 @@ func ReadDirtyAccounts(db ethdb.KeyValueReader) []*types.DirtyStateAccountsAndBl
 	}
 	return dirtyStateAccounts
 }
+
+// ReadBlobSidecarsRLP retrieves the block sidecars (blobs, commitments and proofs) in RLP encoding.
+func ReadBlobSidecarsRLP(db ethdb.Reader, hash common.Hash, number uint64) rlp.RawValue {
+	// As sidecars are not stored into ancient database, try to
+	// read sidecars from leveldb instead.
+	var data []byte
+	data, _ = db.Get(blobSidecarsKey(number, hash))
+	return data
+}
+
+// WriteBlobSidecarsRLP stores an RLP encoded block sidecars into the database.
+func WriteBlobSidecarsRLP(db ethdb.KeyValueWriter, hash common.Hash, number uint64, rlp rlp.RawValue) {
+	if err := db.Put(blobSidecarsKey(number, hash), rlp); err != nil {
+		log.Crit("Failed to store block sidecars", "err", err)
+	}
+}
+
+// ReadBlobSidecars retrieves the block sidecars corresponding to the hash.
+func ReadBlobSidecars(db ethdb.Reader, hash common.Hash, number uint64) []*types.BlobTxSidecar {
+	data := ReadBlobSidecarsRLP(db, hash, number)
+	if len(data) == 0 {
+		return nil
+	}
+	var sidecars []*types.BlobTxSidecar
+	if err := rlp.Decode(bytes.NewReader(data), &sidecars); err != nil {
+		log.Crit("Invalid block sidecars RLP", "hash", hash, "err", err)
+		return nil
+	}
+	return sidecars
+}
+
+// WriteBlobSidecars stores the block sidecars into the database.
+func WriteBlobSidecars(db ethdb.KeyValueWriter, hash common.Hash, number uint64, sidecars []*types.BlobTxSidecar) {
+	data, err := rlp.EncodeToBytes(sidecars)
+	if err != nil {
+		log.Crit("Failed to RLP encode sidecars", "err", err)
+	}
+	WriteBlobSidecarsRLP(db, hash, number, data)
+}
+
+// DeleteBlobSidecars removes all block sidecars associated with a hash.
+func DeleteBlobSidecars(db ethdb.KeyValueWriter, hash common.Hash, number uint64) {
+	if err := db.Delete(blobSidecarsKey(number, hash)); err != nil {
+		log.Crit("Failed to delete block sidecars", "err", err)
+	}
+}
