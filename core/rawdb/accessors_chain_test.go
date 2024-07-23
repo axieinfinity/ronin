@@ -31,6 +31,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
 	"golang.org/x/crypto/sha3"
@@ -1031,5 +1032,91 @@ func TestReadWriteDirtyAccounts(t *testing.T) {
 				t.Fatalf("mismatched address at index %d, expected %d got %d", i, acc.Nonce, results[i].DirtyAccounts[j].Nonce)
 			}
 		}
+	}
+}
+
+var (
+	emptyBlob          = kzg4844.Blob{0x11}
+	emptyBlobCommit, _ = kzg4844.BlobToCommitment(&emptyBlob)
+	emptyBlobProof, _  = kzg4844.ComputeBlobProof(&emptyBlob, emptyBlobCommit)
+)
+
+func sidecarsEqual(sc, sc2 *types.BlobTxSidecar) bool {
+	// Check length match between each fields of the two sidecars
+	if len(sc.Blobs) != len(sc2.Blobs) || len(sc.Commitments) != len(sc2.Commitments) ||
+		len(sc.Proofs) != len(sc2.Proofs) {
+		return false
+	}
+	// Check length match between fields of a sidecar
+	if len(sc.Blobs) != len(sc.Commitments) || len(sc.Commitments) != len(sc.Proofs) {
+		return false
+	}
+
+	// Check byte match between each fields of the two sidecars
+	for i := 0; i < len(sc.Blobs); i++ {
+		if !bytes.Equal(sc.Blobs[i][:], sc2.Blobs[i][:]) {
+			return false
+		}
+		if !bytes.Equal(sc.Commitments[i][:], sc2.Commitments[i][:]) {
+			return false
+		}
+		if !bytes.Equal(sc.Proofs[i][:], sc2.Proofs[i][:]) {
+			return false
+		}
+	}
+	return true
+}
+
+func TestSidecarStorage(t *testing.T) {
+	db := NewMemoryDatabase()
+
+	body := &types.Body{Uncles: []*types.Header{{Extra: []byte("test header")}}}
+
+	hasher := sha3.NewLegacyKeccak256()
+	rlp.Encode(hasher, body)
+	hash := common.BytesToHash(hasher.Sum(nil))
+
+	// Create a test sidecar to move around the database and make sure it's really new
+	sidecar := &types.BlobTxSidecar{
+		Blobs:       []kzg4844.Blob{emptyBlob},
+		Commitments: []kzg4844.Commitment{emptyBlobCommit},
+		Proofs:      []kzg4844.Proof{emptyBlobProof},
+	}
+	sidecars := []*types.BlobTxSidecar{sidecar}
+
+	// Compute actual hash of the sidecars
+	hasher = sha3.NewLegacyKeccak256()
+	rlp.Encode(hasher, sidecars)
+	sidecarsHash := common.BytesToHash(hasher.Sum(nil))
+
+	if entry := ReadBlobSidecars(db, hash, 0); entry != nil {
+		t.Fatalf("Non existent sidecars returned: %v", entry)
+	}
+
+	// Write and verify the sidecars in the database
+	WriteBlobSidecars(db, hash, 0, sidecars)
+	if entry := ReadBlobSidecars(db, hash, 0); entry == nil {
+		t.Fatalf("Stored sidecars not found")
+	} else {
+		if len(entry) != 1 {
+			t.Fatalf("Mismatch returned length")
+		}
+		if !sidecarsEqual(entry[0], sidecar) {
+			t.Fatalf("Mismatch two sidecars")
+		}
+	}
+	if entry := ReadBlobSidecarsRLP(db, hash, 0); entry == nil {
+		t.Fatalf("Stored sidecars RLP not found")
+	} else {
+		hasher := sha3.NewLegacyKeccak256()
+		hasher.Write(entry)
+		if calc := common.BytesToHash(hasher.Sum(nil)); calc != sidecarsHash {
+			t.Fatalf("Retrieved RLP sidecars mismatch: have %v, want %v", calc, sidecarsHash)
+		}
+	}
+	// Delete the sidecars and verify the execution
+	DeleteBlobSidecars(db, hash, 0)
+	if entry := ReadBlobSidecars(db, hash, 0); entry != nil {
+		t.Fatalf("Deleted body returned: %v", entry)
 	}
 }
