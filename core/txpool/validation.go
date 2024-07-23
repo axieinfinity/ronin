@@ -257,7 +257,7 @@ type ValidationOptionsWithState struct {
 // rules without duplicating code and running the risk of missed updates.
 func ValidateTransactionWithState(tx *types.Transaction, signer types.Signer, opts *ValidationOptionsWithState) error {
 	// Ensure the transaction adheres to nonce ordering
-	from, err := signer.Sender(tx) // already validated (and cached), but cleaner to check
+	from, err := types.Sender(signer, tx) // already validated (and cached), but cleaner to check
 	if err != nil {
 		log.Error("Transaction sender recovery failed", "err", err)
 		return err
@@ -283,7 +283,7 @@ func ValidateTransactionWithState(tx *types.Transaction, signer types.Signer, op
 	)
 
 	if tx.Type() == types.SponsoredTxType {
-		payer, err = signer.Payer(tx) // already validated (and cached), but cleaner to check
+		payer, err = types.Payer(signer, tx) // already validated (and cached), but cleaner to check
 		if err != nil {
 			log.Error("Transaction payer recovery failed", "err", err)
 			return err
