@@ -96,7 +96,7 @@ func loadSnapshot(
 	ethAPI *ethapi.PublicBlockChainAPI,
 	chainConfig *params.ChainConfig,
 ) (*Snapshot, error) {
-	blob, err := db.Get(append([]byte("consortium-"), hash[:]...))
+	blob, err := rawdb.ReadSnapshotConsortium(db, hash)
 	if err != nil {
 		return nil, err
 	}
@@ -118,7 +118,7 @@ func (s *Snapshot) store(db ethdb.Database) error {
 	if err != nil {
 		return err
 	}
-	return db.Put(append(rawdb.ConsortiumSnapshotPrefix, s.Hash[:]...), blob)
+	return rawdb.WriteSnapshotConsortium(db, s.Hash, blob)
 }
 
 // copy creates a deep copy of the snapshot.
