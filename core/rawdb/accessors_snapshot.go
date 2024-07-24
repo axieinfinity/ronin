@@ -216,3 +216,20 @@ func DeleteSnapshotSyncStatus(db ethdb.KeyValueWriter) {
 		log.Crit("Failed to remove snapshot sync status", "err", err)
 	}
 }
+
+// ReadSnapshotConsortium retrieves the snapshot consortium of a given block
+func ReadSnapshotConsortium(db ethdb.KeyValueReader, hash common.Hash) ([]byte, error) {
+	return db.Get(snapshotConsortiumKey(hash))
+}
+
+// WriteSnapshotConsortium stores the snapshot consortium of a block
+func WriteSnapshotConsortium(db ethdb.KeyValueWriter, hash common.Hash, snapshot []byte) error {
+	if err := db.Put(snapshotConsortiumKey(hash), snapshot); err != nil {
+		log.Crit("Failed to store snapshot consortium", "err", err)
+	}
+}
+
+// DeleteSnapshotConsortium deletes the snapshot consortium of a given block
+func DeleteSnapshotConsortium(db ethdb.KeyValueWriter, hash common.Hash) error {
+	return db.Delete(snapshotConsortiumKey(hash)); err != nil {
+}
