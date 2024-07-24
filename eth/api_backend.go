@@ -212,7 +212,11 @@ func (b *EthAPIBackend) BlobSidecarsByNumber(ctx context.Context, number rpc.Blo
 	return b.eth.blockchain.GetBlobSidecarsByNumber(uint64(number)), nil
 }
 
-func (b *EthAPIBackend) GetBlobSidecarsByNumberOrHash(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) (*types.BlobSidecars, error) {
+func (b *EthAPIBackend) BlobSidecarsByHash(ctx context.Context, hash common.Hash) (*types.BlobSidecars, error) {
+	return b.eth.blockchain.GetBlobSidecarsByHash(hash), nil
+}
+
+func (b *EthAPIBackend) BlobSidecarsByNumberOrHash(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) (*types.BlobSidecars, error) {
 	if blockNr, ok := blockNrOrHash.Number(); ok {
 		return b.BlobSidecarsByNumber(ctx, blockNr)
 	}
