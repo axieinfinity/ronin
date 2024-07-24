@@ -18,12 +18,14 @@ package miner
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"math/big"
 	"math/rand"
 	"sync/atomic"
 	"testing"
 	"time"
 
+	mapset "github.com/deckarep/golang-set"
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -36,9 +38,11 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/holiman/uint256"
 )
 
 const (
@@ -79,8 +83,10 @@ func init() {
 	testTxPoolConfig.Journal = ""
 	ethashChainConfig = new(params.ChainConfig)
 	*ethashChainConfig = *params.TestChainConfig
+	ethashChainConfig.CancunBlock = nil
 	cliqueChainConfig = new(params.ChainConfig)
 	*cliqueChainConfig = *params.TestChainConfig
+	cliqueChainConfig.CancunBlock = nil
 	cliqueChainConfig.Clique = &params.CliqueConfig{
 		Period: 10,
 		Epoch:  30000,
@@ -598,5 +604,209 @@ func TestDoubleSignPrevention(t *testing.T) {
 			done <- struct{}{}
 			return
 		}
+	}
+}
+
+func toLazyTransaction(tx *types.Transaction) *txpool.LazyTransaction {
+	return &txpool.LazyTransaction{
+		Tx:        tx,
+		Time:      time.Now(),
+		GasFeeCap: uint256.MustFromBig(tx.GasFeeCap()),
+		GasTipCap: uint256.MustFromBig(tx.GasTipCap()),
+		Gas:       tx.Gas(),
+		BlobGas:   tx.BlobGas(),
+	}
+}
+
+func newCurrent(t *testing.T, signer types.Signer, chain *core.BlockChain) *environment {
+	state, err := chain.StateAt(common.Hash{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	excessBlobGas := uint64(0)
+	header := &types.Header{
+		GasLimit:      100_000_000,
+		Number:        common.Big0,
+		Difficulty:    big.NewInt(7),
+		BaseFee:       common.Big0,
+		ExcessBlobGas: &excessBlobGas,
+	}
+	env := &environment{
+		signer:             signer,
+		state:              state,
+		ancestors:          mapset.NewSet(),
+		family:             mapset.NewSet(),
+		uncles:             mapset.NewSet(),
+		header:             header,
+		estimatedBlockSize: 0,
+		tcount:             0,
+	}
+	return env
+}
+
+func TestCommitBlobTransaction(t *testing.T) {
+	var (
+		emptyBlob          = new(kzg4844.Blob)
+		emptyBlobCommit, _ = kzg4844.BlobToCommitment(emptyBlob)
+		emptyBlobProof, _  = kzg4844.ComputeBlobProof(emptyBlob, emptyBlobCommit)
+		emptyBlobVHash     = kzg4844.CalcBlobHashV1(sha256.New(), &emptyBlobCommit)
+	)
+
+	db := rawdb.NewMemoryDatabase()
+	chainConfig := params.AllEthashProtocolChanges
+	chainConfig.ChainID = big.NewInt(2020)
+	chainConfig.RoninTreasuryAddress = &common.Address{0x88}
+	engine := clique.New(cliqueChainConfig.Clique, db)
+
+	backend := newTestWorkerBackend(t, chainConfig, engine, db, 0)
+	w := newWorker(testConfig, chainConfig, engine, backend, new(event.TypeMux), nil, false)
+
+	signer := types.NewCancunSigner(big.NewInt(2020))
+	senderKey1, _ := crypto.GenerateKey()
+	senderAddress1 := crypto.PubkeyToAddress(senderKey1.PublicKey)
+	senderKey2, _ := crypto.GenerateKey()
+	senderAddress2 := crypto.PubkeyToAddress(senderKey2.PublicKey)
+
+	legacyTx, err := types.SignNewTx(senderKey1, signer, &types.LegacyTx{
+		Nonce:    0,
+		GasPrice: big.NewInt(20_000_000_000),
+		Gas:      21000,
+		To:       &senderAddress1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	legacyTxs := make(map[common.Address][]*txpool.LazyTransaction)
+	legacyTxs[senderAddress1] = append(legacyTxs[senderAddress1], toLazyTransaction(legacyTx))
+	plainTxsByPrice := NewTransactionsByPriceAndNonce(signer, legacyTxs, common.Big0)
+
+	blobTx, err := types.SignNewTx(senderKey2, signer, &types.BlobTx{
+		ChainID:    uint256.NewInt(2020),
+		Nonce:      0,
+		GasTipCap:  uint256.NewInt(20_000_000_000),
+		GasFeeCap:  uint256.NewInt(20_000_000_000),
+		Gas:        21000,
+		To:         senderAddress2,
+		BlobHashes: []common.Hash{emptyBlobVHash},
+		BlobFeeCap: uint256.MustFromBig(common.Big1),
+		Sidecar: &types.BlobTxSidecar{
+			Blobs:       []kzg4844.Blob{*emptyBlob},
+			Commitments: []kzg4844.Commitment{emptyBlobCommit},
+			Proofs:      []kzg4844.Proof{emptyBlobProof},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	blobTxs := make(map[common.Address][]*txpool.LazyTransaction)
+	blobTxs[senderAddress2] = append(blobTxs[senderAddress2], toLazyTransaction(blobTx))
+	blobTxsByPrice := NewTransactionsByPriceAndNonce(signer, blobTxs, common.Big0)
+
+	w.current = newCurrent(t, signer, w.chain)
+	w.current.state.AddBalance(senderAddress1, new(big.Int).Exp(big.NewInt(10), big.NewInt(20), nil))
+	w.current.state.AddBalance(senderAddress2, new(big.Int).Exp(big.NewInt(10), big.NewInt(20), nil))
+
+	// Case 1: Not Cancun, blob transactions are not committed but plain transactions are committed
+	// normally without error
+	failed := w.commitTransactions(plainTxsByPrice, blobTxsByPrice, senderAddress1, nil)
+	if failed {
+		t.Fatal("Commit transaction failed")
+	}
+	if len(w.current.txs) != 1 || w.current.header.GasUsed != 21000 {
+		t.Fatalf(
+			"Unexpected mined block, number of txs %d, gas used %d",
+			len(w.current.txs), w.current.header.GasUsed,
+		)
+	}
+
+	// Case 2: Higher blob transaction tip is prioritized
+	w.current = newCurrent(t, signer, w.chain)
+	w.current.state.AddBalance(senderAddress1, new(big.Int).Exp(big.NewInt(10), big.NewInt(20), nil))
+	w.current.state.AddBalance(senderAddress2, new(big.Int).Exp(big.NewInt(10), big.NewInt(20), nil))
+
+	w.current.header.BlobGasUsed = new(uint64)
+	chainConfig.CancunBlock = common.Big0
+	w.chainConfig = chainConfig
+
+	plainTxsByPrice = NewTransactionsByPriceAndNonce(signer, make(map[common.Address][]*txpool.LazyTransaction), common.Big0)
+
+	blobTx1, err := types.SignNewTx(senderKey1, signer, &types.BlobTx{
+		ChainID:    uint256.NewInt(2020),
+		Nonce:      0,
+		GasTipCap:  uint256.NewInt(30_000_000_000),
+		GasFeeCap:  uint256.NewInt(30_000_000_000),
+		Gas:        21000,
+		To:         senderAddress1,
+		BlobHashes: []common.Hash{emptyBlobVHash, emptyBlobVHash, emptyBlobVHash, emptyBlobVHash, emptyBlobVHash, emptyBlobVHash},
+		BlobFeeCap: uint256.MustFromBig(common.Big1),
+		Sidecar: &types.BlobTxSidecar{
+			Blobs:       []kzg4844.Blob{*emptyBlob, *emptyBlob, *emptyBlob, *emptyBlob, *emptyBlob, *emptyBlob},
+			Commitments: []kzg4844.Commitment{emptyBlobCommit, emptyBlobCommit, emptyBlobCommit, emptyBlobCommit, emptyBlobCommit, emptyBlobCommit},
+			Proofs:      []kzg4844.Proof{emptyBlobProof, emptyBlobProof, emptyBlobProof, emptyBlobProof, emptyBlobProof, emptyBlobProof},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	blobTx2, err := types.SignNewTx(senderKey2, signer, &types.BlobTx{
+		ChainID:    uint256.NewInt(2020),
+		Nonce:      0,
+		GasTipCap:  uint256.NewInt(20_000_000_000),
+		GasFeeCap:  uint256.NewInt(20_000_000_000),
+		Gas:        21000,
+		To:         senderAddress2,
+		BlobHashes: []common.Hash{emptyBlobVHash},
+		BlobFeeCap: uint256.MustFromBig(common.Big1),
+		Sidecar: &types.BlobTxSidecar{
+			Blobs:       []kzg4844.Blob{*emptyBlob},
+			Commitments: []kzg4844.Commitment{emptyBlobCommit},
+			Proofs:      []kzg4844.Proof{emptyBlobProof},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	blobTxs = make(map[common.Address][]*txpool.LazyTransaction)
+	blobTxs[senderAddress1] = append(blobTxs[senderAddress1], toLazyTransaction(blobTx1))
+	blobTxs[senderAddress2] = append(blobTxs[senderAddress2], toLazyTransaction(blobTx2))
+	blobTxsByPrice = NewTransactionsByPriceAndNonce(signer, blobTxs, common.Big0)
+	failed = w.commitTransactions(plainTxsByPrice, blobTxsByPrice, senderAddress1, nil)
+	if failed {
+		t.Fatal("Commit transaction failed")
+	}
+	if len(w.current.txs) != 1 || w.current.header.GasUsed != 21000 || *w.current.header.BlobGasUsed != 6*params.BlobTxBlobGasPerBlob {
+		t.Fatalf(
+			"Unexpected mined block, number of txs %d, gas used %d, blob gas used %d",
+			len(w.current.txs), w.current.header.GasUsed, *w.current.header.BlobGasUsed,
+		)
+	}
+
+	// Case 3: Choose the blob transaction that does not make the blob gas used exceed the limit
+	w.current = newCurrent(t, signer, w.chain)
+	w.current.state.AddBalance(senderAddress1, new(big.Int).Exp(big.NewInt(10), big.NewInt(20), nil))
+	w.current.state.AddBalance(senderAddress2, new(big.Int).Exp(big.NewInt(10), big.NewInt(20), nil))
+
+	w.current.header.BlobGasUsed = new(uint64)
+	*w.current.header.BlobGasUsed = 3 * params.BlobTxBlobGasPerBlob
+	chainConfig.CancunBlock = common.Big0
+	w.chainConfig = chainConfig
+
+	blobTxs = make(map[common.Address][]*txpool.LazyTransaction)
+	blobTxs[senderAddress1] = append(blobTxs[senderAddress1], toLazyTransaction(blobTx1))
+	blobTxs[senderAddress2] = append(blobTxs[senderAddress2], toLazyTransaction(blobTx2))
+	blobTxsByPrice = NewTransactionsByPriceAndNonce(signer, blobTxs, common.Big0)
+	failed = w.commitTransactions(plainTxsByPrice, blobTxsByPrice, senderAddress1, nil)
+	if failed {
+		t.Fatal("Commit transaction failed")
+	}
+	if len(w.current.txs) != 1 || w.current.header.GasUsed != 21000 || *w.current.header.BlobGasUsed != 4*params.BlobTxBlobGasPerBlob {
+		t.Fatalf(
+			"Unexpected mined block, number of txs %d, gas used %d, blob gas used %d",
+			len(w.current.txs), w.current.header.GasUsed, *w.current.header.BlobGasUsed,
+		)
 	}
 }

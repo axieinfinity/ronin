@@ -46,7 +46,9 @@ func (h *handler) syncTransactions(p *eth.Peer) {
 	var txs types.Transactions
 	pending := h.txpool.Pending(&txpool.PendingFilter{OnlyPlainTxs: true})
 	for _, batch := range pending {
-		txs = append(txs, batch...)
+		for _, tx := range batch {
+			txs = append(txs, tx.Resolve())
+		}
 	}
 	if len(txs) == 0 {
 		return

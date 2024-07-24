@@ -340,17 +340,11 @@ func (p *TxPool) Add(txs []*types.Transaction, local bool, sync bool) []error {
 //
 // The transactions can also be pre-filtered by the dynamic fee components to
 // reduce allocations and load on downstream subsystems.
-func (p *TxPool) Pending(filter *PendingFilter) map[common.Address]types.Transactions {
-	txs := make(map[common.Address]types.Transactions)
+func (p *TxPool) Pending(filter *PendingFilter) map[common.Address][]*LazyTransaction {
+	txs := make(map[common.Address][]*LazyTransaction)
 	for _, subpool := range p.subpools {
 		for addr, set := range subpool.Pending(filter) {
-			// TODO: This is not a correct implementation, we should only resolve
-			// lazy transaction before committing to block. However, the correct
-			// implementation requires the miner to change, this will be done
-			// in later PR to reduce the complexity of current PR
-			for _, lazy := range set {
-				txs[addr] = append(txs[addr], lazy.Resolve())
-			}
+			txs[addr] = set
 		}
 	}
 	return txs
