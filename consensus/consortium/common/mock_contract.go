@@ -16,17 +16,26 @@ var Validators *MockValidators
 type MockValidators struct {
 	validators    []common.Address
 	blsPublicKeys map[common.Address]blsCommon.PublicKey
+	stakeAmounts  []*big.Int
 }
 
-func SetMockValidators(validators, publicKeys string) error {
+func SetMockValidators(validators, publicKeys, stakeAmounts string) error {
+	var ok bool
 	vals := strings.Split(validators, ",")
 	pubs := strings.Split(publicKeys, ",")
+	amounts := strings.Split(stakeAmounts, ",")
 	if len(vals) != len(pubs) {
 		return errors.New("mismatch length between mock validators and mock blsPubKey")
+	}
+	if stakeAmounts != "" {
+		if len(vals) != len(amounts) {
+			return errors.New("mismatch length between mock validators and mock stakeAmounts")
+		}
 	}
 	Validators = &MockValidators{
 		validators:    make([]common.Address, len(vals)),
 		blsPublicKeys: make(map[common.Address]blsCommon.PublicKey),
+		stakeAmounts:  make([]*big.Int, len(amounts)),
 	}
 	for i, val := range vals {
 		Validators.validators[i] = common.HexToAddress(val)
@@ -35,6 +44,14 @@ func SetMockValidators(validators, publicKeys string) error {
 			return err
 		}
 		Validators.blsPublicKeys[Validators.validators[i]] = pubKey
+		if stakeAmounts != "" {
+			Validators.stakeAmounts[i], ok = new(big.Int).SetString(amounts[i], 10)
+			if !ok {
+				return errors.New("failed to parse stake amount")
+			} else {
+				Validators.stakeAmounts[i] = common.Big0
+			}
+		}
 	}
 	return nil
 }
@@ -58,7 +75,7 @@ func (contract *MockContract) GetBlockProducers(blockHash common.Hash, blockNumb
 }
 
 func (contract *MockContract) GetValidatorCandidates(blockHash common.Hash, blockNumber *big.Int) ([]common.Address, error) {
-	return nil, nil
+	return Validators.GetValidators(), nil
 }
 
 func (contract *MockContract) WrapUpEpoch(*ApplyTransactOpts) error {
@@ -86,7 +103,7 @@ func (contract *MockContract) GetBlsPublicKey(blockHash common.Hash, blockNumber
 }
 
 func (contract *MockContract) GetStakedAmount(blockHash common.Hash, blockNumber *big.Int, addr []common.Address) ([]*big.Int, error) {
-	return nil, nil
+	return Validators.stakeAmounts, nil
 }
 
 func (contract *MockContract) GetMaxValidatorNumber(blockHash common.Hash, blockNumber *big.Int) (*big.Int, error) {

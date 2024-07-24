@@ -23,6 +23,8 @@ import (
 	"io/ioutil"
 	"strings"
 
+	"github.com/urfave/cli/v2"
+
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/bls"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
@@ -31,7 +33,6 @@ import (
 	"github.com/ethereum/go-ethereum/crypto/bls/blst"
 	blsCommon "github.com/ethereum/go-ethereum/crypto/bls/common"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/urfave/cli/v2"
 )
 
 var (
@@ -540,6 +541,7 @@ func loadBlsSecretKey(ctx *cli.Context) (blsCommon.SecretKey, error) {
 	}
 
 	return secretKey, nil
+
 }
 
 func blsAccountList(ctx *cli.Context) error {

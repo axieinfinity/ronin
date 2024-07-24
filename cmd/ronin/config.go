@@ -25,6 +25,9 @@ import (
 	"reflect"
 	"unicode"
 
+	"github.com/naoina/toml"
+	"github.com/urfave/cli/v2"
+
 	"github.com/ethereum/go-ethereum/accounts/external"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/accounts/scwallet"
@@ -40,8 +43,6 @@ import (
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/naoina/toml"
-	"github.com/urfave/cli/v2"
 )
 
 var (
@@ -154,7 +155,7 @@ func makeConfigNode(ctx *cli.Context) (*node.Node, gethConfig) {
 
 	// setup mock config
 	if ctx.IsSet(utils.MockValidatorsFlag.Name) && ctx.IsSet(utils.MockBlsPublicKeysFlag.Name) {
-		err = consortiumCommon.SetMockValidators(ctx.String(utils.MockValidatorsFlag.Name), ctx.String(utils.MockBlsPublicKeysFlag.Name))
+		err = consortiumCommon.SetMockValidators(ctx.String(utils.MockValidatorsFlag.Name), ctx.String(utils.MockBlsPublicKeysFlag.Name), ctx.String(utils.MockStakeAmountsFlag.Name))
 		if err != nil {
 			utils.Fatalf("failed on create mock validators %v", err)
 		}
