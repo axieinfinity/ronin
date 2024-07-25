@@ -248,6 +248,16 @@ func (b testBackend) ServiceFilter(ctx context.Context, session *bloombits.Match
 	panic("implement me")
 }
 
+func (b testBackend) BlobSidecarsByHash(ctx context.Context, hash common.Hash) (*types.BlobSidecars, error) {
+	panic("implement me")
+}
+func (b testBackend) BlobSidecarsByNumber(ctx context.Context, number rpc.BlockNumber) (*types.BlobSidecars, error) {
+	panic("implement me")
+}
+func (b testBackend) BlobSidecarsByNumberOrHash(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) (*types.BlobSidecars, error) {
+	panic("implement me")
+}
+
 func TestEstimateGas(t *testing.T) {
 	t.Parallel()
 	// Initialize test accounts

@@ -195,6 +195,37 @@ func (b *EthAPIBackend) GetReceipts(ctx context.Context, hash common.Hash) (type
 	return b.eth.blockchain.GetReceiptsByHash(hash), nil
 }
 
+func (b *EthAPIBackend) BlobSidecarsByNumber(ctx context.Context, number rpc.BlockNumber) (*types.BlobSidecars, error) {
+	var hash common.Hash
+	if number == rpc.PendingBlockNumber {
+		hash = b.eth.miner.PendingBlock().Hash()
+	}
+	if number == rpc.LatestBlockNumber {
+		hash = b.eth.blockchain.CurrentBlock().Hash()
+	}
+	if number == rpc.FinalizedBlockNumber {
+		hash = b.eth.blockchain.FinalizedBlock().Hash()
+	}
+	if hash != (common.Hash{}) {
+		b.eth.blockchain.GetBlobSidecarsByHash(hash)
+	}
+	return b.eth.blockchain.GetBlobSidecarsByNumber(uint64(number)), nil
+}
+
+func (b *EthAPIBackend) BlobSidecarsByHash(ctx context.Context, hash common.Hash) (*types.BlobSidecars, error) {
+	return b.eth.blockchain.GetBlobSidecarsByHash(hash), nil
+}
+
+func (b *EthAPIBackend) BlobSidecarsByNumberOrHash(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) (*types.BlobSidecars, error) {
+	if blockNr, ok := blockNrOrHash.Number(); ok {
+		return b.BlobSidecarsByNumber(ctx, blockNr)
+	}
+	if hash, ok := blockNrOrHash.Hash(); ok {
+		return b.eth.blockchain.GetBlobSidecarsByHash(hash), nil
+	}
+	return nil, errors.New("invalid arguments: neither block number nor block hash hash specified")
+}
+
 func (b *EthAPIBackend) GetLogs(ctx context.Context, hash common.Hash) ([][]*types.Log, error) {
 	db := b.eth.ChainDb()
 	number := rawdb.ReadHeaderNumber(db, hash)
