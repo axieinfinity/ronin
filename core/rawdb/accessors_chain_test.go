@@ -1041,7 +1041,7 @@ var (
 	emptyBlobProof, _  = kzg4844.ComputeBlobProof(&emptyBlob, emptyBlobCommit)
 )
 
-func sidecarsEqual(sc, sc2 *types.BlobTxSidecar) bool {
+func sidecarsEqual(sc, sc2 *types.BlobSidecar) bool {
 	// Check length match between each fields of the two sidecars
 	if len(sc.Blobs) != len(sc2.Blobs) || len(sc.Commitments) != len(sc2.Commitments) ||
 		len(sc.Proofs) != len(sc2.Proofs) {
@@ -1049,6 +1049,10 @@ func sidecarsEqual(sc, sc2 *types.BlobTxSidecar) bool {
 	}
 	// Check length match between fields of a sidecar
 	if len(sc.Blobs) != len(sc.Commitments) || len(sc.Commitments) != len(sc.Proofs) {
+		return false
+	}
+
+	if sc.TxHash != sc2.TxHash {
 		return false
 	}
 
@@ -1077,12 +1081,17 @@ func TestSidecarStorage(t *testing.T) {
 	hash := common.BytesToHash(hasher.Sum(nil))
 
 	// Create a test sidecar to move around the database and make sure it's really new
-	sidecar := &types.BlobTxSidecar{
+	sidecar := types.BlobTxSidecar{
 		Blobs:       []kzg4844.Blob{emptyBlob},
 		Commitments: []kzg4844.Commitment{emptyBlobCommit},
 		Proofs:      []kzg4844.Proof{emptyBlobProof},
 	}
-	sidecars := []*types.BlobTxSidecar{sidecar}
+	sidecars := types.BlobSidecars{
+		&types.BlobSidecar{
+			BlobTxSidecar: sidecar,
+			TxHash:        common.Hash{0x12},
+		},
+	}
 
 	// Compute actual hash of the sidecars
 	hasher = sha3.NewLegacyKeccak256()
@@ -1101,7 +1110,7 @@ func TestSidecarStorage(t *testing.T) {
 		if len(entry) != 1 {
 			t.Fatalf("Mismatch returned length")
 		}
-		if !sidecarsEqual(entry[0], sidecar) {
+		if !sidecarsEqual(entry[0], sidecars[0]) {
 			t.Fatalf("Mismatch two sidecars")
 		}
 	}
