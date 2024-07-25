@@ -223,26 +223,27 @@ func (bc *BlockChain) GetBlobSidecarsByNumber(number uint64) *types.BlobSidecars
 	if hash == (common.Hash{}) {
 		return nil
 	}
-
-	return bc.getBlobSidecars(hash, number)
+	if sidecars, ok := bc.blobSidecarsCache.Get(hash); ok {
+		return sidecars.(*types.BlobSidecars)
+	}
+	
+	sidecars := rawdb.ReadBlobSidecars(bc.db, hash, number)
+	bc.blobSidecarsCache.Add(hash, sidecars)
+	return &sidecars
 }
 
 // GetBlobSidecarsByHash retrieves the blobSidecars by a given block hash
 // if the blob sidecars are not pruned yet
 func (bc *BlockChain) GetBlobSidecarsByHash(hash common.Hash) *types.BlobSidecars {
+	if sidecars, ok := bc.blobSidecarsCache.Get(hash); ok {
+		return sidecars.(*types.BlobSidecars)
+	}
 	number := rawdb.ReadHeaderNumber(bc.db, hash)
 	if number == nil {
 		return nil
 	}
-	sidecars := bc.getBlobSidecars(hash, *number)
-	return sidecars
-}
 
-func (bc *BlockChain) getBlobSidecars(hash common.Hash, number uint64) *types.BlobSidecars {
-	if sidecars, ok := bc.blobSidecarsCache.Get(hash); ok {
-		return sidecars.(*types.BlobSidecars)
-	}	
-	sidecars := rawdb.ReadBlobSidecars(bc.db, hash, number)
+	sidecars := rawdb.ReadBlobSidecars(bc.db, hash, *number)
 	bc.blobSidecarsCache.Add(hash, sidecars)
 	return &sidecars
 }
