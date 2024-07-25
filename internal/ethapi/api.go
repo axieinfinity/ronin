@@ -786,6 +786,24 @@ func (s *PublicBlockChainAPI) GetBlockByHash(ctx context.Context, hash common.Ha
 	return nil, err
 }
 
+// GetBlobSidecarsByHash returns the requested list of blob sidecars based on block number.
+func (s *PublicBlockChainAPI) GetBlobSidecarsByNumber(ctx context.Context, number rpc.BlockNumber) (types.BlobSidecars, error) {
+	sidecars, err := s.b.BlobSidecarsByNumber(ctx, number)
+	if sidecars != nil && err == nil {
+		return sidecars, nil
+	}
+	return nil, err
+}
+
+// GetBlobSidecarsByHash returns the requested list of blob sidecars based on block hash.
+func (s *PublicBlockChainAPI) GetBlobSidecarsByHash(ctx context.Context, hash common.Hash) (types.BlobSidecars, error) {
+	sidecars, err := s.b.BlobSidecarsByHash(ctx, hash)
+	if sidecars != nil && err == nil {
+		return sidecars, nil
+	}
+	return nil, err
+}
+
 // GetUncleByBlockNumberAndIndex returns the uncle block for the given block hash and index. When fullTx is true
 // all transactions in the block are returned in full detail, otherwise only the transaction hash is returned.
 func (s *PublicBlockChainAPI) GetUncleByBlockNumberAndIndex(ctx context.Context, blockNr rpc.BlockNumber, index hexutil.Uint) (map[string]interface{}, error) {

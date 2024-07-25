@@ -29,6 +29,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/eth/tracers/logger"
+	lru "github.com/hashicorp/golang-lru"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -3820,5 +3821,26 @@ func TestEIP3651(t *testing.T) {
 	expected = new(big.Int).SetUint64(block.GasUsed() * (block.Transactions()[0].GasTipCap().Uint64() + block.BaseFee().Uint64()))
 	if actual.Cmp(expected) != 0 {
 		t.Fatalf("sender balance incorrect: expected %d, got %d", expected, actual)
+	}
+}
+
+func TestGetBlobSidecars(t *testing.T) {
+	var (
+		blkHash  = common.HexToHash("0x11")
+		blkNum   = uint64(1)
+		cache, _ = lru.New(5)
+	)
+	db := rawdb.NewDatabase(rawdb.NewMemoryDatabase())
+	rawdb.WriteBlobSidecars(db, blkHash, blkNum, types.BlobSidecars{&types.BlobSidecar{TxHash: common.HexToHash("0x22")}})
+	rawdb.WriteHeaderNumber(db, blkHash, blkNum)
+	bc := &BlockChain{db: db, blobSidecarsCache: cache}
+	bc.GetBlobSidecarsByHash(blkHash)
+	// Get blob sidecars from cache
+	sidecars := bc.GetBlobSidecarsByHash(blkHash)
+	if len(sidecars) != 1 {
+		t.Fatal("Mismatch sidecars len")
+	}
+	if sidecars[0].TxHash != common.HexToHash("0x22") {
+		t.Fatal("Mismatch blob sidecars")
 	}
 }
