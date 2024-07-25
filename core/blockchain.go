@@ -98,6 +98,8 @@ const (
 	dirtyAccountsCacheLimit = 32
 	internalTxsCacheLimit   = 32
 
+	blobSidecarsCacheLimit = 32
+
 	// BlockChainVersion ensures that an incompatible database forces a resync from scratch.
 	//
 	// Changelog:
@@ -212,6 +214,8 @@ type BlockChain struct {
 	dirtyAccountsCache        *lru.Cache     // Cache for the most recent dirtyAccounts
 	internalTransactionsCache *lru.Cache     // Cache for most recent internal transactions with block hash at key
 
+	blobSidecarsCache *lru.Cache // Cache for most recent blob sidecars
+
 	wg            sync.WaitGroup //
 	quit          chan struct{}  // shutdown signal, closed in Stop.
 	running       int32          // 0 if chain is running, 1 when stopped
@@ -248,6 +252,8 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 	dirtyAccountsCache, _ := lru.New(dirtyAccountsCacheLimit)
 	internalTxsCache, _ := lru.New(internalTxsCacheLimit)
 
+	blobSidecarsCache, _ := lru.New(blobSidecarsCacheLimit)
+
 	bc := &BlockChain{
 		chainConfig: chainConfig,
 		cacheConfig: cacheConfig,
@@ -272,6 +278,8 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 		engine:                    engine,
 		vmConfig:                  vmConfig,
 		shouldStoreInternalTxs:    rawdb.ReadStoreInternalTransactionsEnabled(db),
+
+		blobSidecarsCache: blobSidecarsCache,
 	}
 	bc.validator = NewBlockValidator(chainConfig, bc, engine)
 	bc.prefetcher = newStatePrefetcher(chainConfig, bc, engine)
