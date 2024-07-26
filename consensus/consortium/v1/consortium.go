@@ -169,6 +169,11 @@ func (c *Consortium) Author(header *types.Header) (common.Address, error) {
 	return Ecrecover(header, c.signatures)
 }
 
+// VerifyBlobHeader only available in v2
+func (c *Consortium) VerifyBlobHeader(block *types.Block, sidecars []types.BlobTxSidecar) (error, *types.BlobSidecars) {
+	return nil, nil
+}
+
 // VerifyHeader checks whether a header conforms to the consensus rules.
 func (c *Consortium) VerifyHeader(chain consensus.ChainHeaderReader, header *types.Header, seal bool) error {
 	return c.VerifyHeaderAndParents(chain, header, nil)
