@@ -81,7 +81,7 @@ var (
 	// lastFinalityVoteKey tracks the highest finality vote
 	highestFinalityVoteKey = []byte("HighestFinalityVote")
 
-	ConsortiumSnapshotPrefix = []byte("consortium-") // key = ConsortiumSnapshotPrefix + block hash
+	snapshotConsortiumPrefix = []byte("consortium-") // key = ConsortiumSnapshotPrefix + block hash
 
 	// Data item prefixes (use single byte to avoid mixing data types, avoid `i`, used for indexes).
 	headerPrefix       = []byte("h") // headerPrefix + num (uint64 big endian) + hash -> header
@@ -245,4 +245,8 @@ func IsCodeKey(key []byte) (bool, []byte) {
 // configKey = configPrefix + hash
 func configKey(hash common.Hash) []byte {
 	return append(configPrefix, hash.Bytes()...)
+}
+
+func snapshotConsortiumKey(hash common.Hash) []byte {
+	return append(snapshotConsortiumPrefix, hash.Bytes()...)
 }

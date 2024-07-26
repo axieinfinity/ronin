@@ -66,7 +66,7 @@ func newSnapshot(config *params.ConsortiumConfig, sigcache *lru.ARCCache, number
 
 // loadSnapshot loads an existing snapshot from the database.
 func loadSnapshot(config *params.ConsortiumConfig, sigcache *lru.ARCCache, db ethdb.Database, hash common.Hash) (*Snapshot, error) {
-	blob, err := db.Get(append(rawdb.ConsortiumSnapshotPrefix, hash[:]...))
+	blob, err := rawdb.ReadSnapshotConsortium(db, hash)
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +86,7 @@ func (s *Snapshot) store(db ethdb.Database) error {
 	if err != nil {
 		return err
 	}
-	return db.Put(append([]byte("consortium-"), s.Hash[:]...), blob)
+	return rawdb.WriteSnapshotConsortium(db, s.Hash, blob)
 }
 
 // copy creates a deep copy of the snapshot, though not the individual votes.
