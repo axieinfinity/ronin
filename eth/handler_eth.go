@@ -176,10 +176,10 @@ func (h *ethHandler) handleBodies(peer *eth.Peer, txs [][]*types.Transaction, un
 	// Filter out any explicitly requested bodies, deliver the rest to the downloader
 	filter := len(txs) > 0 || len(uncles) > 0
 	if filter {
-		txs, uncles = h.blockFetcher.FilterBodies(peer.ID(), txs, uncles, time.Now())
+		txs, uncles, sidecars = h.blockFetcher.FilterBodies(peer.ID(), txs, uncles, sidecars, time.Now())
 	}
 	if len(txs) > 0 || len(uncles) > 0 || !filter {
-		err := h.downloader.DeliverBodies(peer.ID(), txs, uncles)
+		err := h.downloader.DeliverBodies(peer.ID(), txs, uncles, sidecars)
 		if err != nil {
 			log.Debug("Failed to deliver bodies", "err", err)
 		}
@@ -211,7 +211,7 @@ func (h *ethHandler) handleBlockAnnounces(peer *eth.Peer, hashes []common.Hash, 
 // block broadcast for the local node to process.
 func (h *ethHandler) handleBlockBroadcast(peer *eth.Peer, block *types.Block, td *big.Int, sidecars []types.BlobTxSidecar) error {
 	// Schedule the block for import
-	h.blockFetcher.Enqueue(peer.ID(), block)
+	h.blockFetcher.Enqueue(peer.ID(), block, sidecars)
 
 	// Assuming the block is importable by the peer, but possibly not yet done so,
 	// calculate the head hash and TD that the peer truly must have.
