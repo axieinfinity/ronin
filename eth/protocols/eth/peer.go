@@ -310,6 +310,16 @@ func (p *Peer) ReplyBlockBodiesRLP(id uint64, bodies []rlp.RawValue) error {
 	})
 }
 
+// ReplyBlockBodiesRLP100 is the eth/100 version of SendBlockBodiesRLP.
+func (p *Peer) ReplyBlockBodiesRLP100(id uint64, bodies []rlp.RawValue, sidecars [][]*types.BlobTxSidecar) error {
+	// Not packed into BlockBodiesPacket to avoid RLP decoding
+	return p2p.Send(p.rw, BlockBodiesMsg, BlockBodiesRLPPacket100{
+		RequestId:            id,
+		BlockBodiesRLPPacket: bodies,
+		Sidecars:             sidecars,
+	})
+}
+
 // ReplyNodeData is the eth/66 response to GetNodeData.
 func (p *Peer) ReplyNodeData(id uint64, data [][]byte) error {
 	return p2p.Send(p.rw, NodeDataMsg, NodeDataPacket66{
