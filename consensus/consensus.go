@@ -84,6 +84,9 @@ type Engine interface {
 	// via the VerifySeal method.
 	VerifyHeader(chain ChainHeaderReader, header *types.Header, seal bool) error
 
+	// VerifyBlobHeader verifies a block's header blob and corresponding sidecar
+	VerifyBlobHeader(block *types.Block, sidecars []types.BlobTxSidecar) (error, *types.BlobSidecars)
+
 	// VerifyHeaders is similar to VerifyHeader, but verifies a batch of headers
 	// concurrently. The method returns a quit channel to abort the operations and
 	// a results channel to retrieve the async verifications (the order is that of
