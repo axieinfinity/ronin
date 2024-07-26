@@ -272,9 +272,16 @@ func (p *Peer) AsyncSendNewBlockHash(block *types.Block) {
 }
 
 // SendNewBlock propagates an entire block to a remote peer.
-func (p *Peer) SendNewBlock(block *types.Block, td *big.Int) error {
+func (p *Peer) SendNewBlock(block *types.Block, td *big.Int, sidecars []types.BlobTxSidecar) error {
 	// Mark all the block hash as known, but ensure we don't overflow our limits
 	p.knownBlocks.Add(block.Hash())
+	if p.Version() >= ETH100 {
+		return p2p.Send(p.rw, NewBlockMsg, &NewBlockPacket100{
+			Block:    block,
+			TD:       td,
+			Sidecars: sidecars,
+		})
+	}
 	return p2p.Send(p.rw, NewBlockMsg, &NewBlockPacket{
 		Block: block,
 		TD:    td,
@@ -283,9 +290,9 @@ func (p *Peer) SendNewBlock(block *types.Block, td *big.Int) error {
 
 // AsyncSendNewBlock queues an entire block for propagation to a remote peer. If
 // the peer's broadcast queue is full, the event is silently dropped.
-func (p *Peer) AsyncSendNewBlock(block *types.Block, td *big.Int) {
+func (p *Peer) AsyncSendNewBlock(block *types.Block, td *big.Int, sidecars []types.BlobTxSidecar) {
 	select {
-	case p.queuedBlocks <- &blockPropagation{block: block, td: td}:
+	case p.queuedBlocks <- &blockPropagation{block: block, td: td, sidecars: sidecars}:
 		// Mark all the block hash as known, but ensure we don't overflow our limits
 		p.knownBlocks.Add(block.Hash())
 	default:
