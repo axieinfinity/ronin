@@ -30,9 +30,10 @@ import (
 
 // Constants to match up protocol versions and messages
 const (
-	ETH66 = 66
-	ETH67 = 67
-	ETH68 = 68
+	ETH66  = 66
+	ETH67  = 67
+	ETH68  = 68
+	ETH100 = 100
 )
 
 // ProtocolName is the official short name of the `eth` protocol used during
@@ -41,11 +42,11 @@ const ProtocolName = "eth"
 
 // ProtocolVersions are the supported versions of the `eth` protocol (first
 // is primary).
-var ProtocolVersions = []uint{ETH68, ETH67, ETH66}
+var ProtocolVersions = []uint{ETH100, ETH68, ETH67, ETH66}
 
 // protocolLengths are the number of implemented message corresponding to
 // different protocol versions.
-var protocolLengths = map[uint]uint64{ETH68: 17, ETH67: 17, ETH66: 17}
+var protocolLengths = map[uint]uint64{ETH100: 17, ETH68: 17, ETH67: 17, ETH66: 17}
 
 // maxMessageSize is the maximum cap on the size of a protocol message.
 const maxMessageSize = 10 * 1024 * 1024
@@ -196,6 +197,26 @@ func (request *NewBlockPacket) sanityCheck() error {
 	return nil
 }
 
+// NewBlockPacket100 is the network packet for the block propagation message over eth/100.
+type NewBlockPacket100 struct {
+	Block    *types.Block
+	TD       *big.Int
+	Sidecars []types.BlobTxSidecar
+}
+
+// sanityCheck verifies that the values are reasonable, as a DoS protection
+func (request *NewBlockPacket100) sanityCheck() error {
+	if err := request.Block.SanityCheck(); err != nil {
+		return err
+	}
+	//TD at mainnet block #7753254 is 76 bits. If it becomes 100 million times
+	// larger, it will still fit within 100 bits
+	if tdlen := request.TD.BitLen(); tdlen > 100 {
+		return fmt.Errorf("too large block TD: bitlen %d", tdlen)
+	}
+	return nil
+}
+
 // GetBlockBodiesPacket represents a block body query.
 type GetBlockBodiesPacket []common.Hash
 
@@ -212,6 +233,12 @@ type BlockBodiesPacket []*BlockBody
 type BlockBodiesPacket66 struct {
 	RequestId uint64
 	BlockBodiesPacket
+}
+
+// BlockBodiesPacket100 is the network packet for block content distribution over eth/100.
+type BlockBodiesPacket100 struct {
+	RequestId   uint64
+	BlockBodies []BlockBody100
 }
 
 // BlockBodiesRLPPacket is used for replying to block body requests, in cases
@@ -231,6 +258,13 @@ type BlockBody struct {
 	Uncles       []*types.Header      // Uncles contained within a block
 }
 
+// BlockBody100 represents the data content of a single block over eth/100.
+type BlockBody100 struct {
+	Transactions []*types.Transaction  // Transactions contained within a block
+	Uncles       []*types.Header       // Uncles contained within a block
+	Sidecars     []types.BlobTxSidecar // Sidecar data for the block
+}
+
 // Unpack retrieves the transactions and uncles from the range packet and returns
 // them in a split flat format that's more consistent with the internal data structures.
 func (p *BlockBodiesPacket) Unpack() ([][]*types.Transaction, [][]*types.Header) {
@@ -242,6 +276,20 @@ func (p *BlockBodiesPacket) Unpack() ([][]*types.Transaction, [][]*types.Header)
 		txset[i], uncleset[i] = body.Transactions, body.Uncles
 	}
 	return txset, uncleset
+}
+
+// Unpack retrieves the transactions, uncles, blobs, proofs, and commitments from the range packet and returns
+// them in a split flat format that's more consistent with the internal data structures.
+func (p *BlockBodiesPacket100) Unpack() ([][]*types.Transaction, [][]*types.Header, [][]types.BlobTxSidecar) {
+	var (
+		txset      = make([][]*types.Transaction, len((*p).BlockBodies))
+		uncleset   = make([][]*types.Header, len((*p).BlockBodies))
+		sidecarset = make([][]types.BlobTxSidecar, len((*p).BlockBodies))
+	)
+	for i, body := range (*p).BlockBodies {
+		txset[i], uncleset[i], sidecarset[i] = body.Transactions, body.Uncles, body.Sidecars
+	}
+	return txset, uncleset, sidecarset
 }
 
 // GetNodeDataPacket represents a trie node data query.
@@ -347,8 +395,14 @@ func (*GetBlockBodiesPacket) Kind() byte   { return GetBlockBodiesMsg }
 func (*BlockBodiesPacket) Name() string { return "BlockBodies" }
 func (*BlockBodiesPacket) Kind() byte   { return BlockBodiesMsg }
 
+func (*BlockBodiesPacket100) Name() string { return "BlockBodies" }
+func (*BlockBodiesPacket100) Kind() byte   { return BlockBodiesMsg }
+
 func (*NewBlockPacket) Name() string { return "NewBlock" }
 func (*NewBlockPacket) Kind() byte   { return NewBlockMsg }
+
+func (*NewBlockPacket100) Name() string { return "NewBlock" }
+func (*NewBlockPacket100) Kind() byte   { return NewBlockMsg }
 
 func (*GetNodeDataPacket) Name() string { return "GetNodeData" }
 func (*GetNodeDataPacket) Kind() byte   { return GetNodeDataMsg }

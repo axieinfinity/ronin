@@ -69,7 +69,11 @@ func (h *ethHandler) Handle(peer *eth.Peer, packet eth.Packet) error {
 
 	case *eth.BlockBodiesPacket:
 		txset, uncleset := packet.Unpack()
-		return h.handleBodies(peer, txset, uncleset)
+		return h.handleBodies(peer, txset, uncleset, [][]types.BlobTxSidecar{})
+
+	case *eth.BlockBodiesPacket100:
+		txset, uncleset, sidecarset := packet.Unpack()
+		return h.handleBodies(peer, txset, uncleset, sidecarset)
 
 	case *eth.NodeDataPacket:
 		if err := h.downloader.DeliverNodeData(peer.ID(), *packet); err != nil {
@@ -88,7 +92,10 @@ func (h *ethHandler) Handle(peer *eth.Peer, packet eth.Packet) error {
 		return h.handleBlockAnnounces(peer, hashes, numbers)
 
 	case *eth.NewBlockPacket:
-		return h.handleBlockBroadcast(peer, packet.Block, packet.TD)
+		return h.handleBlockBroadcast(peer, packet.Block, packet.TD, []types.BlobTxSidecar{})
+
+	case *eth.NewBlockPacket100:
+		return h.handleBlockBroadcast(peer, packet.Block, packet.TD, packet.Sidecars)
 
 	case *eth.NewPooledTransactionHashesPacket66:
 		return h.txFetcher.Notify(peer.ID(), *packet)
@@ -165,7 +172,7 @@ func (h *ethHandler) handleHeaders(peer *eth.Peer, headers []*types.Header) erro
 
 // handleBodies is invoked from a peer's message handler when it transmits a batch
 // of block bodies for the local node to process.
-func (h *ethHandler) handleBodies(peer *eth.Peer, txs [][]*types.Transaction, uncles [][]*types.Header) error {
+func (h *ethHandler) handleBodies(peer *eth.Peer, txs [][]*types.Transaction, uncles [][]*types.Header, sidecars [][]types.BlobTxSidecar) error {
 	// Filter out any explicitly requested bodies, deliver the rest to the downloader
 	filter := len(txs) > 0 || len(uncles) > 0
 	if filter {
@@ -202,7 +209,7 @@ func (h *ethHandler) handleBlockAnnounces(peer *eth.Peer, hashes []common.Hash, 
 
 // handleBlockBroadcast is invoked from a peer's message handler when it transmits a
 // block broadcast for the local node to process.
-func (h *ethHandler) handleBlockBroadcast(peer *eth.Peer, block *types.Block, td *big.Int) error {
+func (h *ethHandler) handleBlockBroadcast(peer *eth.Peer, block *types.Block, td *big.Int, sidecars []types.BlobTxSidecar) error {
 	// Schedule the block for import
 	h.blockFetcher.Enqueue(peer.ID(), block)
 
