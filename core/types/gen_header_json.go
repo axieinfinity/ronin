@@ -57,7 +57,6 @@ func (h Header) MarshalJSON() ([]byte, error) {
 	enc.BaseFee = (*hexutil.Big)(h.BaseFee)
 	enc.BlobGasUsed = (*hexutil.Uint64)(h.BlobGasUsed)
 	enc.ExcessBlobGas = (*hexutil.Uint64)(h.ExcessBlobGas)
-	enc.BlobCommitments = h.BlobCommitments
 	enc.Hash = h.Hash()
 	return json.Marshal(&enc)
 }
@@ -155,9 +154,6 @@ func (h *Header) UnmarshalJSON(input []byte) error {
 	}
 	if dec.ExcessBlobGas != nil {
 		h.ExcessBlobGas = (*uint64)(dec.ExcessBlobGas)
-	}
-	if dec.BlobCommitments != nil {
-		h.BlobCommitments = dec.BlobCommitments
 	}
 	return nil
 }

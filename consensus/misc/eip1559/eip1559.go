@@ -14,12 +14,13 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
-package misc
+package eip1559
 
 import (
 	"fmt"
 	"math/big"
 
+	"github.com/ethereum/go-ethereum/consensus/misc"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/params"
 )
@@ -28,7 +29,7 @@ import (
 // - gas limit check
 // - basefee check
 func VerifyEip1559Header(config *params.ChainConfig, parent, header *types.Header) error {
-	if err := VerifyGaslimit(parent.GasLimit, header.GasLimit); err != nil {
+	if err := misc.VerifyGaslimit(parent.GasLimit, header.GasLimit); err != nil {
 		return err
 	}
 	// Verify the header is not malformed
