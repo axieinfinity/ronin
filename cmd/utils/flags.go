@@ -1073,6 +1073,12 @@ var (
 		Usage:    "List of mock bls public keys which are reflect 1:1 with mock.validators",
 		Category: flags.MockCategory,
 	}
+
+	SnapshotKeepAfterPruningFlag = &cli.IntFlag{
+		Name:  "snapshot.keep-after-pruning",
+		Usage: "The number of lastest snapshots to keep after pruning (default 200 * 144 = 28800 ~ 1 day)",
+		Value: 200 * 144,
+	}
 )
 
 // MakeDataDir retrieves the currently requested data directory, terminating
