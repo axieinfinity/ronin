@@ -73,8 +73,11 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		misc.ApplyDAOHardFork(statedb)
 	}
 
-	blockContext := NewEVMBlockContext(header, p.bc, nil, publishEvents...)
-	vmenv := vm.NewEVM(blockContext, vm.TxContext{}, statedb, p.config, cfg)
+	var (
+		blockContext = NewEVMBlockContext(header, p.bc, nil, publishEvents...)
+		vmenv        = vm.NewEVM(blockContext, vm.TxContext{}, statedb, p.config, cfg)
+		signer       = types.MakeSigner(p.config, header.Number)
+	)
 	if evmHook := p.bc.GetHook(); evmHook != nil {
 		log.Debug("set hook function for testnet")
 		vmenv.SetHook(evmHook)
@@ -115,7 +118,7 @@ func (p *StateProcessor) Process(block *types.Block, statedb *state.StateDB, cfg
 		vmenv.Context.CurrentTransaction = tx
 		// reset counter to start counting opcodes in new transaction
 		vmenv.Context.Counter = 0
-		msg, err := tx.AsMessage(types.MakeSigner(p.config, header.Number), header.BaseFee)
+		msg, err := tx.AsMessage(signer, header.BaseFee)
 		if err != nil {
 			return nil, nil, nil, 0, fmt.Errorf("could not apply tx %d [%v]: %w", i, tx.Hash().Hex(), err)
 		}
