@@ -230,7 +230,10 @@ func (st *StateTransition) buyGas() error {
 
 	// balanceCheck is to calculate the total gas fee spent,
 	// used to test against the sender balance.
-	var balanceCheck *big.Int
+	var (
+		balanceCheck *big.Int
+		blobFee      *big.Int
+	)
 	if st.gasFeeCap != nil {
 		balanceCheck = new(big.Int).Mul(gas, st.gasFeeCap)
 	} else {
@@ -273,6 +276,12 @@ func (st *StateTransition) buyGas() error {
 	st.gas += st.msg.Gas()
 
 	st.initialGas = st.msg.Gas()
+
+	// Transfer blob gas fee to Ronin treasury address. If the blob tx fails,
+	// the fee will not be refund.
+	if st.blobGasUsed() > 0 {
+		st.state.AddBalance(*st.evm.ChainConfig().RoninTreasuryAddress, blobFee)
+	}
 
 	// Subtract the gas fee from balance of the fee payer,
 	// the msg.value is transfered to the recipient in later step.
