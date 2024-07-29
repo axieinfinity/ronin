@@ -24,7 +24,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus/misc"
+	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -142,7 +142,7 @@ func (api *consensusAPI) AssembleBlock(params assembleBlockParams) (*executableD
 		Time:       params.Timestamp,
 	}
 	if config := api.eth.BlockChain().Config(); config.IsLondon(header.Number) {
-		header.BaseFee = misc.CalcBaseFee(config, parent.Header())
+		header.BaseFee = eip1559.CalcBaseFee(config, parent.Header())
 	}
 	err = api.eth.Engine().Prepare(bc, header)
 	if err != nil {
@@ -268,7 +268,7 @@ func insertBlockParamsToBlock(config *chainParams.ChainConfig, parent *types.Hea
 		Time:        params.Timestamp,
 	}
 	if config.IsLondon(number) {
-		header.BaseFee = misc.CalcBaseFee(config, parent)
+		header.BaseFee = eip1559.CalcBaseFee(config, parent)
 	}
 	block := types.NewBlockWithHeader(header).WithBody(txs, nil /* uncles */)
 	return block, nil
