@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/ecdsa"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
@@ -14,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
+	gokzg4844 "github.com/crate-crypto/go-kzg-4844"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	consortiumCommon "github.com/ethereum/go-ethereum/consensus/consortium/common"
@@ -26,6 +29,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/bls/blst"
 	blsCommon "github.com/ethereum/go-ethereum/crypto/bls/common"
+	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/trie"
 	lru "github.com/hashicorp/golang-lru"
@@ -2530,5 +2534,192 @@ func TestEncodeDecodeValidatorBitSet(t *testing.T) {
 		if producers[i] != dec[i] {
 			t.Fatal("mismatch validator")
 		}
+	}
+}
+
+func randFieldElement() [32]byte {
+	bytes := make([]byte, 32)
+	_, err := rand.Read(bytes)
+	if err != nil {
+		panic("failed to get random field element")
+	}
+	var r fr.Element
+	r.SetBytes(bytes)
+
+	return gokzg4844.SerializeScalar(r)
+}
+
+// randBlob generates a random blob with corresponding commitment and proof
+func randBlob() (*kzg4844.Blob, *kzg4844.Commitment, *kzg4844.Proof) {
+	var blob kzg4844.Blob
+	for i := 0; i < len(blob); i += gokzg4844.SerializedScalarSize {
+		fieldElementBytes := randFieldElement()
+		copy(blob[i:i+gokzg4844.SerializedScalarSize], fieldElementBytes[:])
+	}
+	commitment, err := kzg4844.BlobToCommitment(&blob)
+	if err != nil {
+		panic(err)
+	}
+	proof, err := kzg4844.ComputeBlobProof(&blob, commitment)
+	if err != nil {
+		panic(err)
+	}
+	return &blob, &commitment, &proof
+}
+
+// randTxsWithBlobs generates a random tx with random blobs, with corresponding sidecar
+func randTxsWithBlobs(numBlobs int) (*types.Transaction, types.BlobTxSidecar) {
+	var blobs []kzg4844.Blob
+	var commitments []kzg4844.Commitment
+	var blobHashes []common.Hash
+	var proofs []kzg4844.Proof
+	hasher := sha256.New()
+	for i := 0; i < numBlobs; i++ {
+		blob, commitment, proof := randBlob()
+		blobs = append(blobs, *blob)
+		commitments = append(commitments, *commitment)
+		blobHashes = append(blobHashes, kzg4844.CalcBlobHashV1(hasher, commitment))
+		proofs = append(proofs, *proof)
+	}
+	blobTx := types.BlobTx{
+		BlobHashes: blobHashes,
+	}
+	return types.NewTx(&blobTx), types.BlobTxSidecar{
+		Blobs:       blobs,
+		Commitments: commitments,
+		Proofs:      proofs,
+	}
+}
+
+func TestVerifyBlobHeader(t *testing.T) {
+	c := Consortium{
+		chainConfig: &params.ChainConfig{
+			TrippBlock: common.Big0,
+		},
+		config: &params.ConsortiumConfig{
+			EpochV2: 200,
+		},
+		isTest: true,
+	}
+	// Create random txs
+	var randTx *types.Transaction
+	var randSidecar types.BlobTxSidecar
+	var randFakeSidecar types.BlobTxSidecar
+
+	var txs []*types.Transaction
+	var sidecars []types.BlobTxSidecar
+	var fakeSidecars []types.BlobTxSidecar
+
+	// Create 2 txs with 2 and 3 blobs, respectively
+	randTx, randSidecar = randTxsWithBlobs(2)
+	_, randFakeSidecar = randTxsWithBlobs(2)
+	txs = append(txs, randTx)
+	sidecars = append(sidecars, randSidecar)
+	fakeSidecars = append(fakeSidecars, randFakeSidecar)
+
+	randTx, randSidecar = randTxsWithBlobs(3)
+	_, randFakeSidecar = randTxsWithBlobs(3)
+	txs = append(txs, randTx)
+	sidecars = append(sidecars, randSidecar)
+	fakeSidecars = append(fakeSidecars, randFakeSidecar)
+
+	// Test 1: Block with expired blobs, valid sidecars
+	block := types.NewBlock(&types.Header{
+		Time: uint64(time.Now().Unix() - int64(blobKeepPeriod) - 1000),
+	}, txs, []*types.Header{}, []*types.Receipt{}, trie.NewStackTrie(nil))
+
+	err, blobSidecars := c.VerifyBlobHeader(block, sidecars)
+	if err != nil {
+		t.Fatal("Expected blob check to be skipped, err:", err)
+	}
+	if blobSidecars != nil {
+		t.Fatal("Expected blobSidecars to be nil if skip check")
+	}
+
+	// Test 2: Block with expired blobs, invalid sidecars
+	block = types.NewBlock(&types.Header{
+		Time: uint64(time.Now().Unix() - int64(blobKeepPeriod) - 1000),
+	}, txs, []*types.Header{}, []*types.Receipt{}, trie.NewStackTrie(nil))
+
+	err, blobSidecars = c.VerifyBlobHeader(block, fakeSidecars)
+	if err != nil {
+		t.Fatal("Expected blob check to be skipped, err:", err)
+	}
+	if blobSidecars != nil {
+		t.Fatal("Expected blobSidecars to be nil if skip check")
+	}
+
+	// Test 3: Block with valid blobs, valid sidecars
+	block = types.NewBlock(&types.Header{
+		Time: uint64(time.Now().Unix()),
+	}, txs, []*types.Header{}, []*types.Receipt{}, trie.NewStackTrie(nil))
+
+	err, blobSidecars = c.VerifyBlobHeader(block, sidecars)
+	if err != nil {
+		t.Fatal("Expected blob check to pass, err:", err)
+	}
+	if len(*blobSidecars) != 2 {
+		t.Fatal("Expected blobSidecars to have 2 elements")
+	}
+
+	// Test 4: Block with valid blobs, invalid sidecars
+	block = types.NewBlock(&types.Header{
+		Time: uint64(time.Now().Unix()),
+	}, txs, []*types.Header{}, []*types.Receipt{}, trie.NewStackTrie(nil))
+
+	err, blobSidecars = c.VerifyBlobHeader(block, fakeSidecars)
+	if err == nil {
+		t.Fatal("Expected blob check to fail due to invalid sidecars")
+	}
+	if blobSidecars != nil {
+		t.Fatal("Expected blobSidecars to be nil if check failed")
+	}
+
+	// Test 5: Block with valid blobs, valid commitments, but invalid proofs
+	block = types.NewBlock(&types.Header{
+		Time: uint64(time.Now().Unix()),
+	}, txs, []*types.Header{}, []*types.Receipt{}, trie.NewStackTrie(nil))
+
+	err, blobSidecars = c.VerifyBlobHeader(block, []types.BlobTxSidecar{
+		{
+			Blobs:       sidecars[0].Blobs,
+			Commitments: sidecars[0].Commitments,
+			Proofs:      fakeSidecars[0].Proofs,
+		},
+		{
+			Blobs:       sidecars[1].Blobs,
+			Commitments: sidecars[1].Commitments,
+			Proofs:      fakeSidecars[1].Proofs,
+		},
+	})
+
+	// Test 6: Block with valid blobs, invalid sidecars' length
+	block = types.NewBlock(&types.Header{
+		Time: uint64(time.Now().Unix()),
+	}, txs, []*types.Header{}, []*types.Receipt{}, trie.NewStackTrie(nil))
+
+	err, blobSidecars = c.VerifyBlobHeader(block, sidecars[:len(sidecars)-1])
+	if err == nil {
+		t.Fatal("Expected blob check to fail due to invalid commitments' length")
+	}
+	if blobSidecars != nil {
+		t.Fatal("Expected blobSidecars to be nil if check failed")
+	}
+
+	// Test 7: Block with exceeding blobs
+	randTx, randSidecar = randTxsWithBlobs(2)
+	txs = append(txs, randTx)
+	sidecars = append(sidecars, randSidecar)
+
+	block = types.NewBlock(&types.Header{
+		Time: uint64(time.Now().Unix()),
+	}, txs, []*types.Header{}, []*types.Receipt{}, trie.NewStackTrie(nil))
+
+	err, blobSidecars = c.VerifyBlobHeader(block, sidecars)
+	if err == nil {
+		t.Fatal("Expected blob check to fail due to exceeding blobs")
+	}
+	if blobSidecars != nil {
+		t.Fatal("Expected blobSidecars to be nil if check failed")
 	}
 }
