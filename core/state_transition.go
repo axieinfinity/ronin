@@ -22,6 +22,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/consensus"
+	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 
 	"github.com/ethereum/go-ethereum/common"
 	cmath "github.com/ethereum/go-ethereum/common/math"
@@ -226,16 +227,19 @@ func (st *StateTransition) buyGas() error {
 	// transaction, st.gasPrice is the already calculated gas
 	// price based on block base fee, gas fee cap and gas tip cap
 	effectiveGasFee := new(big.Int).Mul(gas, st.gasPrice)
-	var maxGasFee *big.Int
+
+	// balanceCheck is to calculate the total gas fee spent,
+	// used to test against the sender balance.
+	var balanceCheck *big.Int
 	if st.gasFeeCap != nil {
-		maxGasFee = new(big.Int).Mul(gas, st.gasFeeCap)
+		balanceCheck = new(big.Int).Mul(gas, st.gasFeeCap)
 	} else {
-		maxGasFee = new(big.Int).Mul(gas, st.gasPrice)
+		balanceCheck = new(big.Int).Mul(gas, st.gasPrice)
 	}
 
 	if st.msg.Payer() != st.msg.From() {
 		// This is sponsored transaction, check gas fee with payer's balance and msg.value with sender's balance
-		if have, want := st.state.GetBalance(st.msg.Payer()), maxGasFee; have.Cmp(want) < 0 {
+		if have, want := st.state.GetBalance(st.msg.Payer()), balanceCheck; have.Cmp(want) < 0 {
 			return fmt.Errorf("%w: address %v have %v want %v", ErrInsufficientPayerFunds, st.msg.Payer().Hex(), have, want)
 		}
 
@@ -243,8 +247,22 @@ func (st *StateTransition) buyGas() error {
 			return fmt.Errorf("%w: address %v have %v want %v", ErrInsufficientSenderFunds, st.msg.From().Hex(), have, want)
 		}
 	} else {
-		gasFeeAndValue := new(big.Int).Add(maxGasFee, st.value)
-		if have, want := st.state.GetBalance(st.msg.From()), gasFeeAndValue; have.Cmp(want) < 0 {
+		// include the logic for blob here
+		if st.msg.BlobHashes() != nil {
+			if blobGas := st.blobGasUsed(); blobGas > 0 {
+				// Check that the user has enough funds to cover blobGasUsed * tx.BlobGasFeeCap
+				blobBalanceCheck := new(big.Int).SetUint64(blobGas)
+				blobBalanceCheck.Mul(blobBalanceCheck, st.msg.BlobGasFeeCap())
+				balanceCheck.Add(balanceCheck, blobBalanceCheck)
+
+				// Pay for blobGasUsed * actual blob fee
+				blobFee = new(big.Int).SetUint64(blobGas)
+				blobFee.Mul(blobFee, st.evm.Context.BlobBaseFee)
+				effectiveGasFee.Add(effectiveGasFee, blobFee)
+			}
+		}
+		balanceCheck := new(big.Int).Add(balanceCheck, st.value)
+		if have, want := st.state.GetBalance(st.msg.From()), balanceCheck; have.Cmp(want) < 0 {
 			return fmt.Errorf("%w: address %v have %v want %v", ErrInsufficientFunds, st.msg.From().Hex(), have, want)
 		}
 	}
@@ -318,6 +336,41 @@ func (st *StateTransition) preCheck() error {
 
 		if st.msg.GasTipCap().Cmp(st.msg.GasFeeCap()) != 0 {
 			return ErrDifferentFeeCapTipCap
+		}
+	}
+
+	blobHashes := st.msg.BlobHashes()
+	if blobHashes != nil {
+		// The to field of a blob tx type is mandatory, and a `BlobTx` transaction internally
+		// has it as a non-nillable value, so any msg derived from blob transaction has it non-nil.
+		// However, messages created through RPC (eth_call) don't have this restriction.
+		if st.msg.To() == nil {
+			return ErrBlobTxCreate
+		}
+		if len(blobHashes) == 0 {
+			return ErrMissingBlobHashes
+		}
+		for i, hash := range blobHashes {
+			if !kzg4844.IsValidVersionedHash(hash[:]) {
+				return fmt.Errorf("blob %d has invalid hash version", i)
+			}
+		}
+	}
+
+	// Check that the user is paying at least the current blob fee
+	if st.evm.ChainConfig().IsCancun(st.evm.Context.BlockNumber) {
+		if st.blobGasUsed() > 0 {
+			// Skip the checks if gas fields are zero and blobBaseFee was explicitly disabled (eth_call)
+
+			skipCheck := st.evm.Config.NoBaseFee && st.msg.BlobGasFeeCap().BitLen() == 0
+			if !skipCheck {
+				// This will panic if blobBaseFee is nil, but blobBaseFee presence
+				// is verified as part of header validation.
+				if st.msg.BlobGasFeeCap().Cmp(st.evm.Context.BlobBaseFee) < 0 {
+					return fmt.Errorf("%w: address %v blobGasFeeCap: %v, blobBaseFee: %v", ErrBlobFeeCapTooLow,
+						st.msg.From().Hex(), st.msg.BlobGasFeeCap(), st.evm.Context.BlobBaseFee)
+				}
+			}
 		}
 	}
 
@@ -464,4 +517,9 @@ func (st *StateTransition) refundGas(refundQuotient uint64) uint64 {
 // gasUsed returns the amount of gas used up by the state transition.
 func (st *StateTransition) gasUsed() uint64 {
 	return st.initialGas - st.gas
+}
+
+// blobGasUsed returns the amount of blob gas used by the message.
+func (st *StateTransition) blobGasUsed() uint64 {
+	return uint64(len(st.msg.BlobHashes()) * params.BlobTxBlobGasPerBlob)
 }
