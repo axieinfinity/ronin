@@ -174,9 +174,8 @@ type Header struct {
 	BaseFee *big.Int `json:"baseFeePerGas" rlp:"optional"`
 
 	// These fields were added by EIP-4844 and is ignored in legacy headers.
-	BlobGasUsed     *uint64              `json:"blobGasUsed" rlp:"optional"`
-	ExcessBlobGas   *uint64              `json:"excessBlobGas" rlp:"optional"`
-	BlobCommitments []kzg4844.Commitment `json:"blobCommitments" rlp:"optional"`
+	BlobGasUsed   *uint64 `json:"blobGasUsed" rlp:"optional"`
+	ExcessBlobGas *uint64 `json:"excessBlobGas" rlp:"optional"`
 }
 
 // field type overrides for gencodec
@@ -209,8 +208,7 @@ var (
 func (h *Header) Size() common.StorageSize {
 	return headerSize + common.StorageSize(
 		len(h.Extra)+
-			(h.Difficulty.BitLen()+h.Number.BitLen())/8+
-			len(h.BlobCommitments)*commitmentSize,
+			(h.Difficulty.BitLen()+h.Number.BitLen())/8,
 	)
 }
 
@@ -354,10 +352,6 @@ func CopyHeader(h *Header) *Header {
 		excessBlobGas := *h.ExcessBlobGas
 		cpy.ExcessBlobGas = &excessBlobGas
 	}
-	if len(h.BlobCommitments) > 0 {
-		cpy.BlobCommitments = make([]kzg4844.Commitment, 0, len(h.BlobCommitments))
-		cpy.BlobCommitments = append(cpy.BlobCommitments, h.BlobCommitments...)
-	}
 	return &cpy
 }
 
@@ -435,14 +429,6 @@ func (b *Block) ExcessBlobGas() *uint64 {
 	}
 	excessBlobGas := *b.header.ExcessBlobGas
 	return &excessBlobGas
-}
-
-// BlobCommitments returns the header.BlobCommitments
-// This function returns the original slice not the copied
-// one to reduce the copy overhead. Don't edit the returned
-// slice directly.
-func (b *Block) BlobCommitments() []kzg4844.Commitment {
-	return b.header.BlobCommitments
 }
 
 func (b *Block) Header() *Header { return CopyHeader(b.header) }

@@ -34,7 +34,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/clique"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
-	"github.com/ethereum/go-ethereum/consensus/misc"
+	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -1271,10 +1271,6 @@ func RPCMarshalHeader(head *types.Header) map[string]interface{} {
 	if head.ExcessBlobGas != nil {
 		result["excessBlobGas"] = (*hexutil.Uint64)(head.ExcessBlobGas)
 	}
-
-	if len(head.BlobCommitments) > 0 {
-		result["blobCommitments"] = head.BlobCommitments
-	}
 	return result
 }
 
@@ -1436,7 +1432,7 @@ func newRPCPendingTransaction(tx *types.Transaction, current *types.Header, conf
 	var baseFee *big.Int
 	blockNumber := uint64(0)
 	if current != nil {
-		baseFee = misc.CalcBaseFee(config, current)
+		baseFee = eip1559.CalcBaseFee(config, current)
 		blockNumber = current.Number.Uint64()
 	}
 	return newRPCTransaction(tx, common.Hash{}, blockNumber, 0, baseFee, config)

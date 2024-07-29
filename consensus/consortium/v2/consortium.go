@@ -2,6 +2,7 @@ package v2
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -23,11 +24,14 @@ import (
 	consortiumCommon "github.com/ethereum/go-ethereum/consensus/consortium/common"
 	"github.com/ethereum/go-ethereum/consensus/consortium/v2/finality"
 	"github.com/ethereum/go-ethereum/consensus/misc"
+	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
+	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/bls/blst"
 	blsCommon "github.com/ethereum/go-ethereum/crypto/bls/common"
+	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"github.com/ethereum/go-ethereum/log"
@@ -50,6 +54,8 @@ const (
 	assemblingFinalityVoteDuration         = 1 * time.Second
 	MaxValidatorCandidates                 = 64 // Maximum number of validator candidates.
 	dayInSeconds                           = uint64(86400)
+
+	blobKeepPeriod = 18 * 24 * time.Hour // The period of time before which the blob is pruned
 )
 
 // Consortium delegated proof-of-stake protocol constants.
@@ -201,6 +207,90 @@ func (c *Consortium) IsSystemContract(to *common.Address) bool {
 // Author implements consensus.Engine, returning the coinbase directly
 func (c *Consortium) Author(header *types.Header) (common.Address, error) {
 	return header.Coinbase, nil
+}
+
+// VerifyBlobHeader verifies a block's header blob and corresponding sidecar, returning BlobSideCars
+func (c *Consortium) VerifyBlobHeader(block *types.Block, sidecars []types.BlobTxSidecar) (error, *types.BlobSidecars) {
+	nCommitments := 0
+	for _, sidecar := range sidecars {
+		nCommitments += len(sidecar.Commitments)
+	}
+	if nCommitments > params.MaxBlobsPerBlock {
+		return fmt.Errorf("blobs per block limit exceeded, blobs: %d, limit: %d", nCommitments, params.MaxBlobsPerBlock), nil
+	}
+	header := block.Header()
+	if c.skipBlobCheck(header) {
+		return nil, nil
+	}
+	if err := c.verifyVersionHash(block, sidecars); err != nil {
+		return err, nil
+	}
+	for _, sidecar := range sidecars {
+		if err := c.verifySidecar(sidecar); err != nil {
+			return err, nil
+		}
+	}
+	blobSidecars := types.BlobSidecars{}
+	curIndex := 0
+	for _, tx := range block.Transactions() {
+		if tx.Type() == types.BlobTxType {
+			blobSidecars = append(blobSidecars, &types.BlobSidecar{
+				BlobTxSidecar: sidecars[curIndex],
+				TxHash:        tx.Hash(),
+			})
+			curIndex++
+		}
+	}
+	return nil, &blobSidecars
+}
+
+// skipBlobCheck checks whether the blob is still kept
+func (c *Consortium) skipBlobCheck(header *types.Header) bool {
+	return time.Unix(int64(header.Time), 0).Add(blobKeepPeriod).Before(time.Now())
+}
+
+// verifyVersionHash checks whether the blob hashes in the block match the commitments in the sidecars
+func (c *Consortium) verifyVersionHash(block *types.Block, sidecars []types.BlobTxSidecar) error {
+	nSidecar := 0
+	hasher := sha256.New()
+	for _, tx := range block.Transactions() {
+		if tx.Type() == types.BlobTxType {
+			if nSidecar >= len(sidecars) {
+				return fmt.Errorf("not enough sidecars for blobs, nSidecar: %d, len(sidecars): %d", nSidecar, len(sidecars))
+			}
+			commitments := sidecars[nSidecar].Commitments
+			if len(commitments) != len(tx.BlobHashes()) {
+				return fmt.Errorf("mismatching number of blobHashes and commitments, blobHashes: %d, commitments: %d", len(tx.BlobHashes()), len(commitments))
+			}
+			for i, blobHash := range tx.BlobHashes() {
+				blobHashFromCommitment := kzg4844.CalcBlobHashV1(hasher, &commitments[i])
+				if !bytes.Equal(blobHash[:], blobHashFromCommitment[:]) {
+					return fmt.Errorf("blob hash mismatch, blobHash: %x, blobHashFromCommitment: %x", blobHash, blobHashFromCommitment)
+				}
+			}
+			nSidecar++
+		}
+	}
+	if nSidecar != len(sidecars) {
+		return fmt.Errorf("mismatching number of blobs and sidecars, blobs: %d, sidecars: %d", nSidecar, len(sidecars))
+	}
+	return nil
+}
+
+// verifSidecar checks if the commitment and proof are valid for the blob
+func (c *Consortium) verifySidecar(sidecar types.BlobTxSidecar) error {
+	commitments := sidecar.Commitments
+	blobs := sidecar.Blobs
+	proofs := sidecar.Proofs
+	if len(commitments) != len(blobs) || len(commitments) != len(proofs) {
+		return fmt.Errorf("mismatching number of blobs, commitments, and proofs. blobs: %d, commitments: %d, proofs: %d", len(blobs), len(commitments), len(proofs))
+	}
+	for i := range blobs {
+		if err := kzg4844.VerifyBlobProof(&blobs[i], commitments[i], proofs[i]); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // VerifyHeader checks whether a header conforms to the consensus rules.
@@ -499,8 +589,18 @@ func (c *Consortium) verifyCascadingFields(chain consensus.ChainHeaderReader, he
 			return err
 		}
 	} else {
-		if err := misc.VerifyEip1559Header(chain.Config(), parent, header); err != nil {
+		if err := eip1559.VerifyEip1559Header(chain.Config(), parent, header); err != nil {
 			return err
+		}
+	}
+
+	if chain.Config().IsCancun(header.Number) {
+		if err := eip4844.VerifyEIP4844Header(parent, header); err != nil {
+			return err
+		}
+	} else {
+		if header.BlobGasUsed != nil || header.ExcessBlobGas != nil {
+			return fmt.Errorf("invalid blob fields before cancun: have %v, %v, want all nils", header.BlobGasUsed, header.ExcessBlobGas)
 		}
 	}
 
@@ -1779,6 +1879,11 @@ func encodeSigHeader(w io.Writer, header *types.Header, chainId *big.Int) {
 	}
 	if header.BaseFee != nil {
 		enc = append(enc, header.BaseFee)
+	}
+	// blob fields are assumed to had been verified
+	if header.BlobGasUsed != nil {
+		enc = append(enc, header.BlobGasUsed)
+		enc = append(enc, header.ExcessBlobGas)
 	}
 	if err := rlp.Encode(w, enc); err != nil {
 		panic("can't encode: " + err.Error())

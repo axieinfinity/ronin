@@ -48,6 +48,15 @@ func (c *Consortium) Author(header *types.Header) (common.Address, error) {
 	return c.v1.Author(header)
 }
 
+// VerifyBlobHeader implements consensus.Engine, verifies a block's header blob and corresponding sidecar
+func (c *Consortium) VerifyBlobHeader(block *types.Block, sidecars []types.BlobTxSidecar) (error, *types.BlobSidecars) {
+	if c.chainConfig.IsConsortiumV2(block.Header().Number) && c.chainConfig.IsCancun(block.Header().Number) {
+		return c.v2.VerifyBlobHeader(block, sidecars)
+	}
+
+	return nil, nil
+}
+
 // VerifyHeader checks whether a header conforms to the consensus rules.
 func (c *Consortium) VerifyHeader(chain consensus.ChainHeaderReader, header *types.Header, seal bool) error {
 	if c.chainConfig.IsConsortiumV2(header.Number) {
