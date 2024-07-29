@@ -136,4 +136,4 @@ $RONIN_CMD --http.api eth,net,web3,debug --networkid 2022 --verbosity 3 \\
   --finality.blspasswordpath $RONIN_NODE_PATH/node3/keystore/password --finality.enable --finality.enablesign
 EOF
 
-chmod +x run_node1.sh run_node2.sh run_node3.sh
+chmod +x ${SCRIPT_DIR}/run_node1.sh ${SCRIPT_DIR}/run_node2.sh ${SCRIPT_DIR}/run_node3.sh
