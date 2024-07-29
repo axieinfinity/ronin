@@ -85,6 +85,9 @@ type Message interface {
 	// address recovered from the payer's signature.
 	Payer() common.Address
 	ExpiredTime() uint64
+
+	BlobGasFeeCap() *big.Int
+	BlobHashes() []common.Hash
 }
 
 // ExecutionResult includes all output after executing given evm
