@@ -21,6 +21,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
+	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 )
@@ -40,6 +41,8 @@ func NewEVMBlockContext(header *types.Header, chain ChainContext, author *common
 	var (
 		beneficiary common.Address
 		baseFee     *big.Int
+
+		blobBaseFee *big.Int
 	)
 
 	// If we don't have an explicit author (i.e. not mining), extract from the header
@@ -50,6 +53,9 @@ func NewEVMBlockContext(header *types.Header, chain ChainContext, author *common
 	}
 	if header.BaseFee != nil {
 		baseFee = new(big.Int).Set(header.BaseFee)
+	}
+	if header.ExcessBlobGas != nil {
+		blobBaseFee = eip4844.CalcBlobFee(*header.ExcessBlobGas) 
 	}
 	internalTransactions := make([]*types.InternalTransaction, 0)
 	ctx := vm.BlockContext{
@@ -65,6 +71,8 @@ func NewEVMBlockContext(header *types.Header, chain ChainContext, author *common
 		GasLimit:             header.GasLimit,
 		BlockHash:            header.Hash(),
 		InternalTransactions: &internalTransactions,
+
+		BlobBaseFee: blobBaseFee,
 	}
 	// update publishEvents if `events` is not empty
 	if len(events) > 0 {
@@ -82,6 +90,8 @@ func NewEVMTxContext(msg Message) vm.TxContext {
 	return vm.TxContext{
 		Origin:   msg.From(),
 		GasPrice: new(big.Int).Set(msg.GasPrice()),
+
+		BlobHashes: msg.BlobHashes(),
 	}
 }
 

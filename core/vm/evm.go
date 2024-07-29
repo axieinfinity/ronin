@@ -121,6 +121,8 @@ type BlockContext struct {
 
 	BlockHash            common.Hash
 	InternalTransactions *[]*types.InternalTransaction
+
+	BlobBaseFee *big.Int // Provides information for BLOBBASEFEE (0 if vm runs with NoBaseFee flag and 0 blob gas price)
 }
 
 // TxContext provides the EVM with information about a transaction.
@@ -129,6 +131,8 @@ type TxContext struct {
 	// Message information
 	Origin   common.Address // Provides information for ORIGIN
 	GasPrice *big.Int       // Provides information for GASPRICE
+
+	BlobHashes []common.Hash
 }
 
 // EVM is the Ethereum Virtual Machine base object and provides
