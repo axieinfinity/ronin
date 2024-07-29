@@ -221,7 +221,8 @@ func (st *StateTransition) to() common.Address {
 }
 
 func (st *StateTransition) buyGas() error {
-	gas := new(big.Int).SetUint64(st.msg.Gas())
+	msg := st.msg
+	gas := new(big.Int).SetUint64(msg.Gas())
 	// In transaction types other than dynamic fee transaction,
 	// effectiveGasFee is the same as maxGasFee. In dynamic fee
 	// transaction, st.gasPrice is the already calculated gas
@@ -240,22 +241,22 @@ func (st *StateTransition) buyGas() error {
 		balanceCheck = new(big.Int).Mul(gas, st.gasPrice)
 	}
 
-	if st.msg.Payer() != st.msg.From() {
+	if msg.Payer() != msg.From() {
 		// This is sponsored transaction, check gas fee with payer's balance and msg.value with sender's balance
-		if have, want := st.state.GetBalance(st.msg.Payer()), balanceCheck; have.Cmp(want) < 0 {
-			return fmt.Errorf("%w: address %v have %v want %v", ErrInsufficientPayerFunds, st.msg.Payer().Hex(), have, want)
+		if have, want := st.state.GetBalance(msg.Payer()), balanceCheck; have.Cmp(want) < 0 {
+			return fmt.Errorf("%w: address %v have %v want %v", ErrInsufficientPayerFunds, msg.Payer().Hex(), have, want)
 		}
 
-		if have, want := st.state.GetBalance(st.msg.From()), st.value; have.Cmp(want) < 0 {
-			return fmt.Errorf("%w: address %v have %v want %v", ErrInsufficientSenderFunds, st.msg.From().Hex(), have, want)
+		if have, want := st.state.GetBalance(msg.From()), st.value; have.Cmp(want) < 0 {
+			return fmt.Errorf("%w: address %v have %v want %v", ErrInsufficientSenderFunds, msg.From().Hex(), have, want)
 		}
 	} else {
 		// include the logic for blob here
-		if st.msg.BlobHashes() != nil {
+		if msg.BlobHashes() != nil {
 			if blobGas := st.blobGasUsed(); blobGas > 0 {
 				// Check that the user has enough funds to cover blobGasUsed * tx.BlobGasFeeCap
 				blobBalanceCheck := new(big.Int).SetUint64(blobGas)
-				blobBalanceCheck.Mul(blobBalanceCheck, st.msg.BlobGasFeeCap())
+				blobBalanceCheck.Mul(blobBalanceCheck, msg.BlobGasFeeCap())
 				balanceCheck.Add(balanceCheck, blobBalanceCheck)
 
 				// Pay for blobGasUsed * actual blob fee
@@ -265,17 +266,17 @@ func (st *StateTransition) buyGas() error {
 			}
 		}
 		balanceCheck := new(big.Int).Add(balanceCheck, st.value)
-		if have, want := st.state.GetBalance(st.msg.From()), balanceCheck; have.Cmp(want) < 0 {
-			return fmt.Errorf("%w: address %v have %v want %v", ErrInsufficientFunds, st.msg.From().Hex(), have, want)
+		if have, want := st.state.GetBalance(msg.From()), balanceCheck; have.Cmp(want) < 0 {
+			return fmt.Errorf("%w: address %v have %v want %v", ErrInsufficientFunds, msg.From().Hex(), have, want)
 		}
 	}
 
-	if err := st.gp.SubGas(st.msg.Gas()); err != nil {
+	if err := st.gp.SubGas(msg.Gas()); err != nil {
 		return err
 	}
-	st.gas += st.msg.Gas()
+	st.gas += msg.Gas()
 
-	st.initialGas = st.msg.Gas()
+	st.initialGas = msg.Gas()
 
 	// Transfer blob gas fee to Ronin treasury address. If the blob tx fails,
 	// the fee will not be refund.
@@ -285,29 +286,30 @@ func (st *StateTransition) buyGas() error {
 
 	// Subtract the gas fee from balance of the fee payer,
 	// the msg.value is transfered to the recipient in later step.
-	st.state.SubBalance(st.msg.Payer(), effectiveGasFee)
+	st.state.SubBalance(msg.Payer(), effectiveGasFee)
 	return nil
 }
 
 func (st *StateTransition) preCheck() error {
+	msg := st.msg
 	// Only check transactions that are not fake
-	if !st.msg.IsFake() {
+	if !msg.IsFake() {
 		// Make sure this transaction's nonce is correct.
-		stNonce := st.state.GetNonce(st.msg.From())
-		if msgNonce := st.msg.Nonce(); stNonce < msgNonce {
+		stNonce := st.state.GetNonce(msg.From())
+		if msgNonce := msg.Nonce(); stNonce < msgNonce {
 			return fmt.Errorf("%w: address %v, tx: %d state: %d", ErrNonceTooHigh,
-				st.msg.From().Hex(), msgNonce, stNonce)
+				msg.From().Hex(), msgNonce, stNonce)
 		} else if stNonce > msgNonce {
 			return fmt.Errorf("%w: address %v, tx: %d state: %d", ErrNonceTooLow,
-				st.msg.From().Hex(), msgNonce, stNonce)
+				msg.From().Hex(), msgNonce, stNonce)
 		} else if stNonce+1 < stNonce {
 			return fmt.Errorf("%w: address %v, nonce: %d", ErrNonceMax,
-				st.msg.From().Hex(), stNonce)
+				msg.From().Hex(), stNonce)
 		}
 		// Make sure the sender is an EOA
-		if codeHash := st.state.GetCodeHash(st.msg.From()); codeHash != emptyCodeHash && codeHash != (common.Hash{}) {
+		if codeHash := st.state.GetCodeHash(msg.From()); codeHash != emptyCodeHash && codeHash != (common.Hash{}) {
 			return fmt.Errorf("%w: address %v, codehash: %s", ErrSenderNoEOA,
-				st.msg.From().Hex(), codeHash)
+				msg.From().Hex(), codeHash)
 		}
 	}
 	// Make sure that transaction gasFeeCap is greater than the baseFee (post london)
@@ -316,44 +318,44 @@ func (st *StateTransition) preCheck() error {
 		if !st.evm.Config.NoBaseFee || st.gasFeeCap.BitLen() > 0 || st.gasTipCap.BitLen() > 0 {
 			if l := st.gasFeeCap.BitLen(); l > 256 {
 				return fmt.Errorf("%w: address %v, maxFeePerGas bit length: %d", ErrFeeCapVeryHigh,
-					st.msg.From().Hex(), l)
+					msg.From().Hex(), l)
 			}
 			if l := st.gasTipCap.BitLen(); l > 256 {
 				return fmt.Errorf("%w: address %v, maxPriorityFeePerGas bit length: %d", ErrTipVeryHigh,
-					st.msg.From().Hex(), l)
+					msg.From().Hex(), l)
 			}
 			if st.gasFeeCap.Cmp(st.gasTipCap) < 0 {
 				return fmt.Errorf("%w: address %v, maxPriorityFeePerGas: %s, maxFeePerGas: %s", ErrTipAboveFeeCap,
-					st.msg.From().Hex(), st.gasTipCap, st.gasFeeCap)
+					msg.From().Hex(), st.gasTipCap, st.gasFeeCap)
 			}
 			// This will panic if baseFee is nil, but basefee presence is verified
 			// as part of header validation.
 			if st.gasFeeCap.Cmp(st.evm.Context.BaseFee) < 0 {
 				return fmt.Errorf("%w: address %v, maxFeePerGas: %s baseFee: %s", ErrFeeCapTooLow,
-					st.msg.From().Hex(), st.gasFeeCap, st.evm.Context.BaseFee)
+					msg.From().Hex(), st.gasFeeCap, st.evm.Context.BaseFee)
 			}
 		}
 	}
 
 	// Check expired time, gas fee cap and tip cap in sponsored transaction
-	if st.msg.Payer() != st.msg.From() {
-		expiredTime := st.msg.ExpiredTime()
+	if msg.Payer() != msg.From() {
+		expiredTime := msg.ExpiredTime()
 		if expiredTime != 0 && expiredTime <= st.evm.Context.Time {
 			return fmt.Errorf("%w: expiredTime: %d, blockTime: %d", ErrExpiredSponsoredTx,
-				st.msg.ExpiredTime(), st.evm.Context.Time)
+				msg.ExpiredTime(), st.evm.Context.Time)
 		}
 
-		if st.msg.GasTipCap().Cmp(st.msg.GasFeeCap()) != 0 {
+		if msg.GasTipCap().Cmp(msg.GasFeeCap()) != 0 {
 			return ErrDifferentFeeCapTipCap
 		}
 	}
 
-	blobHashes := st.msg.BlobHashes()
+	blobHashes := msg.BlobHashes()
 	if blobHashes != nil {
 		// The to field of a blob tx type is mandatory, and a `BlobTx` transaction internally
 		// has it as a non-nillable value, so any msg derived from blob transaction has it non-nil.
 		// However, messages created through RPC (eth_call) don't have this restriction.
-		if st.msg.To() == nil {
+		if msg.To() == nil {
 			return ErrBlobTxCreate
 		}
 		if len(blobHashes) == 0 {
@@ -371,13 +373,13 @@ func (st *StateTransition) preCheck() error {
 		if st.blobGasUsed() > 0 {
 			// Skip the checks if gas fields are zero and blobBaseFee was explicitly disabled (eth_call)
 
-			skipCheck := st.evm.Config.NoBaseFee && st.msg.BlobGasFeeCap().BitLen() == 0
+			skipCheck := st.evm.Config.NoBaseFee && msg.BlobGasFeeCap().BitLen() == 0
 			if !skipCheck {
 				// This will panic if blobBaseFee is nil, but blobBaseFee presence
 				// is verified as part of header validation.
-				if st.msg.BlobGasFeeCap().Cmp(st.evm.Context.BlobBaseFee) < 0 {
+				if msg.BlobGasFeeCap().Cmp(st.evm.Context.BlobBaseFee) < 0 {
 					return fmt.Errorf("%w: address %v blobGasFeeCap: %v, blobBaseFee: %v", ErrBlobFeeCapTooLow,
-						st.msg.From().Hex(), st.msg.BlobGasFeeCap(), st.evm.Context.BlobBaseFee)
+						msg.From().Hex(), msg.BlobGasFeeCap(), st.evm.Context.BlobBaseFee)
 				}
 			}
 		}
