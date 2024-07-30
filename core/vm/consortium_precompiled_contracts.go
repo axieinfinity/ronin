@@ -84,23 +84,15 @@ func init() {
 	}
 }
 
-func PrecompiledContractsConsortium(caller ContractRef, evm *EVM) map[common.Address]PrecompiledContract {
-	return map[common.Address]PrecompiledContract{
-		common.BytesToAddress([]byte{101}): &consortiumLog{},
-		common.BytesToAddress([]byte{102}): &consortiumValidatorSorting{caller: caller, evm: evm},
-		common.BytesToAddress([]byte{103}): &consortiumVerifyHeaders{caller: caller, evm: evm},
-		common.BytesToAddress([]byte{104}): &consortiumPickValidatorSet{caller: caller, evm: evm},
-		common.BytesToAddress([]byte{105}): &consortiumValidateFinalityProof{caller: caller, evm: evm},
-	}
-}
-
-func PrecompiledContractsConsortiumMiko(caller ContractRef, evm *EVM) map[common.Address]PrecompiledContract {
-	contracts := PrecompiledContractsConsortium(caller, evm)
-	contracts[common.BytesToAddress([]byte{106})] = &consortiumValidateProofOfPossession{caller: caller, evm: evm}
-	return contracts
+type PrecompiledContractWithInit interface {
+	PrecompiledContract
+	Init(caller ContractRef, evm *EVM)
 }
 
 type consortiumLog struct{}
+
+func (c *consortiumLog) Init(_ ContractRef, _ *EVM) {
+}
 
 func (c *consortiumLog) RequiredGas(_ []byte) uint64 {
 	return 0
@@ -143,6 +135,11 @@ func isSystemContractCaller(caller ContractRef, evm *EVM) error {
 type consortiumPickValidatorSet struct {
 	caller ContractRef
 	evm    *EVM
+}
+
+func (c *consortiumPickValidatorSet) Init(caller ContractRef, evm *EVM) {
+	c.caller = caller
+	c.evm = evm
 }
 
 func (c *consortiumPickValidatorSet) RequiredGas(input []byte) uint64 {
@@ -276,6 +273,11 @@ func arrangeValidatorCandidates(candidates []common.Address, newValidatorCount u
 type consortiumValidatorSorting struct {
 	caller ContractRef
 	evm    *EVM
+}
+
+func (c *consortiumValidatorSorting) Init(caller ContractRef, evm *EVM) {
+	c.caller = caller
+	c.evm = evm
 }
 
 func (c *consortiumValidatorSorting) RequiredGas(input []byte) uint64 {
@@ -433,6 +435,11 @@ type consortiumVerifyHeaders struct {
 	evm    *EVM
 
 	test bool
+}
+
+func (c *consortiumVerifyHeaders) Init(caller ContractRef, evm *EVM) {
+	c.caller = caller
+	c.evm = evm
 }
 
 func (c *consortiumVerifyHeaders) RequiredGas(_ []byte) uint64 {
@@ -616,6 +623,11 @@ type consortiumValidateFinalityProof struct {
 	evm    *EVM
 }
 
+func (c *consortiumValidateFinalityProof) Init(caller ContractRef, evm *EVM) {
+	c.caller = caller
+	c.evm = evm
+}
+
 func (contract *consortiumValidateFinalityProof) RequiredGas(input []byte) uint64 {
 	return params.ValidateFinalityProofGas
 }
@@ -726,6 +738,11 @@ func (contract *consortiumValidateFinalityProof) Run(input []byte) ([]byte, erro
 type consortiumValidateProofOfPossession struct {
 	caller ContractRef
 	evm    *EVM
+}
+
+func (c *consortiumValidateProofOfPossession) Init(caller ContractRef, evm *EVM) {
+	c.caller = caller
+	c.evm = evm
 }
 
 func (contract *consortiumValidateProofOfPossession) RequiredGas(input []byte) uint64 {
