@@ -120,7 +120,7 @@ func TestEth2AssembleBlock(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error signing transaction, err=%v", err)
 	}
-	ethservice.TxPool().AddLocal(tx)
+	ethservice.TxPool().Add([]*types.Transaction{tx}, true, false)
 	blockParams := assembleBlockParams{
 		ParentHash: blocks[8].ParentHash(),
 		Timestamp:  blocks[8].Time(),
