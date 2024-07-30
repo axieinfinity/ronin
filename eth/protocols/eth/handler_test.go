@@ -27,6 +27,8 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/core/txpool"
+	"github.com/ethereum/go-ethereum/core/txpool/legacypool"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -51,7 +53,7 @@ var (
 type testBackend struct {
 	db     ethdb.Database
 	chain  *core.BlockChain
-	txpool *core.TxPool
+	txpool *txpool.TxPool
 }
 
 // newTestBackend creates an empty chain and wraps it into a mock backend.
@@ -75,19 +77,25 @@ func newTestBackendWithGenerator(blocks int, generator func(int, *core.BlockGen)
 	if _, err := chain.InsertChain(bs); err != nil {
 		panic(err)
 	}
-	txconfig := core.DefaultTxPoolConfig
+	txconfig := legacypool.DefaultConfig
 	txconfig.Journal = "" // Don't litter the disk with test journals
+
+	legacyPool := legacypool.New(txconfig, params.TestChainConfig, chain)
+	txPool, err := txpool.New(txconfig.PriceLimit, chain, []txpool.SubPool{legacyPool})
+	if err != nil {
+		panic(err)
+	}
 
 	return &testBackend{
 		db:     db,
 		chain:  chain,
-		txpool: core.NewTxPool(txconfig, params.TestChainConfig, chain),
+		txpool: txPool,
 	}
 }
 
 // close tears down the transaction pool and chain behind the mock backend.
 func (b *testBackend) close() {
-	b.txpool.Stop()
+	b.txpool.Close()
 	b.chain.Stop()
 }
 

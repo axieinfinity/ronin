@@ -447,6 +447,12 @@ func (tx *Transaction) BlobGasFeeCapIntCmp(other *big.Int) int {
 	return tx.BlobGasFeeCap().Cmp(other)
 }
 
+// Time returns the time when the transaction was first seen on the network. It
+// is a heuristic to prefer mining older txs vs new all other things equal.
+func (tx *Transaction) Time() time.Time {
+	return tx.time
+}
+
 // Hash returns the transaction hash.
 func (tx *Transaction) Hash() common.Hash {
 	if hash := tx.hash.Load(); hash != nil {
