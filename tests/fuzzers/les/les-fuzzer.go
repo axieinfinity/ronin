@@ -26,6 +26,8 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/ethash"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
+	"github.com/ethereum/go-ethereum/core/txpool"
+	"github.com/ethereum/go-ethereum/core/txpool/legacypool"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -113,7 +115,7 @@ func init() {
 
 type fuzzer struct {
 	chain *core.BlockChain
-	pool  *core.TxPool
+	pool  *txpool.TxPool
 
 	chainLen  int
 	addr, txs []common.Hash
@@ -129,6 +131,9 @@ type fuzzer struct {
 }
 
 func newFuzzer(input []byte) *fuzzer {
+	legacyPool := legacypool.New(legacypool.DefaultConfig, params.TestChainConfig, chain)
+	txpool, _ := txpool.New(legacypool.DefaultConfig.PriceLimit, chain, []txpool.SubPool{legacyPool})
+
 	return &fuzzer{
 		chain:     chain,
 		chainLen:  testChainLen,
@@ -139,7 +144,7 @@ func newFuzzer(input []byte) *fuzzer {
 		chtKeys:   chtKeys,
 		bloomKeys: bloomKeys,
 		nonce:     uint64(len(txHashes)),
-		pool:      core.NewTxPool(core.DefaultTxPoolConfig, params.TestChainConfig, chain),
+		pool:      txpool,
 		input:     bytes.NewReader(input),
 	}
 }
@@ -231,7 +236,7 @@ func (f *fuzzer) BlockChain() *core.BlockChain {
 	return f.chain
 }
 
-func (f *fuzzer) TxPool() *core.TxPool {
+func (f *fuzzer) TxPool() *txpool.TxPool {
 	return f.pool
 }
 
