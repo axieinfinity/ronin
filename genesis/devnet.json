@@ -15,13 +15,30 @@
     "fenixValidatorContractAddress": "0x1454cAAd1637b662432Bb795cD5773d21281eDAb",
     "consortium": {
       "period": 3,
-      "epoch": 30
+      "epoch": 30,
+      "epochV2": 200
     },
-    "consortiumV2Block": 11019270,
+    "consortiumV2Block": 0,
     "consortiumV2Contracts": {
-      "roninValidatorSet": "0x127A9b2ecDBd88D3C0FAaD3D8b0F2cE1885030C4",
-      "slashIndicator": "0x262A3cab2bBB6Fc414Eb78e6755BF544B97dAC01",
-      "stakingContract": "0xBf9e491df628A3ab6daacb7b288032C1f84db52C"
+      "roninValidatorSet": "0x54B3AC74a90E64E8dDE60671b6fE8F8DDf18eC9d",
+      "slashIndicator": "0xF7837778b6E180Df6696C8Fa986d62f8b6186752",
+      "stakingContract": "0x9C245671791834daf3885533D24dce516B763B28",
+      "profileContract": "0x3b67c8D22a91572a6AB18acC9F70787Af04A4043",
+      "finalityTracking": "0x41aCDFe786171824a037f2Cd6224c5916A58969a"
+    },
+    "puffyBlock": 0,
+    "bubaBlock": 0,
+    "olekBlock": 0,
+    "berlinBlock": 0,
+    "londonBlock": 0,
+    "shillinBlock": 5,
+    "mikoBlock": 5,
+    "trippBlock": 10,
+    "trippPeriod": 59451,
+    "whiteListDeployerContractV2Address": "0x50a7e07Aa75eB9C04281713224f50403cA79851F",
+    "roninTrustedOrgUpgrade": {
+      "proxyAddress": "0x7507dc433a98E1fE105d69f19f3B40E4315A4F32",
+      "implementationAddress": "0x6A51C2B073a6daDBeCAC1A420AFcA7788C81612f"
     }
   },
   "alloc": {
@@ -63,7 +80,16 @@
         "0xf065adf7048bb700993c55970cae3820c9fa96c78b64e20d5de6b7c3c47971f6": "0x0000000000000000000000000000000000000000000000000000000000000001"
       }
     },
-    "0x968d0cd7343f711216817e617d3f92a23dc91c07": {
+    "0xbD235d82D84E1aCB8421b9b7DEc94fD5f9F949F0": {
+      "balance": "0x1431e0fae6d7217caa0000000"
+    },
+    "0x0FC2593946cE35bDA7D6054A3773eBD136a59aBB": {
+      "balance": "0x1431e0fae6d7217caa0000000"
+    },
+    "0xd0f6967f81f81cb723A25856f642E5C47ccbfE6C": {
+      "balance": "0x1431e0fae6d7217caa0000000"
+    },
+    "0x48877f72baE85e252a1C24881231AB09fd065367": {
       "balance": "0x1431e0fae6d7217caa0000000"
     }
   },
