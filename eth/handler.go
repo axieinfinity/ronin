@@ -27,6 +27,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/forkid"
+	"github.com/ethereum/go-ethereum/core/txpool"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vote"
 	"github.com/ethereum/go-ethereum/eth/downloader"
@@ -64,16 +65,16 @@ type txPool interface {
 	// tx hash.
 	Get(hash common.Hash) *types.Transaction
 
-	// AddRemotes should add the given transactions to the pool.
-	AddRemotes([]*types.Transaction) []error
+	// Add should add the given transactions to the pool.
+	Add(txs []*types.Transaction, local bool, sync bool) []error
 
 	// Pending should return pending transactions.
 	// The slice should be modifiable by the caller.
-	Pending(enforceTips bool) map[common.Address]types.Transactions
+	Pending(filter *txpool.PendingFilter) map[common.Address]types.Transactions
 
-	// SubscribeNewTxsEvent should return an event subscription of
+	// SubscribeTransactions should return an event subscription of
 	// NewTxsEvent and send events to the given channel.
-	SubscribeNewTxsEvent(chan<- core.NewTxsEvent) event.Subscription
+	SubscribeTransactions(ch chan<- core.NewTxsEvent, reorgs bool) event.Subscription
 }
 
 // handlerConfig is the collection of initialization parameters to create a full
@@ -242,7 +243,10 @@ func newHandler(config *handlerConfig) (*handler, error) {
 		}
 		return p.RequestTxs(hashes)
 	}
-	h.txFetcher = fetcher.NewTxFetcher(h.txpool.Has, h.txpool.AddRemotes, fetchTx)
+	addTxs := func(txs []*types.Transaction) []error {
+		return h.txpool.Add(txs, false, false)
+	}
+	h.txFetcher = fetcher.NewTxFetcher(h.txpool.Has, addTxs, fetchTx)
 	h.chainSync = newChainSyncer(h)
 	return h, nil
 }
@@ -480,7 +484,7 @@ func (h *handler) Start(maxPeers int) {
 	// broadcast transactions
 	h.wg.Add(1)
 	h.txsCh = make(chan core.NewTxsEvent, txChanSize)
-	h.txsSub = h.txpool.SubscribeNewTxsEvent(h.txsCh)
+	h.txsSub = h.txpool.SubscribeTransactions(h.txsCh, false)
 	go h.txBroadcastLoop()
 
 	// broadcast mined blocks

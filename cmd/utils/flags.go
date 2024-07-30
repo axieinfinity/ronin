@@ -43,6 +43,8 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/core/txpool/blobpool"
+	"github.com/ethereum/go-ethereum/core/txpool/legacypool"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/kzg4844"
@@ -387,13 +389,13 @@ var (
 	TxPoolJournalFlag = &cli.StringFlag{
 		Name:     "txpool.journal",
 		Usage:    "Disk journal for local transaction to survive node restarts",
-		Value:    core.DefaultTxPoolConfig.Journal,
+		Value:    legacypool.DefaultConfig.Journal,
 		Category: flags.TxPoolCategory,
 	}
 	TxPoolRejournalFlag = &cli.DurationFlag{
 		Name:     "txpool.rejournal",
 		Usage:    "Time interval to regenerate the local transaction journal",
-		Value:    core.DefaultTxPoolConfig.Rejournal,
+		Value:    legacypool.DefaultConfig.Rejournal,
 		Category: flags.TxPoolCategory,
 	}
 	TxPoolPriceLimitFlag = &cli.Uint64Flag{
@@ -437,6 +439,25 @@ var (
 		Usage:    "Maximum amount of time non-executable transaction are queued",
 		Value:    ethconfig.Defaults.TxPool.Lifetime,
 		Category: flags.TxPoolCategory,
+	}
+	// Blob transaction pool settings
+	BlobPoolDataDirFlag = &cli.StringFlag{
+		Name:     "blobpool.datadir",
+		Usage:    "Data directory to store blob transactions in",
+		Value:    ethconfig.Defaults.BlobPool.Datadir,
+		Category: flags.BlobPoolCategory,
+	}
+	BlobPoolDataCapFlag = &cli.Uint64Flag{
+		Name:     "blobpool.datacap",
+		Usage:    "Disk space to allocate for pending blob transactions (soft limit)",
+		Value:    ethconfig.Defaults.BlobPool.Datacap,
+		Category: flags.BlobPoolCategory,
+	}
+	BlobPoolPriceBumpFlag = &cli.Uint64Flag{
+		Name:     "blobpool.pricebump",
+		Usage:    "Price bump percentage to replace an already existing blob transaction",
+		Value:    ethconfig.Defaults.BlobPool.PriceBump,
+		Category: flags.BlobPoolCategory,
 	}
 	// Performance tuning settings
 	CacheFlag = &cli.IntFlag{
@@ -1638,7 +1659,7 @@ func setGPO(ctx *cli.Context, cfg *gasprice.Config, light bool) {
 	}
 }
 
-func setTxPool(ctx *cli.Context, cfg *core.TxPoolConfig) {
+func setTxPool(ctx *cli.Context, cfg *legacypool.Config) {
 	if ctx.IsSet(TxPoolLocalsFlag.Name) {
 		locals := strings.Split(ctx.String(TxPoolLocalsFlag.Name), ",")
 		for _, account := range locals {
@@ -1678,6 +1699,18 @@ func setTxPool(ctx *cli.Context, cfg *core.TxPoolConfig) {
 	}
 	if ctx.IsSet(TxPoolLifetimeFlag.Name) {
 		cfg.Lifetime = ctx.Duration(TxPoolLifetimeFlag.Name)
+	}
+}
+
+func setBlobPool(ctx *cli.Context, cfg *blobpool.Config) {
+	if ctx.IsSet(BlobPoolDataDirFlag.Name) {
+		cfg.Datadir = ctx.String(BlobPoolDataDirFlag.Name)
+	}
+	if ctx.IsSet(BlobPoolDataCapFlag.Name) {
+		cfg.Datacap = ctx.Uint64(BlobPoolDataCapFlag.Name)
+	}
+	if ctx.IsSet(BlobPoolPriceBumpFlag.Name) {
+		cfg.PriceBump = ctx.Uint64(BlobPoolPriceBumpFlag.Name)
 	}
 }
 
@@ -1821,6 +1854,7 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 	setEtherbase(ctx, ks, cfg)
 	setGPO(ctx, &cfg.GPO, ctx.String(SyncModeFlag.Name) == "light")
 	setTxPool(ctx, &cfg.TxPool)
+	setBlobPool(ctx, &cfg.BlobPool)
 	setEthash(ctx, cfg)
 	setMiner(ctx, &cfg.Miner)
 	setWhitelist(ctx, cfg)

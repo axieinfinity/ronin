@@ -117,4 +117,7 @@ var (
 	// ErrDifferentFeeCapTipCap is returned if fee cap and tip cap are different
 	// when dynamic gas fee is not supported
 	ErrDifferentFeeCapTipCap = errors.New("gas fee cap and gas tip cap are different")
+
+	// ErrAddressBlacklisted is returned if a transaction is sent to blacklisted address
+	ErrAddressBlacklisted = errors.New("address is blacklisted")
 )
