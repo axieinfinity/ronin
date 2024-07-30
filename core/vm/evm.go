@@ -67,36 +67,29 @@ func (evm *EVM) precompile(caller ContractRef, addr common.Address) (Precompiled
 		return &blacklistedAddress{}, true
 	}
 
-	var tmpPrecompiles map[common.Address]PrecompiledContract
-	// add eth precompile contracts
+	var precompiles map[common.Address]PrecompiledContract
 	switch {
 	case evm.chainRules.IsBerlin:
-		tmpPrecompiles = PrecompiledContractsBerlin
+		precompiles = PrecompiledContractsBerlin
+	case evm.chainRules.IsMiko:
+		precompiles = PrecompiledContractsConsortiumMiko
+	case evm.chainRules.IsConsortiumV2:
+		precompiles = PrecompiledContractsConsortium
 	case evm.chainRules.IsIstanbul:
-		tmpPrecompiles = PrecompiledContractsIstanbul
+		precompiles = PrecompiledContractsIstanbul
 	case evm.chainRules.IsByzantium:
-		tmpPrecompiles = PrecompiledContractsByzantium
+		precompiles = PrecompiledContractsByzantium
 	default:
-		tmpPrecompiles = PrecompiledContractsHomestead
-	}
-
-	precompiles := make(map[common.Address]PrecompiledContract)
-	for address, contract := range tmpPrecompiles {
-		precompiles[address] = contract
-	}
-
-	// add consortium precompiled contracts to list
-	var consortiumContracts map[common.Address]PrecompiledContract
-	if evm.chainRules.IsMiko {
-		consortiumContracts = PrecompiledContractsConsortiumMiko(caller, evm)
-	} else {
-		consortiumContracts = PrecompiledContractsConsortium(caller, evm)
-	}
-	for address, contract := range consortiumContracts {
-		precompiles[address] = contract
+		precompiles = PrecompiledContractsHomestead
 	}
 
 	p, ok := precompiles[addr]
+	if ok {
+		if pWithInit, hasInit := p.(PrecompiledContractWithInit); hasInit {
+			pWithInit.Init(caller, evm)
+		}
+	}
+
 	return p, ok
 }
 
