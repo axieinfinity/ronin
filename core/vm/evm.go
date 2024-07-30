@@ -670,13 +670,12 @@ func (evm *EVM) PublishEvent(
 ) {
 	context := evm.Context
 	if context.CurrentTransaction == nil {
-		log.Debug("[EVM] PublishEvent - Transaction is nil", "height", context.BlockNumber.Int64())
 		return
 	}
 
-	txHash := context.CurrentTransaction.Hash()
-	log.Debug("[EVM] PublishEvent", "transaction", txHash.Hex(), "opCode", opCode.String(), "from", from.Hash().Hex())
 	if event, ok := evm.Context.PublishEvents[opCode]; ok {
+		txHash := context.CurrentTransaction.Hash()
+		log.Debug("[EVM] PublishEvent", "transaction", txHash.Hex(), "opCode", opCode.String(), "from", from.Hash().Hex())
 		*context.InternalTransactions = append(
 			*context.InternalTransactions,
 			event.Publish(
