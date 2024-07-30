@@ -15,6 +15,6 @@ RONIN_NODE_PATH=./script/run/ronin GENESIS_FILE=./genesis/devnet.json ./script/b
 ### Run the nodes
 ```bash
 ./script/run_node1.sh
-./script/run_node1.sh
-./script/run_node1.sh
+./script/run_node2.sh
+./script/run_node3.sh
 ```
