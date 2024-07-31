@@ -32,6 +32,10 @@ import (
 
 	"github.com/ethereum/go-ethereum/internal/flags"
 
+	pcsclite "github.com/gballet/go-libpcsclite"
+	gopsutil "github.com/shirou/gopsutil/mem"
+	"github.com/urfave/cli/v2"
+
 	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/common"
@@ -69,9 +73,6 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/nat"
 	"github.com/ethereum/go-ethereum/p2p/netutil"
 	"github.com/ethereum/go-ethereum/params"
-	pcsclite "github.com/gballet/go-libpcsclite"
-	gopsutil "github.com/shirou/gopsutil/mem"
-	"github.com/urfave/cli/v2"
 )
 
 // These are all the command line flags we support.
@@ -1099,6 +1100,12 @@ var (
 	MockBlsPublicKeysFlag = &cli.StringFlag{
 		Name:     "mock.blspublickeys",
 		Usage:    "List of mock bls public keys which are reflect 1:1 with mock.validators",
+		Category: flags.MockCategory,
+	}
+
+	MockStakeAmountsFlag = &cli.StringFlag{
+		Name:     "mock.stakeamounts",
+		Usage:    "List of mock stake amounts which are reflect 1:1 with mock.validators",
 		Category: flags.MockCategory,
 	}
 )
