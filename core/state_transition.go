@@ -265,7 +265,7 @@ func (st *StateTransition) buyGas() error {
 				effectiveGasFee.Add(effectiveGasFee, blobFee)
 			}
 		}
-		balanceCheck := new(big.Int).Add(balanceCheck, st.value)
+		balanceCheck.Add(balanceCheck, st.value)
 		if have, want := st.state.GetBalance(msg.From()), balanceCheck; have.Cmp(want) < 0 {
 			return fmt.Errorf("%w: address %v have %v want %v", ErrInsufficientFunds, msg.From().Hex(), have, want)
 		}
@@ -280,7 +280,7 @@ func (st *StateTransition) buyGas() error {
 
 	// Transfer blob gas fee to Ronin treasury address. If the blob tx fails,
 	// the fee will not be refund.
-	if st.blobGasUsed() > 0 {
+	if blobFee != nil && blobFee.Cmp(common.Big0) == 1 {
 		st.state.AddBalance(*st.evm.ChainConfig().RoninTreasuryAddress, blobFee)
 	}
 
