@@ -41,7 +41,6 @@ func NewEVMBlockContext(header *types.Header, chain ChainContext, author *common
 	var (
 		beneficiary common.Address
 		baseFee     *big.Int
-
 		blobBaseFee *big.Int
 	)
 
@@ -55,7 +54,7 @@ func NewEVMBlockContext(header *types.Header, chain ChainContext, author *common
 		baseFee = new(big.Int).Set(header.BaseFee)
 	}
 	if header.ExcessBlobGas != nil {
-		blobBaseFee = eip4844.CalcBlobFee(*header.ExcessBlobGas) 
+		blobBaseFee = eip4844.CalcBlobFee(*header.ExcessBlobGas)
 	}
 	internalTransactions := make([]*types.InternalTransaction, 0)
 	ctx := vm.BlockContext{
@@ -71,8 +70,7 @@ func NewEVMBlockContext(header *types.Header, chain ChainContext, author *common
 		GasLimit:             header.GasLimit,
 		BlockHash:            header.Hash(),
 		InternalTransactions: &internalTransactions,
-
-		BlobBaseFee: blobBaseFee,
+		BlobBaseFee:          blobBaseFee,
 	}
 	// update publishEvents if `events` is not empty
 	if len(events) > 0 {
@@ -88,9 +86,8 @@ func NewEVMBlockContext(header *types.Header, chain ChainContext, author *common
 // NewEVMTxContext creates a new transaction context for a single transaction.
 func NewEVMTxContext(msg Message) vm.TxContext {
 	return vm.TxContext{
-		Origin:   msg.From(),
-		GasPrice: new(big.Int).Set(msg.GasPrice()),
-
+		Origin:     msg.From(),
+		GasPrice:   new(big.Int).Set(msg.GasPrice()),
 		BlobHashes: msg.BlobHashes(),
 	}
 }

@@ -44,7 +44,6 @@ type Config struct {
 	Debug       bool
 	EVMConfig   vm.Config
 	BaseFee     *big.Int
-
 	BlobHashes  []common.Hash
 	BlobBaseFee *big.Int
 

@@ -372,7 +372,6 @@ func (st *StateTransition) preCheck() error {
 	if st.evm.ChainConfig().IsCancun(st.evm.Context.BlockNumber) {
 		if st.blobGasUsed() > 0 {
 			// Skip the checks if gas fields are zero and blobBaseFee was explicitly disabled (eth_call)
-
 			skipCheck := st.evm.Config.NoBaseFee && msg.BlobGasFeeCap().BitLen() == 0
 			if !skipCheck {
 				// This will panic if blobBaseFee is nil, but blobBaseFee presence
