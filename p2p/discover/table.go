@@ -685,7 +685,7 @@ func (tab *Table) bumpInBucket(b *bucket, newRecord *enode.Node, isInbound bool)
 	}
 
 	// Check endpoint update against IP limits.
-	ipchanged := newRecord.IPAddr() != n.IPAddr()
+	ipchanged := !(net.IP.Equal(newRecord.IP(), n.IP()))
 	portchanged := newRecord.UDP() != n.UDP()
 	if ipchanged {
 		tab.removeIP(b, n.IP())
