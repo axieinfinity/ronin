@@ -467,6 +467,7 @@ var (
 		MikoBlock:                     big.NewInt(0),
 		BerlinBlock:                   big.NewInt(0),
 		LondonBlock:                   big.NewInt(0),
+		CancunBlock:                   big.NewInt(0),
 		ArrowGlacierBlock:             nil,
 		OdysseusBlock:                 nil,
 		FenixBlock:                    nil,
@@ -479,6 +480,7 @@ var (
 		Clique:                        nil,
 		Consortium:                    nil,
 		ConsortiumV2Contracts:         nil,
+		RoninTreasuryAddress:          nil,
 	}
 	TestRules = TestChainConfig.Rules(new(big.Int))
 )

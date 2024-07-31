@@ -26,6 +26,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/misc"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
+	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
@@ -99,6 +100,9 @@ func (b *BlockGen) addTx(bc *BlockChain, vmConfig vm.Config, tx *types.Transacti
 	}
 	b.txs = append(b.txs, tx)
 	b.receipts = append(b.receipts, receipt)
+	if b.header.BlobGasUsed != nil {
+		*b.header.BlobGasUsed += receipt.BlobGasUsed
+	}
 }
 
 // AddTx adds a transaction to the generated block. If no coinbase has
@@ -335,6 +339,16 @@ func generateChain(
 			panic(err)
 		}
 		block, receipt := genblock(i, parent, statedb)
+
+		// Prepare Blob receipt
+		var blobGasPrice *big.Int
+		if block.ExcessBlobGas() != nil {
+			blobGasPrice = eip4844.CalcBlobFee(*block.ExcessBlobGas())
+		}
+		if err := receipt.DeriveFields(config, block.Hash(), block.NumberU64(), blobGasPrice, block.Transactions()); err != nil {
+			panic(err)
+		}
+
 		blocks[i] = block
 		receipts[i] = receipt
 		parent = block
@@ -382,6 +396,19 @@ func makeHeader(chain consensus.ChainReader, parent *types.Block, state *state.S
 		if !chain.Config().IsLondon(parent.Number()) {
 			header.GasLimit = CalcGasLimit(parent.GasLimit(), parent.GasLimit())
 		}
+	}
+	if chain.Config().IsCancun(header.Number) {
+		var (
+			parentExcessBlobGas uint64
+			parentBlobGasUsed   uint64
+		)
+		if parent.ExcessBlobGas() != nil {
+			parentExcessBlobGas = *parent.ExcessBlobGas()
+			parentBlobGasUsed = *parent.BlobGasUsed()
+		}
+		excessBlobGas := eip4844.CalcExcessBlobGas(parentExcessBlobGas, parentBlobGasUsed)
+		header.ExcessBlobGas = &excessBlobGas
+		header.BlobGasUsed = new(uint64)
 	}
 	return header
 }

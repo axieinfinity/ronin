@@ -18,7 +18,9 @@ package core
 
 import (
 	"crypto/ecdsa"
+	"fmt"
 	"math/big"
+	"strings"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -27,11 +29,13 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/ethash"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
 	"github.com/ethereum/go-ethereum/core/rawdb"
+	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/trie"
+	"github.com/holiman/uint256"
 	"golang.org/x/crypto/sha3"
 )
 
@@ -414,4 +418,98 @@ func GenerateBadBlock(parent *types.Block, engine consensus.Engine, txs types.Tr
 	header.Root = common.BytesToHash(hasher.Sum(nil))
 	// Assemble and return the final block for sealing
 	return types.NewBlock(header, txs, nil, receipts, trie.NewStackTrie(nil))
+}
+
+func mkBlobTx(nonce uint64, to common.Address, gasLimit uint64, gasTipCap, gasFeeCap, blobGasFeeCap *big.Int, hashes []common.Hash, signer types.Signer, key *ecdsa.PrivateKey) (*types.Transaction, error) {
+	tx, err := types.SignTx(types.NewTx(&types.BlobTx{
+		Nonce:      nonce,
+		GasTipCap:  uint256.MustFromBig(gasTipCap),
+		GasFeeCap:  uint256.MustFromBig(gasFeeCap),
+		Gas:        gasLimit,
+		To:         to,
+		BlobHashes: hashes,
+		BlobFeeCap: uint256.MustFromBig(blobGasFeeCap),
+		Value:      new(uint256.Int),
+	}), signer, key)
+	if err != nil {
+		return nil, err
+	}
+	return tx, nil
+}
+
+func TestBlobTxStateTransition(t *testing.T) {
+	var roninTreasuryAddress = &common.Address{0x11}
+	var testBlobTxGasExecution = func(funds *big.Int, nBlobs int) (*state.StateDB, common.Address, error) {
+		var (
+			gendb  = rawdb.NewMemoryDatabase()
+			key, _ = crypto.GenerateKey()
+			addr   = crypto.PubkeyToAddress(key.PublicKey)
+			gspec  = &Genesis{
+				Config:  params.TestChainConfig,
+				Alloc:   GenesisAlloc{addr: {Balance: funds}},
+				BaseFee: big.NewInt(params.InitialBaseFee),
+			}
+			genesis = gspec.MustCommit(gendb)
+			signer  = types.LatestSigner(gspec.Config)
+		)
+		gspec.Config.ConsortiumV2Block = common.Big0
+		gspec.Config.RoninTreasuryAddress = roninTreasuryAddress
+		chain, _ := NewBlockChain(gendb, nil, params.TestChainConfig, ethash.NewFullFaker(), vm.Config{}, nil, nil)
+		blocks, _ := GenerateChain(gspec.Config, genesis, ethash.NewFaker(), gendb, 1, func(i int, block *BlockGen) {
+			blobHashes := make([]common.Hash, nBlobs)
+			for i := 0; i < nBlobs; i++ {
+				blobHashes[i] = common.HexToHash("0x01b0761f87b081d5cf10757ccc89f12be355c70e2e29df288b65b30710dcbcd1")
+			}
+			tx, err := mkBlobTx(block.TxNonce(addr), common.Address{0x99}, params.TxGas, big.NewInt(1), big.NewInt(1), big.NewInt(100), blobHashes, signer, key)
+			if err != nil {
+				t.Fatal(err)
+			}
+			block.AddTx(tx)
+		}, true)
+		if _, err := chain.InsertChain(blocks[:]); err != nil {
+			return nil, common.Address{}, err
+		}
+		statedb, _ := state.New(chain.CurrentHeader().Root, chain.stateCache, nil)
+		return statedb, addr, nil
+	}
+	{
+		// Case 1: Payer has enough funds for effective gas and blob fee
+		// Check blob fee must transfered balance of Ronin treasury address
+		nBlobs := 2
+		funds := big.NewInt(100000000000000000)
+		expectedBlobFee := big.NewInt(int64(nBlobs * params.BlobTxBlobGasPerBlob))
+		statedb, addr, err := testBlobTxGasExecution(funds, nBlobs)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if statedb.GetBalance(addr).Cmp(funds) != -1 {
+			t.Fatal("Balance of payer is not decreased")
+		}
+		if statedb.GetBalance(*roninTreasuryAddress).Cmp(expectedBlobFee) != 0 {
+			t.Fatal("Blob fee is not transfered to Ronin treasury address")
+		}
+		if statedb.GetBalance(consensus.SystemAddress).Cmp(common.Big0) != 1 {
+			t.Fatal("Gas fee is not transfered to system address")
+		}
+		if funds.Uint64()-
+			statedb.GetBalance(addr).Uint64()-
+			statedb.GetBalance(*roninTreasuryAddress).Uint64()-
+			statedb.GetBalance(consensus.SystemAddress).Uint64() != 0 {
+			t.Fatal("Mismatch")
+		}
+	}
+
+	{
+		// Case 2: Payer has enough funds for effective gas, but not for blob fee
+		nBlobs := 3
+		expectedBlobFee := big.NewInt(int64(nBlobs * params.BlobTxBlobGasPerBlob))
+		defer func() {
+			if r := recover(); r != nil {
+				if !strings.Contains(fmt.Sprintf("%s", r), ErrInsufficientFunds.Error()) {
+					t.Fatal("must be insufficient funds")
+				}
+			}
+		}()
+		testBlobTxGasExecution(expectedBlobFee, nBlobs)
+	}
 }
