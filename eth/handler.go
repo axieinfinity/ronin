@@ -549,10 +549,10 @@ func (h *handler) BroadcastBlock(block *types.Block, propagate bool) {
 		// Send the block to a subset of our peers
 		transfer := peers[:int(math.Sqrt(float64(len(peers))))]
 		for _, peer := range transfer {
-			var sidecars []types.BlobTxSidecar
+			var sidecars []*types.BlobTxSidecar
 			if peer.Version() >= eth.ETH100 {
 				for _, blobSidecar := range rawdb.ReadBlobSidecars(h.database, block.Hash(), block.NumberU64()) {
-					sidecars = append(sidecars, (*blobSidecar).BlobTxSidecar)
+					sidecars = append(sidecars, &blobSidecar.BlobTxSidecar)
 				}
 			}
 			peer.AsyncSendNewBlock(block, td, sidecars)

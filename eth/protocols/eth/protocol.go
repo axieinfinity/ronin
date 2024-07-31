@@ -199,7 +199,7 @@ func (request *NewBlockPacket) sanityCheck() error {
 type NewBlockPacket100 struct {
 	Block    *types.Block
 	TD       *big.Int
-	Sidecars []types.BlobTxSidecar
+	Sidecars []*types.BlobTxSidecar
 }
 
 // sanityCheck verifies that the values are reasonable, as a DoS protection

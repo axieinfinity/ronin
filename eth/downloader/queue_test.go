@@ -320,7 +320,7 @@ func XTestDelivery(t *testing.T) {
 					uncles = append(uncles, emptyList)
 				}
 				time.Sleep(100 * time.Millisecond)
-				_, err := q.DeliverBodies(peer.id, txs, uncles, [][]types.BlobTxSidecar{})
+				_, err := q.DeliverBodies(peer.id, txs, uncles, [][]*types.BlobTxSidecar{})
 				if err != nil {
 					fmt.Printf("delivered %d bodies %v\n", len(txs), err)
 				}

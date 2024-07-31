@@ -124,7 +124,7 @@ type bodyFilterTask struct {
 	peer         string                  // The source peer of block bodies
 	transactions [][]*types.Transaction  // Collection of transactions per block bodies
 	uncles       [][]*types.Header       // Collection of uncles per block bodies
-	sidecars     [][]types.BlobTxSidecar // Collection of sidecars per block bodies
+	sidecars     [][]*types.BlobTxSidecar // Collection of sidecars per block bodies
 	time         time.Time               // Arrival time of the blocks' contents
 }
 
@@ -134,7 +134,7 @@ type blockOrHeaderInject struct {
 
 	header   *types.Header // Used for light mode fetcher which only cares about header.
 	block    *types.Block  // Used for normal mode fetcher which imports full block.
-	sidecars []types.BlobTxSidecar
+	sidecars []*types.BlobTxSidecar
 }
 
 // number returns the block number of the injected object.
@@ -260,7 +260,7 @@ func (f *BlockFetcher) Notify(peer string, hash common.Hash, number uint64, time
 }
 
 // Enqueue tries to fill gaps the fetcher's future import queue.
-func (f *BlockFetcher) Enqueue(peer string, block *types.Block, sidecars []types.BlobTxSidecar) error {
+func (f *BlockFetcher) Enqueue(peer string, block *types.Block, sidecars []*types.BlobTxSidecar) error {
 	op := &blockOrHeaderInject{
 		origin:   peer,
 		block:    block,
@@ -304,7 +304,7 @@ func (f *BlockFetcher) FilterHeaders(peer string, headers []*types.Header, time 
 
 // FilterBodies extracts all the block bodies that were explicitly requested by
 // the fetcher, returning those that should be handled differently.
-func (f *BlockFetcher) FilterBodies(peer string, transactions [][]*types.Transaction, uncles [][]*types.Header, sidecars [][]types.BlobTxSidecar, time time.Time) ([][]*types.Transaction, [][]*types.Header, [][]types.BlobTxSidecar) {
+func (f *BlockFetcher) FilterBodies(peer string, transactions [][]*types.Transaction, uncles [][]*types.Header, sidecars [][]*types.BlobTxSidecar, time time.Time) ([][]*types.Transaction, [][]*types.Header, [][]*types.BlobTxSidecar) {
 	log.Trace("Filtering bodies", "peer", peer, "txs", len(transactions), "uncles", len(uncles))
 
 	// Send the filter channel to the fetcher
@@ -608,7 +608,7 @@ func (f *BlockFetcher) loop() {
 			}
 			bodyFilterInMeter.Mark(int64(len(task.transactions)))
 			blocks := []*types.Block{}
-			sidecarsList := [][]types.BlobTxSidecar{}
+			sidecarsList := [][]*types.BlobTxSidecar{}
 			// abort early if there's nothing explicitly requested
 			if len(f.completing) > 0 {
 				for i := 0; i < len(task.transactions) && i < len(task.uncles); i++ {
@@ -668,7 +668,7 @@ func (f *BlockFetcher) loop() {
 			// Schedule the retrieved blocks for ordered import
 			for i, block := range blocks {
 				if announce := f.completing[block.Hash()]; announce != nil {
-					var sidecars []types.BlobTxSidecar
+					var sidecars []*types.BlobTxSidecar
 					if len(sidecarsList) > i {
 						sidecars = sidecarsList[i]
 					}
@@ -719,7 +719,7 @@ func (f *BlockFetcher) rescheduleComplete(complete *time.Timer) {
 
 // enqueue schedules a new header or block import operation, if the component
 // to be imported has not yet been seen.
-func (f *BlockFetcher) enqueue(peer string, header *types.Header, block *types.Block, sidecars []types.BlobTxSidecar) {
+func (f *BlockFetcher) enqueue(peer string, header *types.Header, block *types.Block, sidecars []*types.BlobTxSidecar) {
 	var (
 		hash   common.Hash
 		number uint64
