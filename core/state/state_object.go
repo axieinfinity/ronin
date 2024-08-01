@@ -86,11 +86,11 @@ type stateObject struct {
 	fakeStorage    Storage // Fake storage which constructed by caller for debugging purpose.
 
 	// Cache flags.
-	// When an object is marked suicided it will be delete from the trie
+	// When an object is marked self-destructed it will be delete from the trie
 	// during the "update" phase of the state transition.
-	dirtyCode bool // true if the code was updated
-	suicided  bool
-	deleted   bool
+	dirtyCode      bool // true if the code was updated
+	selfDestructed bool
+	deleted        bool
 
 	// Flag whether the object was created in the current transaction
 	created bool
@@ -135,8 +135,8 @@ func (s *stateObject) setError(err error) {
 	}
 }
 
-func (s *stateObject) markSuicided() {
-	s.suicided = true
+func (s *stateObject) markSelfdestructed() {
+	s.selfDestructed = true
 }
 
 func (s *stateObject) touch() {
@@ -456,7 +456,7 @@ func (s *stateObject) deepCopy(db *StateDB) *stateObject {
 	stateObject.dirtyStorage = s.dirtyStorage.Copy()
 	stateObject.originStorage = s.originStorage.Copy()
 	stateObject.pendingStorage = s.pendingStorage.Copy()
-	stateObject.suicided = s.suicided
+	stateObject.selfDestructed = s.selfDestructed
 	stateObject.dirtyCode = s.dirtyCode
 	stateObject.deleted = s.deleted
 	return stateObject
