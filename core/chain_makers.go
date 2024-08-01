@@ -314,7 +314,7 @@ func generateChain(
 				b := &BlockGen{i: i, chain: blocks, parent: parent, statedb: statedb, config: config, engine: engine}
 				b.header = block.Header()
 				postFinalize(i, b)
-				block = types.NewBlockWithHeader(b.header)
+				block = types.NewBlockWithHeader(b.header).WithBody(block.Transactions(), nil)
 			}
 
 			// Write state changes to db
