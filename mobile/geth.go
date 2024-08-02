@@ -22,8 +22,9 @@ package geth
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/ethereum/go-ethereum/common"
 	"path/filepath"
+
+	"github.com/ethereum/go-ethereum/common"
 
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/eth/downloader"
@@ -149,8 +150,6 @@ func NewNode(datadir string, config *NodeConfig) (stack *Node, _ error) {
 	if err != nil {
 		return nil, err
 	}
-
-	debug.Memsize.Add("node", rawStack)
 
 	var genesis *core.Genesis
 	if config.EthereumGenesis != "" {
