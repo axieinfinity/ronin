@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/accounts"
 	"github.com/ethereum/go-ethereum/common"
 	legacyProfile "github.com/ethereum/go-ethereum/consensus/consortium/generated_contracts/legacy_profile"
 	"github.com/ethereum/go-ethereum/consensus/consortium/generated_contracts/profile"
@@ -17,6 +18,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
 )
@@ -289,6 +291,99 @@ func TestContractCall(t *testing.T) {
 		expectedNumber := big.NewInt(100)
 		if maxValidatorNumber.Cmp(expectedNumber) != 0 {
 			t.Fatalf("Max validator mismatches, got %+v expect %+v", maxValidatorNumber, expectedNumber)
+		}
+	}
+}
+
+func TestApplyTransaction(t *testing.T) {
+	minerKey, _ := crypto.GenerateKey()
+	minerAddr := crypto.PubkeyToAddress(minerKey.PublicKey)
+
+	chainId := big.NewInt(2020)
+	signer := types.NewMikoSigner(chainId)
+	chainConfig := params.ChainConfig{
+		ChainID:        chainId,
+		ByzantiumBlock: common.Big0,
+		BerlinBlock:    common.Big0,
+	}
+	tx, err := types.SignNewTx(minerKey, signer, &types.LegacyTx{
+		To: &common.Address{0x22},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	msg := types.NewMessage(minerAddr, tx.To(), tx.Nonce(), tx.Value(), tx.Gas(),
+		tx.GasPrice(), tx.GasFeeCap(), tx.GasTipCap(), tx.Data(), nil, false)
+
+	state, err := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dummyAccount := common.Address{0x11}
+	state.AddAddressToAccessList(dummyAccount)
+
+	var (
+		txs      []*types.Transaction
+		receipts []*types.Receipt
+	)
+	opts := ApplyTransactOpts{
+		ApplyMessageOpts: &ApplyMessageOpts{
+			Header: &types.Header{
+				Coinbase: minerAddr,
+				Number:   common.Big0,
+			},
+			EVMContext: &vm.BlockContext{
+				Transfer: func(_ vm.StateDB, _, _ common.Address, _ *big.Int) {},
+			},
+			State:       state,
+			ChainConfig: &chainConfig,
+		},
+		Signer: signer,
+		SignTxFn: func(_ accounts.Account, tx *types.Transaction, chainId *big.Int) (*types.Transaction, error) {
+			return types.SignTx(tx, signer, minerKey)
+		},
+		Mining:   true,
+		UsedGas:  new(uint64),
+		Txs:      &txs,
+		Receipts: &receipts,
+	}
+	err = ApplyTransaction(msg, &opts)
+	if err != nil {
+		t.Fatalf("Failed to apply transaction, err %v", err)
+	}
+
+	if state.AddressInAccessList(dummyAccount) {
+		t.Fatalf("Expect the access list to be reset after Berlin")
+	}
+
+	state.AddAddressToAccessList(dummyAccount)
+	dummyKey := common.Hash{0x33}
+	state.SetTransientState(dummyAccount, dummyKey, common.Hash{0x44})
+	chainConfig.ShanghaiBlock = common.Big0
+	err = ApplyTransaction(msg, &opts)
+	if err != nil {
+		t.Fatalf("Failed to apply transaction, err %v", err)
+	}
+
+	if state.AddressInAccessList(dummyAccount) {
+		t.Fatalf("Expect the access list to be reset after Berlin")
+	}
+
+	if state.GetTransientState(dummyAccount, dummyKey) != (common.Hash{}) {
+		t.Fatalf("Expect the transient state to be reset")
+	}
+
+	if !state.AddressInAccessList(minerAddr) {
+		t.Fatalf("Expect sender to be in the access list after Shanghai")
+	}
+
+	if !state.AddressInAccessList(*tx.To()) {
+		t.Fatalf("Expect recipient to be in the access list after Shanghai")
+	}
+
+	for _, addr := range vm.ActivePrecompiles(chainConfig.Rules(common.Big0)) {
+		if !state.AddressInAccessList(addr) {
+			t.Fatalf("Expect precompile %v to be in the access list after Shanghai", addr)
 		}
 	}
 }
