@@ -25,6 +25,9 @@ import (
 // peerDropFn is a callback type for dropping a peer detected as malicious.
 type peerDropFn func(id string)
 
+// blobHeaderVerifierFn is a callback type to verify a block's blobs
+type blobHeaderVerifierFn func(block *types.Block, sidecars []types.BlobTxSidecar) (error, *types.BlobSidecars)
+
 // dataPack is a data message returned by a peer for some query.
 type dataPack interface {
 	PeerId() string
