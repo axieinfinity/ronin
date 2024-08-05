@@ -1033,6 +1033,11 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (common.Hash, error) {
 	return root, err
 }
 
+// ResetAccessList sets access list to empty
+func (s *StateDB) ResetAccessList() {
+	s.accessList = newAccessList()
+}
+
 // Prepare handles the preparatory steps for executing a state transition with.
 // This method must be invoked before state transition.
 //
