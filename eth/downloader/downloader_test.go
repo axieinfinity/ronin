@@ -89,7 +89,7 @@ func newTester() *downloadTester {
 	tester.stateDb = rawdb.NewMemoryDatabase()
 	tester.stateDb.Put(testGenesis.Root().Bytes(), []byte{0x00})
 
-	tester.downloader = New(0, tester.stateDb, trie.NewSyncBloom(1, tester.stateDb), new(event.TypeMux), tester, nil, tester.dropPeer)
+	tester.downloader = New(0, tester.stateDb, trie.NewSyncBloom(1, tester.stateDb), new(event.TypeMux), tester, nil, tester.dropPeer, tester.verifyBlobHeader)
 	return tester
 }
 
@@ -408,6 +408,11 @@ func (dl *downloadTester) dropPeer(id string) {
 
 	delete(dl.peers, id)
 	dl.downloader.UnregisterPeer(id)
+}
+
+// verifyBlobHeader is a non placeholder for the blob header verification.
+func (dl *downloadTester) verifyBlobHeader(block *types.Block, sidecars []types.BlobTxSidecar) (error, *types.BlobSidecars) {
+	return nil, nil
 }
 
 // Snapshots implements the BlockChain interface for the downloader, but is a noop.
