@@ -84,9 +84,9 @@ type Backend interface {
 	SubscribeNewTxsEvent(chan<- core.NewTxsEvent) event.Subscription
 
 	// Blob sidecars API
-	BlobSidecarsByHash(ctx context.Context, hash common.Hash) (*types.BlobSidecars, error)
-	BlobSidecarsByNumber(ctx context.Context, number rpc.BlockNumber) (*types.BlobSidecars, error)
-	BlobSidecarsByNumberOrHash(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) (*types.BlobSidecars, error)
+	BlobSidecarsByHash(ctx context.Context, hash common.Hash) (types.BlobSidecars, error)
+	BlobSidecarsByNumber(ctx context.Context, number rpc.BlockNumber) (types.BlobSidecars, error)
+	BlobSidecarsByNumberOrHash(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) (types.BlobSidecars, error)
 
 	// Filter API
 	BloomStatus() (uint64, uint64)

@@ -787,7 +787,7 @@ func (s *PublicBlockChainAPI) GetBlockByHash(ctx context.Context, hash common.Ha
 }
 
 // GetBlobSidecarsByHash returns the requested list of blob sidecars based on block number.
-func (s *PublicBlockChainAPI) GetBlobSidecarsByNumber(ctx context.Context, number rpc.BlockNumber) (*types.BlobSidecars, error) {
+func (s *PublicBlockChainAPI) GetBlobSidecarsByNumber(ctx context.Context, number rpc.BlockNumber) (types.BlobSidecars, error) {
 	sidecars, err := s.b.BlobSidecarsByNumber(ctx, number)
 	if sidecars != nil && err == nil {
 		return sidecars, nil
@@ -796,7 +796,7 @@ func (s *PublicBlockChainAPI) GetBlobSidecarsByNumber(ctx context.Context, numbe
 }
 
 // GetBlobSidecarsByHash returns the requested list of blob sidecars based on block hash.
-func (s *PublicBlockChainAPI) GetBlobSidecarsByHash(ctx context.Context, hash common.Hash) (*types.BlobSidecars, error) {
+func (s *PublicBlockChainAPI) GetBlobSidecarsByHash(ctx context.Context, hash common.Hash) (types.BlobSidecars, error) {
 	sidecars, err := s.b.BlobSidecarsByHash(ctx, hash)
 	if sidecars != nil && err == nil {
 		return sidecars, nil

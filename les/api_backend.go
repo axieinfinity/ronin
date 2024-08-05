@@ -170,15 +170,15 @@ func (b *LesApiBackend) GetReceipts(ctx context.Context, hash common.Hash) (type
 	return nil, nil
 }
 
-func (b *LesApiBackend) BlobSidecarsByHash(ctx context.Context, hash common.Hash) (*types.BlobSidecars, error) {
+func (b *LesApiBackend) BlobSidecarsByHash(ctx context.Context, hash common.Hash) (types.BlobSidecars, error) {
 	return nil, nil
 }
 
-func (b *LesApiBackend) BlobSidecarsByNumber(ctx context.Context, number rpc.BlockNumber) (*types.BlobSidecars, error) {
+func (b *LesApiBackend) BlobSidecarsByNumber(ctx context.Context, number rpc.BlockNumber) (types.BlobSidecars, error) {
 	return nil, nil
 }
 
-func (b *LesApiBackend) BlobSidecarsByNumberOrHash(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) (*types.BlobSidecars, error) {
+func (b *LesApiBackend) BlobSidecarsByNumberOrHash(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) (types.BlobSidecars, error) {
 	return nil, nil
 }
 
