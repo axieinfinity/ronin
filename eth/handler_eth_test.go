@@ -61,8 +61,12 @@ func (h *testEthHandler) Handle(peer *eth.Peer, packet eth.Packet) error {
 		h.blockBroadcasts.Send(packet.Block)
 		return nil
 
-	case *eth.NewPooledTransactionHashesPacket:
+	case *eth.NewPooledTransactionHashesPacket66:
 		h.txAnnounces.Send(([]common.Hash)(*packet))
+		return nil
+
+	case *eth.NewPooledTransactionHashesPacket68:
+		h.txAnnounces.Send(packet.Hashes)
 		return nil
 
 	case *eth.TransactionsPacket:
@@ -730,7 +734,7 @@ func testBroadcastMalformedBlock(t *testing.T, protocol uint) {
 	// Try to broadcast all malformations and ensure they all get discarded
 	for _, header := range []*types.Header{malformedUncles, malformedTransactions, malformedEverything} {
 		block := types.NewBlockWithHeader(header).WithBody(head.Transactions(), head.Uncles())
-		if err := src.SendNewBlock(block, big.NewInt(131136)); err != nil {
+		if err := src.SendNewBlock(block, big.NewInt(131136), []*types.BlobTxSidecar{}); err != nil {
 			t.Fatalf("failed to broadcast block: %v", err)
 		}
 		select {

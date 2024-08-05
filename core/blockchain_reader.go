@@ -230,7 +230,7 @@ func (bc *BlockChain) GetBlobSidecarsByNumber(number uint64) types.BlobSidecars 
 	if sidecars, ok := bc.blobSidecarsCache.Get(hash); ok {
 		return sidecars.(types.BlobSidecars)
 	}
-	
+
 	sidecars := rawdb.ReadBlobSidecars(bc.db, hash, number)
 	bc.blobSidecarsCache.Add(hash, sidecars)
 	return sidecars

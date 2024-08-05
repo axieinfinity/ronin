@@ -27,6 +27,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/forkid"
+	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/txpool"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vote"
@@ -548,7 +549,13 @@ func (h *handler) BroadcastBlock(block *types.Block, propagate bool) {
 		// Send the block to a subset of our peers
 		transfer := peers[:int(math.Sqrt(float64(len(peers))))]
 		for _, peer := range transfer {
-			peer.AsyncSendNewBlock(block, td)
+			var sidecars []*types.BlobTxSidecar
+			if peer.Version() >= eth.ETH100 {
+				for _, blobSidecar := range rawdb.ReadBlobSidecars(h.database, block.Hash(), block.NumberU64()) {
+					sidecars = append(sidecars, &blobSidecar.BlobTxSidecar)
+				}
+			}
+			peer.AsyncSendNewBlock(block, td, sidecars)
 		}
 		log.Trace("Propagated block", "hash", hash, "recipients", len(transfer), "duration", common.PrettyDuration(time.Since(block.ReceivedAt)))
 		return

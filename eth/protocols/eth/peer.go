@@ -194,16 +194,29 @@ func (p *Peer) AsyncSendTransactions(hashes []common.Hash) {
 	}
 }
 
-// sendPooledTransactionHashes sends transaction hashes to the peer and includes
+// sendPooledTransactionHashes66 sends transaction hashes to the peer and includes
 // them in its transaction hash set for future reference.
 //
 // This method is a helper used by the async transaction announcer. Don't call it
 // directly as the queueing (memory) and transmission (bandwidth) costs should
 // not be managed directly.
-func (p *Peer) sendPooledTransactionHashes(hashes []common.Hash) error {
+func (p *Peer) sendPooledTransactionHashes66(hashes []common.Hash) error {
 	// Mark all the transactions as known, but ensure we don't overflow our limits
 	p.knownTxs.Add(hashes...)
-	return p2p.Send(p.rw, NewPooledTransactionHashesMsg, NewPooledTransactionHashesPacket(hashes))
+	return p2p.Send(p.rw, NewPooledTransactionHashesMsg, NewPooledTransactionHashesPacket66(hashes))
+}
+
+// sendPooledTransactionHashes68 sends transaction hashes (tagged with their type
+// and size) to the peer and includes them in its transaction hash set for future
+// reference.
+//
+// This method is a helper used by the async transaction announcer. Don't call it
+// directly as the queueing (memory) and transmission (bandwidth) costs should
+// not be managed directly.
+func (p *Peer) sendPooledTransactionHashes68(hashes []common.Hash, types []byte, sizes []uint32) error {
+	// Mark all the transactions as known, but ensure we don't overflow our limits
+	p.knownTxs.Add(hashes...)
+	return p2p.Send(p.rw, NewPooledTransactionHashesMsg, NewPooledTransactionHashesPacket68{Types: types, Sizes: sizes, Hashes: hashes})
 }
 
 // AsyncSendPooledTransactionHashes queues a list of transactions hashes to eventually
@@ -259,9 +272,16 @@ func (p *Peer) AsyncSendNewBlockHash(block *types.Block) {
 }
 
 // SendNewBlock propagates an entire block to a remote peer.
-func (p *Peer) SendNewBlock(block *types.Block, td *big.Int) error {
+func (p *Peer) SendNewBlock(block *types.Block, td *big.Int, sidecars []*types.BlobTxSidecar) error {
 	// Mark all the block hash as known, but ensure we don't overflow our limits
 	p.knownBlocks.Add(block.Hash())
+	if p.Version() >= ETH100 {
+		return p2p.Send(p.rw, NewBlockMsg, &NewBlockPacket100{
+			Block:    block,
+			TD:       td,
+			Sidecars: sidecars,
+		})
+	}
 	return p2p.Send(p.rw, NewBlockMsg, &NewBlockPacket{
 		Block: block,
 		TD:    td,
@@ -270,9 +290,9 @@ func (p *Peer) SendNewBlock(block *types.Block, td *big.Int) error {
 
 // AsyncSendNewBlock queues an entire block for propagation to a remote peer. If
 // the peer's broadcast queue is full, the event is silently dropped.
-func (p *Peer) AsyncSendNewBlock(block *types.Block, td *big.Int) {
+func (p *Peer) AsyncSendNewBlock(block *types.Block, td *big.Int, sidecars []*types.BlobTxSidecar) {
 	select {
-	case p.queuedBlocks <- &blockPropagation{block: block, td: td}:
+	case p.queuedBlocks <- &blockPropagation{block: block, td: td, sidecars: sidecars}:
 		// Mark all the block hash as known, but ensure we don't overflow our limits
 		p.knownBlocks.Add(block.Hash())
 	default:
@@ -294,6 +314,16 @@ func (p *Peer) ReplyBlockBodiesRLP(id uint64, bodies []rlp.RawValue) error {
 	return p2p.Send(p.rw, BlockBodiesMsg, BlockBodiesRLPPacket66{
 		RequestId:            id,
 		BlockBodiesRLPPacket: bodies,
+	})
+}
+
+// ReplyBlockBodiesRLP100 is the eth/100 version of SendBlockBodiesRLP.
+func (p *Peer) ReplyBlockBodiesRLP100(id uint64, bodies []rlp.RawValue, sidecars [][]*types.BlobTxSidecar) error {
+	// Not packed into BlockBodiesPacket to avoid RLP decoding
+	return p2p.Send(p.rw, BlockBodiesMsg, BlockBodiesRLPPacket100{
+		RequestId:            id,
+		BlockBodiesRLPPacket: bodies,
+		Sidecars:             sidecars,
 	})
 }
 
