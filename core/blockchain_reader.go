@@ -89,8 +89,7 @@ func (bc *BlockChain) GetHeaderByNumber(number uint64) *types.Header {
 // hash, caching it if found.
 func (bc *BlockChain) GetBody(hash common.Hash) *types.Body {
 	// Short circuit if the body's already in the cache, retrieve otherwise
-	if cached, ok := bc.bodyCache.Get(hash); ok {
-		body := cached.(*types.Body)
+	if body, ok := bc.bodyCache.Get(hash); ok {
 		return body
 	}
 	number := bc.hc.GetBlockNumber(hash)
@@ -110,8 +109,8 @@ func (bc *BlockChain) GetBody(hash common.Hash) *types.Body {
 // caching it if found.
 func (bc *BlockChain) GetBodyRLP(hash common.Hash) rlp.RawValue {
 	// Short circuit if the body's already in the cache, retrieve otherwise
-	if cached, ok := bc.bodyRLPCache.Get(hash); ok {
-		return cached.(rlp.RawValue)
+	if body, ok := bc.bodyRLPCache.Get(hash); ok {
+		return body
 	}
 	number := bc.hc.GetBlockNumber(hash)
 	if number == nil {
@@ -150,7 +149,7 @@ func (bc *BlockChain) HasFastBlock(hash common.Hash, number uint64) bool {
 func (bc *BlockChain) GetBlock(hash common.Hash, number uint64) *types.Block {
 	// Short circuit if the block's already in the cache, retrieve otherwise
 	if block, ok := bc.blockCache.Get(hash); ok {
-		return block.(*types.Block)
+		return block
 	}
 	block := rawdb.ReadBlock(bc.db, hash, number)
 	if block == nil {
@@ -202,7 +201,7 @@ func (bc *BlockChain) GetBlocksFromHash(hash common.Hash, n int) (blocks []*type
 // GetReceiptsByHash retrieves the receipts for all transactions in a given block.
 func (bc *BlockChain) GetReceiptsByHash(hash common.Hash) types.Receipts {
 	if receipts, ok := bc.receiptsCache.Get(hash); ok {
-		return receipts.(types.Receipts)
+		return receipts
 	}
 	number := rawdb.ReadHeaderNumber(bc.db, hash)
 	if number == nil {
@@ -246,7 +245,7 @@ func (bc *BlockChain) GetAncestor(hash common.Hash, number, ancestor uint64, max
 func (bc *BlockChain) GetTransactionLookup(hash common.Hash) *rawdb.LegacyTxLookupEntry {
 	// Short circuit if the txlookup already in the cache, retrieve otherwise
 	if lookup, exist := bc.txLookupCache.Get(hash); exist {
-		return lookup.(*rawdb.LegacyTxLookupEntry)
+		return lookup
 	}
 	tx, blockHash, blockNumber, txIndex := rawdb.ReadTransaction(bc.db, hash)
 	if tx == nil {
@@ -426,7 +425,7 @@ func (bc *BlockChain) WriteInternalTransactions(hash common.Hash, internalTxs []
 func (bc *BlockChain) ReadInternalTransactions(hash common.Hash) []*types.InternalTransaction {
 	// get internal txs from cache
 	if internalTxs, exist := bc.internalTransactionsCache.Get(hash); exist {
-		return internalTxs.([]*types.InternalTransaction)
+		return internalTxs
 	}
 	// otherwise get from db
 	internalTxs := rawdb.ReadInternalTransactions(bc.db, hash)
@@ -439,7 +438,7 @@ func (bc *BlockChain) ReadInternalTransactions(hash common.Hash) []*types.Intern
 
 func (bc *BlockChain) ReadDirtyAccounts(hash common.Hash) []*types.DirtyStateAccount {
 	if dirtyAccount, _ := bc.dirtyAccountsCache.Get(hash); dirtyAccount != nil {
-		return dirtyAccount.([]*types.DirtyStateAccount)
+		return dirtyAccount
 	}
 	return nil
 }
