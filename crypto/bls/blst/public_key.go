@@ -7,12 +7,12 @@ import (
 
 	"github.com/ethereum/go-ethereum/crypto/bls/common"
 	"github.com/ethereum/go-ethereum/params"
-	lru "github.com/hashicorp/golang-lru"
+	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/pkg/errors"
 )
 
 var maxKeys = 1000000
-var pubkeyCache, _ = lru.New(maxKeys)
+var pubkeyCache, _ = lru.New[[params.BLSPubkeyLength]byte, common.PublicKey](maxKeys)
 
 // PublicKey used in the BLS signature scheme.
 type PublicKey struct {

@@ -38,7 +38,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/rpc"
-	"github.com/hashicorp/golang-lru/simplelru"
+	"github.com/hashicorp/golang-lru/v2/simplelru"
 )
 
 var ErrInvalidDumpMagic = errors.New("invalid dump magic")
@@ -172,7 +172,7 @@ type lru struct {
 	mu   sync.Mutex
 	// Items are kept in a LRU cache, but there is a special case:
 	// We always keep an item for (highest seen epoch) + 1 as the 'future item'.
-	cache      *simplelru.LRU
+	cache      *simplelru.LRU[uint64, interface{}]
 	future     uint64
 	futureItem interface{}
 }
@@ -183,7 +183,7 @@ func newlru(what string, maxItems int, new func(epoch uint64) interface{}) *lru 
 	if maxItems <= 0 {
 		maxItems = 1
 	}
-	cache, _ := simplelru.NewLRU(maxItems, func(key, value interface{}) {
+	cache, _ := simplelru.NewLRU[uint64, interface{}](maxItems, func(key uint64, value interface{}) {
 		log.Trace("Evicted ethash "+what, "epoch", key)
 	})
 	return &lru{what: what, new: new, cache: cache}

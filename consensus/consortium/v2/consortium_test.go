@@ -28,7 +28,7 @@ import (
 	blsCommon "github.com/ethereum/go-ethereum/crypto/bls/common"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/trie"
-	lru "github.com/hashicorp/golang-lru"
+	"github.com/hashicorp/golang-lru/arc/v2"
 )
 
 func TestSealableValidators(t *testing.T) {
@@ -733,7 +733,7 @@ func TestVerifyFinalitySignature(t *testing.T) {
 	}
 
 	snap := newSnapshot(nil, nil, nil, 10, common.Hash{}, nil, valWithBlsPub, nil)
-	recents, _ := lru.NewARC(inmemorySnapshots)
+	recents, _ := arc.NewARC[common.Hash, *Snapshot](inmemorySnapshots)
 	c := Consortium{
 		chainConfig: &params.ChainConfig{
 			ShillinBlock: big.NewInt(0),
@@ -845,7 +845,7 @@ func TestVerifyFinalitySignatureTripp(t *testing.T) {
 	}
 
 	snap := newSnapshot(nil, nil, nil, 10, common.Hash{}, nil, valWithBlsPub, nil)
-	recents, _ := lru.NewARC(inmemorySnapshots)
+	recents, _ := arc.NewARC[common.Hash, *Snapshot](inmemorySnapshots)
 	c := Consortium{
 		chainConfig: &params.ChainConfig{
 			ShillinBlock: big.NewInt(0),
@@ -1445,7 +1445,7 @@ func TestVerifyVote(t *testing.T) {
 	}
 
 	snap := newSnapshot(nil, nil, nil, 10, common.Hash{}, nil, valWithBlsPub, nil)
-	recents, _ := lru.NewARC(inmemorySnapshots)
+	recents, _ := arc.NewARC[common.Hash, *Snapshot](inmemorySnapshots)
 	c := Consortium{
 		chainConfig: &params.ChainConfig{
 			ShillinBlock: big.NewInt(0),
@@ -1572,8 +1572,8 @@ func TestKnownBlockReorg(t *testing.T) {
 		validators: make(map[common.Address]blsCommon.PublicKey),
 	}
 	mock.validators[validatorAddrs[0]] = blsKeys[0].PublicKey()
-	recents, _ := lru.NewARC(inmemorySnapshots)
-	signatures, _ := lru.NewARC(inmemorySignatures)
+	recents, _ := arc.NewARC[common.Hash, *Snapshot](inmemorySnapshots)
+	signatures, _ := arc.NewARC[common.Hash, common.Address](inmemorySignatures)
 
 	v2 := Consortium{
 		chainConfig: &chainConfig,
@@ -1824,8 +1824,8 @@ func TestUpgradeRoninTrustedOrg(t *testing.T) {
 			validatorAddr: blsSecretKey.PublicKey(),
 		},
 	}
-	recents, _ := lru.NewARC(inmemorySnapshots)
-	signatures, _ := lru.NewARC(inmemorySignatures)
+	recents, _ := arc.NewARC[common.Hash, *Snapshot](inmemorySnapshots)
+	signatures, _ := arc.NewARC[common.Hash, common.Address](inmemorySignatures)
 
 	v2 := Consortium{
 		chainConfig: &chainConfig,
@@ -1971,8 +1971,8 @@ func TestUpgradeAxieProxyCode(t *testing.T) {
 			validatorAddr,
 		},
 	}
-	recents, _ := lru.NewARC(inmemorySnapshots)
-	signatures, _ := lru.NewARC(inmemorySignatures)
+	recents, _ := arc.NewARC[common.Hash, *Snapshot](inmemorySnapshots)
+	signatures, _ := arc.NewARC[common.Hash, common.Address](inmemorySignatures)
 	v2 := &Consortium{
 		chainConfig: chainConfig,
 		contract:    mock,
@@ -2091,8 +2091,8 @@ func TestSystemTransactionOrder(t *testing.T) {
 			validatorAddr: blsSecretKey.PublicKey(),
 		},
 	}
-	recents, _ := lru.NewARC(inmemorySnapshots)
-	signatures, _ := lru.NewARC(inmemorySignatures)
+	recents, _ := arc.NewARC[common.Hash, *Snapshot](inmemorySnapshots)
+	signatures, _ := arc.NewARC[common.Hash, common.Address](inmemorySignatures)
 
 	v2 := Consortium{
 		chainConfig: &chainConfig,
@@ -2212,8 +2212,8 @@ func TestIsPeriodBlock(t *testing.T) {
 	if _, err := chain.InsertChain(bs[:]); err != nil {
 		panic(err)
 	}
-	recents, _ := lru.NewARC(inmemorySnapshots)
-	signatures, _ := lru.NewARC(inmemorySignatures)
+	recents, _ := arc.NewARC[common.Hash, *Snapshot](inmemorySnapshots)
+	signatures, _ := arc.NewARC[common.Hash, common.Address](inmemorySignatures)
 	mock := &mockContract{
 		validators: map[common.Address]blsCommon.PublicKey{},
 	}
@@ -2308,8 +2308,8 @@ func TestIsTrippEffective(t *testing.T) {
 	if _, err := chain.InsertChain(bs[:]); err != nil {
 		panic(err)
 	}
-	recents, _ := lru.NewARC(inmemorySnapshots)
-	signatures, _ := lru.NewARC(inmemorySignatures)
+	recents, _ := arc.NewARC[common.Hash, *Snapshot](inmemorySnapshots)
+	signatures, _ := arc.NewARC[common.Hash, common.Address](inmemorySignatures)
 	mock := &mockContract{
 		validators: map[common.Address]blsCommon.PublicKey{},
 	}

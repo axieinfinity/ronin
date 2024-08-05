@@ -4,20 +4,21 @@ import (
 	"bytes"
 	"encoding/hex"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
-	lru "github.com/hashicorp/golang-lru"
+	lru "github.com/hashicorp/golang-lru/v2"
 )
 
 const monitorBlockRange = 20
 
 type DoubleSignMonitor struct {
-	observerdBlocks *lru.Cache
+	observerdBlocks *lru.Cache[common.Hash, []*types.Header]
 }
 
 func NewDoubleSignMonitor() (*DoubleSignMonitor, error) {
-	observerdBlocks, err := lru.New(monitorBlockRange)
+	observerdBlocks, err := lru.New[common.Hash, []*types.Header](monitorBlockRange)
 	if err != nil {
 		return nil, err
 	}
@@ -34,8 +35,7 @@ func getSignature(blockHeader *types.Header) string {
 }
 
 func (monitor *DoubleSignMonitor) CheckDoubleSign(blockHeader *types.Header) {
-	if rawBlockHeader, ok := monitor.observerdBlocks.Get(blockHeader.ParentHash); ok {
-		blockHeaders, _ := rawBlockHeader.([]*types.Header)
+	if blockHeaders, ok := monitor.observerdBlocks.Get(blockHeader.ParentHash); ok {
 		for _, header := range blockHeaders {
 			// Simple check for monitoring only
 			if !bytes.Equal(header.Hash().Bytes(), blockHeader.Hash().Bytes()) &&

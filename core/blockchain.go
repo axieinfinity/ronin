@@ -44,8 +44,9 @@ import (
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/monitor"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/trie"
-	lru "github.com/hashicorp/golang-lru"
+	lru "github.com/hashicorp/golang-lru/v2"
 )
 
 var (
@@ -202,15 +203,15 @@ type BlockChain struct {
 	currentBlock     atomic.Value // Current head of the block chain
 	currentFastBlock atomic.Value // Current head of the fast-sync chain (may be above the block chain!)
 
-	stateCache                state.Database // State database to reuse between imports (contains state cache)
-	bodyCache                 *lru.Cache     // Cache for the most recent block bodies
-	bodyRLPCache              *lru.Cache     // Cache for the most recent block bodies in RLP encoded format
-	receiptsCache             *lru.Cache     // Cache for the most recent receipts per block
-	blockCache                *lru.Cache     // Cache for the most recent entire blocks
-	txLookupCache             *lru.Cache     // Cache for the most recent transaction lookup data.
-	futureBlocks              *lru.Cache     // future blocks are blocks added for later processing
-	dirtyAccountsCache        *lru.Cache     // Cache for the most recent dirtyAccounts
-	internalTransactionsCache *lru.Cache     // Cache for most recent internal transactions with block hash at key
+	stateCache                state.Database                                        // State database to reuse between imports (contains state cache)
+	bodyCache                 *lru.Cache[common.Hash, *types.Body]                  // Cache for the most recent block bodies
+	bodyRLPCache              *lru.Cache[common.Hash, rlp.RawValue]                 // Cache for the most recent block bodies in RLP encoded format
+	receiptsCache             *lru.Cache[common.Hash, types.Receipts]               // Cache for the most recent receipts per block
+	blockCache                *lru.Cache[common.Hash, *types.Block]                 // Cache for the most recent entire blocks
+	txLookupCache             *lru.Cache[common.Hash, *rawdb.LegacyTxLookupEntry]   // Cache for the most recent transaction lookup data.
+	futureBlocks              *lru.Cache[common.Hash, *types.Block]                 // future blocks are blocks added for later processing
+	dirtyAccountsCache        *lru.Cache[common.Hash, []*types.DirtyStateAccount]   // Cache for the most recent dirtyAccounts
+	internalTransactionsCache *lru.Cache[common.Hash, []*types.InternalTransaction] // Cache for most recent internal transactions with block hash at key
 
 	wg            sync.WaitGroup //
 	quit          chan struct{}  // shutdown signal, closed in Stop.
@@ -239,14 +240,14 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 	if cacheConfig.TriesInMemory == 0 {
 		cacheConfig.TriesInMemory = DefaultTriesInMemory
 	}
-	bodyCache, _ := lru.New(bodyCacheLimit)
-	bodyRLPCache, _ := lru.New(bodyCacheLimit)
-	receiptsCache, _ := lru.New(receiptsCacheLimit)
-	blockCache, _ := lru.New(blockCacheLimit)
-	txLookupCache, _ := lru.New(txLookupCacheLimit)
-	futureBlocks, _ := lru.New(maxFutureBlocks)
-	dirtyAccountsCache, _ := lru.New(dirtyAccountsCacheLimit)
-	internalTxsCache, _ := lru.New(internalTxsCacheLimit)
+	bodyCache, _ := lru.New[common.Hash, *types.Body](bodyCacheLimit)
+	bodyRLPCache, _ := lru.New[common.Hash, rlp.RawValue](bodyCacheLimit)
+	receiptsCache, _ := lru.New[common.Hash, types.Receipts](receiptsCacheLimit)
+	blockCache, _ := lru.New[common.Hash, *types.Block](blockCacheLimit)
+	txLookupCache, _ := lru.New[common.Hash, *rawdb.LegacyTxLookupEntry](txLookupCacheLimit)
+	futureBlocks, _ := lru.New[common.Hash, *types.Block](maxFutureBlocks)
+	dirtyAccountsCache, _ := lru.New[common.Hash, []*types.DirtyStateAccount](dirtyAccountsCacheLimit)
+	internalTxsCache, _ := lru.New[common.Hash, []*types.InternalTransaction](internalTxsCacheLimit)
 
 	bc := &BlockChain{
 		chainConfig: chainConfig,
@@ -912,8 +913,8 @@ func (bc *BlockChain) Stop() {
 	for _, blockHash := range bc.dirtyAccountsCache.Keys() {
 		dirtyAccounts, _ := bc.dirtyAccountsCache.Get(blockHash)
 		dirtyStateAccounts = append(dirtyStateAccounts, &types.DirtyStateAccountsAndBlock{
-			BlockHash:     blockHash.(common.Hash),
-			DirtyAccounts: dirtyAccounts.([]*types.DirtyStateAccount),
+			BlockHash:     blockHash,
+			DirtyAccounts: dirtyAccounts,
 		})
 	}
 	if len(dirtyStateAccounts) > 0 {
@@ -985,7 +986,7 @@ func (bc *BlockChain) procFutureBlocks() {
 	blocks := make([]*types.Block, 0, bc.futureBlocks.Len())
 	for _, hash := range bc.futureBlocks.Keys() {
 		if block, exist := bc.futureBlocks.Peek(hash); exist {
-			blocks = append(blocks, block.(*types.Block))
+			blocks = append(blocks, block)
 		}
 	}
 	if len(blocks) > 0 {
