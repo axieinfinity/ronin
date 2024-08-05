@@ -200,7 +200,7 @@ func newHandler(config *handlerConfig) (*handler, error) {
 	if atomic.LoadUint32(&h.fastSync) == 1 && atomic.LoadUint32(&h.snapSync) == 0 {
 		h.stateBloom = trie.NewSyncBloom(config.BloomCache, config.Database)
 	}
-	h.downloader = downloader.New(h.checkpointNumber, config.Database, h.stateBloom, h.eventMux, h.chain, nil, h.removePeer)
+	h.downloader = downloader.New(h.checkpointNumber, config.Database, h.stateBloom, h.eventMux, h.chain, nil, h.removePeer, h.chain.Engine().VerifyBlobHeader)
 
 	// Construct the fetcher (short sync)
 	validator := func(header *types.Header) error {
@@ -235,7 +235,7 @@ func newHandler(config *handlerConfig) (*handler, error) {
 		}
 		return n, err
 	}
-	h.blockFetcher = fetcher.NewBlockFetcher(false, nil, h.chain.GetBlockByHash, validator, h.BroadcastBlock, heighter, nil, inserter, h.removePeer)
+	h.blockFetcher = fetcher.NewBlockFetcher(false, nil, h.chain.GetBlockByHash, validator, h.chain.Engine().VerifyBlobHeader, h.BroadcastBlock, heighter, nil, inserter, h.removePeer)
 
 	fetchTx := func(peer string, hashes []common.Hash) error {
 		p := h.peers.peer(peer)

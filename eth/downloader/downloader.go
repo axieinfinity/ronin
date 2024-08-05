@@ -107,7 +107,8 @@ type Downloader struct {
 	blockchain BlockChain
 
 	// Callbacks
-	dropPeer peerDropFn // Drops a peer for misbehaving
+	dropPeer         peerDropFn           // Drops a peer for misbehaving
+	verifyBlobHeader blobHeaderVerifierFn // // Checks if a block's blob is valid
 
 	// Status
 	synchroniseMock func(id string, hash common.Hash) error // Replacement for synchronise during testing
@@ -204,30 +205,31 @@ type BlockChain interface {
 }
 
 // New creates a new downloader to fetch hashes and blocks from remote peers.
-func New(checkpoint uint64, stateDb ethdb.Database, stateBloom *trie.SyncBloom, mux *event.TypeMux, chain BlockChain, lightchain LightChain, dropPeer peerDropFn) *Downloader {
+func New(checkpoint uint64, stateDb ethdb.Database, stateBloom *trie.SyncBloom, mux *event.TypeMux, chain BlockChain, lightchain LightChain, dropPeer peerDropFn, verifyBlobHeader blobHeaderVerifierFn) *Downloader {
 	if lightchain == nil {
 		lightchain = chain
 	}
 	dl := &Downloader{
-		stateDB:        stateDb,
-		stateBloom:     stateBloom,
-		mux:            mux,
-		checkpoint:     checkpoint,
-		queue:          newQueue(blockCacheMaxItems, blockCacheInitialItems),
-		peers:          newPeerSet(),
-		blockchain:     chain,
-		lightchain:     lightchain,
-		dropPeer:       dropPeer,
-		headerCh:       make(chan dataPack, 1),
-		bodyCh:         make(chan dataPack, 1),
-		receiptCh:      make(chan dataPack, 1),
-		bodyWakeCh:     make(chan bool, 1),
-		receiptWakeCh:  make(chan bool, 1),
-		headerProcCh:   make(chan []*types.Header, 1),
-		quitCh:         make(chan struct{}),
-		stateCh:        make(chan dataPack),
-		SnapSyncer:     snap.NewSyncer(stateDb),
-		stateSyncStart: make(chan *stateSync),
+		stateDB:          stateDb,
+		stateBloom:       stateBloom,
+		mux:              mux,
+		checkpoint:       checkpoint,
+		queue:            newQueue(blockCacheMaxItems, blockCacheInitialItems),
+		peers:            newPeerSet(),
+		blockchain:       chain,
+		lightchain:       lightchain,
+		dropPeer:         dropPeer,
+		verifyBlobHeader: verifyBlobHeader,
+		headerCh:         make(chan dataPack, 1),
+		bodyCh:           make(chan dataPack, 1),
+		receiptCh:        make(chan dataPack, 1),
+		bodyWakeCh:       make(chan bool, 1),
+		receiptWakeCh:    make(chan bool, 1),
+		headerProcCh:     make(chan []*types.Header, 1),
+		quitCh:           make(chan struct{}),
+		stateCh:          make(chan dataPack),
+		SnapSyncer:       snap.NewSyncer(stateDb),
+		stateSyncStart:   make(chan *stateSync),
 		syncStatsState: stateSyncStats{
 			processed: rawdb.ReadFastTrieProgress(stateDb),
 		},
@@ -1719,6 +1721,13 @@ func (d *Downloader) importBlockResults(results []*fetchResult) error {
 	blocks := make([]*types.Block, len(results))
 	for i, result := range results {
 		blocks[i] = types.NewBlockWithHeader(result.Header).WithBody(result.Transactions, result.Uncles)
+		sidecars := make([]types.BlobTxSidecar, len(result.Sidecars))
+		for j, sidecar := range result.Sidecars {
+			sidecars[j] = *sidecar
+		}
+		if err, _ := d.verifyBlobHeader(blocks[i], sidecars); err != nil {
+			return fmt.Errorf("%w: %v", errInvalidBody, err)
+		}
 	}
 	if index, err := d.blockchain.InsertChain(blocks); err != nil {
 		if index < len(results) {
