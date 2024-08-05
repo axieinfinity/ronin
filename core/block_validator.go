@@ -17,6 +17,7 @@
 package core
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/consensus"
@@ -65,6 +66,33 @@ func (v *BlockValidator) ValidateBody(block *types.Block) error {
 	if hash := types.DeriveSha(block.Transactions(), trie.NewStackTrie(nil)); hash != header.TxHash {
 		return fmt.Errorf("transaction root hash mismatch: have %x, want %x", hash, header.TxHash)
 	}
+
+	// Blob transactions may be present after the Cancun fork.
+	var blobCnt int
+	for i, tx := range block.Transactions() {
+		// Count the number of blobs to validate against the header's blobGasUsed
+		blobCnt += len(tx.BlobHashes())
+
+		// If the tx is a blob tx, it must NOT have a sidecar attached to be valid in a block.
+		if tx.BlobTxSidecar() != nil {
+			return fmt.Errorf("unexpected blob sidecar in transaction at index %d", i)
+		}
+
+		// The individual checks for blob validity (version-check + not empty)
+		// happens in StateTransition.
+	}
+
+	// Check blob gas usage.
+	if header.BlobGasUsed != nil {
+		if want := *header.BlobGasUsed / params.BlobTxBlobGasPerBlob; uint64(blobCnt) != want { // div because the header is surely good vs the body might be bloated
+			return fmt.Errorf("blob gas used mismatch (header %v, calculated %v)", *header.BlobGasUsed, blobCnt*params.BlobTxBlobGasPerBlob)
+		}
+	} else {
+		if blobCnt > 0 {
+			return errors.New("data blobs present in block body")
+		}
+	}
+
 	if !v.bc.HasBlockAndState(block.ParentHash(), block.NumberU64()-1) {
 		if !v.bc.HasBlock(block.ParentHash(), block.NumberU64()-1) {
 			return consensus.ErrUnknownAncestor

@@ -815,6 +815,9 @@ func (m callMsg) AccessList() types.AccessList { return m.CallMsg.AccessList }
 func (m callMsg) Payer() common.Address { return m.CallMsg.From }
 func (m callMsg) ExpiredTime() uint64   { return 0 }
 
+func (m callMsg) BlobHashes() []common.Hash { return nil }
+func (m callMsg) BlobGasFeeCap() *big.Int   { return nil }
+
 // filterBackend implements filters.Backend to support filtering for logs without
 // taking bloom-bits acceleration structures into account.
 type filterBackend struct {
