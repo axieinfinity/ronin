@@ -30,6 +30,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/consortium"
 	"github.com/ethereum/go-ethereum/consensus/misc"
 	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
+	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/txpool"
@@ -105,6 +106,8 @@ type environment struct {
 	header   *types.Header
 	txs      []*types.Transaction
 	receipts []*types.Receipt
+
+	sidecars []*types.BlobTxSidecar
 }
 
 func (env *environment) copy() *environment {
@@ -117,6 +120,7 @@ func (env *environment) copy() *environment {
 		tcount:    env.tcount,
 		header:    types.CopyHeader(env.header),
 		receipts:  copyReceipts(env.receipts),
+		sidecars:  env.sidecars, // shallow copy here intendedly
 	}
 	if env.gasPool != nil {
 		gasPool := *env.gasPool
@@ -135,6 +139,7 @@ type task struct {
 	state     *state.StateDB
 	block     *types.Block
 	createdAt time.Time
+	sidecars  []*types.BlobTxSidecar
 }
 
 const (
@@ -569,14 +574,23 @@ func (w *worker) mainLoop() {
 				coinbase := w.coinbase
 				w.mu.RUnlock()
 
-				txs := make(map[common.Address]types.Transactions)
+				txs := make(map[common.Address][]*txpool.LazyTransaction)
 				for _, tx := range ev.Txs {
 					acc, _ := types.Sender(w.current.signer, tx)
-					txs[acc] = append(txs[acc], tx)
+					txs[acc] = append(txs[acc], &txpool.LazyTransaction{
+						Tx:        tx,
+						Hash:      tx.Hash(),
+						Time:      tx.Time(),
+						GasFeeCap: uint256.MustFromBig(tx.GasFeeCap()),
+						GasTipCap: uint256.MustFromBig(tx.GasTipCap()),
+						Gas:       tx.Gas(),
+						BlobGas:   tx.BlobGas(),
+					})
 				}
-				txset := types.NewTransactionsByPriceAndNonce(w.current.signer, txs, w.current.header.BaseFee)
+				txset := NewTransactionsByPriceAndNonce(w.current.signer, txs, w.current.header.BaseFee)
+				emptyset := NewTransactionsByPriceAndNonce(w.current.signer, make(map[common.Address][]*txpool.LazyTransaction), w.current.header.BaseFee)
 				tcount := w.current.tcount
-				w.commitTransactions(txset, coinbase, nil)
+				w.commitTransactions(txset, emptyset, coinbase, nil)
 				// Only update the snapshot if any new transactons were added
 				// to the pending block
 				if tcount != w.current.tcount {
@@ -731,7 +745,7 @@ func (w *worker) resultLoop() {
 				logs = append(logs, receipt.Logs...)
 			}
 			// Commit block and state to database.
-			_, err := w.chain.WriteBlockWithState(block, receipts, logs, task.state, true)
+			_, err := w.chain.WriteBlockWithState(block, receipts, logs, task.state, true, task.sidecars)
 			if err != nil {
 				log.Error("Failed writing block to chain", "err", err)
 				continue
@@ -844,6 +858,16 @@ func (w *worker) updateSnapshot() {
 }
 
 func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Address, receiptProcessor core.ReceiptProcessor) ([]*types.Log, error) {
+	txType := tx.Type()
+	if txType == types.BlobTxType {
+		if tx.BlobTxSidecar() == nil {
+			return nil, errors.New("blob transaction with empty sidecar in miner")
+		}
+		if w.current.header.BlobGasUsed == nil {
+			return nil, errors.New("blob transaction when not Cancun")
+		}
+	}
+
 	snap := w.current.state.Snapshot()
 
 	receipt, _, err := core.ApplyTransaction(
@@ -864,11 +888,17 @@ func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Addres
 	}
 	w.current.txs = append(w.current.txs, tx)
 	w.current.receipts = append(w.current.receipts, receipt)
+	w.current.tcount++
+	w.current.estimatedBlockSize += uint64(tx.Size())
+	if tx.Type() == types.BlobTxType {
+		*w.current.header.BlobGasUsed += tx.BlobGas()
+		w.current.sidecars = append(w.current.sidecars, tx.BlobTxSidecar())
+	}
 
 	return receipt.Logs, nil
 }
 
-func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coinbase common.Address, interrupt *int32) bool {
+func (w *worker) commitTransactions(plainTxs, blobTxs *TransactionsByPriceAndNonce, coinbase common.Address, interrupt *int32) bool {
 	// Short circuit if current is nil
 	if w.current == nil {
 		return true
@@ -903,6 +933,13 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 	var coalescedLogs []*types.Log
 	var timer *time.Timer
 
+	isCancun := w.chainConfig.IsCancun(w.current.header.Number)
+	if !isCancun && blobTxs.Size() != 0 {
+		log.Error("Get blob transaction when not Cancun", "block", w.current.header.Number.Uint64())
+		// Clear all blob transactions and continue committing plain transactions
+		blobTxs.Clear()
+	}
+
 	// This timer is only shipped after Buba hardfork
 	// When it is nearly the time an empty block is produced,
 	// we break the commit transactions process, allow the
@@ -913,7 +950,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 		timer = time.NewTimer(duration)
 	}
 
-	bloomProcessor := core.NewAsyncReceiptBloomGenerator(txs.Size())
+	bloomProcessor := core.NewAsyncReceiptBloomGenerator(plainTxs.Size() + blobTxs.Size())
 	defer bloomProcessor.Close()
 
 Loop:
@@ -952,16 +989,55 @@ Loop:
 			break
 		}
 
+		if isCancun && blobTxs.Size() != 0 && params.MaxBlobGasPerBlock <= *w.current.header.BlobGasUsed {
+			log.Debug("Max blob reached, stop committing blob transactions")
+			blobTxs.Clear()
+		}
+
 		if w.current.estimatedBlockSize+w.config.BlockSizeReserve > maxBlockSize {
 			log.Debug("Estimated block size is too big", "estimated size", w.current.estimatedBlockSize)
 			break
 		}
 
 		// Retrieve the next transaction and abort if all done
-		tx := txs.Peek()
-		if tx == nil {
+		var (
+			selectedTx  *txpool.LazyTransaction
+			selectedTxs *TransactionsByPriceAndNonce
+		)
+		plainTx, plainTip := plainTxs.Peek()
+		blobTx, blobTip := blobTxs.Peek()
+		if plainTx == nil {
+			selectedTx, selectedTxs = blobTx, blobTxs
+		} else if blobTx == nil {
+			selectedTx, selectedTxs = plainTx, plainTxs
+		} else {
+			if plainTip.Cmp(blobTip) < 0 {
+				selectedTx, selectedTxs = blobTx, blobTxs
+			} else {
+				selectedTx, selectedTxs = plainTx, plainTxs
+			}
+		}
+
+		if selectedTx == nil {
 			break
 		}
+		txs := selectedTxs
+		// If we don't have enough space for the next transaction, skip the account.
+		if w.current.gasPool.Gas() < selectedTx.Gas {
+			log.Trace("Not enough gas left for transaction", "hash", selectedTx.Hash, "left", w.current.gasPool.Gas(), "needed", selectedTx.Gas)
+			txs.Pop()
+			continue
+		}
+
+		if isCancun {
+			if left := params.MaxBlobGasPerBlock - *w.current.header.BlobGasUsed; left < selectedTx.BlobGas {
+				log.Trace("Not enough blob gas left for transaction", "hash", selectedTx.Hash, "left", left, "needed", selectedTx.BlobGas)
+				txs.Pop()
+				continue
+			}
+		}
+
+		tx := selectedTx.Resolve()
 		// Error may be ignored here. The error has already been checked
 		// during transaction acceptance is the transaction pool.
 		//
@@ -998,8 +1074,6 @@ Loop:
 		case errors.Is(err, nil):
 			// Everything ok, collect the logs and shift in the next transaction from the same account
 			coalescedLogs = append(coalescedLogs, logs...)
-			w.current.tcount++
-			w.current.estimatedBlockSize += uint64(tx.Size())
 			txs.Shift()
 
 		case errors.Is(err, types.ErrTxTypeNotSupported):
@@ -1071,6 +1145,16 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 	// Set baseFee if we are on an EIP-1559 chain
 	if w.chainConfig.IsLondon(header.Number) {
 		header.BaseFee = eip1559.CalcBaseFee(w.chainConfig, parent.Header())
+	}
+	if w.chainConfig.IsCancun(header.Number) {
+		var excessBlobGas uint64
+		if w.chainConfig.IsCancun(parent.Number()) {
+			excessBlobGas = eip4844.CalcExcessBlobGas(*parent.ExcessBlobGas(), *parent.BlobGasUsed())
+		} else {
+			excessBlobGas = eip4844.CalcExcessBlobGas(0, 0)
+		}
+		header.BlobGasUsed = new(uint64)
+		header.ExcessBlobGas = &excessBlobGas
 	}
 	// Only set the coinbase if our consensus engine is running (avoid spurious block rewards)
 	if w.isRunning() {
@@ -1149,39 +1233,55 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 	}
 
 	filter := txpool.PendingFilter{
-		EnforceTip:   true,
-		OnlyPlainTxs: true,
+		EnforceTip: true,
 	}
 	if w.current.header.BaseFee != nil {
 		filter.BaseFee = uint256.MustFromBig(w.current.header.BaseFee)
 	}
+	if w.current.header.ExcessBlobGas != nil {
+		filter.BlobFee = uint256.MustFromBig(eip4844.CalcBlobFee(*w.current.header.ExcessBlobGas))
+	}
+	filter.OnlyPlainTxs, filter.OnlyBlobTxs = true, false
+	pendingPlainTxs := w.eth.TxPool().Pending(&filter)
 
-	// Fill the block with all available pending transactions.
-	pending := w.eth.TxPool().Pending(&filter)
+	filter.OnlyPlainTxs, filter.OnlyBlobTxs = false, true
+	pendingBlobTxs := w.eth.TxPool().Pending(&filter)
+
 	// Short circuit if there is no available pending transactions.
 	// But if we disable empty precommit already, ignore it. Since
 	// empty block is necessary to keep the liveness of the network.
-	if len(pending) == 0 && atomic.LoadUint32(&w.noempty) == 0 {
+	if len(pendingPlainTxs) == 0 && len(pendingBlobTxs) == 0 && atomic.LoadUint32(&w.noempty) == 0 {
 		w.updateSnapshot()
 		return
 	}
+
 	// Split the pending transactions into locals and remotes
-	localTxs, remoteTxs := make(map[common.Address]types.Transactions), pending
-	for _, account := range w.eth.TxPool().Locals() {
-		if txs := remoteTxs[account]; len(txs) > 0 {
-			delete(remoteTxs, account)
-			localTxs[account] = txs
+	localAccounts := w.eth.TxPool().Locals()
+	localPlainTxs, remotePlainTxs := make(map[common.Address][]*txpool.LazyTransaction), pendingPlainTxs
+	for _, account := range localAccounts {
+		if txs := remotePlainTxs[account]; len(txs) > 0 {
+			delete(remotePlainTxs, account)
+			localPlainTxs[account] = txs
 		}
 	}
-	if len(localTxs) > 0 {
-		txs := types.NewTransactionsByPriceAndNonce(w.current.signer, localTxs, header.BaseFee)
-		if w.commitTransactions(txs, w.coinbase, interrupt) {
+	localBlobTxs, remoteBlobTxs := make(map[common.Address][]*txpool.LazyTransaction), pendingBlobTxs
+	for _, account := range localAccounts {
+		if txs := remoteBlobTxs[account]; len(txs) > 0 {
+			delete(remoteBlobTxs, account)
+			localBlobTxs[account] = txs
+		}
+	}
+	if len(localPlainTxs) > 0 || len(localBlobTxs) > 0 {
+		plainTxs := NewTransactionsByPriceAndNonce(w.current.signer, localPlainTxs, header.BaseFee)
+		blobTxs := NewTransactionsByPriceAndNonce(w.current.signer, localBlobTxs, header.BaseFee)
+		if w.commitTransactions(plainTxs, blobTxs, w.coinbase, interrupt) {
 			return
 		}
 	}
-	if len(remoteTxs) > 0 {
-		txs := types.NewTransactionsByPriceAndNonce(w.current.signer, remoteTxs, header.BaseFee)
-		if w.commitTransactions(txs, w.coinbase, interrupt) {
+	if len(remotePlainTxs) > 0 || len(remoteBlobTxs) > 0 {
+		plainTxs := NewTransactionsByPriceAndNonce(w.current.signer, remotePlainTxs, header.BaseFee)
+		blobTxs := NewTransactionsByPriceAndNonce(w.current.signer, remoteBlobTxs, header.BaseFee)
+		if w.commitTransactions(plainTxs, blobTxs, w.coinbase, interrupt) {
 			return
 		}
 	}
@@ -1205,7 +1305,7 @@ func (w *worker) commit(uncles []*types.Header, interval func(), update bool, st
 			interval()
 		}
 		select {
-		case w.taskCh <- &task{receipts: receipts, state: env.state, block: block, createdAt: time.Now()}:
+		case w.taskCh <- &task{receipts: receipts, state: env.state, block: block, createdAt: time.Now(), sidecars: env.sidecars}:
 			w.unconfirmed.Shift(block.NumberU64() - 1)
 			log.Info("Commit new mining work", "number", block.Number(), "sealhash", w.engine.SealHash(block.Header()),
 				"uncles", len(uncles), "txs", w.current.tcount,

@@ -18,7 +18,6 @@ package eth
 
 import (
 	"math/big"
-	"sort"
 	"sync"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -33,6 +32,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/holiman/uint256"
 )
 
 var (
@@ -92,17 +92,22 @@ func (p *testTxPool) Add(txs []*types.Transaction, _ bool, _ bool) []error {
 }
 
 // Pending returns all the transactions known to the pool
-func (p *testTxPool) Pending(_ *txpool.PendingFilter) map[common.Address]types.Transactions {
+func (p *testTxPool) Pending(_ *txpool.PendingFilter) map[common.Address][]*txpool.LazyTransaction {
 	p.lock.RLock()
 	defer p.lock.RUnlock()
 
-	batches := make(map[common.Address]types.Transactions)
+	batches := make(map[common.Address][]*txpool.LazyTransaction)
 	for _, tx := range p.pool {
 		from, _ := types.Sender(types.HomesteadSigner{}, tx)
-		batches[from] = append(batches[from], tx)
-	}
-	for _, batch := range batches {
-		sort.Sort(types.TxByNonce(batch))
+		batches[from] = append(batches[from], &txpool.LazyTransaction{
+			Tx:        tx,
+			Hash:      tx.Hash(),
+			GasFeeCap: uint256.MustFromBig(tx.GasFeeCap()),
+			GasTipCap: uint256.MustFromBig(tx.GasTipCap()),
+			Time:      tx.Time(),
+			Gas:       tx.Gas(),
+			BlobGas:   tx.BlobGas(),
+		})
 	}
 	return batches
 }
