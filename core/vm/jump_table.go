@@ -59,10 +59,18 @@ var (
 	berlinInstructionSet           = newBerlinInstructionSet()
 	londonInstructionSet           = newLondonInstructionSet()
 	shanghaiInstructionSet         = newShanghaiInstructionSet()
+	cancunInstructionSet           = newCancunInstructionSet()
 )
 
 // JumpTable contains the EVM opcodes supported at a given fork.
 type JumpTable [256]*operation
+
+func newCancunInstructionSet() JumpTable {
+	instructionSet := newShanghaiInstructionSet()
+	enable4844(&instructionSet) // EIP-4844 (BLOBHASH opcode)
+	enable7516(&instructionSet) // EIP-7516 (BLOBBASEFEE opcode)
+	return instructionSet
+}
 
 func newShanghaiInstructionSet() JumpTable {
 	instructionSet := newLondonInstructionSet()

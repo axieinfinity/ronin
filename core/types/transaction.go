@@ -675,19 +675,21 @@ func (t *TransactionsByPriceAndNonce) Size() int {
 //
 // NOTE: In a future PR this will be removed.
 type Message struct {
-	to          *common.Address
-	from        common.Address
-	nonce       uint64
-	amount      *big.Int
-	gasLimit    uint64
-	gasPrice    *big.Int
-	gasFeeCap   *big.Int
-	gasTipCap   *big.Int
-	data        []byte
-	accessList  AccessList
-	isFake      bool
-	payer       common.Address
-	expiredTime uint64
+	to            *common.Address
+	from          common.Address
+	nonce         uint64
+	amount        *big.Int
+	gasLimit      uint64
+	gasPrice      *big.Int
+	gasFeeCap     *big.Int
+	gasTipCap     *big.Int
+	data          []byte
+	accessList    AccessList
+	isFake        bool
+	payer         common.Address
+	expiredTime   uint64
+	blobGasFeeCap *big.Int
+	blobHashes    []common.Hash
 }
 
 // Create a new message with payer is the same as from, expired time = 0
@@ -722,17 +724,19 @@ func NewMessage(
 // AsMessage returns the transaction as a core.Message.
 func (tx *Transaction) AsMessage(s Signer, baseFee *big.Int) (Message, error) {
 	msg := Message{
-		nonce:       tx.Nonce(),
-		gasLimit:    tx.Gas(),
-		gasPrice:    new(big.Int).Set(tx.GasPrice()),
-		gasFeeCap:   new(big.Int).Set(tx.GasFeeCap()),
-		gasTipCap:   new(big.Int).Set(tx.GasTipCap()),
-		to:          tx.To(),
-		amount:      tx.Value(),
-		data:        tx.Data(),
-		accessList:  tx.AccessList(),
-		isFake:      false,
-		expiredTime: tx.ExpiredTime(),
+		nonce:         tx.Nonce(),
+		gasLimit:      tx.Gas(),
+		gasPrice:      new(big.Int).Set(tx.GasPrice()),
+		gasFeeCap:     new(big.Int).Set(tx.GasFeeCap()),
+		gasTipCap:     new(big.Int).Set(tx.GasTipCap()),
+		to:            tx.To(),
+		amount:        tx.Value(),
+		data:          tx.Data(),
+		accessList:    tx.AccessList(),
+		isFake:        false,
+		expiredTime:   tx.ExpiredTime(),
+		blobGasFeeCap: tx.BlobGasFeeCap(),
+		blobHashes:    tx.BlobHashes(),
 	}
 	// If baseFee provided, set gasPrice to effectiveGasPrice.
 	if baseFee != nil {
@@ -774,6 +778,9 @@ func (m Message) AccessList() AccessList { return m.accessList }
 func (m Message) IsFake() bool           { return m.isFake }
 func (m Message) Payer() common.Address  { return m.payer }
 func (m Message) ExpiredTime() uint64    { return m.expiredTime }
+
+func (m Message) BlobHashes() []common.Hash { return m.blobHashes }
+func (m Message) BlobGasFeeCap() *big.Int   { return m.blobGasFeeCap }
 
 // copyAddressPtr copies an address.
 func copyAddressPtr(a *common.Address) *common.Address {
