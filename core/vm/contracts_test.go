@@ -61,21 +61,22 @@ var allPrecompiles = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{7}):    &bn256ScalarMulIstanbul{},
 	common.BytesToAddress([]byte{8}):    &bn256PairingIstanbul{},
 	common.BytesToAddress([]byte{9}):    &blake2F{},
-	common.BytesToAddress([]byte{10}):   &bls12381G1Add{},
-	common.BytesToAddress([]byte{11}):   &bls12381G1Mul{},
-	common.BytesToAddress([]byte{12}):   &bls12381G1MultiExp{},
-	common.BytesToAddress([]byte{13}):   &bls12381G2Add{},
-	common.BytesToAddress([]byte{14}):   &bls12381G2Mul{},
-	common.BytesToAddress([]byte{15}):   &bls12381G2MultiExp{},
-	common.BytesToAddress([]byte{16}):   &bls12381Pairing{},
-	common.BytesToAddress([]byte{17}):   &bls12381MapG1{},
-	common.BytesToAddress([]byte{18}):   &bls12381MapG2{},
-	common.BytesToAddress([]byte{101}):  &consortiumLog{},
-	common.BytesToAddress([]byte{102}):  &consortiumValidatorSorting{},
-	common.BytesToAddress([]byte{103}):  &consortiumVerifyHeaders{test: true},
-	common.BytesToAddress([]byte{104}):  &consortiumPickValidatorSet{},
-	common.BytesToAddress([]byte{105}):  &consortiumValidateFinalityProof{},
-	common.BytesToAddress([]byte{106}):  &consortiumValidateProofOfPossession{},
+	common.BytesToAddress([]byte{10}):   &kzgPointEvaluation{},
+	common.BytesToAddress([]byte{11}):  &bls12381G1Add{},
+	common.BytesToAddress([]byte{12}):  &bls12381G1Mul{},
+	common.BytesToAddress([]byte{13}):  &bls12381G1MultiExp{},
+	common.BytesToAddress([]byte{14}):  &bls12381G2Add{},
+	common.BytesToAddress([]byte{15}):  &bls12381G2Mul{},
+	common.BytesToAddress([]byte{16}):  &bls12381G2MultiExp{},
+	common.BytesToAddress([]byte{17}):  &bls12381Pairing{},
+	common.BytesToAddress([]byte{18}):  &bls12381MapG1{},
+	common.BytesToAddress([]byte{19}):  &bls12381MapG2{},
+	common.BytesToAddress([]byte{101}): &consortiumLog{},
+	common.BytesToAddress([]byte{102}): &consortiumValidatorSorting{},
+	common.BytesToAddress([]byte{103}): &consortiumVerifyHeaders{test: true},
+	common.BytesToAddress([]byte{104}): &consortiumPickValidatorSet{},
+	common.BytesToAddress([]byte{105}): &consortiumValidateFinalityProof{},
+	common.BytesToAddress([]byte{106}): &consortiumValidateProofOfPossession{},
 }
 
 // EIP-152 test vectors
@@ -99,6 +100,24 @@ var blake2FMalformedInputTests = []precompiledFailureTest{
 		Input:         "0000000c48c9bdf267e6096a3ba7ca8485ae67bb2bf894fe72f36e3cf1361d5f3af54fa5d182e6ad7f520e511f6c3e2b8c68059b6bbd41fbabd9831f79217e1319cde05b61626300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000300000000000000000000000000000002",
 		ExpectedError: errBlake2FInvalidFinalFlag.Error(),
 		Name:          "vector 3: malformed final block indicator flag",
+	},
+}
+
+var kzgPointEvaluationMalformedInputTests = []precompiledFailureTest{
+	{
+		Input:         "",
+		ExpectedError: errBlobVerifyInvalidInputLength.Error(),
+		Name:          "vector 0: empty input",
+	},
+	{
+		Input:         "015c449bc5528e6bd97afd326fa0aa22fd1e0f9e40b69fd001071f86508b0329606ae153dafd0a93eb00b54e4cd72a5384d61d7eb06c4b1633e195a4fb45dbd526890e034ff6538d01fc7db154bb027bd40bbd8b5243dc6a79cc210988eb20768f9e86f59b657b82a8749d1be9d72a0149aa16de62da71fb9a6211b532263bc866ed68aa6cc3eae898d900546223cea9a556374148e4fafa1ec1f5bf8332f8bd69cb98132ba553c9392d8f1f88e97b9b6ac3ec316e64e524cd9437c4dfee0",
+		ExpectedError: errBlobVerifyInvalidInputLength.Error(),
+		Name:          "vector 1: the input length mismatch",
+	},
+	{
+		Input:         "5812da74d1162febed63e5762d191b19e98a75c44980e814fa97db6f95debc050304d72a7710834e55c7e8d51436bb992917c5beb588c904151a82a351cb45951824fd208cd1165081a573d561b95a058aa2bc020ee9fd85328519c00521834aafff55da2235d1e53190a843abb5607f0742949c011fa97f3a5d3e8892c6460e5bbfdee93c1f9004b0792e2f6590b4f984c69603e786e7a08d09cc1b022fdbea8beb5467288ed40985fbea4205ae5e06e1ef901a648b7379502dd361a46fb496",
+		ExpectedError: errBlobVerifyMismatchedVersion.Error(),
+		Name:          "vector 2: the version hash is mismatch",
 	},
 }
 
@@ -281,6 +300,12 @@ func TestPrecompileBlake2FMalformedInput(t *testing.T) {
 	}
 }
 
+func TestPrecompiledKzgPointEvaluationMalformedInput(t *testing.T) {
+	for _, test := range kzgPointEvaluationMalformedInputTests {
+		testPrecompiledFailure(common.Bytes2Hex([]byte{10}), test, t)
+	}
+}
+
 func TestPrecompiledEcrecover(t *testing.T) { testJson("ecRecover", "01", t) }
 
 func testJson(name, addr string, t *testing.T) {
@@ -313,15 +338,36 @@ func benchJson(name, addr string, b *testing.B) {
 	}
 }
 
-func TestPrecompiledBLS12381G1Add(t *testing.T)      { testJson("blsG1Add", "0a", t) }
-func TestPrecompiledBLS12381G1Mul(t *testing.T)      { testJson("blsG1Mul", "0b", t) }
-func TestPrecompiledBLS12381G1MultiExp(t *testing.T) { testJson("blsG1MultiExp", "0c", t) }
-func TestPrecompiledBLS12381G2Add(t *testing.T)      { testJson("blsG2Add", "0d", t) }
-func TestPrecompiledBLS12381G2Mul(t *testing.T)      { testJson("blsG2Mul", "0e", t) }
-func TestPrecompiledBLS12381G2MultiExp(t *testing.T) { testJson("blsG2MultiExp", "0f", t) }
-func TestPrecompiledBLS12381Pairing(t *testing.T)    { testJson("blsPairing", "10", t) }
-func TestPrecompiledBLS12381MapG1(t *testing.T)      { testJson("blsMapG1", "11", t) }
-func TestPrecompiledBLS12381MapG2(t *testing.T)      { testJson("blsMapG2", "12", t) }
+func TestPrecompiledBLS12381G1Add(t *testing.T) {
+	testJson("blsG1Add", common.Bytes2Hex([]byte{11}), t)
+}
+func TestPrecompiledBLS12381G1Mul(t *testing.T) {
+	testJson("blsG1Mul", common.Bytes2Hex([]byte{12}), t)
+}
+func TestPrecompiledBLS12381G1MultiExp(t *testing.T) {
+	testJson("blsG1MultiExp", common.Bytes2Hex([]byte{13}), t)
+}
+func TestPrecompiledBLS12381G2Add(t *testing.T) {
+	testJson("blsG2Add", common.Bytes2Hex([]byte{14}), t)
+}
+func TestPrecompiledBLS12381G2Mul(t *testing.T) {
+	testJson("blsG2Mul", common.Bytes2Hex([]byte{15}), t)
+}
+func TestPrecompiledBLS12381G2MultiExp(t *testing.T) {
+	testJson("blsG2MultiExp", common.Bytes2Hex([]byte{16}), t)
+}
+func TestPrecompiledBLS12381Pairing(t *testing.T) {
+	testJson("blsPairing", common.Bytes2Hex([]byte{17}), t)
+}
+func TestPrecompiledBLS12381MapG1(t *testing.T) {
+	testJson("blsMapG1", common.Bytes2Hex([]byte{18}), t)
+}
+func TestPrecompiledBLS12381MapG2(t *testing.T) {
+	testJson("blsMapG2", common.Bytes2Hex([]byte{19}), t)
+}
+func TestPrecompiledPointEvaluation(t *testing.T) {
+	testJson("pointEvaluation", common.Bytes2Hex([]byte{10}), t)
+}
 func TestPrecompiledConsortiumLog(t *testing.T) {
 	glogger := log.NewGlogHandler(log.StreamHandler(os.Stderr, log.TerminalFormat(false)))
 	glogger.Verbosity(log.LvlInfo)
@@ -348,26 +394,62 @@ func TestPrecompiledConsortiumLog(t *testing.T) {
 	testPrecompiled("65", test, t)
 }
 
-func BenchmarkPrecompiledBLS12381G1Add(b *testing.B)      { benchJson("blsG1Add", "0a", b) }
-func BenchmarkPrecompiledBLS12381G1Mul(b *testing.B)      { benchJson("blsG1Mul", "0b", b) }
-func BenchmarkPrecompiledBLS12381G1MultiExp(b *testing.B) { benchJson("blsG1MultiExp", "0c", b) }
-func BenchmarkPrecompiledBLS12381G2Add(b *testing.B)      { benchJson("blsG2Add", "0d", b) }
-func BenchmarkPrecompiledBLS12381G2Mul(b *testing.B)      { benchJson("blsG2Mul", "0e", b) }
-func BenchmarkPrecompiledBLS12381G2MultiExp(b *testing.B) { benchJson("blsG2MultiExp", "0f", b) }
-func BenchmarkPrecompiledBLS12381Pairing(b *testing.B)    { benchJson("blsPairing", "10", b) }
-func BenchmarkPrecompiledBLS12381MapG1(b *testing.B)      { benchJson("blsMapG1", "11", b) }
-func BenchmarkPrecompiledBLS12381MapG2(b *testing.B)      { benchJson("blsMapG2", "12", b) }
+func BenchmarkPrecompiledBLS12381G1Add(b *testing.B) {
+	benchJson("blsG1Add", common.Bytes2Hex([]byte{11}), b)
+}
+func BenchmarkPrecompiledBLS12381G1Mul(b *testing.B) {
+	benchJson("blsG1Mul", common.Bytes2Hex([]byte{12}), b)
+}
+func BenchmarkPrecompiledBLS12381G1MultiExp(b *testing.B) {
+	benchJson("blsG1MultiExp", common.Bytes2Hex([]byte{13}), b)
+}
+func BenchmarkPrecompiledBLS12381G2Add(b *testing.B) {
+	benchJson("blsG2Add", common.Bytes2Hex([]byte{14}), b)
+}
+func BenchmarkPrecompiledBLS12381G2Mul(b *testing.B) {
+	benchJson("blsG2Mul", common.Bytes2Hex([]byte{15}), b)
+}
+func BenchmarkPrecompiledBLS12381G2MultiExp(b *testing.B) {
+	benchJson("blsG2MultiExp", common.Bytes2Hex([]byte{16}), b)
+}
+func BenchmarkPrecompiledBLS12381Pairing(b *testing.B) {
+	benchJson("blsPairing", common.Bytes2Hex([]byte{17}), b)
+}
+func BenchmarkPrecompiledBLS12381MapG1(b *testing.B) {
+	benchJson("blsMapG1", common.Bytes2Hex([]byte{18}), b)
+}
+func BenchmarkPrecompiledBLS12381MapG2(b *testing.B) {
+	benchJson("blsMapG2", common.Bytes2Hex([]byte{19}), b)
+}
 
 // Failure tests
-func TestPrecompiledBLS12381G1AddFail(t *testing.T)      { testJsonFail("blsG1Add", "0a", t) }
-func TestPrecompiledBLS12381G1MulFail(t *testing.T)      { testJsonFail("blsG1Mul", "0b", t) }
-func TestPrecompiledBLS12381G1MultiExpFail(t *testing.T) { testJsonFail("blsG1MultiExp", "0c", t) }
-func TestPrecompiledBLS12381G2AddFail(t *testing.T)      { testJsonFail("blsG2Add", "0d", t) }
-func TestPrecompiledBLS12381G2MulFail(t *testing.T)      { testJsonFail("blsG2Mul", "0e", t) }
-func TestPrecompiledBLS12381G2MultiExpFail(t *testing.T) { testJsonFail("blsG2MultiExp", "0f", t) }
-func TestPrecompiledBLS12381PairingFail(t *testing.T)    { testJsonFail("blsPairing", "10", t) }
-func TestPrecompiledBLS12381MapG1Fail(t *testing.T)      { testJsonFail("blsMapG1", "11", t) }
-func TestPrecompiledBLS12381MapG2Fail(t *testing.T)      { testJsonFail("blsMapG2", "12", t) }
+func TestPrecompiledBLS12381G1AddFail(t *testing.T) {
+	testJsonFail("blsG1Add", common.Bytes2Hex([]byte{11}), t)
+}
+func TestPrecompiledBLS12381G1MulFail(t *testing.T) {
+	testJsonFail("blsG1Mul", common.Bytes2Hex([]byte{12}), t)
+}
+func TestPrecompiledBLS12381G1MultiExpFail(t *testing.T) {
+	testJsonFail("blsG1MultiExp", common.Bytes2Hex([]byte{13}), t)
+}
+func TestPrecompiledBLS12381G2AddFail(t *testing.T) {
+	testJsonFail("blsG2Add", common.Bytes2Hex([]byte{14}), t)
+}
+func TestPrecompiledBLS12381G2MulFail(t *testing.T) {
+	testJsonFail("blsG2Mul", common.Bytes2Hex([]byte{15}), t)
+}
+func TestPrecompiledBLS12381G2MultiExpFail(t *testing.T) {
+	testJsonFail("blsG2MultiExp", common.Bytes2Hex([]byte{16}), t)
+}
+func TestPrecompiledBLS12381PairingFail(t *testing.T) {
+	testJsonFail("blsPairing", common.Bytes2Hex([]byte{17}), t)
+}
+func TestPrecompiledBLS12381MapG1Fail(t *testing.T) {
+	testJsonFail("blsMapG1", common.Bytes2Hex([]byte{18}), t)
+}
+func TestPrecompiledBLS12381MapG2Fail(t *testing.T) {
+	testJsonFail("blsMapG2", common.Bytes2Hex([]byte{19}), t)
+}
 
 func loadJson(name string) ([]precompiledTest, error) {
 	data, err := ioutil.ReadFile(fmt.Sprintf("testdata/precompiles/%v.json", name))
@@ -404,7 +486,7 @@ func BenchmarkPrecompiledBLS12381G1MultiExpWorstCase(b *testing.B) {
 		Name:        "WorstCaseG1",
 		NoBenchmark: false,
 	}
-	benchmarkPrecompiled("0c", testcase, b)
+	benchmarkPrecompiled(common.Bytes2Hex([]byte{13}), testcase, b)
 }
 
 // BenchmarkPrecompiledBLS12381G2MultiExpWorstCase benchmarks the worst case we could find that still fits a gaslimit of 10MGas.
@@ -425,5 +507,5 @@ func BenchmarkPrecompiledBLS12381G2MultiExpWorstCase(b *testing.B) {
 		Name:        "WorstCaseG2",
 		NoBenchmark: false,
 	}
-	benchmarkPrecompiled("0f", testcase, b)
+	benchmarkPrecompiled(common.Bytes2Hex([]byte{16}), testcase, b)
 }
