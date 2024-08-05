@@ -121,18 +121,20 @@ type headerFilterTask struct {
 // bodyFilterTask represents a batch of block bodies (transactions and uncles)
 // needing fetcher filtering.
 type bodyFilterTask struct {
-	peer         string                 // The source peer of block bodies
-	transactions [][]*types.Transaction // Collection of transactions per block bodies
-	uncles       [][]*types.Header      // Collection of uncles per block bodies
-	time         time.Time              // Arrival time of the blocks' contents
+	peer         string                  // The source peer of block bodies
+	transactions [][]*types.Transaction  // Collection of transactions per block bodies
+	uncles       [][]*types.Header       // Collection of uncles per block bodies
+	sidecars     [][]*types.BlobTxSidecar // Collection of sidecars per block bodies
+	time         time.Time               // Arrival time of the blocks' contents
 }
 
 // blockOrHeaderInject represents a schedules import operation.
 type blockOrHeaderInject struct {
 	origin string
 
-	header *types.Header // Used for light mode fetcher which only cares about header.
-	block  *types.Block  // Used for normal mode fetcher which imports full block.
+	header   *types.Header // Used for light mode fetcher which only cares about header.
+	block    *types.Block  // Used for normal mode fetcher which imports full block.
+	sidecars []*types.BlobTxSidecar
 }
 
 // number returns the block number of the injected object.
@@ -258,10 +260,11 @@ func (f *BlockFetcher) Notify(peer string, hash common.Hash, number uint64, time
 }
 
 // Enqueue tries to fill gaps the fetcher's future import queue.
-func (f *BlockFetcher) Enqueue(peer string, block *types.Block) error {
+func (f *BlockFetcher) Enqueue(peer string, block *types.Block, sidecars []*types.BlobTxSidecar) error {
 	op := &blockOrHeaderInject{
-		origin: peer,
-		block:  block,
+		origin:   peer,
+		block:    block,
+		sidecars: sidecars,
 	}
 	select {
 	case f.inject <- op:
@@ -301,7 +304,7 @@ func (f *BlockFetcher) FilterHeaders(peer string, headers []*types.Header, time 
 
 // FilterBodies extracts all the block bodies that were explicitly requested by
 // the fetcher, returning those that should be handled differently.
-func (f *BlockFetcher) FilterBodies(peer string, transactions [][]*types.Transaction, uncles [][]*types.Header, time time.Time) ([][]*types.Transaction, [][]*types.Header) {
+func (f *BlockFetcher) FilterBodies(peer string, transactions [][]*types.Transaction, uncles [][]*types.Header, sidecars [][]*types.BlobTxSidecar, time time.Time) ([][]*types.Transaction, [][]*types.Header, [][]*types.BlobTxSidecar) {
 	log.Trace("Filtering bodies", "peer", peer, "txs", len(transactions), "uncles", len(uncles))
 
 	// Send the filter channel to the fetcher
@@ -310,20 +313,20 @@ func (f *BlockFetcher) FilterBodies(peer string, transactions [][]*types.Transac
 	select {
 	case f.bodyFilter <- filter:
 	case <-f.quit:
-		return nil, nil
+		return nil, nil, nil
 	}
 	// Request the filtering of the body list
 	select {
-	case filter <- &bodyFilterTask{peer: peer, transactions: transactions, uncles: uncles, time: time}:
+	case filter <- &bodyFilterTask{peer: peer, transactions: transactions, uncles: uncles, sidecars: sidecars, time: time}:
 	case <-f.quit:
-		return nil, nil
+		return nil, nil, nil
 	}
 	// Retrieve the bodies remaining after filtering
 	select {
 	case task := <-filter:
-		return task.transactions, task.uncles
+		return task.transactions, task.uncles, task.sidecars
 	case <-f.quit:
-		return nil, nil
+		return nil, nil, nil
 	}
 }
 
@@ -425,7 +428,7 @@ func (f *BlockFetcher) loop() {
 			if f.light {
 				continue
 			}
-			f.enqueue(op.origin, nil, op.block)
+			f.enqueue(op.origin, nil, op.block, op.sidecars)
 
 		case hash := <-f.done:
 			// A pending import finished, remove all traces of the notification
@@ -586,12 +589,12 @@ func (f *BlockFetcher) loop() {
 			}
 			// Schedule the header for light fetcher import
 			for _, announce := range lightHeaders {
-				f.enqueue(announce.origin, announce.header, nil)
+				f.enqueue(announce.origin, announce.header, nil, nil)
 			}
 			// Schedule the header-only blocks for import
 			for _, block := range complete {
 				if announce := f.completing[block.Hash()]; announce != nil {
-					f.enqueue(announce.origin, nil, block)
+					f.enqueue(announce.origin, nil, block, nil)
 				}
 			}
 
@@ -605,6 +608,7 @@ func (f *BlockFetcher) loop() {
 			}
 			bodyFilterInMeter.Mark(int64(len(task.transactions)))
 			blocks := []*types.Block{}
+			sidecarsList := [][]*types.BlobTxSidecar{}
 			// abort early if there's nothing explicitly requested
 			if len(f.completing) > 0 {
 				for i := 0; i < len(task.transactions) && i < len(task.uncles); i++ {
@@ -636,6 +640,9 @@ func (f *BlockFetcher) loop() {
 							block := types.NewBlockWithHeader(announce.header).WithBody(task.transactions[i], task.uncles[i])
 							block.ReceivedAt = task.time
 							blocks = append(blocks, block)
+							if len(task.sidecars) > 0 {
+								sidecarsList = append(sidecarsList, task.sidecars[i])
+							}
 						} else {
 							f.forgetHash(hash)
 						}
@@ -644,6 +651,9 @@ func (f *BlockFetcher) loop() {
 					if matched {
 						task.transactions = append(task.transactions[:i], task.transactions[i+1:]...)
 						task.uncles = append(task.uncles[:i], task.uncles[i+1:]...)
+						if len(task.sidecars) > 0 {
+							task.sidecars = append(task.sidecars[:i], task.sidecars[i+1:]...)
+						}
 						i--
 						continue
 					}
@@ -656,9 +666,13 @@ func (f *BlockFetcher) loop() {
 				return
 			}
 			// Schedule the retrieved blocks for ordered import
-			for _, block := range blocks {
+			for i, block := range blocks {
 				if announce := f.completing[block.Hash()]; announce != nil {
-					f.enqueue(announce.origin, nil, block)
+					var sidecars []*types.BlobTxSidecar
+					if len(sidecarsList) > i {
+						sidecars = sidecarsList[i]
+					}
+					f.enqueue(announce.origin, nil, block, sidecars)
 				}
 			}
 		}
@@ -705,7 +719,7 @@ func (f *BlockFetcher) rescheduleComplete(complete *time.Timer) {
 
 // enqueue schedules a new header or block import operation, if the component
 // to be imported has not yet been seen.
-func (f *BlockFetcher) enqueue(peer string, header *types.Header, block *types.Block) {
+func (f *BlockFetcher) enqueue(peer string, header *types.Header, block *types.Block, sidecars []*types.BlobTxSidecar) {
 	var (
 		hash   common.Hash
 		number uint64
@@ -738,6 +752,7 @@ func (f *BlockFetcher) enqueue(peer string, header *types.Header, block *types.B
 		} else {
 			op.block = block
 		}
+		op.sidecars = sidecars
 		f.queues[peer] = count
 		f.queued[hash] = op
 		f.queue.Push(op, -int64(number))

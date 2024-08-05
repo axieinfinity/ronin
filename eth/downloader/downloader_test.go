@@ -452,7 +452,7 @@ func (dlp *downloadTesterPeer) RequestHeadersByNumber(origin uint64, amount int,
 // batches of block bodies from the particularly requested peer.
 func (dlp *downloadTesterPeer) RequestBodies(hashes []common.Hash) error {
 	txs, uncles := dlp.chain.bodies(hashes)
-	go dlp.dl.downloader.DeliverBodies(dlp.id, txs, uncles)
+	go dlp.dl.downloader.DeliverBodies(dlp.id, txs, uncles, [][]*types.BlobTxSidecar{})
 	return nil
 }
 
@@ -762,7 +762,7 @@ func TestInactiveDownloader63(t *testing.T) {
 	if err := tester.downloader.DeliverHeaders("bad peer", []*types.Header{}); err != errNoSyncActive {
 		t.Errorf("error mismatch: have %v, want %v", err, errNoSyncActive)
 	}
-	if err := tester.downloader.DeliverBodies("bad peer", [][]*types.Transaction{}, [][]*types.Header{}); err != errNoSyncActive {
+	if err := tester.downloader.DeliverBodies("bad peer", [][]*types.Transaction{}, [][]*types.Header{}, [][]*types.BlobTxSidecar{}); err != errNoSyncActive {
 		t.Errorf("error mismatch: have %v, want %v", err, errNoSyncActive)
 	}
 	if err := tester.downloader.DeliverReceipts("bad peer", [][]*types.Receipt{}); err != errNoSyncActive {
