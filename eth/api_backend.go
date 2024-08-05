@@ -305,7 +305,9 @@ func (b *EthAPIBackend) GetPoolTransactions() (types.Transactions, error) {
 	pending := b.eth.txPool.Pending(&txpool.PendingFilter{})
 	var txs types.Transactions
 	for _, batch := range pending {
-		txs = append(txs, batch...)
+		for _, lazy := range batch {
+			txs = append(txs, lazy.Resolve())
+		}
 	}
 	return txs, nil
 }

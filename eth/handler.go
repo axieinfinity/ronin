@@ -71,7 +71,7 @@ type txPool interface {
 
 	// Pending should return pending transactions.
 	// The slice should be modifiable by the caller.
-	Pending(filter *txpool.PendingFilter) map[common.Address]types.Transactions
+	Pending(filter *txpool.PendingFilter) map[common.Address][]*txpool.LazyTransaction
 
 	// SubscribeTransactions should return an event subscription of
 	// NewTxsEvent and send events to the given channel.

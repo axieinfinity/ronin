@@ -31,6 +31,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/miner"
 	"github.com/ethereum/go-ethereum/node"
 	chainParams "github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -128,7 +129,6 @@ func (api *consensusAPI) AssembleBlock(params assembleBlockParams) (*executableD
 	}
 
 	pending := pool.Pending(&txpool.PendingFilter{EnforceTip: true})
-
 	coinbase, err := api.eth.Etherbase()
 	if err != nil {
 		return nil, err
@@ -157,7 +157,7 @@ func (api *consensusAPI) AssembleBlock(params assembleBlockParams) (*executableD
 
 	var (
 		signer       = types.MakeSigner(bc.Config(), header.Number)
-		txHeap       = types.NewTransactionsByPriceAndNonce(signer, pending, nil)
+		txHeap       = miner.NewTransactionsByPriceAndNonce(signer, pending, nil)
 		transactions []*types.Transaction
 	)
 	for {
@@ -165,10 +165,11 @@ func (api *consensusAPI) AssembleBlock(params assembleBlockParams) (*executableD
 			log.Trace("Not enough gas for further transactions", "have", env.gasPool, "want", chainParams.TxGas)
 			break
 		}
-		tx := txHeap.Peek()
-		if tx == nil {
+		lazyTx, _ := txHeap.Peek()
+		if lazyTx == nil {
 			break
 		}
+		tx := lazyTx.Resolve()
 
 		// The sender is only for logging purposes, and it doesn't really matter if it's correct.
 		from, _ := types.Sender(signer, tx)

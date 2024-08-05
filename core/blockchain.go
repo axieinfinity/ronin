@@ -1376,14 +1376,21 @@ func (bc *BlockChain) writeKnownBlock(block *types.Block) error {
 }
 
 // WriteBlockWithState writes the block and all associated state to the database.
-func (bc *BlockChain) WriteBlockWithState(block *types.Block, receipts []*types.Receipt, logs []*types.Log, state *state.StateDB, emitHeadEvent bool) (status WriteStatus, err error) {
+func (bc *BlockChain) WriteBlockWithState(
+	block *types.Block,
+	receipts []*types.Receipt,
+	logs []*types.Log,
+	state *state.StateDB,
+	emitHeadEvent bool,
+	sidecars []*types.BlobTxSidecar,
+) (status WriteStatus, err error) {
 	if !bc.chainmu.TryLock() {
 		return NonStatTy, errInsertionInterrupted
 	}
 	defer bc.chainmu.Unlock()
 
 	internalTxs := make([]*types.InternalTransaction, 0)
-	return bc.writeBlockWithState(block, receipts, logs, internalTxs, state, emitHeadEvent)
+	return bc.writeBlockWithState(block, receipts, logs, internalTxs, state, emitHeadEvent, sidecars)
 }
 
 // reorgNeeded determines if the external chain is better than the local chain so reorg is needed
@@ -1422,7 +1429,15 @@ func (bc *BlockChain) reorgNeeded(localBlock *types.Block, localTd *big.Int, ext
 
 // writeBlockWithState writes the block and all associated state to the database,
 // but is expects the chain mutex to be held.
-func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.Receipt, logs []*types.Log, internalTxs []*types.InternalTransaction, state *state.StateDB, emitHeadEvent bool) (status WriteStatus, err error) {
+func (bc *BlockChain) writeBlockWithState(
+	block *types.Block,
+	receipts []*types.Receipt,
+	logs []*types.Log,
+	internalTxs []*types.InternalTransaction,
+	state *state.StateDB,
+	emitHeadEvent bool,
+	sidecars []*types.BlobTxSidecar,
+) (status WriteStatus, err error) {
 	if bc.insertStopped() {
 		return NonStatTy, errInsertionInterrupted
 	}
@@ -1446,6 +1461,25 @@ func (bc *BlockChain) writeBlockWithState(block *types.Block, receipts []*types.
 	rawdb.WriteBlock(blockBatch, block)
 	rawdb.WriteReceipts(blockBatch, block.Hash(), block.NumberU64(), receipts)
 	rawdb.WritePreimages(blockBatch, state.Preimages())
+
+	var (
+		savedSidecars types.BlobSidecars
+		count         int
+	)
+	if len(sidecars) > 0 {
+		for _, tx := range block.Transactions() {
+			if tx.Type() == types.BlobTxType {
+				savedSidecars = append(savedSidecars, &types.BlobSidecar{
+					BlobTxSidecar: *sidecars[count],
+					TxHash:        tx.Hash(),
+				})
+				count++
+			}
+		}
+	}
+	rawdb.WriteBlobSidecars(blockBatch, block.Hash(), block.NumberU64(), savedSidecars)
+	// TODO: Implement prune blob sidecars logic
+
 	if err := blockBatch.Write(); err != nil {
 		log.Crit("Failed to write block into disk", "err", err)
 	}
@@ -1892,7 +1926,8 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, er
 
 		// Write the block to the chain and get the status.
 		substart = time.Now()
-		status, err := bc.writeBlockWithState(block, receipts, logs, internalTxs, statedb, false)
+		// TODO: edit the insertChain to pass the sidecars to writeBlockWithState
+		status, err := bc.writeBlockWithState(block, receipts, logs, internalTxs, statedb, false, nil)
 		atomic.StoreUint32(&followupInterrupt, 1)
 		if err != nil {
 			return it.index, err
