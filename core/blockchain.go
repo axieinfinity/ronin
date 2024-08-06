@@ -213,8 +213,7 @@ type BlockChain struct {
 	futureBlocks              *lru.Cache[common.Hash, *types.Block]                 // future blocks are blocks added for later processing
 	dirtyAccountsCache        *lru.Cache[common.Hash, []*types.DirtyStateAccount]   // Cache for the most recent dirtyAccounts
 	internalTransactionsCache *lru.Cache[common.Hash, []*types.InternalTransaction] // Cache for most recent internal transactions with block hash at key
-
-	blobSidecarsCache *lru.Cache // Cache for most recent blob sidecars
+	blobSidecarsCache         *lru.Cache[common.Hash, types.BlobSidecars]           // Cache for most recent blob sidecars
 
 	wg            sync.WaitGroup //
 	quit          chan struct{}  // shutdown signal, closed in Stop.
@@ -252,7 +251,7 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 	dirtyAccountsCache, _ := lru.New[common.Hash, []*types.DirtyStateAccount](dirtyAccountsCacheLimit)
 	internalTxsCache, _ := lru.New[common.Hash, []*types.InternalTransaction](internalTxsCacheLimit)
 
-	blobSidecarsCache, _ := lru.New(blobSidecarsCacheLimit)
+	blobSidecarsCache, _ := lru.New[common.Hash, types.BlobSidecars](blobSidecarsCacheLimit)
 
 	bc := &BlockChain{
 		chainConfig: chainConfig,
