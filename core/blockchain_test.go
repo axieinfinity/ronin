@@ -29,7 +29,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/eth/tracers/logger"
-	lru "github.com/hashicorp/golang-lru"
+	lru "github.com/hashicorp/golang-lru/v2"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -3828,7 +3828,7 @@ func TestGetBlobSidecars(t *testing.T) {
 	var (
 		blkHash  = common.HexToHash("0x11")
 		blkNum   = uint64(1)
-		cache, _ = lru.New(5)
+		cache, _ = lru.New[common.Hash, types.BlobSidecars](20)
 	)
 	db := rawdb.NewDatabase(rawdb.NewMemoryDatabase())
 	rawdb.WriteBlobSidecars(db, blkHash, blkNum, types.BlobSidecars{&types.BlobSidecar{TxHash: common.HexToHash("0x22")}})
