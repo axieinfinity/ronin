@@ -21,11 +21,12 @@ package light
 import (
 	"context"
 	"errors"
-	"github.com/ethereum/go-ethereum/core/vm"
 	"math/big"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/ethereum/go-ethereum/core/vm"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -38,7 +39,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
-	lru "github.com/hashicorp/golang-lru"
+	lru "github.com/hashicorp/golang-lru/v2"
 )
 
 var (
@@ -61,9 +62,9 @@ type LightChain struct {
 	scope         event.SubscriptionScope
 	genesisBlock  *types.Block
 
-	bodyCache    *lru.Cache // Cache for the most recent block bodies
-	bodyRLPCache *lru.Cache // Cache for the most recent block bodies in RLP encoded format
-	blockCache   *lru.Cache // Cache for the most recent entire blocks
+	bodyCache    *lru.Cache[common.Hash, *types.Body]  // Cache for the most recent block bodies
+	bodyRLPCache *lru.Cache[common.Hash, rlp.RawValue] // Cache for the most recent block bodies in RLP encoded format
+	blockCache   *lru.Cache[common.Hash, *types.Block] // Cache for the most recent entire blocks
 
 	chainmu sync.RWMutex // protects header inserts
 	quit    chan struct{}
@@ -79,9 +80,9 @@ type LightChain struct {
 // available in the database. It initialises the default Ethereum header
 // validator.
 func NewLightChain(odr OdrBackend, config *params.ChainConfig, engine consensus.Engine, checkpoint *params.TrustedCheckpoint) (*LightChain, error) {
-	bodyCache, _ := lru.New(bodyCacheLimit)
-	bodyRLPCache, _ := lru.New(bodyCacheLimit)
-	blockCache, _ := lru.New(blockCacheLimit)
+	bodyCache, _ := lru.New[common.Hash, *types.Body](bodyCacheLimit)
+	bodyRLPCache, _ := lru.New[common.Hash, rlp.RawValue](bodyCacheLimit)
+	blockCache, _ := lru.New[common.Hash, *types.Block](blockCacheLimit)
 
 	bc := &LightChain{
 		chainDb:       odr.Database(),
@@ -235,8 +236,7 @@ func (lc *LightChain) OpEvents() []*vm.PublishEvent {
 // or ODR service by hash, caching it if found.
 func (lc *LightChain) GetBody(ctx context.Context, hash common.Hash) (*types.Body, error) {
 	// Short circuit if the body's already in the cache, retrieve otherwise
-	if cached, ok := lc.bodyCache.Get(hash); ok {
-		body := cached.(*types.Body)
+	if body, ok := lc.bodyCache.Get(hash); ok {
 		return body, nil
 	}
 	number := lc.hc.GetBlockNumber(hash)
@@ -256,8 +256,8 @@ func (lc *LightChain) GetBody(ctx context.Context, hash common.Hash) (*types.Bod
 // ODR service by hash, caching it if found.
 func (lc *LightChain) GetBodyRLP(ctx context.Context, hash common.Hash) (rlp.RawValue, error) {
 	// Short circuit if the body's already in the cache, retrieve otherwise
-	if cached, ok := lc.bodyRLPCache.Get(hash); ok {
-		return cached.(rlp.RawValue), nil
+	if body, ok := lc.bodyRLPCache.Get(hash); ok {
+		return body, nil
 	}
 	number := lc.hc.GetBlockNumber(hash)
 	if number == nil {
@@ -284,7 +284,7 @@ func (lc *LightChain) HasBlock(hash common.Hash, number uint64) bool {
 func (lc *LightChain) GetBlock(ctx context.Context, hash common.Hash, number uint64) (*types.Block, error) {
 	// Short circuit if the block's already in the cache, retrieve otherwise
 	if block, ok := lc.blockCache.Get(hash); ok {
-		return block.(*types.Block), nil
+		return block, nil
 	}
 	block, err := GetBlock(ctx, lc.odr, hash, number)
 	if err != nil {

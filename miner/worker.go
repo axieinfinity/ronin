@@ -39,7 +39,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/trie"
-	lru "github.com/hashicorp/golang-lru"
+	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/holiman/uint256"
 )
 
@@ -230,7 +230,7 @@ type worker struct {
 	fullTaskHook func()                             // Method to call before pushing the full sealing task.
 	resubmitHook func(time.Duration, time.Duration) // Method to call upon updating resubmitting interval.
 
-	recentMinedBlocks *lru.Cache
+	recentMinedBlocks *lru.Cache[uint64, []common.Hash]
 }
 
 func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus.Engine, eth Backend, mux *event.TypeMux, isLocalBlock func(*types.Block) bool, init bool) *worker {
@@ -263,7 +263,7 @@ func newWorker(config *Config, chainConfig *params.ChainConfig, engine consensus
 	worker.chainHeadSub = eth.BlockChain().SubscribeChainHeadEvent(worker.chainHeadCh)
 	worker.chainSideSub = eth.BlockChain().SubscribeChainSideEvent(worker.chainSideCh)
 
-	worker.recentMinedBlocks, _ = lru.New(recentMinedCacheLimit)
+	worker.recentMinedBlocks, _ = lru.New[uint64, []common.Hash](recentMinedCacheLimit)
 
 	// Sanitize recommit interval if the user-specified one is too short.
 	recommit := worker.config.Recommit
@@ -698,9 +698,8 @@ func (w *worker) resultLoop() {
 			}
 
 			if w.chainConfig.IsConsortiumV2(block.Number()) {
-				if parents, ok := w.recentMinedBlocks.Get(block.NumberU64()); ok {
+				if parentsHash, ok := w.recentMinedBlocks.Get(block.NumberU64()); ok {
 					isDoubleSign := false
-					parentsHash := parents.([]common.Hash)
 					for _, parent := range parentsHash {
 						if block.ParentHash() == parent {
 							isDoubleSign = true

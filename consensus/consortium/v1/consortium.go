@@ -30,6 +30,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/hashicorp/golang-lru/arc/v2"
 	"golang.org/x/crypto/sha3"
 
 	"github.com/ethereum/go-ethereum/accounts"
@@ -45,7 +46,6 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/ethereum/go-ethereum/trie"
-	lru "github.com/hashicorp/golang-lru"
 )
 
 const (
@@ -100,8 +100,8 @@ type Consortium struct {
 	config      *params.ConsortiumConfig // Consensus engine configuration parameters
 	db          ethdb.Database           // Database to store and retrieve snapshot checkpoints
 
-	recents    *lru.ARCCache // Snapshots for recent block to speed up reorgs
-	signatures *lru.ARCCache // Signatures of recent blocks to speed up mining
+	recents    *arc.ARCCache[common.Hash, *Snapshot]      // Snapshots for recent block to speed up reorgs
+	signatures *arc.ARCCache[common.Hash, common.Address] // Signatures of recent blocks to speed up mining
 
 	proposals map[common.Address]bool // Current list of proposals we are pushing
 
@@ -130,8 +130,8 @@ func New(chainConfig *params.ChainConfig, db ethdb.Database, ethAPI *ethapi.Publ
 		consortiumConfig.Epoch = epochLength
 	}
 	// Allocate the snapshot caches and create the engine
-	recents, _ := lru.NewARC(inmemorySnapshots)
-	signatures, _ := lru.NewARC(inmemorySignatures)
+	recents, _ := arc.NewARC[common.Hash, *Snapshot](inmemorySnapshots)
+	signatures, _ := arc.NewARC[common.Hash, common.Address](inmemorySignatures)
 
 	consortium := Consortium{
 		chainConfig:               chainConfig,
@@ -314,7 +314,7 @@ func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, 
 	for snap == nil {
 		// If an in-memory snapshot was found, use that
 		if s, ok := c.recents.Get(hash); ok {
-			snap = s.(*Snapshot)
+			snap = s
 			break
 		}
 		// If an on-disk checkpoint snapshot can be found, use that
@@ -812,11 +812,11 @@ func (c *Consortium) initContract(coinbase common.Address, signTxFn consortiumCo
 }
 
 // ecrecover extracts the Ethereum account address from a signed header.
-func Ecrecover(header *types.Header, sigcache *lru.ARCCache) (common.Address, error) {
+func Ecrecover(header *types.Header, sigcache *arc.ARCCache[common.Hash, common.Address]) (common.Address, error) {
 	// If the signature's already cached, return that
 	hash := header.Hash()
 	if address, known := sigcache.Get(hash); known {
-		return address.(common.Address), nil
+		return address, nil
 	}
 	// Retrieve the signature from the header extra-data
 	if len(header.Extra) < consortiumCommon.ExtraSeal {

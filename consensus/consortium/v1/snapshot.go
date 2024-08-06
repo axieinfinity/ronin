@@ -27,13 +27,13 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
-	lru "github.com/hashicorp/golang-lru"
+	"github.com/hashicorp/golang-lru/arc/v2"
 )
 
 // Snapshot is the state of the authorization voting at a given point in time.
 type Snapshot struct {
-	config   *params.ConsortiumConfig // Consensus engine parameters to fine tune behavior
-	sigcache *lru.ARCCache            // Cache of recent block signatures to speed up ecrecover
+	config   *params.ConsortiumConfig                   // Consensus engine parameters to fine tune behavior
+	sigcache *arc.ARCCache[common.Hash, common.Address] // Cache of recent block signatures to speed up ecrecover
 
 	Number     uint64                      `json:"number"`     // Block number where the snapshot was created
 	Hash       common.Hash                 `json:"hash"`       // Block hash where the snapshot was created
@@ -45,7 +45,9 @@ type Snapshot struct {
 // newSnapshot creates a new snapshot with the specified startup parameters. This
 // method does not initialize the set of recent signers, so only ever use if for
 // the genesis block.
-func newSnapshot(config *params.ConsortiumConfig, sigcache *lru.ARCCache, number uint64, hash common.Hash, signers []common.Address) *Snapshot {
+func newSnapshot(config *params.ConsortiumConfig, sigcache *arc.ARCCache[common.Hash, common.Address],
+	number uint64, hash common.Hash, signers []common.Address) *Snapshot {
+
 	snap := &Snapshot{
 		config:     config,
 		sigcache:   sigcache,
@@ -65,7 +67,9 @@ func newSnapshot(config *params.ConsortiumConfig, sigcache *lru.ARCCache, number
 }
 
 // loadSnapshot loads an existing snapshot from the database.
-func loadSnapshot(config *params.ConsortiumConfig, sigcache *lru.ARCCache, db ethdb.Database, hash common.Hash) (*Snapshot, error) {
+func loadSnapshot(config *params.ConsortiumConfig, sigcache *arc.ARCCache[common.Hash, common.Address],
+	db ethdb.Database, hash common.Hash) (*Snapshot, error) {
+
 	blob, err := rawdb.ReadSnapshotConsortium(db, hash)
 	if err != nil {
 		return nil, err

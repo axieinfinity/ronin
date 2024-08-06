@@ -17,7 +17,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"github.com/ethereum/go-ethereum/params"
-	lru "github.com/hashicorp/golang-lru"
+	"github.com/hashicorp/golang-lru/arc/v2"
 )
 
 // Snapshot is the state of the authorization validators at a given point in time.
@@ -26,7 +26,7 @@ type Snapshot struct {
 	chainConfig *params.ChainConfig
 	config      *params.ConsortiumConfig // Consensus engine parameters to fine tune behavior
 	ethAPI      *ethapi.PublicBlockChainAPI
-	sigCache    *lru.ARCCache // Cache of recent block signatures to speed up ecrecover
+	sigCache    *arc.ARCCache[common.Hash, common.Address] // Cache of recent block signatures to speed up ecrecover
 
 	Number     uint64                      `json:"number"`               // Block number where the snapshot was created
 	Hash       common.Hash                 `json:"hash"`                 // Block hash where the snapshot was created
@@ -57,7 +57,7 @@ func (s validatorsAscending) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 func newSnapshot(
 	chainConfig *params.ChainConfig,
 	config *params.ConsortiumConfig,
-	sigcache *lru.ARCCache,
+	sigcache *arc.ARCCache[common.Hash, common.Address],
 	number uint64,
 	hash common.Hash,
 	validators []common.Address,
@@ -90,7 +90,7 @@ func newSnapshot(
 // loadSnapshot loads an existing snapshot from the database.
 func loadSnapshot(
 	config *params.ConsortiumConfig,
-	sigcache *lru.ARCCache,
+	sigcache *arc.ARCCache[common.Hash, common.Address],
 	db ethdb.Database,
 	hash common.Hash,
 	ethAPI *ethapi.PublicBlockChainAPI,

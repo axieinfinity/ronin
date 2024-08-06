@@ -28,7 +28,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/rlp"
-	lru "github.com/hashicorp/golang-lru"
+	lru "github.com/hashicorp/golang-lru/v2"
 )
 
 const (
@@ -57,7 +57,7 @@ var (
 
 type nodeDB struct {
 	db            ethdb.KeyValueStore
-	cache         *lru.Cache
+	cache         *lru.Cache[string, utils.ExpiredValue]
 	auxbuf        []byte                                              // 37-byte auxiliary buffer for key encoding
 	verbuf        [2]byte                                             // 2-byte auxiliary buffer for db version
 	evictCallBack func(mclock.AbsTime, bool, utils.ExpiredValue) bool // Callback to determine whether the balance can be evicted.
@@ -67,7 +67,7 @@ type nodeDB struct {
 }
 
 func newNodeDB(db ethdb.KeyValueStore, clock mclock.Clock) *nodeDB {
-	cache, _ := lru.New(balanceCacheLimit)
+	cache, _ := lru.New[string, utils.ExpiredValue](balanceCacheLimit)
 	ndb := &nodeDB{
 		db:      db,
 		cache:   cache,
@@ -125,7 +125,7 @@ func (db *nodeDB) getOrNewBalance(id []byte, neg bool) utils.ExpiredValue {
 	key := db.key(id, neg)
 	item, exist := db.cache.Get(string(key))
 	if exist {
-		return item.(utils.ExpiredValue)
+		return item
 	}
 	var b utils.ExpiredValue
 	enc, err := db.db.Get(key)

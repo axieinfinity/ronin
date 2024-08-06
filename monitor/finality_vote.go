@@ -10,7 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	blsCommon "github.com/ethereum/go-ethereum/crypto/bls/common"
 	"github.com/ethereum/go-ethereum/log"
-	lru "github.com/hashicorp/golang-lru"
+	lru "github.com/hashicorp/golang-lru/v2"
 )
 
 const finalityVoteCache = 100
@@ -25,7 +25,7 @@ type blockInformation struct {
 type FinalityVoteMonitor struct {
 	chain         consensus.ChainHeaderReader
 	engine        consensus.FastFinalityPoSA
-	observedVotes *lru.Cache
+	observedVotes *lru.Cache[uint64, []blockInformation]
 	alerter       *slackAlerter
 }
 
@@ -33,7 +33,7 @@ func NewFinalityVoteMonitor(
 	chain consensus.ChainHeaderReader,
 	engine consensus.FastFinalityPoSA,
 ) (*FinalityVoteMonitor, error) {
-	observedVotes, err := lru.New(finalityVoteCache)
+	observedVotes, err := lru.New[uint64, []blockInformation](finalityVoteCache)
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +109,7 @@ func (monitor *FinalityVoteMonitor) checkSameHeightVote(
 	voterAddress []common.Address,
 	aggregatedSignature blsCommon.Signature,
 ) error {
-	rawBlockInfo, ok := monitor.observedVotes.Get(blockNumber)
+	blockInfo, ok := monitor.observedVotes.Get(blockNumber)
 	if !ok {
 		monitor.observedVotes.Add(blockNumber, []blockInformation{
 			{
@@ -123,8 +123,6 @@ func (monitor *FinalityVoteMonitor) checkSameHeightVote(
 	}
 
 	violated := false
-	blockInfo := rawBlockInfo.([]blockInformation)
-
 	for _, block := range blockInfo {
 		// 2 blocks are the same, it's not likely to happen
 		if block.blockHash == blockHash {
