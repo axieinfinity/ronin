@@ -75,6 +75,7 @@ func enable1884(jt *JumpTable) {
 
 	// New opcode
 	jt[SELFBALANCE] = &operation{
+		opcodeName: "opSelfBalance",
 		execute:     opSelfBalance,
 		constantGas: GasFastStep,
 		minStack:    minStack(0, 1),
@@ -93,6 +94,7 @@ func opSelfBalance(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext)
 func enable1344(jt *JumpTable) {
 	// New opcode
 	jt[CHAINID] = &operation{
+		opcodeName: "opChainID",
 		execute:     opChainID,
 		constantGas: GasQuickStep,
 		minStack:    minStack(0, 1),
@@ -165,6 +167,7 @@ func enable3529(jt *JumpTable) {
 func enable3198(jt *JumpTable) {
 	// New opcode
 	jt[BASEFEE] = &operation{
+		opcodeName: "opBaseFee",
 		execute:     opBaseFee,
 		constantGas: GasQuickStep,
 		minStack:    minStack(0, 1),
