@@ -117,7 +117,7 @@ func (ethash *Ethash) VerifyHeader(chain consensus.ChainHeaderReader, header *ty
 }
 
 // VerifyBlobHeader only available in v2
-func (ethash *Ethash) VerifyBlobHeader(block *types.Block, sidecars []types.BlobTxSidecar) (error, *types.BlobSidecars) {
+func (ethash *Ethash) VerifyBlobHeader(block *types.Block, sidecars []*types.BlobTxSidecar) (error, *types.BlobSidecars) {
 	return nil, nil
 }
 
