@@ -457,7 +457,7 @@ func TestClique(t *testing.T) {
 		}
 		failed := false
 		for j := 0; j < len(batches)-1; j++ {
-			if k, err := chain.InsertChain(batches[j]); err != nil {
+			if k, err := chain.InsertChain(batches[j], nil); err != nil {
 				t.Errorf("test %d: failed to import batch %d, block %d: %v", i, j, k, err)
 				failed = true
 				break
@@ -466,7 +466,7 @@ func TestClique(t *testing.T) {
 		if failed {
 			continue
 		}
-		if _, err = chain.InsertChain(batches[len(batches)-1]); err != tt.failure {
+		if _, err = chain.InsertChain(batches[len(batches)-1], nil); err != tt.failure {
 			t.Errorf("test %d: failure mismatch: have %v, want %v", i, err, tt.failure)
 		}
 		if tt.failure != nil {

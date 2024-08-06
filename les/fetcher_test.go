@@ -142,7 +142,7 @@ func testGappedAnnouncements(t *testing.T, protocol int) {
 		ethash.NewFaker(), s.db, 2, func(i int, gen *core.BlockGen) {
 			gen.OffsetTime(-9) // higher block difficulty
 		}, true)
-	s.backend.Blockchain().InsertChain(blocks)
+	s.backend.Blockchain().InsertChain(blocks, nil)
 
 	<-done // Wait syncing
 	verifyChainHeight(t, c.handler.fetcher, 5)

@@ -215,7 +215,7 @@ func TestStateProcessorErrors(t *testing.T) {
 			},
 		} {
 			block := GenerateBadBlock(genesis, ethash.NewFaker(), tt.txs, gspec.Config)
-			_, err := blockchain.InsertChain(types.Blocks{block})
+			_, err := blockchain.InsertChain(types.Blocks{block}, nil)
 			if err == nil {
 				t.Fatal("block imported without errors")
 			}
@@ -265,7 +265,7 @@ func TestStateProcessorErrors(t *testing.T) {
 			},
 		} {
 			block := GenerateBadBlock(genesis, ethash.NewFaker(), tt.txs, gspec.Config)
-			_, err := blockchain.InsertChain(types.Blocks{block})
+			_, err := blockchain.InsertChain(types.Blocks{block}, nil)
 			if err == nil {
 				t.Fatal("block imported without errors")
 			}
@@ -305,7 +305,7 @@ func TestStateProcessorErrors(t *testing.T) {
 			},
 		} {
 			block := GenerateBadBlock(genesis, ethash.NewFaker(), tt.txs, gspec.Config)
-			_, err := blockchain.InsertChain(types.Blocks{block})
+			_, err := blockchain.InsertChain(types.Blocks{block}, nil)
 			if err == nil {
 				t.Fatal("block imported without errors")
 			}
@@ -367,7 +367,7 @@ func TestStateProcessorErrors(t *testing.T) {
 			},
 		} {
 			block := GenerateBadBlock(genesis, ethash.NewFaker(), tt.txs, gspec.Config)
-			_, err := blockchain.InsertChain(types.Blocks{block})
+			_, err := blockchain.InsertChain(types.Blocks{block}, nil)
 			if err == nil {
 				t.Fatal("block imported without errors")
 			}
@@ -466,7 +466,7 @@ func TestBlobTxStateTransition(t *testing.T) {
 			}
 			block.AddTx(tx)
 		}, true)
-		if _, err := chain.InsertChain(blocks[:]); err != nil {
+		if _, err := chain.InsertChain(blocks[:], nil); err != nil {
 			return nil, common.Address{}, err
 		}
 		statedb, _ := state.New(chain.CurrentHeader().Root, chain.stateCache, nil)
