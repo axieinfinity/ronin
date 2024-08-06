@@ -33,7 +33,6 @@ require (
 	github.com/gorilla/websocket v1.5.0
 	github.com/graph-gophers/graphql-go v1.3.0
 	github.com/hashicorp/go-bexpr v0.1.10
-	github.com/hashicorp/golang-lru v0.5.5-0.20210104140557-80c98217689d
 	github.com/holiman/bloomfilter/v2 v2.0.3
 	github.com/holiman/uint256 v1.3.0
 	github.com/huin/goupnp v1.1.0
@@ -76,6 +75,8 @@ require (
 	github.com/common-nighthawk/go-figure v0.0.0-20210622060536-734e95fb86be
 	github.com/golang/mock v1.6.0
 	github.com/grafana/pyroscope-go v1.1.1
+	github.com/hashicorp/golang-lru/arc/v2 v2.0.7
+	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/klauspost/compress v1.17.3
 	github.com/pkg/errors v0.9.1
 	github.com/supranational/blst v0.3.11

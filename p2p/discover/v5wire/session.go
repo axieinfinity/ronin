@@ -25,7 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/common/mclock"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/p2p/enode"
-	"github.com/hashicorp/golang-lru/simplelru"
+	"github.com/hashicorp/golang-lru/v2/simplelru"
 )
 
 const handshakeTimeout = time.Second
@@ -33,7 +33,7 @@ const handshakeTimeout = time.Second
 // The SessionCache keeps negotiated encryption keys and
 // state for in-progress handshakes in the Discovery v5 wire protocol.
 type SessionCache struct {
-	sessions   *simplelru.LRU
+	sessions   *simplelru.LRU[sessionID, *session]
 	handshakes map[sessionID]*Whoareyou
 	clock      mclock.Clock
 
@@ -62,7 +62,7 @@ func (s *session) keysFlipped() *session {
 }
 
 func NewSessionCache(maxItems int, clock mclock.Clock) *SessionCache {
-	cache, err := simplelru.NewLRU(maxItems, nil)
+	cache, err := simplelru.NewLRU[sessionID, *session](maxItems, nil)
 	if err != nil {
 		panic("can't create session cache")
 	}
@@ -99,7 +99,7 @@ func (sc *SessionCache) session(id enode.ID, addr string) *session {
 	if !ok {
 		return nil
 	}
-	return item.(*session)
+	return item
 }
 
 // readKey returns the current read key for the given node.

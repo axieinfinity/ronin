@@ -26,7 +26,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/trie"
-	lru "github.com/hashicorp/golang-lru"
+	lru "github.com/hashicorp/golang-lru/v2"
 )
 
 const (
@@ -117,7 +117,7 @@ func NewDatabase(db ethdb.Database) Database {
 // is safe for concurrent use and retains a lot of collapsed RLP trie nodes in a
 // large memory cache.
 func NewDatabaseWithConfig(db ethdb.Database, config *trie.Config) Database {
-	csc, _ := lru.New(codeSizeCacheSize)
+	csc, _ := lru.New[common.Hash, int](codeSizeCacheSize)
 	return &cachingDB{
 		db:            trie.NewDatabaseWithConfig(db, config),
 		codeSizeCache: csc,
@@ -127,7 +127,7 @@ func NewDatabaseWithConfig(db ethdb.Database, config *trie.Config) Database {
 
 type cachingDB struct {
 	db            *trie.Database
-	codeSizeCache *lru.Cache
+	codeSizeCache *lru.Cache[common.Hash, int]
 	codeCache     *fastcache.Cache
 }
 
@@ -192,7 +192,7 @@ func (db *cachingDB) ContractCodeWithPrefix(addrHash, codeHash common.Hash) ([]b
 // ContractCodeSize retrieves a particular contracts code's size.
 func (db *cachingDB) ContractCodeSize(addrHash, codeHash common.Hash) (int, error) {
 	if cached, ok := db.codeSizeCache.Get(codeHash); ok {
-		return cached.(int), nil
+		return cached, nil
 	}
 	code, err := db.ContractCode(addrHash, codeHash)
 	return len(code), err

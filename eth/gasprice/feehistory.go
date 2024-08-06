@@ -250,13 +250,9 @@ func (oracle *Oracle) FeeHistory(ctx context.Context, blocks int, unresolvedLast
 					oracle.processBlock(fees, rewardPercentiles)
 					results <- fees
 				} else {
-					cacheKey := struct {
-						number      uint64
-						percentiles string
-					}{blockNumber, string(percentileKey)}
-
+					cacheKey := historyCacheKey{blockNumber, string(percentileKey)}
 					if p, ok := oracle.historyCache.Get(cacheKey); ok {
-						fees.results = p.(processedFees)
+						fees.results = p
 						results <- fees
 					} else {
 						if len(rewardPercentiles) != 0 {

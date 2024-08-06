@@ -39,7 +39,7 @@ import (
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/ethereum/go-ethereum/trie"
-	lru "github.com/hashicorp/golang-lru"
+	"github.com/hashicorp/golang-lru/arc/v2"
 	"golang.org/x/crypto/sha3"
 )
 
@@ -104,8 +104,8 @@ type Consortium struct {
 	forkedBlock uint64
 	db          ethdb.Database // Database to store and retrieve snapshot checkpoints
 
-	recents    *lru.ARCCache // Snapshots for recent block to speed up reorgs
-	signatures *lru.ARCCache // Signatures of recent blocks to speed up mining
+	recents    *arc.ARCCache[common.Hash, *Snapshot]      // Snapshots for recent block to speed up reorgs
+	signatures *arc.ARCCache[common.Hash, common.Address] // Signatures of recent blocks to speed up mining
 
 	lock     sync.RWMutex              // Protects the below 4 fields
 	val      common.Address            // Ethereum address of the signing key
@@ -141,8 +141,8 @@ func New(
 	}
 
 	// Allocate the snapshot caches and create the engine
-	recents, _ := lru.NewARC(inmemorySnapshots)
-	signatures, _ := lru.NewARC(inmemorySignatures)
+	recents, _ := arc.NewARC[common.Hash, *Snapshot](inmemorySnapshots)
+	signatures, _ := arc.NewARC[common.Hash, common.Address](inmemorySignatures)
 
 	consortium := Consortium{
 		chainConfig: chainConfig,
@@ -682,7 +682,7 @@ func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, 
 	for snap == nil {
 		// If an in-memory snapshot was found, use that
 		if s, ok := c.recents.Get(hash); ok {
-			snap = s.(*Snapshot)
+			snap = s
 			break
 		}
 
@@ -1810,11 +1810,11 @@ func (c *Consortium) GetFinalityVoterAt(
 }
 
 // ecrecover extracts the Ronin account address from a signed header.
-func ecrecover(header *types.Header, sigcache *lru.ARCCache, chainId *big.Int) (common.Address, error) {
+func ecrecover(header *types.Header, sigcache *arc.ARCCache[common.Hash, common.Address], chainId *big.Int) (common.Address, error) {
 	// If the signature's already cached, return that
 	hash := header.Hash()
 	if address, known := sigcache.Get(hash); known {
-		return address.(common.Address), nil
+		return address, nil
 	}
 	// Retrieve the signature from the header extra-data
 	if len(header.Extra) < consortiumCommon.ExtraSeal {
