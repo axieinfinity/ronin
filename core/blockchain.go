@@ -1459,6 +1459,16 @@ func (bc *BlockChain) reorgNeeded(localBlock *types.Block, localTd *big.Int, ext
 	return reorg
 }
 
+// pruneBlockSidecars prunes the sidecars of blocks that are older than the keep period
+func (bc *BlockChain) pruneBlockSidecars(db ethdb.KeyValueWriter, curBlock *types.Block) {
+	if curBlock.NumberU64() < uint64(params.BlobPrunePeriod) {
+		return
+	}
+	pruneBlockNumber := curBlock.NumberU64() - uint64(params.BlobPrunePeriod)
+	pruneBlockHash := bc.GetCanonicalHash(pruneBlockNumber)
+	rawdb.DeleteBlobSidecars(db, pruneBlockHash, pruneBlockNumber)
+}
+
 // writeBlockWithState writes the block and all associated state to the database,
 // but is expects the chain mutex to be held.
 func (bc *BlockChain) writeBlockWithState(
@@ -1493,8 +1503,9 @@ func (bc *BlockChain) writeBlockWithState(
 	rawdb.WriteBlock(blockBatch, block)
 	rawdb.WriteReceipts(blockBatch, block.Hash(), block.NumberU64(), receipts)
 	rawdb.WritePreimages(blockBatch, state.Preimages())
+
 	writeBlockSidecars(blockBatch, block, sidecars)
-	// TODO: Implement prune blob sidecars logic
+	bc.pruneBlockSidecars(blockBatch, block)
 
 	if err := blockBatch.Write(); err != nil {
 		log.Crit("Failed to write block into disk", "err", err)
