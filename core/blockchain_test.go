@@ -27,9 +27,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
+	gokzg4844 "github.com/crate-crypto/go-kzg-4844"
 	"github.com/ethereum/go-ethereum/common/math"
+	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 	"github.com/ethereum/go-ethereum/eth/tracers/logger"
 	lru "github.com/hashicorp/golang-lru/v2"
+	"github.com/holiman/uint256"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -3843,4 +3847,334 @@ func TestGetBlobSidecars(t *testing.T) {
 	if sidecars[0].TxHash != common.HexToHash("0x22") {
 		t.Fatal("Mismatch blob sidecars")
 	}
+}
+
+func randFieldElement() [32]byte {
+	bytes := make([]byte, 32)
+	_, err := rand.Read(bytes)
+	if err != nil {
+		panic("failed to get random field element")
+	}
+	var r fr.Element
+	r.SetBytes(bytes)
+
+	return gokzg4844.SerializeScalar(r)
+}
+
+// randBlob generates a random blob with corresponding commitment and proof
+func randBlob() (*kzg4844.Blob, *kzg4844.Commitment, *kzg4844.Proof) {
+	var blob kzg4844.Blob
+	for i := 0; i < len(blob); i += gokzg4844.SerializedScalarSize {
+		fieldElementBytes := randFieldElement()
+		copy(blob[i:i+gokzg4844.SerializedScalarSize], fieldElementBytes[:])
+	}
+	commitment, err := kzg4844.BlobToCommitment(&blob)
+	if err != nil {
+		panic(err)
+	}
+	proof, err := kzg4844.ComputeBlobProof(&blob, commitment)
+	if err != nil {
+		panic(err)
+	}
+	return &blob, &commitment, &proof
+}
+
+func TestInsertChainWithSidecars(t *testing.T) {
+	privateKey, _ := crypto.GenerateKey()
+	address := crypto.PubkeyToAddress(privateKey.PublicKey)
+	chainConfig := params.TestChainConfig
+	chainConfig.RoninTreasuryAddress = &address
+	db := rawdb.NewMemoryDatabase()
+	engine := ethash.NewFaker()
+	gspec := &Genesis{
+		Config: chainConfig,
+		Alloc: GenesisAlloc{
+			address: {
+				Balance: big.NewInt(1000000000),
+			},
+		},
+	}
+	genesis := gspec.MustCommit(db)
+	chain, err := NewBlockChain(db, nil, chainConfig, engine, vm.Config{}, nil, nil)
+	if err != nil {
+		t.Fatalf("Failed to create blockchain, err %s", err)
+	}
+	signer := types.NewCancunSigner(chainConfig.ChainID)
+
+	// 1. Insert block with sidecars
+	blob, commitment, proof := randBlob()
+	sidecars := []*types.BlobTxSidecar{
+		{
+			Blobs:       []kzg4844.Blob{*blob, *blob},
+			Commitments: []kzg4844.Commitment{*commitment, *commitment},
+			Proofs:      []kzg4844.Proof{*proof, *proof},
+		},
+		{
+			Blobs:       []kzg4844.Blob{*blob},
+			Commitments: []kzg4844.Commitment{*commitment},
+			Proofs:      []kzg4844.Proof{*proof},
+		},
+	}
+
+	blobHash := kzg4844.CalcBlobHashV1(crypto.NewKeccakState(), commitment)
+	tx1, err := types.SignNewTx(privateKey, signer, &types.BlobTx{
+		ChainID:    uint256.MustFromBig(chainConfig.ChainID),
+		Nonce:      0,
+		GasTipCap:  uint256.NewInt(0),
+		GasFeeCap:  uint256.NewInt(0),
+		Gas:        21000,
+		To:         address,
+		BlobFeeCap: uint256.NewInt(1),
+		BlobHashes: []common.Hash{blobHash, blobHash},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	tx2, err := types.SignNewTx(privateKey, signer, &types.BlobTx{
+		ChainID:    uint256.MustFromBig(chainConfig.ChainID),
+		Nonce:      1,
+		GasTipCap:  uint256.NewInt(0),
+		GasFeeCap:  uint256.NewInt(0),
+		Gas:        21000,
+		To:         address,
+		BlobFeeCap: uint256.NewInt(1),
+		BlobHashes: []common.Hash{blobHash},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	blocks, _ := GenerateChain(chainConfig, genesis, engine, db, 1, func(i int, bg *BlockGen) {
+		bg.AddTx(tx1)
+		bg.AddTx(tx2)
+	}, false)
+	_, err = chain.InsertChain(blocks, [][]*types.BlobTxSidecar{sidecars})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	block := chain.GetBlockByHash(blocks[0].Hash())
+	if block == nil {
+		t.Fatal("Failed to insert block")
+	}
+	savedSidecars := chain.GetBlobSidecarsByHash(blocks[0].Hash())
+	if len(savedSidecars) != len(sidecars) {
+		t.Fatalf("Expect length of sidecar to be %d, got %d", len(sidecars), len(savedSidecars))
+	}
+	if savedSidecars[0].TxHash != tx1.Hash() {
+		t.Fatalf("Expect sidecar's tx hash to be %x, got %x", tx1.Hash(), savedSidecars[0].TxHash)
+	}
+	if len(savedSidecars[0].Blobs) != len(sidecars[0].Blobs) {
+		t.Fatalf("Expect length of blob to be %d, got %d", len(sidecars[0].Blobs), len(savedSidecars[0].Blobs))
+	}
+	if savedSidecars[1].TxHash != tx2.Hash() {
+		t.Fatalf("Expect sidecar's tx hash to be %x, got %x", tx2.Hash(), savedSidecars[1].TxHash)
+	}
+	if len(savedSidecars[1].Blobs) != len(sidecars[1].Blobs) {
+		t.Fatalf("Expect length of blob to be %d, got %d", len(sidecars[1].Blobs), len(savedSidecars[1].Blobs))
+	}
+
+	// 2. Insert block without sidecars
+
+	// Reset database
+	db = rawdb.NewMemoryDatabase()
+	gspec.MustCommit(db)
+	chain, err = NewBlockChain(db, nil, chainConfig, engine, vm.Config{}, nil, nil)
+	if err != nil {
+		t.Fatalf("Failed to create blockchain, err %s", err)
+	}
+
+	_, err = chain.InsertChain(blocks, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	block = chain.GetBlockByHash(blocks[0].Hash())
+	if block == nil {
+		t.Fatal("Failed to insert block")
+	}
+	savedSidecars = chain.GetBlobSidecarsByHash(blocks[0].Hash())
+	if len(savedSidecars) != 0 {
+		t.Fatalf("Expect length of sidecar to be %d, got %d", 0, len(savedSidecars))
+	}
+
+	// 3. Insert sidechain block with sidecars
+
+	// Reset database
+	db = rawdb.NewMemoryDatabase()
+	gspec.MustCommit(db)
+	chain, err = NewBlockChain(db, nil, chainConfig, engine, vm.Config{}, nil, nil)
+	if err != nil {
+		t.Fatalf("Failed to create blockchain, err %s", err)
+	}
+
+	canonicalBlocks, _ := GenerateChain(chainConfig, genesis, engine, db, 1, func(i int, bg *BlockGen) {
+		bg.SetDifficulty(big.NewInt(7))
+	}, false)
+	_, err = chain.InsertChain(canonicalBlocks, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	sidechainBlocks, _ := GenerateChain(chainConfig, genesis, engine, db, 1, func(i int, bg *BlockGen) {
+		bg.AddTx(tx1)
+		bg.AddTx(tx2)
+		bg.SetDifficulty(big.NewInt(3))
+	}, false)
+	_, err = chain.InsertChain(sidechainBlocks, [][]*types.BlobTxSidecar{sidecars})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	block = chain.GetBlockByHash(canonicalBlocks[0].Hash())
+	if block == nil {
+		t.Fatal("Failed to insert block")
+	}
+	block = chain.GetBlockByHash(sidechainBlocks[0].Hash())
+	if block == nil {
+		t.Fatal("Failed to insert block")
+	}
+	// Ensure block is actually on sidechain
+	canonicalBlock := chain.GetBlockByNumber(block.NumberU64())
+	if block.Hash() == canonicalBlock.Hash() {
+		t.Fatal("Expect different block hash")
+	}
+
+	savedSidecars = chain.GetBlobSidecarsByHash(sidechainBlocks[0].Hash())
+	if len(savedSidecars) != len(sidecars) {
+		t.Fatalf("Expect length of sidecar to be %d, got %d", len(sidecars), len(savedSidecars))
+	}
+
+	// 4. More complex sidechain case where the sidechain block creates
+	// ErrPrunedAncestor. This triggers insertSideChain path.
+
+	// Reset database
+	db = rawdb.NewMemoryDatabase()
+	gspec.MustCommit(db)
+	chain, err = NewBlockChain(db, nil, chainConfig, engine, vm.Config{}, nil, nil)
+	if err != nil {
+		t.Fatalf("Failed to create blockchain, err %s", err)
+	}
+
+	// The canonical chain and sidechain share the common parent block 1
+	canonicalBlocks, _ = GenerateChain(chainConfig, genesis, engine, db, 130, func(i int, bg *BlockGen) {
+		if i != 0 {
+			bg.SetDifficulty(big.NewInt(7))
+		}
+	}, false)
+
+	// Create 2 blocks: block #1 is the common parent with canonical chain, block #2 contains sidecars
+	sidechainBlocks, _ = GenerateChain(chainConfig, genesis, engine, db, 2, func(i int, bg *BlockGen) {
+		if i == 1 {
+			bg.AddTx(tx1)
+			bg.AddTx(tx2)
+			bg.SetDifficulty(big.NewInt(3))
+		}
+	}, false)
+
+	_, err = chain.InsertChain(canonicalBlocks, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Only insert sidechain block #2 to get ErrPrunedAncestor because state of block #1 is pruned
+	// because canonical chain is too long ahead
+	_, err = chain.InsertChain([]*types.Block{sidechainBlocks[1]}, [][]*types.BlobTxSidecar{sidecars})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	block = chain.GetBlockByHash(sidechainBlocks[1].Hash())
+	if block == nil {
+		t.Fatal("Failed to insert block")
+	}
+	// Ensure block is actually on sidechain
+	canonicalBlock = chain.GetBlockByNumber(block.NumberU64())
+	if block.Hash() == canonicalBlock.Hash() {
+		t.Fatal("Expect different block hash")
+	}
+
+	savedSidecars = chain.GetBlobSidecarsByHash(sidechainBlocks[1].Hash())
+	if len(savedSidecars) != len(sidecars) {
+		t.Fatalf("Expect length of sidecar to be %d, got %d", len(sidecars), len(savedSidecars))
+	}
+
+	// 5. Future block with sidecars at the start of inserted chain
+
+	// These 2 tests need to wait for future block to be processed. Run this case asynchronous
+	// to reduce test runtime
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		t.Run("future-block-at-start", func(t *testing.T) {
+
+			// Reset database
+			db := rawdb.NewMemoryDatabase()
+			gspec.MustCommit(db)
+			chain, err := NewBlockChain(db, nil, chainConfig, engine, vm.Config{}, nil, nil)
+			if err != nil {
+				t.Fatalf("Failed to create blockchain, err %s", err)
+			}
+
+			futureBlocks, _ := GenerateChain(chainConfig, genesis, engine, db, 1, func(i int, bg *BlockGen) {
+				bg.OffsetTime(time.Now().Unix() + 15)
+				bg.AddTx(tx1)
+				bg.AddTx(tx2)
+			}, false)
+
+			_, err = chain.InsertChain(futureBlocks, [][]*types.BlobTxSidecar{sidecars})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			// Wait for future block to be inserted
+			time.Sleep(15 * time.Second)
+			block = chain.CurrentBlock()
+			if block.Hash() != futureBlocks[0].Hash() {
+				t.Fatalf("Failed to insert future block, current: %d expected: %d", block.NumberU64(), futureBlocks[0].NumberU64())
+			}
+			savedSidecars = chain.GetBlobSidecarsByHash(block.Hash())
+			if len(savedSidecars) != len(sidecars) {
+				t.Fatalf("Expect length of sidecar to be %d, got %d", len(sidecars), len(savedSidecars))
+			}
+		})
+	}()
+
+	// 6. Future block with sidecars at the end of inserted chain
+
+	// Reset database
+	db = rawdb.NewMemoryDatabase()
+	gspec.MustCommit(db)
+	chain, err = NewBlockChain(db, nil, chainConfig, engine, vm.Config{}, nil, nil)
+	if err != nil {
+		t.Fatalf("Failed to create blockchain, err %s", err)
+	}
+
+	futureBlocks, _ := GenerateChain(chainConfig, genesis, engine, db, 2, func(i int, bg *BlockGen) {
+		if i == 1 {
+			bg.OffsetTime(time.Now().Unix())
+			bg.AddTx(tx1)
+			bg.AddTx(tx2)
+		}
+	}, false)
+
+	_, err = chain.InsertChain(futureBlocks, [][]*types.BlobTxSidecar{nil, sidecars})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Wait for future block to be inserted
+	time.Sleep(15 * time.Second)
+	block = chain.CurrentBlock()
+	if block.Hash() != futureBlocks[1].Hash() {
+		t.Fatalf("Failed to insert future block, current: %d expected: %d", block.NumberU64(), futureBlocks[1].NumberU64())
+	}
+	savedSidecars = chain.GetBlobSidecarsByHash(block.Hash())
+	if len(savedSidecars) != len(sidecars) {
+		t.Fatalf("Expect length of sidecar to be %d, got %d", len(sidecars), len(savedSidecars))
+	}
+	wg.Wait()
 }
