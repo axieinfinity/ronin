@@ -83,7 +83,7 @@ type bodyRequesterFn func([]common.Hash) error
 type headerVerifierFn func(header *types.Header) error
 
 // blobHeaderVerifierFn is a callback type to verify a block's blobs
-type blobHeaderVerifierFn func(block *types.Block, sidecars []types.BlobTxSidecar) (error, *types.BlobSidecars)
+type blobHeaderVerifierFn func(block *types.Block, sidecars []*types.BlobTxSidecar) (error, *types.BlobSidecars)
 
 // blockBroadcasterFn is a callback type for broadcasting a block to connected peers.
 type blockBroadcasterFn func(block *types.Block, propagate bool)
@@ -380,11 +380,7 @@ func (f *BlockFetcher) loop() {
 			if f.light {
 				f.importHeaders(op.origin, op.header)
 			} else {
-				sidecars := make([]types.BlobTxSidecar, len(op.sidecars))
-				for i, sidecar := range op.sidecars {
-					sidecars[i] = *sidecar
-				}
-				f.importBlocks(op.origin, op.block, sidecars)
+				f.importBlocks(op.origin, op.block, op.sidecars)
 			}
 		}
 		// Wait for an outside event to occur
@@ -808,7 +804,7 @@ func (f *BlockFetcher) importHeaders(peer string, header *types.Header) {
 // importBlocks spawns a new goroutine to run a block insertion into the chain. If the
 // block's number is at the same height as the current import phase, it updates
 // the phase states accordingly.
-func (f *BlockFetcher) importBlocks(peer string, block *types.Block, sidecars []types.BlobTxSidecar) {
+func (f *BlockFetcher) importBlocks(peer string, block *types.Block, sidecars []*types.BlobTxSidecar) {
 	hash := block.Hash()
 
 	// Run the import on a new thread
