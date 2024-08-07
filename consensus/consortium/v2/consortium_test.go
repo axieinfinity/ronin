@@ -2568,7 +2568,7 @@ func randBlob() (*kzg4844.Blob, *kzg4844.Commitment, *kzg4844.Proof) {
 }
 
 // randTxsWithBlobs generates a random tx with random blobs, with corresponding sidecar
-func randTxsWithBlobs(numBlobs int) (*types.Transaction, types.BlobTxSidecar) {
+func randTxsWithBlobs(numBlobs int) (*types.Transaction, *types.BlobTxSidecar) {
 	var blobs []kzg4844.Blob
 	var commitments []kzg4844.Commitment
 	var blobHashes []common.Hash
@@ -2584,7 +2584,7 @@ func randTxsWithBlobs(numBlobs int) (*types.Transaction, types.BlobTxSidecar) {
 	blobTx := types.BlobTx{
 		BlobHashes: blobHashes,
 	}
-	return types.NewTx(&blobTx), types.BlobTxSidecar{
+	return types.NewTx(&blobTx), &types.BlobTxSidecar{
 		Blobs:       blobs,
 		Commitments: commitments,
 		Proofs:      proofs,
@@ -2603,12 +2603,12 @@ func TestVerifyBlobHeader(t *testing.T) {
 	}
 	// Create random txs
 	var randTx *types.Transaction
-	var randSidecar types.BlobTxSidecar
-	var randFakeSidecar types.BlobTxSidecar
+	var randSidecar *types.BlobTxSidecar
+	var randFakeSidecar *types.BlobTxSidecar
 
 	var txs []*types.Transaction
-	var sidecars []types.BlobTxSidecar
-	var fakeSidecars []types.BlobTxSidecar
+	var sidecars []*types.BlobTxSidecar
+	var fakeSidecars []*types.BlobTxSidecar
 
 	// Create 2 txs with 2 and 3 blobs, respectively
 	randTx, randSidecar = randTxsWithBlobs(2)
@@ -2680,7 +2680,7 @@ func TestVerifyBlobHeader(t *testing.T) {
 		Time: uint64(time.Now().Unix()),
 	}, txs, []*types.Header{}, []*types.Receipt{}, trie.NewStackTrie(nil))
 
-	err, blobSidecars = c.VerifyBlobHeader(block, []types.BlobTxSidecar{
+	err, blobSidecars = c.VerifyBlobHeader(block, []*types.BlobTxSidecar{
 		{
 			Blobs:       sidecars[0].Blobs,
 			Commitments: sidecars[0].Commitments,
