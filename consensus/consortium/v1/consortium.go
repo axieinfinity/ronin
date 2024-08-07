@@ -170,7 +170,7 @@ func (c *Consortium) Author(header *types.Header) (common.Address, error) {
 }
 
 // VerifyBlobHeader only available in v2
-func (c *Consortium) VerifyBlobHeader(block *types.Block, sidecars []types.BlobTxSidecar) (error, *types.BlobSidecars) {
+func (c *Consortium) VerifyBlobHeader(block *types.Block, sidecars []*types.BlobTxSidecar) (error, *types.BlobSidecars) {
 	return nil, nil
 }
 
