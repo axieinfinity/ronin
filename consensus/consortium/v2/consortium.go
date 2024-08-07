@@ -210,7 +210,7 @@ func (c *Consortium) Author(header *types.Header) (common.Address, error) {
 }
 
 // VerifyBlobHeader verifies a block's header blob and corresponding sidecar, returning BlobSideCars
-func (c *Consortium) VerifyBlobHeader(block *types.Block, sidecars []types.BlobTxSidecar) (error, *types.BlobSidecars) {
+func (c *Consortium) VerifyBlobHeader(block *types.Block, sidecars []*types.BlobTxSidecar) (error, *types.BlobSidecars) {
 	nCommitments := 0
 	for _, sidecar := range sidecars {
 		nCommitments += len(sidecar.Commitments)
@@ -226,7 +226,7 @@ func (c *Consortium) VerifyBlobHeader(block *types.Block, sidecars []types.BlobT
 		return err, nil
 	}
 	for _, sidecar := range sidecars {
-		if err := c.verifySidecar(sidecar); err != nil {
+		if err := c.verifySidecar(*sidecar); err != nil {
 			return err, nil
 		}
 	}
@@ -235,7 +235,7 @@ func (c *Consortium) VerifyBlobHeader(block *types.Block, sidecars []types.BlobT
 	for _, tx := range block.Transactions() {
 		if tx.Type() == types.BlobTxType {
 			blobSidecars = append(blobSidecars, &types.BlobSidecar{
-				BlobTxSidecar: sidecars[curIndex],
+				BlobTxSidecar: *sidecars[curIndex],
 				TxHash:        tx.Hash(),
 			})
 			curIndex++
@@ -250,7 +250,7 @@ func (c *Consortium) skipBlobCheck(header *types.Header) bool {
 }
 
 // verifyVersionHash checks whether the blob hashes in the block match the commitments in the sidecars
-func (c *Consortium) verifyVersionHash(block *types.Block, sidecars []types.BlobTxSidecar) error {
+func (c *Consortium) verifyVersionHash(block *types.Block, sidecars []*types.BlobTxSidecar) error {
 	nSidecar := 0
 	hasher := sha256.New()
 	for _, tx := range block.Transactions() {
