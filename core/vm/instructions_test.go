@@ -953,3 +953,45 @@ func TestOpMCopy(t *testing.T) {
 		}
 	}
 }
+
+// Test that selfdestruct still creates write protection error in read only mode and halts the code execution
+func TestSelfdestructCancun(t *testing.T) {
+	statedb, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
+	env := NewEVM(BlockContext{BlockNumber: common.Big0}, TxContext{}, statedb, params.TestChainConfig, Config{})
+	contractAddr := common.Address{0x2}
+	contract := &Contract{
+		Code: []byte{
+			byte(PUSH1), byte(0x1), // dummy address
+			byte(SELFDESTRUCT),
+		},
+		self: contractRef{addr: contractAddr},
+		Gas:  100_000_000,
+	}
+
+	statedb.AddAddressToAccessList(contractAddr)
+	_, err := env.interpreter.Run(contract, nil, true)
+	if !errors.Is(err, ErrWriteProtection) {
+		t.Fatalf("Expect error %v got %v", ErrWriteProtection, err)
+	}
+
+	// Expect selfdestruct to stop the code execution in the contract
+	// so SSTORE instruction is not executed
+	contract.Code = []byte{
+		byte(PUSH1), byte(0x1), // dummy address
+		byte(SELFDESTRUCT),
+		byte(PUSH1), byte(0x1), // value
+		byte(PUSH1), byte(0x1), // storage slot
+		byte(SSTORE),
+		byte(STOP),
+	}
+
+	_, err = env.interpreter.Run(contract, nil, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	value := statedb.GetState(contractAddr, common.BigToHash(common.Big1)).Big()
+	if value.Cmp(common.Big0) != 0 {
+		t.Fatalf("Expect storage slot to be %d got %d", common.Big0.Uint64(), value.Uint64())
+	}
+}
