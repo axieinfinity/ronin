@@ -52,6 +52,8 @@ import (
 
 var ErrMethodNotSupport = errors.New("method is not supported")
 
+var errBlobTxNotSupported = errors.New("signing blob transactions not supported")
+
 const (
 	// estimateGasErrorRatio is the amount of overestimation eth_estimateGas is
 	// allowed to produce in order to speed up calculations.
@@ -468,6 +470,9 @@ func (s *PrivateAccountAPI) SendTransaction(ctx context.Context, args Transactio
 		s.nonceLock.LockAddr(args.from())
 		defer s.nonceLock.UnlockAddr(args.from())
 	}
+	if args.IsEIP4844() {
+		return common.Hash{}, errBlobTxNotSupported
+	}
 	signed, err := s.signTransaction(ctx, &args, passwd)
 	if err != nil {
 		log.Warn("Failed transaction send attempt", "from", args.from(), "to", args.To, "value", args.Value.ToInt(), "err", err)
@@ -491,6 +496,9 @@ func (s *PrivateAccountAPI) SignTransaction(ctx context.Context, args Transactio
 	}
 	if args.GasPrice == nil && (args.MaxFeePerGas == nil || args.MaxPriorityFeePerGas == nil) {
 		return nil, fmt.Errorf("missing gasPrice or maxFeePerGas/maxPriorityFeePerGas")
+	}
+	if args.IsEIP4844() {
+		return nil, errBlobTxNotSupported
 	}
 	if args.Nonce == nil {
 		return nil, fmt.Errorf("nonce not specified")
@@ -1862,6 +1870,9 @@ func (s *PublicTransactionPoolAPI) SendTransaction(ctx context.Context, args Tra
 		s.nonceLock.LockAddr(args.from())
 		defer s.nonceLock.UnlockAddr(args.from())
 	}
+	if args.IsEIP4844() {
+		return common.Hash{}, errBlobTxNotSupported
+	}
 
 	// Set some sanity defaults and terminate on failure
 	if err := args.setDefaults(ctx, s.b); err != nil {
@@ -1881,6 +1892,7 @@ func (s *PublicTransactionPoolAPI) SendTransaction(ctx context.Context, args Tra
 // on a given unsigned transaction, and returns it to the caller for further
 // processing (signing + broadcast).
 func (s *PublicTransactionPoolAPI) FillTransaction(ctx context.Context, args TransactionArgs) (*SignTransactionResult, error) {
+	args.blobSidecarAllowed = true
 	// Set some sanity defaults and terminate on failure
 	if err := args.setDefaults(ctx, s.b); err != nil {
 		return nil, err
@@ -1943,6 +1955,8 @@ type SignTransactionResult struct {
 // The node needs to have the private key of the account corresponding with
 // the given from address and it needs to be unlocked.
 func (s *PublicTransactionPoolAPI) SignTransaction(ctx context.Context, args TransactionArgs) (*SignTransactionResult, error) {
+	args.blobSidecarAllowed = true
+
 	if args.Gas == nil {
 		return nil, fmt.Errorf("gas not specified")
 	}
@@ -1963,6 +1977,16 @@ func (s *PublicTransactionPoolAPI) SignTransaction(ctx context.Context, args Tra
 	signed, err := s.sign(args.from(), tx)
 	if err != nil {
 		return nil, err
+	}
+	// If the transaction-to-sign was a blob transaction, then the signed one
+	// no longer retains the blobs, only the blob hashes. In this step, we need
+	// to put back the blob(s).
+	if args.IsEIP4844() {
+		signed = signed.WithBlobTxSidecar(&types.BlobTxSidecar{
+			Blobs:       args.Blobs,
+			Commitments: args.Commitments,
+			Proofs:      args.Proofs,
+		})
 	}
 	data, err := signed.MarshalBinary()
 	if err != nil {

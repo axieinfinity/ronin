@@ -20,8 +20,10 @@ import (
 	"bytes"
 	"context"
 	"crypto/ecdsa"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"math/big"
 	"reflect"
 	"testing"
@@ -29,6 +31,7 @@ import (
 
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/accounts"
+	"github.com/ethereum/go-ethereum/accounts/keystore"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -40,6 +43,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/params"
@@ -386,6 +390,27 @@ type testBackend struct {
 	db      ethdb.Database
 	chain   *core.BlockChain
 	pending *types.Block
+	accman  *accounts.Manager
+	acc     accounts.Account
+}
+
+func newTestAccountManager(t *testing.T) (*accounts.Manager, accounts.Account) {
+	var (
+		dir = t.TempDir()
+		am  = accounts.NewManager(&accounts.Config{InsecureUnlockAllowed: true, EnableSigningMethods: true})
+		b   = keystore.NewKeyStore(dir, 2, 1)
+		// testPassphrase =ethkey
+		testKey, _ = crypto.GenerateKey()
+	)
+	acc, err := b.ImportECDSA(testKey, "")
+	if err != nil {
+		t.Fatalf("failed to create test account: %v", err)
+	}
+	if err := b.Unlock(acc, ""); err != nil {
+		t.Fatalf("failed to unlock account: %v\n", err)
+	}
+	am.AddBackend(b)
+	return am, acc
 }
 
 func newTestBackend(t *testing.T, n int, gspec *core.Genesis, engine consensus.Engine, generator func(i int, b *core.BlockGen)) *testBackend {
@@ -398,6 +423,8 @@ func newTestBackend(t *testing.T, n int, gspec *core.Genesis, engine consensus.E
 			TrieDirtyDisabled: true, // Archive mode
 		}
 	)
+	accman, acc := newTestAccountManager(t)
+	gspec.Alloc[acc.Address] = core.GenesisAccount{Balance: big.NewInt(params.Ether)}
 	// Generate blocks for testing
 	db, blocks, _ := core.GenerateChainWithGenesis(gspec, engine, n, generator)
 	txlookupLimit := uint64(0)
@@ -409,8 +436,12 @@ func newTestBackend(t *testing.T, n int, gspec *core.Genesis, engine consensus.E
 		t.Fatalf("block %d: failed to insert into chain: %v", n, err)
 	}
 
-	backend := &testBackend{db: db, chain: chain}
+	backend := &testBackend{db: db, chain: chain, accman: accman, acc: acc}
 	return backend
+}
+
+func (b *testBackend) setPendingBlock(block *types.Block) {
+	b.pending = block
 }
 
 func (b testBackend) SyncProgress() ethereum.SyncProgress { return ethereum.SyncProgress{} }
@@ -421,7 +452,7 @@ func (b testBackend) FeeHistory(ctx context.Context, blockCount int, lastBlock r
 	return nil, nil, nil, nil, nil
 }
 func (b testBackend) ChainDb() ethdb.Database           { return b.db }
-func (b testBackend) AccountManager() *accounts.Manager { return nil }
+func (b testBackend) AccountManager() *accounts.Manager { return b.accman }
 func (b testBackend) ExtRPCEnabled() bool               { return false }
 func (b testBackend) RPCGasCap() uint64                 { return 10000000 }
 func (b testBackend) RPCEVMTimeout() time.Duration      { return time.Second }
@@ -477,12 +508,20 @@ func (b testBackend) GetBody(ctx context.Context, hash common.Hash, number rpc.B
 	return b.chain.GetBlock(hash, uint64(number.Int64())).Body(), nil
 }
 func (b testBackend) StateAndHeaderByNumber(ctx context.Context, number rpc.BlockNumber) (*state.StateDB, *types.Header, error) {
+	var (
+		header *types.Header
+		err    error
+	)
 	if number == rpc.PendingBlockNumber {
-		panic("pending state not implemented")
-	}
-	header, err := b.HeaderByNumber(ctx, number)
-	if err != nil {
-		return nil, nil, err
+		if b.pending == nil {
+			panic("pending state not found")
+		}
+		header = b.pending.Header()
+	} else {
+		header, err = b.HeaderByNumber(ctx, number)
+		if err != nil {
+			return nil, nil, err
+		}
 	}
 	if header == nil {
 		return nil, nil, errors.New("header not found")
@@ -542,7 +581,7 @@ func (b testBackend) GetTransaction(ctx context.Context, txHash common.Hash) (*t
 func (b testBackend) GetPoolTransactions() (types.Transactions, error)         { panic("implement me") }
 func (b testBackend) GetPoolTransaction(txHash common.Hash) *types.Transaction { panic("implement me") }
 func (b testBackend) GetPoolNonce(ctx context.Context, addr common.Address) (uint64, error) {
-	panic("implement me")
+	return 0, nil
 }
 func (b testBackend) Stats() (pending int, queued int) { panic("implement me") }
 func (b testBackend) TxPoolContent() (map[common.Address][]*types.Transaction, map[common.Address][]*types.Transaction) {
@@ -671,6 +710,18 @@ func TestEstimateGas(t *testing.T) {
 				randomAccounts[0].addr: OverrideAccount{Balance: newRPCBalance(big.NewInt(0))},
 			},
 			expectErr: core.ErrInsufficientFunds,
+		},
+		// Blobs should have no effect on gas estimate
+		{
+			blockNumber: rpc.LatestBlockNumber,
+			call: TransactionArgs{
+				From:       &accounts[0].addr,
+				To:         &accounts[1].addr,
+				Value:      (*hexutil.Big)(big.NewInt(1)),
+				BlobHashes: []common.Hash{{0x01, 0x22}},
+				BlobFeeCap: (*hexutil.Big)(big.NewInt(1)),
+			},
+			want: 21000,
 		},
 	}
 	for i, tc := range testSuite {
@@ -838,6 +889,32 @@ func TestCall(t *testing.T) {
 			blockOverrides: BlockOverrides{Number: (*hexutil.Big)(big.NewInt(11))},
 			want:           "0x000000000000000000000000000000000000000000000000000000000000000b",
 		},
+		// Invalid blob tx
+		{
+			blockNumber: rpc.LatestBlockNumber,
+			call: TransactionArgs{
+				From:       &accounts[1].addr,
+				Input:      &hexutil.Bytes{0x00},
+				BlobHashes: []common.Hash{},
+			},
+			expectErr: core.ErrBlobTxCreate,
+		},
+		// BLOBHASH opcode
+		{
+			blockNumber: rpc.LatestBlockNumber,
+			call: TransactionArgs{
+				From:       &accounts[1].addr,
+				To:         &randomAccounts[2].addr,
+				BlobHashes: []common.Hash{{0x01, 0x22}},
+				BlobFeeCap: (*hexutil.Big)(big.NewInt(1)),
+			},
+			overrides: StateOverride{
+				randomAccounts[2].addr: {
+					Code: hex2Bytes("60004960005260206000f3"),
+				},
+			},
+			want: "0x0122000000000000000000000000000000000000000000000000000000000000",
+		},
 	}
 	for i, tc := range testSuite {
 		result, err := api.Call(context.Background(), tc.call, rpc.BlockNumberOrHash{BlockNumber: &tc.blockNumber}, &tc.overrides, &tc.blockOverrides)
@@ -918,4 +995,315 @@ func TestHeader4844MarshalJson(t *testing.T) {
 	if string(data) != expect {
 		t.Fatalf("Header mismatches, expect: %s\n got: %s", expect, string(data))
 	}
+}
+
+func argsFromTransaction(tx *types.Transaction, from common.Address) TransactionArgs {
+	var (
+		gas        = tx.Gas()
+		nonce      = tx.Nonce()
+		input      = tx.Data()
+		accessList *types.AccessList
+	)
+	if acl := tx.AccessList(); acl != nil {
+		accessList = &acl
+	}
+	return TransactionArgs{
+		From:                 &from,
+		To:                   tx.To(),
+		Gas:                  (*hexutil.Uint64)(&gas),
+		MaxFeePerGas:         (*hexutil.Big)(tx.GasFeeCap()),
+		MaxPriorityFeePerGas: (*hexutil.Big)(tx.GasTipCap()),
+		Value:                (*hexutil.Big)(tx.Value()),
+		Nonce:                (*hexutil.Uint64)(&nonce),
+		Input:                (*hexutil.Bytes)(&input),
+		ChainID:              (*hexutil.Big)(tx.ChainId()),
+		AccessList:           accessList,
+		BlobFeeCap:           (*hexutil.Big)(tx.BlobGasFeeCap()),
+		BlobHashes:           tx.BlobHashes(),
+	}
+}
+
+var (
+	emptyBlob          = kzg4844.Blob{}
+	emptyBlobs         = []kzg4844.Blob{emptyBlob}
+	emptyBlobCommit, _ = kzg4844.BlobToCommitment(&emptyBlob)
+	emptyBlobProof, _  = kzg4844.ComputeBlobProof(&emptyBlob, emptyBlobCommit)
+	emptyBlobHash      = kzg4844.CalcBlobHashV1(sha256.New(), &emptyBlobCommit)
+)
+
+func TestFillBlobTransaction(t *testing.T) {
+	t.Parallel()
+	var (
+		height   = 5
+		accounts = newAccounts(2)
+		to       = accounts[1].addr
+		genesis  = &core.Genesis{
+			Config: params.TestChainConfig,
+			Alloc: core.GenesisAlloc{
+				accounts[0].addr: {Balance: big.NewInt(params.Ether)},
+				accounts[1].addr: {Balance: big.NewInt(params.Ether)},
+			},
+		}
+	)
+
+	b := newTestBackend(t, height, genesis, ethash.NewFaker(), nil)
+	api := NewPublicTransactionPoolAPI(b, nil)
+
+	type result struct {
+		Hashes  []common.Hash
+		Sidecar *types.BlobTxSidecar
+	}
+	suite := []struct {
+		name string
+		args TransactionArgs
+		err  string
+		want *result
+	}{
+		{
+			name: "TestInvalidParamsCombination1",
+			args: TransactionArgs{
+				From:   &b.acc.Address,
+				To:     &to,
+				Value:  (*hexutil.Big)(big.NewInt(1)),
+				Blobs:  []kzg4844.Blob{{}},
+				Proofs: []kzg4844.Proof{{}},
+			},
+			err: `blob proofs provided while commitments were not`,
+		},
+		{
+			name: "TestInvalidParamsCombination2",
+			args: TransactionArgs{
+				From:        &b.acc.Address,
+				To:          &to,
+				Value:       (*hexutil.Big)(big.NewInt(1)),
+				Blobs:       []kzg4844.Blob{{}},
+				Commitments: []kzg4844.Commitment{{}},
+			},
+			err: `blob commitments provided while proofs were not`,
+		},
+		{
+			name: "TestInvalidParamsCount1",
+			args: TransactionArgs{
+				From:        &b.acc.Address,
+				To:          &to,
+				Value:       (*hexutil.Big)(big.NewInt(1)),
+				Blobs:       []kzg4844.Blob{{}},
+				Commitments: []kzg4844.Commitment{{}, {}},
+				Proofs:      []kzg4844.Proof{{}, {}},
+			},
+			err: `number of blobs and commitments mismatch (have=2, want=1)`,
+		},
+		{
+			name: "TestInvalidParamsCount2",
+			args: TransactionArgs{
+				From:        &b.acc.Address,
+				To:          &to,
+				Value:       (*hexutil.Big)(big.NewInt(1)),
+				Blobs:       []kzg4844.Blob{{}, {}},
+				Commitments: []kzg4844.Commitment{{}, {}},
+				Proofs:      []kzg4844.Proof{{}},
+			},
+			err: `number of blobs and proofs mismatch (have=1, want=2)`,
+		},
+		{
+			name: "TestInvalidProofVerification",
+			args: TransactionArgs{
+				From:        &b.acc.Address,
+				To:          &to,
+				Value:       (*hexutil.Big)(big.NewInt(1)),
+				Blobs:       []kzg4844.Blob{{}, {}},
+				Commitments: []kzg4844.Commitment{{}, {}},
+				Proofs:      []kzg4844.Proof{{}, {}},
+			},
+			err: `failed to verify blob proof: short buffer`,
+		},
+		{
+			name: "TestGenerateBlobHashes",
+			args: TransactionArgs{
+				From:        &b.acc.Address,
+				To:          &to,
+				Value:       (*hexutil.Big)(big.NewInt(1)),
+				Blobs:       emptyBlobs,
+				Commitments: []kzg4844.Commitment{emptyBlobCommit},
+				Proofs:      []kzg4844.Proof{emptyBlobProof},
+				Gas:         (*hexutil.Uint64)(new(uint64)),
+			},
+			want: &result{
+				Hashes: []common.Hash{emptyBlobHash},
+				Sidecar: &types.BlobTxSidecar{
+					Blobs:       emptyBlobs,
+					Commitments: []kzg4844.Commitment{emptyBlobCommit},
+					Proofs:      []kzg4844.Proof{emptyBlobProof},
+				},
+			},
+		},
+		{
+			name: "TestValidBlobHashes",
+			args: TransactionArgs{
+				From:        &b.acc.Address,
+				To:          &to,
+				Value:       (*hexutil.Big)(big.NewInt(1)),
+				BlobHashes:  []common.Hash{emptyBlobHash},
+				Blobs:       emptyBlobs,
+				Commitments: []kzg4844.Commitment{emptyBlobCommit},
+				Proofs:      []kzg4844.Proof{emptyBlobProof},
+				Gas:         (*hexutil.Uint64)(new(uint64)),
+			},
+			want: &result{
+				Hashes: []common.Hash{emptyBlobHash},
+				Sidecar: &types.BlobTxSidecar{
+					Blobs:       emptyBlobs,
+					Commitments: []kzg4844.Commitment{emptyBlobCommit},
+					Proofs:      []kzg4844.Proof{emptyBlobProof},
+				},
+			},
+		},
+		{
+			name: "TestInvalidBlobHashes",
+			args: TransactionArgs{
+				From:        &b.acc.Address,
+				To:          &to,
+				Value:       (*hexutil.Big)(big.NewInt(1)),
+				BlobHashes:  []common.Hash{{0x01, 0x22}},
+				Blobs:       emptyBlobs,
+				Commitments: []kzg4844.Commitment{emptyBlobCommit},
+				Proofs:      []kzg4844.Proof{emptyBlobProof},
+				Gas:         (*hexutil.Uint64)(new(uint64)),
+			},
+			err: fmt.Sprintf("blob hash verification failed (have=%s, want=%s)", common.Hash{0x01, 0x22}, common.BytesToHash(emptyBlobHash[:])),
+		},
+		{
+			name: "TestGenerateBlobProofs",
+			args: TransactionArgs{
+				From:  &b.acc.Address,
+				To:    &to,
+				Value: (*hexutil.Big)(big.NewInt(1)),
+				Blobs: emptyBlobs,
+				Gas:   (*hexutil.Uint64)(new(uint64)),
+			},
+			want: &result{
+				Hashes: []common.Hash{emptyBlobHash},
+				Sidecar: &types.BlobTxSidecar{
+					Blobs:       emptyBlobs,
+					Commitments: []kzg4844.Commitment{emptyBlobCommit},
+					Proofs:      []kzg4844.Proof{emptyBlobProof},
+				},
+			},
+		},
+		{
+			name: "TestZeroBlobFeeCap",
+			args: TransactionArgs{
+				BlobFeeCap: (*hexutil.Big)(common.Big0),
+			},
+			err: "maxFeePerBlobGas, if specified, must be non-zero",
+		},
+		{
+			name: "TestInvalidSidecarsProvided1",
+			args: TransactionArgs{
+				Blobs:              []kzg4844.Blob{emptyBlob},
+				Commitments:        []kzg4844.Commitment{emptyBlobCommit},
+				Proofs:             []kzg4844.Proof{emptyBlobProof},
+				BlobHashes:         []common.Hash{},
+				blobSidecarAllowed: true,
+			},
+			err: "number of blobs and hashes mismatch (have=0, want=1)",
+		},
+		{
+			name: "TestMissingToField",
+			args: TransactionArgs{
+				To:                 nil,
+				Nonce:              (*hexutil.Uint64)(new(uint64)),
+				Blobs:              []kzg4844.Blob{emptyBlob},
+				BlobFeeCap:         (*hexutil.Big)(big.NewInt(1)),
+				blobSidecarAllowed: true,
+			},
+			err: `missing "to" in blob transaction`,
+		},
+		{
+			name: "TestTooManyBlobs",
+			args: TransactionArgs{
+				Nonce:              (*hexutil.Uint64)(new(uint64)),
+				Blobs:              []kzg4844.Blob{emptyBlob, emptyBlob, emptyBlob, emptyBlob, emptyBlob, emptyBlob, emptyBlob},
+				BlobFeeCap:         (*hexutil.Big)(big.NewInt(1)),
+				blobSidecarAllowed: true,
+			},
+			err: `too many blobs in transaction (have=7, max=6)`,
+		},
+	}
+	for _, tc := range suite {
+		t.Run(tc.name, func(t *testing.T) {
+			res, err := api.FillTransaction(context.Background(), tc.args)
+			if len(tc.err) > 0 {
+				if err == nil {
+					t.Fatalf("missing error. want: %s", tc.err)
+				} else if err.Error() != tc.err {
+					t.Fatalf("error mismatch. want: %s, have: %s", tc.err, err.Error())
+				}
+				return
+			}
+			if err != nil && len(tc.err) == 0 {
+				t.Fatalf("expected no error. have: %s", err)
+			}
+			if res == nil {
+				t.Fatal("result missing")
+			}
+			want, err := json.Marshal(tc.want)
+			if err != nil {
+				t.Fatalf("failed to encode expected: %v", err)
+			}
+			have, err := json.Marshal(result{Hashes: res.Tx.BlobHashes(), Sidecar: res.Tx.BlobTxSidecar()})
+			if err != nil {
+				t.Fatalf("failed to encode computed sidecar: %v", err)
+			}
+			if !bytes.Equal(have, want) {
+				t.Errorf("blob sidecar mismatch. Have: %s, want: %s", have, want)
+			}
+		})
+	}
+}
+
+func TestBlobTransactionApi(t *testing.T) {
+	t.Parallel()
+	// Initialize test accounts
+	var (
+		accounts = newAccounts(2)
+		genesis  = &core.Genesis{
+			Config: params.TestChainConfig,
+			Alloc: core.GenesisAlloc{
+				accounts[0].addr: {Balance: big.NewInt(params.Ether)},
+				accounts[1].addr: {Balance: big.NewInt(params.Ether)},
+			},
+		}
+		height = 5
+	)
+	b := newTestBackend(t, height, genesis, ethash.NewFaker(), func(i int, b *core.BlockGen) {})
+	b.setPendingBlock(b.CurrentBlock())
+	api := NewPublicTransactionPoolAPI(b, nil)
+	res, err := api.FillTransaction(context.Background(), TransactionArgs{
+		Nonce:      (*hexutil.Uint64)(new(uint64)),
+		From:       &accounts[0].addr,
+		To:         &accounts[1].addr,
+		Value:      (*hexutil.Big)(big.NewInt(1)),
+		BlobHashes: []common.Hash{{0x01, 0x22}},
+	})
+	if err != nil {
+		t.Fatalf("failed to fill tx defaults: %v\n", err)
+	}
+
+	t.Run("TestSignBlobTransaction", func(t *testing.T) {
+		// Test sign transaction
+		_, err = api.SignTransaction(context.Background(), argsFromTransaction(res.Tx, b.acc.Address))
+		if err != nil {
+			t.Fatalf("should not fail on blob transaction %s", err)
+		}
+	})
+
+	t.Run("TestSendBlobTransaction", func(t *testing.T) {
+		_, err = api.SendTransaction(context.Background(), argsFromTransaction(res.Tx, b.acc.Address))
+		if err == nil {
+			t.Errorf("sending tx should have failed")
+		} else if !errors.Is(err, errBlobTxNotSupported) {
+			t.Errorf("unexpected error. Have %v, want %v\n", err, errBlobTxNotSupported)
+		}
+	})
 }
