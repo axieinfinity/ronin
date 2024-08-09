@@ -199,6 +199,8 @@ func (c *ContractIntegrator) WrapUpEpoch(opts *ApplyTransactOpts) error {
 		tx.Data(),
 		tx.AccessList(),
 		false,
+		nil,
+		nil,
 	)
 
 	if err = ApplyTransaction(msg, opts); err != nil {
@@ -237,6 +239,8 @@ func (c *ContractIntegrator) SubmitBlockReward(opts *ApplyTransactOpts) error {
 		tx.Data(),
 		tx.AccessList(),
 		false,
+		nil,
+		nil,
 	)
 
 	if err = ApplyTransaction(msg, opts); err != nil {
@@ -267,6 +271,8 @@ func (c *ContractIntegrator) Slash(opts *ApplyTransactOpts, spoiledValidator com
 		tx.Data(),
 		tx.AccessList(),
 		false,
+		nil,
+		nil,
 	)
 
 	if err = ApplyTransaction(msg, opts); err != nil {
@@ -295,6 +301,8 @@ func (c *ContractIntegrator) FinalityReward(opts *ApplyTransactOpts, votedValida
 		tx.Data(),
 		tx.AccessList(),
 		false,
+		nil,
+		nil,
 	)
 
 	if err = ApplyTransaction(msg, opts); err != nil {

@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"crypto/ecdsa"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/big"
 	"reflect"
@@ -28,12 +29,14 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/holiman/uint256"
 )
 
 // The values in those tests are from the Transaction Tests
 // at github.com/ethereum/tests.
 var (
-	testAddr = common.HexToAddress("b94f5374fce5edbc8e2a8697c15331677e6ebf0b")
+	errMismatchParsing = errors.New("mismatch parsing")
+	testAddr           = common.HexToAddress("b94f5374fce5edbc8e2a8697c15331677e6ebf0b")
 
 	emptyTx = NewTransaction(
 		0,
@@ -264,14 +267,15 @@ func TestTransactionCoding(t *testing.T) {
 		t.Fatalf("could not generate key: %v", err)
 	}
 	var (
-		signer    = NewEIP2930Signer(common.Big1)
 		addr      = common.HexToAddress("0x0000000000000000000000000000000000000001")
 		recipient = common.HexToAddress("095e7baea6a6c7c4c2dfeb977efac326af552d87")
 		accesses  = AccessList{{Address: addr, StorageKeys: []common.Hash{{0}}}}
+
+		signer = NewCancunSigner(common.Big1)
 	)
 	for i := uint64(0); i < 500; i++ {
 		var txdata TxData
-		switch i % 6 {
+		switch i % 7 {
 		case 0:
 			// Legacy tx.
 			txdata = &LegacyTx{
@@ -336,6 +340,20 @@ func TestTransactionCoding(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+		case 6:
+			// Blob tx
+			itx := BlobTx{
+				ChainID:    uint256.MustFromBig(common.Big1),
+				Nonce:      1,
+				To:         recipient,
+				Gas:        12345,
+				GasTipCap:  uint256.MustFromBig(big.NewInt(2)),
+				GasFeeCap:  uint256.MustFromBig(big.NewInt(3)),
+				Data:       []byte("abcdef"),
+				BlobFeeCap: uint256.MustFromBig(big.NewInt(4)),
+				BlobHashes: []common.Hash{common.Hash{0x11}},
+			}
+			txdata = &itx
 		}
 		tx, err := SignNewTx(key, signer, txdata)
 		if err != nil {
@@ -382,6 +400,9 @@ func encodeDecodeBinary(tx *Transaction) (*Transaction, error) {
 }
 
 func assertEqual(orig *Transaction, cpy *Transaction) error {
+	if orig.Type() != cpy.Type() {
+		return errMismatchParsing
+	}
 	// compare nonce, price, gaslimit, recipient, amount, payload, V, R, S
 	if want, got := orig.Hash(), cpy.Hash(); want != got {
 		return fmt.Errorf("parsed tx differs from original tx, want %v, got %v", want, got)
@@ -392,6 +413,19 @@ func assertEqual(orig *Transaction, cpy *Transaction) error {
 	if orig.AccessList() != nil {
 		if !reflect.DeepEqual(orig.AccessList(), cpy.AccessList()) {
 			return fmt.Errorf("access list wrong!")
+		}
+	}
+	switch orig.Type() {
+	case BlobTxType:
+		if want, got := orig.BlobHashes(), cpy.BlobHashes(); len(want) != len(got) {
+			return errMismatchParsing
+		} else {
+			if !reflect.DeepEqual(want, got) {
+				return errMismatchParsing
+			}
+		}
+		if want, got := orig.BlobGasFeeCap(), cpy.BlobGasFeeCap(); want.Cmp(got) != 0 {
+			return errMismatchParsing
 		}
 	}
 	return nil

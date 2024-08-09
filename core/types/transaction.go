@@ -436,6 +436,26 @@ func (tx *Transaction) WithoutBlobTxSidecar() *Transaction {
 	return cpy
 }
 
+// WithBlobTxSidecar returns a copy of tx with the blob sidecar added.
+func (tx *Transaction) WithBlobTxSidecar(sideCar *BlobTxSidecar) *Transaction {
+	blobtx, ok := tx.inner.(*BlobTx)
+	if !ok {
+		return tx
+	}
+	cpy := &Transaction{
+		inner: blobtx.withSidecar(sideCar),
+		time:  tx.time,
+	}
+	// Note: tx.size cache not carried over because the sidecar is included in size!
+	if h := tx.hash.Load(); h != nil {
+		cpy.hash.Store(h)
+	}
+	if f := tx.from.Load(); f != nil {
+		cpy.from.Store(f)
+	}
+	return cpy
+}
+
 // BlobGasFeeCapCmp compares the blob fee cap of two transactions.
 func (tx *Transaction) BlobGasFeeCapCmp(other *Transaction) int {
 	return tx.BlobGasFeeCap().Cmp(other.BlobGasFeeCap())
@@ -589,21 +609,25 @@ func NewMessage(
 	data []byte,
 	accessList AccessList,
 	isFake bool,
+	blobFeeCap *big.Int,
+	blobHashes []common.Hash,
 ) Message {
 	return Message{
-		from:        from,
-		to:          to,
-		nonce:       nonce,
-		amount:      amount,
-		gasLimit:    gasLimit,
-		gasPrice:    gasPrice,
-		gasFeeCap:   gasFeeCap,
-		gasTipCap:   gasTipCap,
-		data:        data,
-		accessList:  accessList,
-		isFake:      isFake,
-		payer:       from,
-		expiredTime: 0,
+		from:          from,
+		to:            to,
+		nonce:         nonce,
+		amount:        amount,
+		gasLimit:      gasLimit,
+		gasPrice:      gasPrice,
+		gasFeeCap:     gasFeeCap,
+		gasTipCap:     gasTipCap,
+		data:          data,
+		accessList:    accessList,
+		isFake:        isFake,
+		payer:         from,
+		expiredTime:   0,
+		blobGasFeeCap: blobFeeCap,
+		blobHashes:    blobHashes,
 	}
 }
 

@@ -24,6 +24,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/holiman/uint256"
 )
 
 func TestEIP155Signing(t *testing.T) {
@@ -296,5 +297,82 @@ func TestSponsoredTransactionSigner(t *testing.T) {
 	_, err = Sender(mikoSigner, tx)
 	if err == nil || !errors.Is(err, ErrInvalidChainId) {
 		t.Fatalf("Expect %s, get %s", ErrInvalidChainId, err)
+	}
+}
+
+func TestBlobTransactionSigner(t *testing.T) {
+	var (
+		chainId = big.NewInt(2020)
+		key, _  = crypto.GenerateKey()
+		addr    = crypto.PubkeyToAddress(key.PublicKey)
+	)
+
+	cancunSigner := NewCancunSigner(chainId)
+
+	innerTx := BlobTx{
+		ChainID:    uint256.MustFromBig(chainId),
+		Nonce:      1,
+		GasTipCap:  uint256.NewInt(16),
+		GasFeeCap:  uint256.NewInt(17),
+		Gas:        1000,
+		To:         common.Address{0x11},
+		Value:      uint256.NewInt(10),
+		Data:       []byte("abcd"),
+		AccessList: nil,
+		BlobHashes: []common.Hash{common.Hash{0x22}, common.Hash{0x33}},
+		BlobFeeCap: uint256.NewInt(18),
+	}
+	tx := NewTx(&innerTx)
+	// 1. Check transaction encoding
+	want := prefixedRlpHash(0x03, []interface{}{
+		big.NewInt(2020),
+		innerTx.Nonce,
+		innerTx.GasTipCap,
+		innerTx.GasFeeCap,
+		innerTx.Gas,
+		innerTx.To,
+		innerTx.Value,
+		innerTx.Data,
+		innerTx.AccessList,
+		innerTx.BlobFeeCap,
+		innerTx.BlobHashes,
+	})
+	get := cancunSigner.Hash(tx)
+	if want != get {
+		t.Fatalf("Tx hash mismatches, get %s want %s", get, want)
+	}
+
+	// 2. Check transaction hash
+	tx, err := SignTx(tx, cancunSigner, key)
+	if err != nil {
+		t.Fatalf("Failed to sign tx, err%s", err)
+	}
+	v, r, s := tx.RawSignatureValues()
+	get = tx.Hash()
+	want = prefixedRlpHash(BlobTxType, []interface{}{
+		big.NewInt(2020),
+		innerTx.Nonce,
+		innerTx.GasTipCap,
+		innerTx.GasFeeCap,
+		innerTx.Gas,
+		innerTx.To,
+		innerTx.Value,
+		innerTx.Data,
+		innerTx.AccessList,
+		innerTx.BlobFeeCap,
+		innerTx.BlobHashes,
+		v, r, s,
+	})
+	if get != want {
+		t.Fatalf("Tx hash mismatches, get %s want %s", get, want)
+	}
+
+	// Test sender recovery
+	recoveredSender, err := Sender(cancunSigner, tx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if recoveredSender != addr {
+		t.Fatalf("Mismatch recover sender, get %s want %s", recoveredSender, addr)
 	}
 }
