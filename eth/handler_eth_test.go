@@ -171,8 +171,8 @@ func testForkIDSplit(t *testing.T, protocol uint) {
 		}
 	}
 	// Progress into Homestead. Fork's match, so we don't care what the future holds
-	chainNoFork.InsertChain(blocksNoFork[:1])
-	chainProFork.InsertChain(blocksProFork[:1])
+	chainNoFork.InsertChain(blocksNoFork[:1], nil)
+	chainProFork.InsertChain(blocksProFork[:1], nil)
 
 	p2pNoFork, p2pProFork = p2p.MsgPipe()
 	defer p2pNoFork.Close()
@@ -202,8 +202,8 @@ func testForkIDSplit(t *testing.T, protocol uint) {
 		}
 	}
 	// Progress into Spurious. Forks mismatch, signalling differing chains, reject
-	chainNoFork.InsertChain(blocksNoFork[1:2])
-	chainProFork.InsertChain(blocksProFork[1:2])
+	chainNoFork.InsertChain(blocksNoFork[1:2], nil)
+	chainProFork.InsertChain(blocksProFork[1:2], nil)
 
 	p2pNoFork, p2pProFork = p2p.MsgPipe()
 	defer p2pNoFork.Close()

@@ -63,7 +63,7 @@ func newTestBackend(t *testing.T) (*node.Node, []*types.Block) {
 	if err := n.Start(); err != nil {
 		t.Fatalf("can't start test node: %v", err)
 	}
-	if _, err := ethservice.BlockChain().InsertChain(blocks[1:]); err != nil {
+	if _, err := ethservice.BlockChain().InsertChain(blocks[1:], nil); err != nil {
 		t.Fatalf("can't import test blocks: %v", err)
 	}
 	return n, blocks

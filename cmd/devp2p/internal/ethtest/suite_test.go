@@ -102,6 +102,6 @@ func setupGeth(stack *node.Node) error {
 		return err
 	}
 
-	_, err = backend.BlockChain().InsertChain(chain.blocks[1:])
+	_, err = backend.BlockChain().InsertChain(chain.blocks[1:], nil)
 	return err
 }
