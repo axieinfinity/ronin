@@ -16,7 +16,9 @@
 
 package params
 
-import "math/big"
+import (
+	"math/big"
+)
 
 const (
 	ReservedGasForCheckpointSystemTransactions uint64 = 10_000_000 // The reserved gas for system transactions in checkpoint blocks.
@@ -179,6 +181,7 @@ const (
 	BlobTxTargetBlobGasPerBlock = 3 * BlobTxBlobGasPerBlob // Target consumable blob gas for data blobs per block (for 1559-like pricing)
 	MaxBlobGasPerBlock          = 6 * BlobTxBlobGasPerBlob // Maximum consumable blob gas for data blobs per block
 	MaxBlobsPerBlock            = 6                        // Maximum number of data blobs per block
+	BlobPrunePeriod             = 518400                   // Number of blocks after which to prune old blob
 )
 
 // Gas discount table for BLS12-381 G1 and G2 multi exponentiation operations
