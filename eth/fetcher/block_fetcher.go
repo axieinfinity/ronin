@@ -86,7 +86,7 @@ type headerVerifierFn func(header *types.Header) error
 type blobHeaderVerifierFn func(block *types.Block, sidecars []*types.BlobTxSidecar) (error, *types.BlobSidecars)
 
 // blockBroadcasterFn is a callback type for broadcasting a block to connected peers.
-type blockBroadcasterFn func(block *types.Block, propagate bool)
+type blockBroadcasterFn func(block *types.Block, sidecars []*types.BlobTxSidecar, propagate bool)
 
 // chainHeightFn is a callback type to retrieve the current chain height.
 type chainHeightFn func() uint64
@@ -831,7 +831,7 @@ func (f *BlockFetcher) importBlocks(peer string, block *types.Block, sidecars []
 		case nil:
 			// All ok, quickly propagate to our peers
 			blockBroadcastOutTimer.UpdateSince(block.ReceivedAt)
-			go f.broadcastBlock(block, true)
+			go f.broadcastBlock(block, sidecars, true)
 
 		case consensus.ErrFutureBlock:
 			// Weird future block, don't fail, but neither propagate
@@ -849,7 +849,7 @@ func (f *BlockFetcher) importBlocks(peer string, block *types.Block, sidecars []
 		}
 		// If import succeeded, broadcast the block
 		blockAnnounceOutTimer.UpdateSince(block.ReceivedAt)
-		go f.broadcastBlock(block, false)
+		go f.broadcastBlock(block, sidecars, false)
 
 		// Invoke the testing hook if needed
 		if f.importedHook != nil {

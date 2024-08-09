@@ -129,7 +129,7 @@ func (f *fetcherTester) verifyBlobHeader(block *types.Block, sidecars []*types.B
 }
 
 // broadcastBlock is a nop placeholder for the block broadcasting.
-func (f *fetcherTester) broadcastBlock(block *types.Block, propagate bool) {
+func (f *fetcherTester) broadcastBlock(block *types.Block, sidecars []*types.BlobTxSidecar, propagate bool) {
 }
 
 // chainHeight retrieves the current height (block number) of the chain.

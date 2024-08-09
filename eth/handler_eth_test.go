@@ -17,6 +17,7 @@
 package eth
 
 import (
+	"bytes"
 	"fmt"
 	"math/big"
 	"math/rand"
@@ -48,6 +49,11 @@ type testEthHandler struct {
 	txBroadcasts    event.Feed
 }
 
+type BlockPacket100 struct {
+	Block    *types.Block
+	Sidecars []*types.BlobTxSidecar
+}
+
 func (h *testEthHandler) Chain() *core.BlockChain              { panic("no backing chain") }
 func (h *testEthHandler) StateBloom() *trie.SyncBloom          { panic("no backing state bloom") }
 func (h *testEthHandler) TxPool() eth.TxPool                   { panic("no backing tx pool") }
@@ -59,6 +65,10 @@ func (h *testEthHandler) Handle(peer *eth.Peer, packet eth.Packet) error {
 	switch packet := packet.(type) {
 	case *eth.NewBlockPacket:
 		h.blockBroadcasts.Send(packet.Block)
+		return nil
+
+	case *eth.NewBlockPacket100:
+		h.blockBroadcasts.Send(BlockPacket100{Block: packet.Block, Sidecars: packet.Sidecars})
 		return nil
 
 	case *eth.NewPooledTransactionHashesPacket66:
@@ -100,20 +110,20 @@ func testForkIDSplit(t *testing.T, protocol uint) {
 			EIP158Block:    big.NewInt(2),
 			ByzantiumBlock: big.NewInt(3),
 		}
-		dbNoFork  = rawdb.NewMemoryDatabase()
-		dbProFork = rawdb.NewMemoryDatabase()
+		dbNoFork = rawdb.NewMemoryDatabase()
+		doFork   = rawdb.NewMemoryDatabase()
 
 		gspecNoFork  = &core.Genesis{Config: configNoFork}
 		gspecProFork = &core.Genesis{Config: configProFork}
 
 		genesisNoFork  = gspecNoFork.MustCommit(dbNoFork)
-		genesisProFork = gspecProFork.MustCommit(dbProFork)
+		genesisProFork = gspecProFork.MustCommit(doFork)
 
 		chainNoFork, _  = core.NewBlockChain(dbNoFork, nil, configNoFork, engine, vm.Config{}, nil, nil)
-		chainProFork, _ = core.NewBlockChain(dbProFork, nil, configProFork, engine, vm.Config{}, nil, nil)
+		chainProFork, _ = core.NewBlockChain(doFork, nil, configProFork, engine, vm.Config{}, nil, nil)
 
 		blocksNoFork, _  = core.GenerateChain(configNoFork, genesisNoFork, engine, dbNoFork, 2, nil, true)
-		blocksProFork, _ = core.GenerateChain(configProFork, genesisProFork, engine, dbProFork, 2, nil, true)
+		blocksProFork, _ = core.GenerateChain(configProFork, genesisProFork, engine, doFork, 2, nil, true)
 
 		ethNoFork, _ = newHandler(&handlerConfig{
 			Database:   dbNoFork,
@@ -124,7 +134,7 @@ func testForkIDSplit(t *testing.T, protocol uint) {
 			BloomCache: 1,
 		})
 		ethProFork, _ = newHandler(&handlerConfig{
-			Database:   dbProFork,
+			Database:   doFork,
 			Chain:      chainProFork,
 			TxPool:     newTestTxPool(),
 			Network:    1,
@@ -651,7 +661,7 @@ func testBroadcastBlock(t *testing.T, peers, bcasts int) {
 	}
 	// Initiate a block propagation across the peers
 	time.Sleep(100 * time.Millisecond)
-	source.handler.BroadcastBlock(source.chain.CurrentBlock(), true)
+	source.handler.BroadcastBlock(source.chain.CurrentBlock(), nil, true)
 
 	// Iterate through all the sinks and ensure the correct number got the block
 	done := make(chan struct{}, peers)
@@ -665,6 +675,120 @@ func testBroadcastBlock(t *testing.T, peers, bcasts int) {
 	var received int
 	for {
 		select {
+		case <-done:
+			received++
+
+		case <-time.After(100 * time.Millisecond):
+			if received != bcasts {
+				t.Errorf("broadcast count mismatch: have %d, want %d", received, bcasts)
+			}
+			return
+		}
+	}
+}
+
+func TestBroadcastBlock1Peer100(t *testing.T)    { testBroadcastBlock100(t, 1, 1) }
+func TestBroadcastBlock2Peers100(t *testing.T)   { testBroadcastBlock100(t, 2, 1) }
+func TestBroadcastBlock3Peers100(t *testing.T)   { testBroadcastBlock100(t, 3, 1) }
+func TestBroadcastBlock4Peers100(t *testing.T)   { testBroadcastBlock100(t, 4, 2) }
+func TestBroadcastBlock5Peers100(t *testing.T)   { testBroadcastBlock100(t, 5, 2) }
+func TestBroadcastBlock8Peers100(t *testing.T)   { testBroadcastBlock100(t, 9, 3) }
+func TestBroadcastBlock12Peers100(t *testing.T)  { testBroadcastBlock100(t, 12, 3) }
+func TestBroadcastBlock16Peers100(t *testing.T)  { testBroadcastBlock100(t, 16, 4) }
+func TestBroadcastBlock26Peers100(t *testing.T)  { testBroadcastBlock100(t, 26, 5) }
+func TestBroadcastBlock100Peers100(t *testing.T) { testBroadcastBlock100(t, 100, 10) }
+
+func testBroadcastBlock100(t *testing.T, peers, bcasts int) {
+	t.Parallel()
+
+	// Create a source handler to broadcast blocks from and a number of sinks
+	// to receive them.
+	source, sidecars := newTestHandlerWithBlocks100(1)
+	defer source.close()
+
+	sinks := make([]*testEthHandler, peers)
+	for i := 0; i < len(sinks); i++ {
+		sinks[i] = new(testEthHandler)
+	}
+	// Interconnect all the sink handlers with the source handler
+	var (
+		genesis = source.chain.Genesis()
+		td      = source.chain.GetTd(genesis.Hash(), genesis.NumberU64())
+	)
+	for i, sink := range sinks {
+		sink := sink // Closure for gorotuine below
+
+		sourcePipe, sinkPipe := p2p.MsgPipe()
+		defer sourcePipe.Close()
+		defer sinkPipe.Close()
+
+		sourcePeer := eth.NewPeer(eth.ETH100, p2p.NewPeerPipe(enode.ID{byte(i)}, "", nil, sourcePipe), sourcePipe, nil)
+		sinkPeer := eth.NewPeer(eth.ETH100, p2p.NewPeerPipe(enode.ID{0}, "", nil, sinkPipe), sinkPipe, nil)
+		defer sourcePeer.Close()
+		defer sinkPeer.Close()
+
+		go source.handler.runEthPeer(sourcePeer, func(peer *eth.Peer) error {
+			return eth.Handle((*ethHandler)(source.handler), peer)
+		})
+		if err := sinkPeer.Handshake(1, td, genesis.Hash(), genesis.Hash(), forkid.NewIDWithChain(source.chain), forkid.NewFilter(source.chain)); err != nil {
+			t.Fatalf("failed to run protocol handshake")
+		}
+		go eth.Handle(sink, sinkPeer)
+	}
+	// Subscribe to all the transaction pools
+	blockChs := make([]chan BlockPacket100, len(sinks))
+	for i := 0; i < len(sinks); i++ {
+		blockChs[i] = make(chan BlockPacket100, 1)
+		defer close(blockChs[i])
+
+		sub := sinks[i].blockBroadcasts.Subscribe(blockChs[i])
+		defer sub.Unsubscribe()
+	}
+	// Initiate a block propagation across the peers
+	time.Sleep(100 * time.Millisecond)
+	source.handler.BroadcastBlock(source.chain.CurrentBlock(), sidecars, true)
+
+	// Iterate through all the sinks and ensure the correct number got the block
+	done := make(chan struct{}, peers)
+	sidecarsCh := make(chan []*types.BlobTxSidecar, peers)
+	for _, ch := range blockChs {
+		ch := ch
+		go func() {
+			bp := <-ch
+			sidecarsCh <- bp.Sidecars
+			done <- struct{}{}
+		}()
+	}
+	var received int
+	for {
+		select {
+		case receivedSidecars := <-sidecarsCh:
+			// Check that the sidecars are correct
+			if len(receivedSidecars) != len(sidecars) {
+				t.Errorf("sidecar count mismatch: have %d, want %d", len(receivedSidecars), len(sidecars))
+			}
+			for i := range receivedSidecars {
+				if len(receivedSidecars[i].Blobs) != len(sidecars[i].Blobs) {
+					t.Errorf("sidecar blob count mismatch: have %d, want %d", len(receivedSidecars[i].Blobs), len(sidecars[i].Blobs))
+				}
+				if len(receivedSidecars[i].Commitments) != len(sidecars[i].Commitments) {
+					t.Errorf("sidecar blob count mismatch: have %d, want %d", len(receivedSidecars[i].Blobs), len(sidecars[i].Blobs))
+				}
+				if len(receivedSidecars[i].Proofs) != len(sidecars[i].Proofs) {
+					t.Errorf("sidecar blob count mismatch: have %d, want %d", len(receivedSidecars[i].Blobs), len(sidecars[i].Blobs))
+				}
+				for j := range receivedSidecars[i].Blobs {
+					if !bytes.Equal(receivedSidecars[i].Blobs[j][:], sidecars[i].Blobs[j][:]) {
+						t.Errorf("sidecar mismatch: have %x, want %x", receivedSidecars[i].Blobs[j], sidecars[i].Blobs[j])
+					}
+					if !bytes.Equal(receivedSidecars[i].Commitments[j][:], sidecars[i].Commitments[j][:]) {
+						t.Errorf("sidecar mismatch: have %x, want %x", receivedSidecars[i].Blobs[j], sidecars[i].Blobs[j])
+					}
+					if !bytes.Equal(receivedSidecars[i].Proofs[j][:], sidecars[i].Proofs[j][:]) {
+						t.Errorf("sidecar mismatch: have %x, want %x", receivedSidecars[i].Blobs[j], sidecars[i].Blobs[j])
+					}
+				}
+			}
 		case <-done:
 			received++
 
