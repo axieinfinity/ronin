@@ -4178,3 +4178,93 @@ func TestInsertChainWithSidecars(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+func TestSidecarsPruning(t *testing.T) {
+	privateKey, _ := crypto.GenerateKey()
+	address := crypto.PubkeyToAddress(privateKey.PublicKey)
+	chainConfig := params.TestChainConfig
+	chainConfig.RoninTreasuryAddress = &address
+	db := rawdb.NewMemoryDatabase()
+	engine := ethash.NewFaker()
+	gspec := &Genesis{
+		Config: chainConfig,
+		Alloc: GenesisAlloc{
+			address: {
+				Balance: big.NewInt(1000000000),
+			},
+		},
+	}
+	genesis := gspec.MustCommit(db)
+	chain, err := NewBlockChain(db, nil, chainConfig, engine, vm.Config{}, nil, nil)
+	if err != nil {
+		t.Fatalf("Failed to create blockchain, err %s", err)
+	}
+	signer := types.NewCancunSigner(chainConfig.ChainID)
+
+	// Insert BlobPrunePeriod blocks
+	blob, commitment, proof := randBlob()
+	blobHash := kzg4844.CalcBlobHashV1(crypto.NewKeccakState(), commitment)
+	sidecar := []*types.BlobTxSidecar{
+		{
+			Blobs:       []kzg4844.Blob{*blob, *blob},
+			Commitments: []kzg4844.Commitment{*commitment, *commitment},
+			Proofs:      []kzg4844.Proof{*proof, *proof},
+		},
+	}
+	// Just nSidecarsToPrune first blocks have sidecars for testing
+	nSidecarsToPrune := 10
+	sidecars := make([][]*types.BlobTxSidecar, params.BlobPrunePeriod+1)
+	for i := 0; i < nSidecarsToPrune; i++ {
+		sidecars[i] = sidecar
+	}
+
+	blocks, _ := GenerateChain(chainConfig, genesis, engine, db, params.BlobPrunePeriod, func(i int, bg *BlockGen) {
+		if i < nSidecarsToPrune {
+			tx, err := types.SignNewTx(privateKey, signer, &types.BlobTx{
+				ChainID:    uint256.MustFromBig(chainConfig.ChainID),
+				Nonce:      uint64(i),
+				GasTipCap:  uint256.NewInt(0),
+				GasFeeCap:  uint256.NewInt(0),
+				Gas:        21000,
+				To:         address,
+				BlobFeeCap: uint256.NewInt(1),
+				BlobHashes: []common.Hash{blobHash, blobHash},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			bg.AddTx(tx)
+		}
+	}, true)
+	_, err = chain.InsertChain(blocks, sidecars)
+	if err != nil {
+		t.Fatal(err)
+	}
+	curBlockNumber := params.BlobPrunePeriod
+
+	// Check if all blobs are not pruned
+	for i := 1; i <= nSidecarsToPrune; i++ {
+		sidecars := chain.GetBlobSidecarsByNumber(uint64(i))
+		if sidecars == nil {
+			t.Fatalf("Sidecars should not be pruned yet, pruned at block %d", i)
+		}
+	}
+
+	// For every new block, the currently oldest block's sidecars should be pruned
+	for i := 0; i < nSidecarsToPrune; i++ {
+		curBlockNumber++
+		newBlock, _ := GenerateChain(chainConfig, blocks[len(blocks)-1], engine, db, 1, func(i int, bg *BlockGen) {}, true)
+		_, err = chain.InsertChain(newBlock, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		blocks = append(blocks, newBlock...)
+		// Check if the oldest block's sidecars are pruned
+		pruneBlockNumber := curBlockNumber - params.BlobPrunePeriod
+		pruneBlockHash := chain.GetBlockByNumber(uint64(pruneBlockNumber)).Hash()
+		sidecars := rawdb.ReadBlobSidecars(chain.db, pruneBlockHash, uint64(pruneBlockNumber))
+		if sidecars != nil {
+			t.Fatalf("Sidecars should be pruned at block %d", curBlockNumber-params.BlobPrunePeriod)
+		}
+	}
+}
