@@ -209,7 +209,7 @@ func newHandler(config *handlerConfig) (*handler, error) {
 	heighter := func() uint64 {
 		return h.chain.CurrentBlock().NumberU64()
 	}
-	inserter := func(blocks types.Blocks) (int, error) {
+	inserter := func(blocks types.Blocks, sidecars [][]*types.BlobTxSidecar) (int, error) {
 		// If sync hasn't reached the checkpoint yet, deny importing weird blocks.
 		//
 		// Ideally we would also compare the head block's timestamp and similarly reject
@@ -229,13 +229,14 @@ func newHandler(config *handlerConfig) (*handler, error) {
 			log.Warn("Fast syncing, discarded propagated block", "number", blocks[0].Number(), "hash", blocks[0].Hash())
 			return 0, nil
 		}
-		n, err := h.chain.InsertChain(blocks)
+		n, err := h.chain.InsertChain(blocks, sidecars)
 		if err == nil {
 			atomic.StoreUint32(&h.acceptTxs, 1) // Mark initial sync done on any fetcher import
 		}
 		return n, err
 	}
-	h.blockFetcher = fetcher.NewBlockFetcher(false, nil, h.chain.GetBlockByHash, validator, h.chain.Engine().VerifyBlobHeader, h.BroadcastBlock, heighter, nil, inserter, h.removePeer)
+	h.blockFetcher = fetcher.NewBlockFetcher(false, nil, h.chain.GetBlockByHash, validator, h.chain.Engine().VerifyBlobHeader,
+		h.BroadcastBlock, heighter, nil, inserter, h.removePeer)
 
 	fetchTx := func(peer string, hashes []common.Hash) error {
 		p := h.peers.peer(peer)
