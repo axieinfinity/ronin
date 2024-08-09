@@ -440,10 +440,6 @@ func (s *PrivateAccountAPI) LockAccount(addr common.Address) bool {
 // NOTE: the caller needs to ensure that the nonceLock is held, if applicable,
 // and release it after the transaction has been submitted to the tx pool
 func (s *PrivateAccountAPI) signTransaction(ctx context.Context, args *TransactionArgs, passwd string) (*types.Transaction, error) {
-	if !s.b.AccountManager().Config().EnableSigningMethods {
-		return &types.Transaction{}, ErrMethodNotSupport
-	}
-
 	// Look up the wallet containing the requested signer
 	account := accounts.Account{Address: args.from()}
 	wallet, err := s.am.Find(account)
@@ -464,6 +460,9 @@ func (s *PrivateAccountAPI) signTransaction(ctx context.Context, args *Transacti
 // tries to sign it with the key associated with args.From. If the given
 // passwd isn't able to decrypt the key it fails.
 func (s *PrivateAccountAPI) SendTransaction(ctx context.Context, args TransactionArgs, passwd string) (common.Hash, error) {
+	if !s.b.AccountManager().Config().EnableSigningMethods {
+		return common.Hash{}, ErrMethodNotSupport
+	}
 	if args.Nonce == nil {
 		// Hold the addresse's mutex around signing to prevent concurrent assignment of
 		// the same nonce to multiple accounts.
@@ -483,6 +482,10 @@ func (s *PrivateAccountAPI) SendTransaction(ctx context.Context, args Transactio
 // able to decrypt the key it fails. The transaction is returned in RLP-form, not broadcast
 // to other nodes
 func (s *PrivateAccountAPI) SignTransaction(ctx context.Context, args TransactionArgs, passwd string) (*SignTransactionResult, error) {
+	// Early terminating if signing method is not supported.
+	if !s.b.AccountManager().Config().EnableSigningMethods {
+		return nil, ErrMethodNotSupport
+	}
 	// No need to obtain the noncelock mutex, since we won't be sending this
 	// tx into the transaction pool, but right back to the user
 	if args.From == nil {
