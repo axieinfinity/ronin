@@ -1128,4 +1128,10 @@ func TestSidecarStorage(t *testing.T) {
 	if entry := ReadBlobSidecars(db, hash, 0); entry != nil {
 		t.Fatalf("Deleted body returned: %v", entry)
 	}
+	// Write the sidecars again, delete the block, and verify the execution
+	WriteBlobSidecars(db, hash, 0, sidecars)
+	DeleteBlock(db, hash, 0)
+	if entry := ReadBlobSidecars(db, hash, 0); entry != nil {
+		t.Fatalf("Deleted body returned: %v", entry)
+	}
 }
