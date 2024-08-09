@@ -84,7 +84,7 @@ func Estimate(ctx context.Context, call core.Message, opts *Options, gasCap uint
 			blobGasPerBlob := new(big.Int).SetUint64(params.BlobTxBlobGasPerBlob)
 			blobBalanceUsage := new(big.Int).SetUint64(uint64(len(call.BlobHashes())))
 			blobBalanceUsage.Mul(blobBalanceUsage, blobGasPerBlob)
-			blobBalanceUsage.ModInverse(blobBalanceUsage, call.BlobGasFeeCap())
+			blobBalanceUsage.Mul(blobBalanceUsage, call.BlobGasFeeCap())
 			if blobBalanceUsage.Cmp(available) >= 0 {
 				return 0, nil, core.ErrInsufficientFunds
 			}

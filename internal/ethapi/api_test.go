@@ -909,8 +909,10 @@ func TestCall(t *testing.T) {
 				BlobFeeCap: (*hexutil.Big)(big.NewInt(1)),
 			},
 			overrides: StateOverride{
+				// override this bytecode, which do return the first blob hash if any
 				randomAccounts[2].addr: {
-					Code: hex2Bytes("60004960005260206000f3"),
+					// Code: hex2Bytes("60004960005260206000f3"),
+					Code: newRPCBytes([]byte{byte(vm.PUSH1), byte(0), byte(vm.BLOBHASH), byte(vm.PUSH1), byte(0), byte(vm.MSTORE), byte(vm.PUSH1), byte(0x20), byte(vm.PUSH1), byte(0), byte(vm.RETURN)}),
 				},
 			},
 			want: "0x0122000000000000000000000000000000000000000000000000000000000000",
@@ -1306,4 +1308,9 @@ func TestBlobTransactionApi(t *testing.T) {
 			t.Errorf("unexpected error. Have %v, want %v\n", err, errBlobTxNotSupported)
 		}
 	})
+}
+
+func newRPCBytes(bytes []byte) *hexutil.Bytes {
+	rpcBytes := hexutil.Bytes(bytes)
+	return &rpcBytes
 }

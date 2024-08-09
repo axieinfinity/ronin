@@ -267,23 +267,14 @@ func TestTransactionCoding(t *testing.T) {
 		t.Fatalf("could not generate key: %v", err)
 	}
 	var (
-		signer    = NewEIP2930Signer(common.Big1)
 		addr      = common.HexToAddress("0x0000000000000000000000000000000000000001")
 		recipient = common.HexToAddress("095e7baea6a6c7c4c2dfeb977efac326af552d87")
 		accesses  = AccessList{{Address: addr, StorageKeys: []common.Hash{{0}}}}
 
-		eip2930Signer = NewEIP2930Signer(common.Big1)
-		// londonSigner  = NewLondonSigner(common.Big1)
-		cancunSigner = NewCancunSigner(common.Big1)
+		signer = NewCancunSigner(common.Big1)
 	)
 	for i := uint64(0); i < 500; i++ {
 		var txdata TxData
-		switch i % 7 {
-		case 6:
-			signer = cancunSigner
-		default:
-			signer = eip2930Signer
-		}
 		switch i % 7 {
 		case 0:
 			// Legacy tx.

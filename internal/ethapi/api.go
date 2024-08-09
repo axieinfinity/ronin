@@ -470,9 +470,6 @@ func (s *PrivateAccountAPI) SendTransaction(ctx context.Context, args Transactio
 		s.nonceLock.LockAddr(args.from())
 		defer s.nonceLock.UnlockAddr(args.from())
 	}
-	if args.IsEIP4844() {
-		return common.Hash{}, errBlobTxNotSupported
-	}
 	signed, err := s.signTransaction(ctx, &args, passwd)
 	if err != nil {
 		log.Warn("Failed transaction send attempt", "from", args.from(), "to", args.To, "value", args.Value.ToInt(), "err", err)
@@ -496,9 +493,6 @@ func (s *PrivateAccountAPI) SignTransaction(ctx context.Context, args Transactio
 	}
 	if args.GasPrice == nil && (args.MaxFeePerGas == nil || args.MaxPriorityFeePerGas == nil) {
 		return nil, fmt.Errorf("missing gasPrice or maxFeePerGas/maxPriorityFeePerGas")
-	}
-	if args.IsEIP4844() {
-		return nil, errBlobTxNotSupported
 	}
 	if args.Nonce == nil {
 		return nil, fmt.Errorf("nonce not specified")
