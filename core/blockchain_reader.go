@@ -61,6 +61,10 @@ func (bc *BlockChain) FinalizedBlock() *types.Block {
 	return nil
 }
 
+func (bc *BlockChain) CurrentFinalBlock() *types.Header {
+	return bc.FinalizedBlock().Header()
+}
+
 // HasHeader checks if a block header is present in the database or not, caching
 // it if present.
 func (bc *BlockChain) HasHeader(hash common.Hash, number uint64) bool {
@@ -213,6 +217,38 @@ func (bc *BlockChain) GetReceiptsByHash(hash common.Hash) types.Receipts {
 	}
 	bc.receiptsCache.Add(hash, receipts)
 	return receipts
+}
+
+// GetBlobSidecarsByNumber retrieves the blobSidecars by a given block number
+// if the blob sidecars are not pruned yet
+func (bc *BlockChain) GetBlobSidecarsByNumber(number uint64) types.BlobSidecars {
+	hash := rawdb.ReadCanonicalHash(bc.db, number)
+	if hash == (common.Hash{}) {
+		return nil
+	}
+	if sidecars, ok := bc.blobSidecarsCache.Get(hash); ok {
+		return sidecars
+	}
+
+	sidecars := rawdb.ReadBlobSidecars(bc.db, hash, number)
+	bc.blobSidecarsCache.Add(hash, sidecars)
+	return sidecars
+}
+
+// GetBlobSidecarsByHash retrieves the blobSidecars by a given block hash
+// if the blob sidecars are not pruned yet
+func (bc *BlockChain) GetBlobSidecarsByHash(hash common.Hash) types.BlobSidecars {
+	if sidecars, ok := bc.blobSidecarsCache.Get(hash); ok {
+		return sidecars
+	}
+	number := rawdb.ReadHeaderNumber(bc.db, hash)
+	if number == nil {
+		return nil
+	}
+
+	sidecars := rawdb.ReadBlobSidecars(bc.db, hash, *number)
+	bc.blobSidecarsCache.Add(hash, sidecars)
+	return sidecars
 }
 
 // GetUnclesInChain retrieves all the uncles from a given block backwards until

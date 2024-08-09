@@ -23,6 +23,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/core/txpool"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/light"
 	"github.com/ethereum/go-ethereum/log"
@@ -36,7 +37,7 @@ type serverBackend interface {
 	ArchiveMode() bool
 	AddTxsSync() bool
 	BlockChain() *core.BlockChain
-	TxPool() *core.TxPool
+	TxPool() *txpool.TxPool
 	GetHelperTrie(typ uint, index uint64) *trie.Trie
 }
 
@@ -516,11 +517,15 @@ func handleSendTx(msg Decoder) (serveRequestFn, uint64, uint64, error) {
 			}
 			hash := tx.Hash()
 			stats[i] = txStatus(backend, hash)
-			if stats[i].Status == core.TxStatusUnknown {
-				addFn := backend.TxPool().AddRemotes
+			if stats[i].Status == txpool.TxStatusUnknown {
+				addFn := func(txs []*types.Transaction) []error {
+					return backend.TxPool().Add(txs, false, false)
+				}
 				// Add txs synchronously for testing purpose
 				if backend.AddTxsSync() {
-					addFn = backend.TxPool().AddRemotesSync
+					addFn = func(txs []*types.Transaction) []error {
+						return backend.TxPool().Add(txs, false, true)
+					}
 				}
 				if errs := addFn([]*types.Transaction{tx}); errs[0] != nil {
 					stats[i].Error = errs[0].Error()
@@ -555,13 +560,13 @@ func handleGetTxStatus(msg Decoder) (serveRequestFn, uint64, uint64, error) {
 func txStatus(b serverBackend, hash common.Hash) light.TxStatus {
 	var stat light.TxStatus
 	// Looking the transaction in txpool first.
-	stat.Status = b.TxPool().Status([]common.Hash{hash})[0]
+	stat.Status = b.TxPool().Status(hash)
 
 	// If the transaction is unknown to the pool, try looking it up locally.
-	if stat.Status == core.TxStatusUnknown {
+	if stat.Status == txpool.TxStatusUnknown {
 		lookup := b.BlockChain().GetTransactionLookup(hash)
 		if lookup != nil {
-			stat.Status = core.TxStatusIncluded
+			stat.Status = txpool.TxStatusIncluded
 			stat.Lookup = lookup
 		}
 	}

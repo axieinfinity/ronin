@@ -134,6 +134,16 @@ func handleGetBlockBodies66(backend Backend, msg Decoder, peer *Peer) error {
 	return peer.ReplyBlockBodiesRLP(query.RequestId, response)
 }
 
+func handleGetBlockBodies100(backend Backend, msg Decoder, peer *Peer) error {
+	// Decode the block body retrieval message
+	var query GetBlockBodiesPacket66
+	if err := msg.Decode(&query); err != nil {
+		return fmt.Errorf("%w: message %v: %v", errDecode, msg, err)
+	}
+	response, sidecars := answerGetBlockBodiesQuery100(backend, query.GetBlockBodiesPacket, peer)
+	return peer.ReplyBlockBodiesRLP100(query.RequestId, response, sidecars)
+}
+
 func answerGetBlockBodiesQuery(backend Backend, query GetBlockBodiesPacket, peer *Peer) []rlp.RawValue {
 	// Gather blocks until the fetch or network limits is reached
 	var (
@@ -151,6 +161,35 @@ func answerGetBlockBodiesQuery(backend Backend, query GetBlockBodiesPacket, peer
 		}
 	}
 	return bodies
+}
+
+func answerGetBlockBodiesQuery100(backend Backend, query GetBlockBodiesPacket, peer *Peer) ([]rlp.RawValue, [][]*types.BlobTxSidecar) {
+	// Gather blocks until the fetch or network limits is reached
+	var (
+		bytes        int
+		bodies       []rlp.RawValue
+		sidecarsList [][]*types.BlobTxSidecar
+	)
+	for lookups, hash := range query {
+		if bytes >= softResponseLimit || len(bodies) >= maxBodiesServe ||
+			lookups >= 2*maxBodiesServe {
+			break
+		}
+		if data := backend.Chain().GetBodyRLP(hash); len(data) != 0 {
+			bodies = append(bodies, data)
+			bytes += len(data)
+			sidecars := make([]*types.BlobTxSidecar, 0)
+			blobSidecars := backend.Chain().GetBlobSidecarsByHash(hash)
+			if blobSidecars != nil {
+				for _, sidecar := range blobSidecars {
+					sidecars = append(sidecars, &sidecar.BlobTxSidecar)
+				}
+			}
+			sidecarsList = append(sidecarsList, sidecars)
+		}
+
+	}
+	return bodies, sidecarsList
 }
 
 func handleGetNodeData66(backend Backend, msg Decoder, peer *Peer) error {
@@ -271,6 +310,32 @@ func handleNewBlock(backend Backend, msg Decoder, peer *Peer) error {
 	return backend.Handle(peer, ann)
 }
 
+func handleNewBlock100(backend Backend, msg Decoder, peer *Peer) error {
+	// Retrieve and decode the propagated block
+	ann := new(NewBlockPacket100)
+	if err := msg.Decode(ann); err != nil {
+		return fmt.Errorf("%w: message %v: %v", errDecode, msg, err)
+	}
+	if err := ann.sanityCheck(); err != nil {
+		return err
+	}
+	if hash := types.CalcUncleHash(ann.Block.Uncles()); hash != ann.Block.UncleHash() {
+		log.Warn("Propagated block has invalid uncles", "have", hash, "exp", ann.Block.UncleHash())
+		return nil // TODO(karalabe): return error eventually, but wait a few releases
+	}
+	if hash := types.DeriveSha(ann.Block.Transactions(), trie.NewStackTrie(nil)); hash != ann.Block.TxHash() {
+		log.Warn("Propagated block has invalid body", "have", hash, "exp", ann.Block.TxHash())
+		return nil // TODO(karalabe): return error eventually, but wait a few releases
+	}
+	ann.Block.ReceivedAt = msg.Time()
+	ann.Block.ReceivedFrom = peer
+
+	// Mark the peer as owning the block
+	peer.markBlock(ann.Block.Hash())
+
+	return backend.Handle(peer, ann)
+}
+
 func handleBlockHeaders66(backend Backend, msg Decoder, peer *Peer) error {
 	// A batch of headers arrived to one of our previous requests
 	res := new(BlockHeadersPacket66)
@@ -291,6 +356,17 @@ func handleBlockBodies66(backend Backend, msg Decoder, peer *Peer) error {
 	requestTracker.Fulfil(peer.id, peer.version, BlockBodiesMsg, res.RequestId)
 
 	return backend.Handle(peer, &res.BlockBodiesPacket)
+}
+
+func handleBlockBodies100(backend Backend, msg Decoder, peer *Peer) error {
+	// A batch of block bodies arrived to one of our previous requests
+	res := new(BlockBodiesPacket100)
+	if err := msg.Decode(res); err != nil {
+		return fmt.Errorf("%w: message %v: %v", errDecode, msg, err)
+	}
+	requestTracker.Fulfil(peer.id, peer.version, BlockBodiesMsg, res.RequestId)
+
+	return backend.Handle(peer, res)
 }
 
 func handleNodeData66(backend Backend, msg Decoder, peer *Peer) error {
@@ -315,18 +391,38 @@ func handleReceipts66(backend Backend, msg Decoder, peer *Peer) error {
 	return backend.Handle(peer, &res.ReceiptsPacket)
 }
 
-func handleNewPooledTransactionHashes(backend Backend, msg Decoder, peer *Peer) error {
+func handleNewPooledTransactionHashes66(backend Backend, msg Decoder, peer *Peer) error {
 	// New transaction announcement arrived, make sure we have
 	// a valid and fresh chain to handle them
 	if !backend.AcceptTxs() {
 		return nil
 	}
-	ann := new(NewPooledTransactionHashesPacket)
+	ann := new(NewPooledTransactionHashesPacket66)
 	if err := msg.Decode(ann); err != nil {
 		return fmt.Errorf("%w: message %v: %v", errDecode, msg, err)
 	}
 	// Schedule all the unknown hashes for retrieval
 	for _, hash := range *ann {
+		peer.markTransaction(hash)
+	}
+	return backend.Handle(peer, ann)
+}
+
+func handleNewPooledTransactionHashes68(backend Backend, msg Decoder, peer *Peer) error {
+	// New transaction announcement arrived, make sure we have
+	// a valid and fresh chain to handle them
+	if !backend.AcceptTxs() {
+		return nil
+	}
+	ann := new(NewPooledTransactionHashesPacket68)
+	if err := msg.Decode(ann); err != nil {
+		return fmt.Errorf("%w: message %v: %v", errDecode, msg, err)
+	}
+	if len(ann.Hashes) != len(ann.Types) || len(ann.Hashes) != len(ann.Sizes) {
+		return fmt.Errorf("%w: message %v: invalid len of fields: %v %v %v", errDecode, msg, len(ann.Hashes), len(ann.Types), len(ann.Sizes))
+	}
+	// Schedule all the unknown hashes for retrieval
+	for _, hash := range ann.Hashes {
 		peer.markTransaction(hash)
 	}
 	return backend.Handle(peer, ann)

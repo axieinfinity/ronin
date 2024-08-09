@@ -97,6 +97,23 @@ var (
 		},
 		Type: SponsoredTxType,
 	}
+	blobReceipt = &Receipt{
+		Status:            ReceiptStatusFailed,
+		CumulativeGasUsed: 1,
+		Logs: []*Log{
+			{
+				Address: common.BytesToAddress([]byte{0x11}),
+				Topics:  []common.Hash{common.HexToHash("dead"), common.HexToHash("beef")},
+				Data:    []byte{0x01, 0x00, 0xff},
+			},
+			{
+				Address: common.BytesToAddress([]byte{0x01, 0x11}),
+				Topics:  []common.Hash{common.HexToHash("dead"), common.HexToHash("beef")},
+				Data:    []byte{0x01, 0x00, 0xff},
+			},
+		},
+		Type: BlobTxType,
+	}
 )
 
 func TestDecodeEmptyTypedReceipt(t *testing.T) {
@@ -299,7 +316,7 @@ func TestDeriveFields(t *testing.T) {
 	hash := common.BytesToHash([]byte{0x03, 0x14})
 
 	clearComputedFieldsOnReceipts(t, receipts)
-	if err := receipts.DeriveFields(params.TestChainConfig, hash, number.Uint64(), txs); err != nil {
+	if err := receipts.DeriveFields(params.TestChainConfig, hash, number.Uint64(), nil, txs); err != nil {
 		t.Fatalf("DeriveFields(...) = %v, want <nil>", err)
 	}
 	// Iterate over all the computed fields and check that they're correct
@@ -463,6 +480,24 @@ func TestReceiptMarshalBinary(t *testing.T) {
 		t.Errorf("encoded RLP mismatch, got %x want %x", have, mikoWant)
 	}
 
+	// Blob Receipt
+	buf.Reset()
+	blobReceipt.Bloom = CreateBloom(Receipts{blobReceipt})
+	have, err = blobReceipt.MarshalBinary()
+	if err != nil {
+		t.Fatalf("marshal binary error: %v", err)
+	}
+	t.Logf(common.Bytes2Hex(have))
+	blobReceipts := Receipts{blobReceipt}
+	blobReceipts.EncodeIndex(0, buf)
+	haveEncodeIndex = buf.Bytes()
+	if !bytes.Equal(have, haveEncodeIndex) {
+		t.Errorf("BinaryMarshal and EncodeIndex mismatch, got %x want %x", have, haveEncodeIndex)
+	}
+	blobWant := common.FromHex("03f901c58001b9010000000000000010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000500000000000000000000000000000000000014000000000000000000000000000000000000000000000000000000000000000000000000000010000080000000000000000000004000000000000000000000000000040000000000000000000000000000800000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000f8bef85d940000000000000000000000000000000000000011f842a0000000000000000000000000000000000000000000000000000000000000deada0000000000000000000000000000000000000000000000000000000000000beef830100fff85d940000000000000000000000000000000000000111f842a0000000000000000000000000000000000000000000000000000000000000deada0000000000000000000000000000000000000000000000000000000000000beef830100ff")
+	if !bytes.Equal(have, blobWant) {
+		t.Errorf("encoded RLP mismatch, got %x want %x", have, mikoWant)
+	}
 }
 
 func TestReceiptUnmarshalBinary(t *testing.T) {
@@ -508,6 +543,17 @@ func TestReceiptUnmarshalBinary(t *testing.T) {
 	mikoReceipt.Bloom = CreateBloom(Receipts{mikoReceipt})
 	if !reflect.DeepEqual(gotMikoReceipt, mikoReceipt) {
 		t.Errorf("receipt unmarshalled from binary mismatch, got %v want %v", gotMikoReceipt, mikoReceipt)
+	}
+
+	// Blob Receipt
+	blobRctBinary := common.FromHex("03f901c58001b9010000000000000010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000500000000000000000000000000000000000014000000000000000000000000000000000000000000000000000000000000000000000000000010000080000000000000000000004000000000000000000000000000040000000000000000000000000000800000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000f8bef85d940000000000000000000000000000000000000011f842a0000000000000000000000000000000000000000000000000000000000000deada0000000000000000000000000000000000000000000000000000000000000beef830100fff85d940000000000000000000000000000000000000111f842a0000000000000000000000000000000000000000000000000000000000000deada0000000000000000000000000000000000000000000000000000000000000beef830100ff")
+	gotBlobReceipt := new(Receipt)
+	if err := gotBlobReceipt.UnmarshalBinary(blobRctBinary); err != nil {
+		t.Fatalf("unmarshal binary error: %v", err)
+	}
+	blobReceipt.Bloom = CreateBloom(Receipts{blobReceipt})
+	if !reflect.DeepEqual(gotBlobReceipt, blobReceipt) {
+		t.Errorf("receipt unmarshalled from binary mismatch, got %v want %v", gotBlobReceipt, blobReceipt)
 	}
 }
 

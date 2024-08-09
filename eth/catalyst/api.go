@@ -24,12 +24,14 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/consensus/misc"
+	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/core/txpool"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/miner"
 	"github.com/ethereum/go-ethereum/node"
 	chainParams "github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
@@ -126,8 +128,7 @@ func (api *consensusAPI) AssembleBlock(params assembleBlockParams) (*executableD
 		time.Sleep(wait)
 	}
 
-	pending := pool.Pending(true)
-
+	pending := pool.Pending(&txpool.PendingFilter{EnforceTip: true})
 	coinbase, err := api.eth.Etherbase()
 	if err != nil {
 		return nil, err
@@ -142,7 +143,7 @@ func (api *consensusAPI) AssembleBlock(params assembleBlockParams) (*executableD
 		Time:       params.Timestamp,
 	}
 	if config := api.eth.BlockChain().Config(); config.IsLondon(header.Number) {
-		header.BaseFee = misc.CalcBaseFee(config, parent.Header())
+		header.BaseFee = eip1559.CalcBaseFee(config, parent.Header())
 	}
 	err = api.eth.Engine().Prepare(bc, header)
 	if err != nil {
@@ -156,7 +157,7 @@ func (api *consensusAPI) AssembleBlock(params assembleBlockParams) (*executableD
 
 	var (
 		signer       = types.MakeSigner(bc.Config(), header.Number)
-		txHeap       = types.NewTransactionsByPriceAndNonce(signer, pending, nil)
+		txHeap       = miner.NewTransactionsByPriceAndNonce(signer, pending, nil)
 		transactions []*types.Transaction
 	)
 	for {
@@ -164,10 +165,11 @@ func (api *consensusAPI) AssembleBlock(params assembleBlockParams) (*executableD
 			log.Trace("Not enough gas for further transactions", "have", env.gasPool, "want", chainParams.TxGas)
 			break
 		}
-		tx := txHeap.Peek()
-		if tx == nil {
+		lazyTx, _ := txHeap.Peek()
+		if lazyTx == nil {
 			break
 		}
+		tx := lazyTx.Resolve()
 
 		// The sender is only for logging purposes, and it doesn't really matter if it's correct.
 		from, _ := types.Sender(signer, tx)
@@ -268,7 +270,7 @@ func insertBlockParamsToBlock(config *chainParams.ChainConfig, parent *types.Hea
 		Time:        params.Timestamp,
 	}
 	if config.IsLondon(number) {
-		header.BaseFee = misc.CalcBaseFee(config, parent)
+		header.BaseFee = eip1559.CalcBaseFee(config, parent)
 	}
 	block := types.NewBlockWithHeader(header).WithBody(txs, nil /* uncles */)
 	return block, nil
@@ -293,7 +295,7 @@ func (api *consensusAPI) NewBlock(params executableData) (*newBlockResponse, err
 // Used in tests to add a the list of transactions from a block to the tx pool.
 func (api *consensusAPI) addBlockTxs(block *types.Block) error {
 	for _, tx := range block.Transactions() {
-		api.eth.TxPool().AddLocal(tx)
+		api.eth.TxPool().Add([]*types.Transaction{tx}, true, false)
 	}
 	return nil
 }

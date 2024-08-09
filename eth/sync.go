@@ -23,6 +23,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
+	"github.com/ethereum/go-ethereum/core/txpool"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/eth/downloader"
 	"github.com/ethereum/go-ethereum/eth/protocols/eth"
@@ -43,9 +44,11 @@ func (h *handler) syncTransactions(p *eth.Peer) {
 	//
 	// TODO(karalabe): Figure out if we could get away with random order somehow
 	var txs types.Transactions
-	pending := h.txpool.Pending(false)
+	pending := h.txpool.Pending(&txpool.PendingFilter{OnlyPlainTxs: true})
 	for _, batch := range pending {
-		txs = append(txs, batch...)
+		for _, tx := range batch {
+			txs = append(txs, tx.Resolve())
+		}
 	}
 	if len(txs) == 0 {
 		return

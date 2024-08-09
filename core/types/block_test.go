@@ -281,3 +281,23 @@ func makeBenchBlock() *Block {
 	}
 	return NewBlock(header, txs, uncles, receipts, newHasher())
 }
+
+func TestCopyHeaderEIP4844(t *testing.T) {
+	blobGasUsed := uint64(1 << 17)
+	excessBlobGas := 2 * blobGasUsed
+	header := Header{
+		BlobGasUsed:   &blobGasUsed,
+		ExcessBlobGas: &excessBlobGas,
+	}
+	cpyHeader := CopyHeader(&header)
+	*cpyHeader.BlobGasUsed = 0
+	*cpyHeader.ExcessBlobGas = 0
+
+	// Check that changes in cpyHeader does not affect the original header
+	if *header.BlobGasUsed != blobGasUsed {
+		t.Fatalf("Blob gas used mismatches, expect %d got %d", blobGasUsed, *header.BlobGasUsed)
+	}
+	if *header.ExcessBlobGas != excessBlobGas {
+		t.Fatalf("Excess blob gas mismatches, expect %d got %d", excessBlobGas, *header.ExcessBlobGas)
+	}
+}

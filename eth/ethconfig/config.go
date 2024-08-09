@@ -33,6 +33,8 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/clique"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/txpool/blobpool"
+	"github.com/ethereum/go-ethereum/core/txpool/legacypool"
 	"github.com/ethereum/go-ethereum/eth/downloader"
 	"github.com/ethereum/go-ethereum/eth/gasprice"
 	"github.com/ethereum/go-ethereum/ethdb"
@@ -92,7 +94,8 @@ var Defaults = Config{
 		BlockProduceLeftOver: 200 * time.Millisecond,
 		BlockSizeReserve:     500000,
 	},
-	TxPool:        core.DefaultTxPoolConfig,
+	TxPool:        legacypool.DefaultConfig,
+	BlobPool:      blobpool.DefaultConfig,
 	RPCGasCap:     50000000,
 	RPCEVMTimeout: 5 * time.Second,
 	GPO:           FullNodeGPO,
@@ -181,7 +184,10 @@ type Config struct {
 	Ethash ethash.Config
 
 	// Transaction pool options
-	TxPool core.TxPoolConfig
+	TxPool legacypool.Config
+
+	// Blob pool options
+	BlobPool blobpool.Config
 
 	// Gas Price Oracle options
 	GPO gasprice.Config

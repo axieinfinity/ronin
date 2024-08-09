@@ -793,6 +793,21 @@ func TestConsortiumPrecompileQuery(t *testing.T) {
 	if p.caller != caller {
 		t.Fatal("Incorrect caller in precompiled contract")
 	}
+
+	// Check point evaluation before and after Cancun
+	_, ok = evm.precompile(caller, common.BytesToAddress([]byte{10}))
+	if ok {
+		t.Fatal("Expect no point evaluation contract before Cancun")
+	}
+
+	evm.chainRules.IsCancun = true
+	precompiledContract, ok = evm.precompile(caller, common.BytesToAddress([]byte{10}))
+	if !ok {
+		t.Fatal("Failed to get point evaluation contract after Cancun")
+	}
+	if _, ok := precompiledContract.(*kzgPointEvaluation); !ok {
+		t.Fatal("Wrong kzg point evaluation contract")
+	}
 }
 
 func BenchmarkConsortiumPrecompileQuery(b *testing.B) {

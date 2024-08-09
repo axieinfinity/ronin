@@ -89,7 +89,7 @@ func newTester() *downloadTester {
 	tester.stateDb = rawdb.NewMemoryDatabase()
 	tester.stateDb.Put(testGenesis.Root().Bytes(), []byte{0x00})
 
-	tester.downloader = New(0, tester.stateDb, trie.NewSyncBloom(1, tester.stateDb), new(event.TypeMux), tester, nil, tester.dropPeer)
+	tester.downloader = New(0, tester.stateDb, trie.NewSyncBloom(1, tester.stateDb), new(event.TypeMux), tester, nil, tester.dropPeer, tester.verifyBlobHeader)
 	return tester
 }
 
@@ -290,7 +290,7 @@ func (dl *downloadTester) InsertHeaderChain(headers []*types.Header, checkFreq i
 }
 
 // InsertChain injects a new batch of blocks into the simulated chain.
-func (dl *downloadTester) InsertChain(blocks types.Blocks) (i int, err error) {
+func (dl *downloadTester) InsertChain(blocks types.Blocks, _ [][]*types.BlobTxSidecar) (i int, err error) {
 	dl.lock.Lock()
 	defer dl.lock.Unlock()
 	for i, block := range blocks {
@@ -410,6 +410,11 @@ func (dl *downloadTester) dropPeer(id string) {
 	dl.downloader.UnregisterPeer(id)
 }
 
+// verifyBlobHeader is a non placeholder for the blob header verification.
+func (dl *downloadTester) verifyBlobHeader(block *types.Block, sidecars []*types.BlobTxSidecar) (error, *types.BlobSidecars) {
+	return nil, nil
+}
+
 // Snapshots implements the BlockChain interface for the downloader, but is a noop.
 func (dl *downloadTester) Snapshots() *snapshot.Tree {
 	return nil
@@ -452,7 +457,7 @@ func (dlp *downloadTesterPeer) RequestHeadersByNumber(origin uint64, amount int,
 // batches of block bodies from the particularly requested peer.
 func (dlp *downloadTesterPeer) RequestBodies(hashes []common.Hash) error {
 	txs, uncles := dlp.chain.bodies(hashes)
-	go dlp.dl.downloader.DeliverBodies(dlp.id, txs, uncles)
+	go dlp.dl.downloader.DeliverBodies(dlp.id, txs, uncles, [][]*types.BlobTxSidecar{})
 	return nil
 }
 
@@ -762,7 +767,7 @@ func TestInactiveDownloader63(t *testing.T) {
 	if err := tester.downloader.DeliverHeaders("bad peer", []*types.Header{}); err != errNoSyncActive {
 		t.Errorf("error mismatch: have %v, want %v", err, errNoSyncActive)
 	}
-	if err := tester.downloader.DeliverBodies("bad peer", [][]*types.Transaction{}, [][]*types.Header{}); err != errNoSyncActive {
+	if err := tester.downloader.DeliverBodies("bad peer", [][]*types.Transaction{}, [][]*types.Header{}, [][]*types.BlobTxSidecar{}); err != errNoSyncActive {
 		t.Errorf("error mismatch: have %v, want %v", err, errNoSyncActive)
 	}
 	if err := tester.downloader.DeliverReceipts("bad peer", [][]*types.Receipt{}); err != errNoSyncActive {

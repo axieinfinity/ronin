@@ -92,7 +92,7 @@ func TestReimportMirroredState(t *testing.T) {
 	chain, _ = core.NewBlockChain(db, nil, params.AllCliqueProtocolChanges, engine, vm.Config{}, nil, nil)
 	defer chain.Stop()
 
-	if _, err := chain.InsertChain(blocks[:2]); err != nil {
+	if _, err := chain.InsertChain(blocks[:2], nil); err != nil {
 		t.Fatalf("failed to insert initial blocks: %v", err)
 	}
 	if head := chain.CurrentBlock().NumberU64(); head != 2 {
@@ -105,7 +105,7 @@ func TestReimportMirroredState(t *testing.T) {
 	chain, _ = core.NewBlockChain(db, nil, params.AllCliqueProtocolChanges, engine, vm.Config{}, nil, nil)
 	defer chain.Stop()
 
-	if _, err := chain.InsertChain(blocks[2:]); err != nil {
+	if _, err := chain.InsertChain(blocks[2:], nil); err != nil {
 		t.Fatalf("failed to insert final block: %v", err)
 	}
 	if head := chain.CurrentBlock().NumberU64(); head != 3 {

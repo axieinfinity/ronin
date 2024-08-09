@@ -109,7 +109,7 @@ func (b *SimulatedBackend) Commit() {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	if _, err := b.blockchain.InsertChain([]*types.Block{b.pendingBlock}); err != nil {
+	if _, err := b.blockchain.InsertChain([]*types.Block{b.pendingBlock}, nil); err != nil {
 		panic(err) // This cannot happen unless the simulator is wrong, fail in that case
 	}
 	// Using the last inserted block here makes it possible to build on a side
@@ -814,6 +814,9 @@ func (m callMsg) AccessList() types.AccessList { return m.CallMsg.AccessList }
 // FIXME: support sponsored transaction in callMsg
 func (m callMsg) Payer() common.Address { return m.CallMsg.From }
 func (m callMsg) ExpiredTime() uint64   { return 0 }
+
+func (m callMsg) BlobHashes() []common.Hash { return nil }
+func (m callMsg) BlobGasFeeCap() *big.Int   { return nil }
 
 // filterBackend implements filters.Backend to support filtering for logs without
 // taking bloom-bits acceleration structures into account.

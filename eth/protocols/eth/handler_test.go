@@ -27,6 +27,8 @@ import (
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/core/txpool"
+	"github.com/ethereum/go-ethereum/core/txpool/legacypool"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -51,7 +53,7 @@ var (
 type testBackend struct {
 	db     ethdb.Database
 	chain  *core.BlockChain
-	txpool *core.TxPool
+	txpool *txpool.TxPool
 }
 
 // newTestBackend creates an empty chain and wraps it into a mock backend.
@@ -72,22 +74,28 @@ func newTestBackendWithGenerator(blocks int, generator func(int, *core.BlockGen)
 	chain, _ := core.NewBlockChain(db, nil, params.TestChainConfig, ethash.NewFaker(), vm.Config{}, nil, nil)
 
 	bs, _ := core.GenerateChain(params.TestChainConfig, chain.Genesis(), ethash.NewFaker(), db, blocks, generator, true)
-	if _, err := chain.InsertChain(bs); err != nil {
+	if _, err := chain.InsertChain(bs, nil); err != nil {
 		panic(err)
 	}
-	txconfig := core.DefaultTxPoolConfig
+	txconfig := legacypool.DefaultConfig
 	txconfig.Journal = "" // Don't litter the disk with test journals
+
+	legacyPool := legacypool.New(txconfig, params.TestChainConfig, chain)
+	txPool, err := txpool.New(txconfig.PriceLimit, chain, []txpool.SubPool{legacyPool})
+	if err != nil {
+		panic(err)
+	}
 
 	return &testBackend{
 		db:     db,
 		chain:  chain,
-		txpool: core.NewTxPool(txconfig, params.TestChainConfig, chain),
+		txpool: txPool,
 	}
 }
 
 // close tears down the transaction pool and chain behind the mock backend.
 func (b *testBackend) close() {
-	b.txpool.Stop()
+	b.txpool.Close()
 	b.chain.Stop()
 }
 
@@ -290,7 +298,8 @@ func testGetBlockHeaders(t *testing.T, protocol uint) {
 }
 
 // Tests that block contents can be retrieved from a remote chain based on their hashes.
-func TestGetBlockBodies66(t *testing.T) { testGetBlockBodies(t, ETH66) }
+func TestGetBlockBodies66(t *testing.T)  { testGetBlockBodies(t, ETH66) }
+func TestGetBlockBodies100(t *testing.T) { testGetBlockBodies(t, ETH100) }
 
 func testGetBlockBodies(t *testing.T, protocol uint) {
 	t.Parallel()
@@ -332,9 +341,10 @@ func testGetBlockBodies(t *testing.T, protocol uint) {
 	for i, tt := range tests {
 		// Collect the hashes to request, and the response to expectva
 		var (
-			hashes []common.Hash
-			bodies []*BlockBody
-			seen   = make(map[int64]bool)
+			hashes       []common.Hash
+			bodies       []*BlockBody
+			sidecarsList [][]*types.BlobTxSidecar
+			seen         = make(map[int64]bool)
 		)
 		for j := 0; j < tt.random; j++ {
 			for {
@@ -346,6 +356,14 @@ func testGetBlockBodies(t *testing.T, protocol uint) {
 					hashes = append(hashes, block.Hash())
 					if len(bodies) < tt.expected {
 						bodies = append(bodies, &BlockBody{Transactions: block.Transactions(), Uncles: block.Uncles()})
+						if peer.Version() >= ETH100 {
+							sidecars := make([]*types.BlobTxSidecar, len(block.Transactions()))
+							blobSidecars := backend.chain.GetBlobSidecarsByNumber(uint64(num))
+							for _, sidecar := range blobSidecars {
+								sidecars = append(sidecars, &sidecar.BlobTxSidecar)
+							}
+							sidecarsList = append(sidecarsList, sidecars)
+						}
 					}
 					break
 				}
@@ -356,6 +374,14 @@ func testGetBlockBodies(t *testing.T, protocol uint) {
 			if tt.available[j] && len(bodies) < tt.expected {
 				block := backend.chain.GetBlockByHash(hash)
 				bodies = append(bodies, &BlockBody{Transactions: block.Transactions(), Uncles: block.Uncles()})
+				if peer.Version() >= ETH100 {
+					sidecars := make([]*types.BlobTxSidecar, len(block.Transactions()))
+					blobSidecars := backend.chain.GetBlobSidecarsByHash(hash)
+					for _, sidecar := range blobSidecars {
+						sidecars = append(sidecars, &sidecar.BlobTxSidecar)
+					}
+					sidecarsList = append(sidecarsList, sidecars)
+				}
 			}
 		}
 		// Send the hash request and verify the response
@@ -363,19 +389,29 @@ func testGetBlockBodies(t *testing.T, protocol uint) {
 			RequestId:            123,
 			GetBlockBodiesPacket: hashes,
 		})
-		if err := p2p.ExpectMsg(peer.app, BlockBodiesMsg, BlockBodiesPacket66{
-			RequestId:         123,
-			BlockBodiesPacket: bodies,
-		}); err != nil {
-			t.Errorf("test %d: bodies mismatch: %v", i, err)
+		if peer.Version() >= ETH100 {
+			if err := p2p.ExpectMsg(peer.app, BlockBodiesMsg, BlockBodiesPacket100{
+				RequestId:         123,
+				BlockBodiesPacket: bodies,
+				Sidecars:          sidecarsList,
+			}); err != nil {
+				t.Errorf("test %d: bodies mismatch: %v", i, err)
+			}
+		} else {
+			if err := p2p.ExpectMsg(peer.app, BlockBodiesMsg, BlockBodiesPacket66{
+				RequestId:         123,
+				BlockBodiesPacket: bodies,
+			}); err != nil {
+				t.Errorf("test %d: bodies mismatch: %v", i, err)
+			}
 		}
 	}
 }
 
 // Tests that the state trie nodes can be retrieved based on hashes.
-func TestGetNodeData66(t *testing.T) { testGetNodeData(t, ETH66) }
+func TestGetNodeData66(t *testing.T) { testGetNodeData(t, ETH66, false) }
 
-func testGetNodeData(t *testing.T, protocol uint) {
+func testGetNodeData(t *testing.T, protocol uint, drop bool) {
 	t.Parallel()
 
 	// Define three accounts to simulate transactions with
@@ -436,8 +472,15 @@ func testGetNodeData(t *testing.T, protocol uint) {
 		GetNodeDataPacket: hashes,
 	})
 	msg, err := peer.app.ReadMsg()
-	if err != nil {
-		t.Fatalf("failed to read node data response: %v", err)
+	if !drop {
+		if err != nil {
+			t.Fatalf("failed to read node data response: %v", err)
+		}
+	} else {
+		if err != nil {
+			return
+		}
+		t.Fatalf("succeeded to read node data response on non-supporting protocol: %v", msg)
 	}
 	if msg.Code != NodeDataMsg {
 		t.Fatalf("response packet code mismatch: have %x, want %x", msg.Code, NodeDataMsg)

@@ -13,7 +13,7 @@
 //
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
-package core
+package legacypool
 
 import (
 	"crypto/ecdsa"
@@ -33,16 +33,16 @@ func pricedValuedTransaction(nonce uint64, value int64, gaslimit uint64, gaspric
 	return tx
 }
 
-func count(t *testing.T, pool *TxPool) (pending int, queued int) {
+func count(t *testing.T, pool *LegacyPool) (pending int, queued int) {
 	t.Helper()
 	pending, queued = pool.stats()
-	if err := validateTxPoolInternals(pool); err != nil {
+	if err := validatePoolInternals(pool); err != nil {
 		t.Fatalf("pool internal state corrupted: %v", err)
 	}
 	return pending, queued
 }
 
-func fillPool(t *testing.T, pool *TxPool) {
+func fillPool(t *testing.T, pool *LegacyPool) {
 	t.Helper()
 	// Create a number of test accounts, fund them and make transactions
 	executableTxs := types.Transactions{}
@@ -79,12 +79,17 @@ func TestTransactionFutureAttack(t *testing.T) {
 
 	// Create the pool to test the limit enforcement with
 	statedb, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
-	blockchain := &testBlockChain{1000000, statedb, new(event.Feed)}
+	blockchain := &testBlockChain{1000000, statedb, new(event.Feed), 0}
 	config := testTxPoolConfig
 	config.GlobalQueue = 100
 	config.GlobalSlots = 100
-	pool := NewTxPool(config, eip1559Config, blockchain)
-	defer pool.Stop()
+	pool := New(config, eip1559Config, blockchain)
+	defer pool.Close()
+	pool.Init(
+		testTxPoolConfig.PriceLimit,
+		blockchain.CurrentBlock().Header(),
+		func(addr common.Address, reserve bool) error { return nil },
+	)
 	fillPool(t, pool)
 	pending, _ := pool.Stats()
 	// Now, future transaction attack starts, let's add a bunch of expensive non-executables, and see if the pending-count drops
@@ -114,10 +119,8 @@ func TestTransactionFutureAttack(t *testing.T) {
 func TestTransactionFuture1559(t *testing.T) {
 	t.Parallel()
 	// Create the pool to test the pricing enforcement with
-	statedb, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
-	blockchain := &testBlockChain{1000000, statedb, new(event.Feed)}
-	pool := NewTxPool(testTxPoolConfig, eip1559Config, blockchain)
-	defer pool.Stop()
+	pool, _ := setupPoolWithConfig(eip1559Config)
+	defer pool.Close()
 
 	// Create a number of test accounts, fund them and make transactions
 	fillPool(t, pool)
@@ -146,10 +149,8 @@ func TestTransactionFuture1559(t *testing.T) {
 func TestTransactionZAttack(t *testing.T) {
 	t.Parallel()
 	// Create the pool to test the pricing enforcement with
-	statedb, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
-	blockchain := &testBlockChain{1000000, statedb, new(event.Feed)}
-	pool := NewTxPool(testTxPoolConfig, eip1559Config, blockchain)
-	defer pool.Stop()
+	pool, _ := setupPoolWithConfig(eip1559Config)
+	defer pool.Close()
 	mikoSigner := types.NewMikoSigner(common.Big1)
 	// Create a number of test accounts, fund them and make transactions
 	fillPool(t, pool)
@@ -188,7 +189,7 @@ func TestTransactionZAttack(t *testing.T) {
 				}
 			}
 		}
-		if err := validateTxPoolInternals(pool); err != nil {
+		if err := validatePoolInternals(pool); err != nil {
 			t.Fatalf("pool internal state corrupted: %v", err)
 		}
 		return ivpendingNum

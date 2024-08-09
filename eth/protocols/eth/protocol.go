@@ -30,7 +30,8 @@ import (
 
 // Constants to match up protocol versions and messages
 const (
-	ETH66 = 66
+	ETH66  = 66
+	ETH100 = 100
 )
 
 // ProtocolName is the official short name of the `eth` protocol used during
@@ -39,11 +40,11 @@ const ProtocolName = "eth"
 
 // ProtocolVersions are the supported versions of the `eth` protocol (first
 // is primary).
-var ProtocolVersions = []uint{ETH66}
+var ProtocolVersions = []uint{ETH100, ETH66}
 
 // protocolLengths are the number of implemented message corresponding to
 // different protocol versions.
-var protocolLengths = map[uint]uint64{ETH66: 17}
+var protocolLengths = map[uint]uint64{ETH100: 17, ETH66: 17}
 
 // maxMessageSize is the maximum cap on the size of a protocol message.
 const maxMessageSize = 10 * 1024 * 1024
@@ -194,6 +195,26 @@ func (request *NewBlockPacket) sanityCheck() error {
 	return nil
 }
 
+// NewBlockPacket100 is the network packet for the block propagation message over eth/100.
+type NewBlockPacket100 struct {
+	Block    *types.Block
+	TD       *big.Int
+	Sidecars []*types.BlobTxSidecar
+}
+
+// sanityCheck verifies that the values are reasonable, as a DoS protection
+func (request *NewBlockPacket100) sanityCheck() error {
+	if err := request.Block.SanityCheck(); err != nil {
+		return err
+	}
+	//TD at mainnet block #7753254 is 76 bits. If it becomes 100 million times
+	// larger, it will still fit within 100 bits
+	if tdlen := request.TD.BitLen(); tdlen > 100 {
+		return fmt.Errorf("too large block TD: bitlen %d", tdlen)
+	}
+	return nil
+}
+
 // GetBlockBodiesPacket represents a block body query.
 type GetBlockBodiesPacket []common.Hash
 
@@ -212,6 +233,13 @@ type BlockBodiesPacket66 struct {
 	BlockBodiesPacket
 }
 
+// BlockBodiesPacket100 is the network packet for block content distribution over eth/100.
+type BlockBodiesPacket100 struct {
+	RequestId uint64
+	BlockBodiesPacket
+	Sidecars [][]*types.BlobTxSidecar
+}
+
 // BlockBodiesRLPPacket is used for replying to block body requests, in cases
 // where we already have them RLP-encoded, and thus can avoid the decode-encode
 // roundtrip.
@@ -221,6 +249,13 @@ type BlockBodiesRLPPacket []rlp.RawValue
 type BlockBodiesRLPPacket66 struct {
 	RequestId uint64
 	BlockBodiesRLPPacket
+}
+
+// BlockBodiesRLPPacket100 is the BlockBodiesRLPPacket over eth/100
+type BlockBodiesRLPPacket100 struct {
+	RequestId uint64
+	BlockBodiesRLPPacket
+	Sidecars [][]*types.BlobTxSidecar
 }
 
 // BlockBody represents the data content of a single block.
@@ -240,6 +275,20 @@ func (p *BlockBodiesPacket) Unpack() ([][]*types.Transaction, [][]*types.Header)
 		txset[i], uncleset[i] = body.Transactions, body.Uncles
 	}
 	return txset, uncleset
+}
+
+// Unpack retrieves the transactions, uncles, blobs, proofs, and commitments from the range packet and returns
+// them in a split flat format that's more consistent with the internal data structures.
+func (p *BlockBodiesPacket100) Unpack() ([][]*types.Transaction, [][]*types.Header, [][]*types.BlobTxSidecar) {
+	var (
+		txset      = make([][]*types.Transaction, len(p.BlockBodiesPacket))
+		uncleset   = make([][]*types.Header, len(p.BlockBodiesPacket))
+		sidecarset = make([][]*types.BlobTxSidecar, len(p.BlockBodiesPacket))
+	)
+	for i, body := range p.BlockBodiesPacket {
+		txset[i], uncleset[i], sidecarset[i] = body.Transactions, body.Uncles, p.Sidecars[i]
+	}
+	return txset, uncleset, sidecarset
 }
 
 // GetNodeDataPacket represents a trie node data query.
@@ -287,8 +336,15 @@ type ReceiptsRLPPacket66 struct {
 	ReceiptsRLPPacket
 }
 
-// NewPooledTransactionHashesPacket represents a transaction announcement packet.
-type NewPooledTransactionHashesPacket []common.Hash
+// NewPooledTransactionHashesPacket66 represents a transaction announcement packet on eth/66 and eth/67.
+type NewPooledTransactionHashesPacket66 []common.Hash
+
+// NewPooledTransactionHashesPacket68 represents a transaction announcement packet on eth/68 and newer.
+type NewPooledTransactionHashesPacket68 struct {
+	Types  []byte
+	Sizes  []uint32
+	Hashes []common.Hash
+}
 
 // GetPooledTransactionsPacket represents a transaction query.
 type GetPooledTransactionsPacket []common.Hash
@@ -338,8 +394,14 @@ func (*GetBlockBodiesPacket) Kind() byte   { return GetBlockBodiesMsg }
 func (*BlockBodiesPacket) Name() string { return "BlockBodies" }
 func (*BlockBodiesPacket) Kind() byte   { return BlockBodiesMsg }
 
+func (*BlockBodiesPacket100) Name() string { return "BlockBodies" }
+func (*BlockBodiesPacket100) Kind() byte   { return BlockBodiesMsg }
+
 func (*NewBlockPacket) Name() string { return "NewBlock" }
 func (*NewBlockPacket) Kind() byte   { return NewBlockMsg }
+
+func (*NewBlockPacket100) Name() string { return "NewBlock" }
+func (*NewBlockPacket100) Kind() byte   { return NewBlockMsg }
 
 func (*GetNodeDataPacket) Name() string { return "GetNodeData" }
 func (*GetNodeDataPacket) Kind() byte   { return GetNodeDataMsg }
@@ -353,8 +415,11 @@ func (*GetReceiptsPacket) Kind() byte   { return GetReceiptsMsg }
 func (*ReceiptsPacket) Name() string { return "Receipts" }
 func (*ReceiptsPacket) Kind() byte   { return ReceiptsMsg }
 
-func (*NewPooledTransactionHashesPacket) Name() string { return "NewPooledTransactionHashes" }
-func (*NewPooledTransactionHashesPacket) Kind() byte   { return NewPooledTransactionHashesMsg }
+func (*NewPooledTransactionHashesPacket66) Name() string { return "NewPooledTransactionHashes" }
+func (*NewPooledTransactionHashesPacket66) Kind() byte   { return NewPooledTransactionHashesMsg }
+
+func (*NewPooledTransactionHashesPacket68) Name() string { return "NewPooledTransactionHashes" }
+func (*NewPooledTransactionHashesPacket68) Kind() byte   { return NewPooledTransactionHashesMsg }
 
 func (*GetPooledTransactionsPacket) Name() string { return "GetPooledTransactions" }
 func (*GetPooledTransactionsPacket) Kind() byte   { return GetPooledTransactionsMsg }

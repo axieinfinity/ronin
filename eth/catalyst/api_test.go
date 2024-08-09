@@ -120,7 +120,7 @@ func TestEth2AssembleBlock(t *testing.T) {
 	if err != nil {
 		t.Fatalf("error signing transaction, err=%v", err)
 	}
-	ethservice.TxPool().AddLocal(tx)
+	ethservice.TxPool().Add([]*types.Transaction{tx}, true, false)
 	blockParams := assembleBlockParams{
 		ParentHash: blocks[8].ParentHash(),
 		Timestamp:  blocks[8].Time(),
@@ -240,7 +240,7 @@ func startEthService(t *testing.T, genesis *core.Genesis, blocks []*types.Block)
 	if err := n.Start(); err != nil {
 		t.Fatal("can't start node:", err)
 	}
-	if _, err := ethservice.BlockChain().InsertChain(blocks); err != nil {
+	if _, err := ethservice.BlockChain().InsertChain(blocks, nil); err != nil {
 		n.Close()
 		t.Fatal("can't import test blocks:", err)
 	}

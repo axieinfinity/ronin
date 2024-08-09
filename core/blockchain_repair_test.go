@@ -1797,7 +1797,7 @@ func testRepair(t *testing.T, tt *rewindTest, snapshots bool) {
 		sideblocks, _ = GenerateChain(params.TestChainConfig, genesis, engine, rawdb.NewMemoryDatabase(), tt.sidechainBlocks, func(i int, b *BlockGen) {
 			b.SetCoinbase(common.Address{0x01})
 		}, true)
-		if _, err := chain.InsertChain(sideblocks); err != nil {
+		if _, err := chain.InsertChain(sideblocks, nil); err != nil {
 			t.Fatalf("Failed to import side chain: %v", err)
 		}
 	}
@@ -1805,7 +1805,7 @@ func testRepair(t *testing.T, tt *rewindTest, snapshots bool) {
 		b.SetCoinbase(common.Address{0x02})
 		b.SetDifficulty(big.NewInt(1000000))
 	}, true)
-	if _, err := chain.InsertChain(canonblocks[:tt.commitBlock]); err != nil {
+	if _, err := chain.InsertChain(canonblocks[:tt.commitBlock], nil); err != nil {
 		t.Fatalf("Failed to import canonical chain start: %v", err)
 	}
 	if tt.commitBlock > 0 {
@@ -1816,7 +1816,7 @@ func testRepair(t *testing.T, tt *rewindTest, snapshots bool) {
 			}
 		}
 	}
-	if _, err := chain.InsertChain(canonblocks[tt.commitBlock:]); err != nil {
+	if _, err := chain.InsertChain(canonblocks[tt.commitBlock:], nil); err != nil {
 		t.Fatalf("Failed to import canonical chain tail: %v", err)
 	}
 	// Force run a freeze cycle
@@ -1930,13 +1930,13 @@ func TestIssue23496(t *testing.T) {
 	}, true)
 
 	// Insert block B1 and commit the state into disk
-	if _, err := chain.InsertChain(blocks[:1]); err != nil {
+	if _, err := chain.InsertChain(blocks[:1], nil); err != nil {
 		t.Fatalf("Failed to import canonical chain start: %v", err)
 	}
 	chain.stateCache.TrieDB().Commit(blocks[0].Root(), true, nil)
 
 	// Insert block B2 and commit the snapshot into disk
-	if _, err := chain.InsertChain(blocks[1:2]); err != nil {
+	if _, err := chain.InsertChain(blocks[1:2], nil); err != nil {
 		t.Fatalf("Failed to import canonical chain start: %v", err)
 	}
 	if err := chain.snaps.Cap(blocks[1].Root(), 0); err != nil {
@@ -1944,13 +1944,13 @@ func TestIssue23496(t *testing.T) {
 	}
 
 	// Insert block B3 and commit the state into disk
-	if _, err := chain.InsertChain(blocks[2:3]); err != nil {
+	if _, err := chain.InsertChain(blocks[2:3], nil); err != nil {
 		t.Fatalf("Failed to import canonical chain start: %v", err)
 	}
 	chain.stateCache.TrieDB().Commit(blocks[2].Root(), true, nil)
 
 	// Insert the remaining blocks
-	if _, err := chain.InsertChain(blocks[3:]); err != nil {
+	if _, err := chain.InsertChain(blocks[3:], nil); err != nil {
 		t.Fatalf("Failed to import canonical chain tail: %v", err)
 	}
 
@@ -1985,7 +1985,7 @@ func TestIssue23496(t *testing.T) {
 	}
 
 	// Reinsert B2-B4
-	if _, err := chain.InsertChain(blocks[1:]); err != nil {
+	if _, err := chain.InsertChain(blocks[1:], nil); err != nil {
 		t.Fatalf("Failed to import canonical chain tail: %v", err)
 	}
 	if head := chain.CurrentHeader(); head.Number.Uint64() != uint64(4) {

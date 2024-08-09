@@ -117,4 +117,17 @@ var (
 	// ErrDifferentFeeCapTipCap is returned if fee cap and tip cap are different
 	// when dynamic gas fee is not supported
 	ErrDifferentFeeCapTipCap = errors.New("gas fee cap and gas tip cap are different")
+
+	// ErrAddressBlacklisted is returned if a transaction is sent to blacklisted address
+	ErrAddressBlacklisted = errors.New("address is blacklisted")
+
+	// ErrBlobFeeCapTooLow is returned if the transaction fee cap is less than the
+	// blob gas fee of the block.
+	ErrBlobFeeCapTooLow = errors.New("max fee per blob gas less than block blob gas fee")
+
+	// ErrMissingBlobHashes is returned if a blob transaction has no blob hashes.
+	ErrMissingBlobHashes = errors.New("blob transaction missing blob hashes")
+
+	// ErrBlobTxCreate is returned if a blob transaction has no explicit to field.
+	ErrBlobTxCreate = errors.New("blob transaction of type create")
 )

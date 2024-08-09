@@ -125,6 +125,7 @@ var (
 		utils.CacheNoPrefetchFlag,
 		utils.CachePreimagesFlag,
 		utils.FDLimitFlag,
+		utils.CryptoKZGFlag,
 		utils.ListenPortFlag,
 		utils.MaxPeersFlag,
 		utils.MaxPendingPeersFlag,
@@ -514,7 +515,7 @@ func startNode(ctx *cli.Context, stack *node.Node, backend ethapi.Backend) {
 		}
 		// Set the gas price to the limits from the CLI and start mining
 		gasprice := flags.GlobalBig(ctx, utils.MinerGasPriceFlag.Name)
-		ethBackend.TxPool().SetGasPrice(gasprice)
+		ethBackend.TxPool().SetGasTip(gasprice)
 		// start mining
 		threads := ctx.Int(utils.MinerThreadsFlag.Name)
 		if err := ethBackend.StartMining(threads); err != nil {

@@ -64,6 +64,8 @@ type Receipt struct {
 	TxHash          common.Hash    `json:"transactionHash" gencodec:"required"`
 	ContractAddress common.Address `json:"contractAddress"`
 	GasUsed         uint64         `json:"gasUsed" gencodec:"required"`
+	BlobGasUsed     uint64         `json:"blobGasUsed,omitempty"`
+	BlobGasPrice    *big.Int       `json:"blobGasPrice,omitempty"`
 
 	// Inclusion information: These fields provide information about the inclusion of the
 	// transaction corresponding to this receipt.
@@ -78,6 +80,8 @@ type receiptMarshaling struct {
 	Status            hexutil.Uint64
 	CumulativeGasUsed hexutil.Uint64
 	GasUsed           hexutil.Uint64
+	BlobGasUsed       *hexutil.Uint64
+	BlobGasPrice      *hexutil.Big
 	BlockNumber       *hexutil.Big
 	TransactionIndex  hexutil.Uint
 }
@@ -192,7 +196,7 @@ func (r *Receipt) DecodeRLP(s *rlp.Stream) error {
 			return errEmptyTypedReceipt
 		}
 		r.Type = b[0]
-		if r.Type == AccessListTxType || r.Type == DynamicFeeTxType || r.Type == SponsoredTxType {
+		if r.Type == AccessListTxType || r.Type == DynamicFeeTxType || r.Type == BlobTxType || r.Type == SponsoredTxType {
 			var dec receiptRLP
 			if err := rlp.DecodeBytes(b[1:], &dec); err != nil {
 				return err
@@ -228,7 +232,7 @@ func (r *Receipt) decodeTyped(b []byte) error {
 		return errEmptyTypedReceipt
 	}
 	switch b[0] {
-	case DynamicFeeTxType, AccessListTxType, SponsoredTxType:
+	case DynamicFeeTxType, AccessListTxType, BlobTxType, SponsoredTxType:
 		var data receiptRLP
 		err := rlp.DecodeBytes(b[1:], &data)
 		if err != nil {
@@ -391,7 +395,7 @@ func (rs Receipts) EncodeIndex(i int, w *bytes.Buffer) {
 	switch r.Type {
 	case LegacyTxType:
 		rlp.Encode(w, data)
-	case AccessListTxType, DynamicFeeTxType, SponsoredTxType:
+	case AccessListTxType, DynamicFeeTxType, BlobTxType, SponsoredTxType:
 		w.WriteByte(r.Type)
 		rlp.Encode(w, data)
 	default:
@@ -403,7 +407,7 @@ func (rs Receipts) EncodeIndex(i int, w *bytes.Buffer) {
 
 // DeriveFields fills the receipts with their computed fields based on consensus
 // data and contextual infos like containing block and transactions.
-func (rs Receipts) DeriveFields(config *params.ChainConfig, hash common.Hash, number uint64, txs Transactions) error {
+func (rs Receipts) DeriveFields(config *params.ChainConfig, hash common.Hash, number uint64, blobGasPrice *big.Int, txs Transactions) error {
 	signer := MakeSigner(config, new(big.Int).SetUint64(number))
 
 	logIndex := uint(0)
@@ -414,6 +418,12 @@ func (rs Receipts) DeriveFields(config *params.ChainConfig, hash common.Hash, nu
 		// The transaction type and hash can be retrieved from the transaction itself
 		rs[i].Type = txs[i].Type()
 		rs[i].TxHash = txs[i].Hash()
+
+		// EIP-4844 blob transaction fields
+		if txs[i].Type() == BlobTxType {
+			rs[i].BlobGasUsed = txs[i].BlobGas()
+			rs[i].BlobGasPrice = blobGasPrice
+		}
 
 		// block location fields
 		rs[i].BlockHash = hash

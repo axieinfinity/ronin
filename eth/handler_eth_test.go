@@ -61,8 +61,12 @@ func (h *testEthHandler) Handle(peer *eth.Peer, packet eth.Packet) error {
 		h.blockBroadcasts.Send(packet.Block)
 		return nil
 
-	case *eth.NewPooledTransactionHashesPacket:
+	case *eth.NewPooledTransactionHashesPacket66:
 		h.txAnnounces.Send(([]common.Hash)(*packet))
+		return nil
+
+	case *eth.NewPooledTransactionHashesPacket68:
+		h.txAnnounces.Send(packet.Hashes)
 		return nil
 
 	case *eth.TransactionsPacket:
@@ -167,8 +171,8 @@ func testForkIDSplit(t *testing.T, protocol uint) {
 		}
 	}
 	// Progress into Homestead. Fork's match, so we don't care what the future holds
-	chainNoFork.InsertChain(blocksNoFork[:1])
-	chainProFork.InsertChain(blocksProFork[:1])
+	chainNoFork.InsertChain(blocksNoFork[:1], nil)
+	chainProFork.InsertChain(blocksProFork[:1], nil)
 
 	p2pNoFork, p2pProFork = p2p.MsgPipe()
 	defer p2pNoFork.Close()
@@ -198,8 +202,8 @@ func testForkIDSplit(t *testing.T, protocol uint) {
 		}
 	}
 	// Progress into Spurious. Forks mismatch, signalling differing chains, reject
-	chainNoFork.InsertChain(blocksNoFork[1:2])
-	chainProFork.InsertChain(blocksProFork[1:2])
+	chainNoFork.InsertChain(blocksNoFork[1:2], nil)
+	chainProFork.InsertChain(blocksProFork[1:2], nil)
 
 	p2pNoFork, p2pProFork = p2p.MsgPipe()
 	defer p2pNoFork.Close()
@@ -247,7 +251,7 @@ func testRecvTransactions(t *testing.T, protocol uint) {
 	handler.handler.acceptTxs = 1 // mark synced to accept transactions
 
 	txs := make(chan core.NewTxsEvent)
-	sub := handler.txpool.SubscribeNewTxsEvent(txs)
+	sub := handler.txpool.SubscribeTransactions(txs, false)
 	defer sub.Unsubscribe()
 
 	// Create a source peer to send messages through and a sink handler to receive them
@@ -308,8 +312,8 @@ func testSendTransactions(t *testing.T, protocol uint) {
 
 		insert[nonce] = tx
 	}
-	go handler.txpool.AddRemotes(insert) // Need goroutine to not block on feed
-	time.Sleep(250 * time.Millisecond)   // Wait until tx events get out of the system (can't use events, tx broadcaster races with peer join)
+	go handler.txpool.Add(insert, false, false) // Need goroutine to not block on feed
+	time.Sleep(250 * time.Millisecond)          // Wait until tx events get out of the system (can't use events, tx broadcaster races with peer join)
 
 	// Create a source handler to send messages through and a sink peer to receive them
 	p2pSrc, p2pSink := p2p.MsgPipe()
@@ -420,7 +424,7 @@ func testTransactionPropagation(t *testing.T, protocol uint) {
 	for i := 0; i < len(sinks); i++ {
 		txChs[i] = make(chan core.NewTxsEvent, 1024)
 
-		sub := sinks[i].txpool.SubscribeNewTxsEvent(txChs[i])
+		sub := sinks[i].txpool.SubscribeTransactions(txChs[i], false)
 		defer sub.Unsubscribe()
 	}
 	// Fill the source pool with transactions and wait for them at the sinks
@@ -431,7 +435,7 @@ func testTransactionPropagation(t *testing.T, protocol uint) {
 
 		txs[nonce] = tx
 	}
-	source.txpool.AddRemotes(txs)
+	source.txpool.Add(txs, false, false)
 
 	// Iterate through all the sinks and ensure they all got the transactions
 	for i := range sinks {
@@ -730,7 +734,7 @@ func testBroadcastMalformedBlock(t *testing.T, protocol uint) {
 	// Try to broadcast all malformations and ensure they all get discarded
 	for _, header := range []*types.Header{malformedUncles, malformedTransactions, malformedEverything} {
 		block := types.NewBlockWithHeader(header).WithBody(head.Transactions(), head.Uncles())
-		if err := src.SendNewBlock(block, big.NewInt(131136)); err != nil {
+		if err := src.SendNewBlock(block, big.NewInt(131136), []*types.BlobTxSidecar{}); err != nil {
 			t.Fatalf("failed to broadcast block: %v", err)
 		}
 		select {

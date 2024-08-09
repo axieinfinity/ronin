@@ -23,8 +23,8 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
+	"github.com/ethereum/go-ethereum/core/txpool"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/rlp"
 )
@@ -175,7 +175,7 @@ func GetBlockReceipts(ctx context.Context, odr OdrBackend, hash common.Hash, num
 		genesis := rawdb.ReadCanonicalHash(odr.Database(), 0)
 		config := rawdb.ReadChainConfig(odr.Database(), genesis)
 
-		if err := receipts.DeriveFields(config, block.Hash(), block.NumberU64(), block.Transactions()); err != nil {
+		if err := receipts.DeriveFields(config, block.Hash(), block.NumberU64(), nil, block.Transactions()); err != nil {
 			return nil, err
 		}
 		rawdb.WriteReceipts(odr.Database(), hash, number, receipts)
@@ -277,7 +277,7 @@ func GetBloomBits(ctx context.Context, odr OdrBackend, bit uint, sections []uint
 // number of retrys, thus giving a weak guarantee.
 func GetTransaction(ctx context.Context, odr OdrBackend, txHash common.Hash) (*types.Transaction, common.Hash, uint64, uint64, error) {
 	r := &TxStatusRequest{Hashes: []common.Hash{txHash}}
-	if err := odr.RetrieveTxStatus(ctx, r); err != nil || r.Status[0].Status != core.TxStatusIncluded {
+	if err := odr.RetrieveTxStatus(ctx, r); err != nil || r.Status[0].Status != txpool.TxStatusIncluded {
 		return nil, common.Hash{}, 0, 0, err
 	}
 	pos := r.Status[0].Lookup

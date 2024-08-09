@@ -16,7 +16,9 @@
 
 package params
 
-import "math/big"
+import (
+	"math/big"
+)
 
 const (
 	ReservedGasForCheckpointSystemTransactions uint64 = 10_000_000 // The reserved gas for system transactions in checkpoint blocks.
@@ -168,6 +170,18 @@ const (
 	// up to half the consumed gas could be refunded. Redefined as 1/5th in EIP-3529
 	RefundQuotient        uint64 = 2
 	RefundQuotientEIP3529 uint64 = 5
+
+	BlobTxBytesPerFieldElement         = 32      // Size in bytes of a field element
+	BlobTxFieldElementsPerBlob         = 4096    // Number of field elements stored in a single data blob
+	BlobTxBlobGasPerBlob               = 1 << 17 // Gas consumption of a single data blob (== blob byte size)
+	BlobTxMinBlobGasprice              = 1       // Minimum gas price for data blobs
+	BlobTxBlobGaspriceUpdateFraction   = 3338477 // Controls the maximum rate of change for blob gas price
+	BlobTxPointEvaluationPrecompileGas = 50000   // Gas price for the point evaluation precompile.
+
+	BlobTxTargetBlobGasPerBlock = 3 * BlobTxBlobGasPerBlob // Target consumable blob gas for data blobs per block (for 1559-like pricing)
+	MaxBlobGasPerBlock          = 6 * BlobTxBlobGasPerBlob // Maximum consumable blob gas for data blobs per block
+	MaxBlobsPerBlock            = 6                        // Maximum number of data blobs per block
+	BlobPrunePeriod             = 518400                   // Number of blocks after which to prune old blob
 )
 
 // Gas discount table for BLS12-381 G1 and G2 multi exponentiation operations

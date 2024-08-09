@@ -429,6 +429,9 @@ type Config struct {
 	NotifyFull bool
 
 	Log log.Logger `toml:"-"`
+
+	// Used in testing
+	FakeDiff bool // disable difficult check
 }
 
 // Ethash is a consensus engine based on proof-of-work implementing the ethash
@@ -498,8 +501,9 @@ func NewTester(notify []string, noverify bool) *Ethash {
 func NewFaker() *Ethash {
 	return &Ethash{
 		config: Config{
-			PowMode: ModeFake,
-			Log:     log.Root(),
+			PowMode:  ModeFake,
+			Log:      log.Root(),
+			FakeDiff: true,
 		},
 	}
 }

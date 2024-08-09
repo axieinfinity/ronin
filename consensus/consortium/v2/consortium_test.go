@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/ecdsa"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
@@ -14,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
+	gokzg4844 "github.com/crate-crypto/go-kzg-4844"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
 	consortiumCommon "github.com/ethereum/go-ethereum/consensus/consortium/common"
@@ -26,6 +29,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/crypto/bls/blst"
 	blsCommon "github.com/ethereum/go-ethereum/crypto/bls/common"
+	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/trie"
 	"github.com/hashicorp/golang-lru/arc/v2"
@@ -1440,7 +1444,7 @@ func TestVerifyVote(t *testing.T) {
 	chain, _ := core.NewBlockChain(db, nil, params.TestChainConfig, ethash.NewFullFaker(), vm.Config{}, nil, nil)
 
 	bs, _ := core.GenerateChain(params.TestChainConfig, genesis, ethash.NewFaker(), db, 1, nil, true)
-	if _, err := chain.InsertChain(bs[:]); err != nil {
+	if _, err := chain.InsertChain(bs[:], nil); err != nil {
 		panic(err)
 	}
 
@@ -1611,7 +1615,7 @@ func TestKnownBlockReorg(t *testing.T) {
 		},
 	)
 
-	_, err := chain.InsertChain(blocks)
+	_, err := chain.InsertChain(blocks, nil)
 	if err != nil {
 		t.Fatalf("Failed to insert block, err %s", err)
 	}
@@ -1656,7 +1660,7 @@ func TestKnownBlockReorg(t *testing.T) {
 		},
 	)
 
-	_, err = chain.InsertChain(blocks)
+	_, err = chain.InsertChain(blocks, nil)
 	if err != nil {
 		t.Fatalf("Failed to insert block, err %s", err)
 	}
@@ -1686,7 +1690,7 @@ func TestKnownBlockReorg(t *testing.T) {
 		},
 	)
 
-	_, err = chain.InsertChain(knownBlocks)
+	_, err = chain.InsertChain(knownBlocks, nil)
 	if err != nil {
 		t.Fatalf("Failed to insert block, err %s", err)
 	}
@@ -1758,7 +1762,7 @@ func TestKnownBlockReorg(t *testing.T) {
 		},
 	)
 
-	_, err = chain.InsertChain(justifiedBlocks)
+	_, err = chain.InsertChain(justifiedBlocks, nil)
 	if err != nil {
 		t.Fatalf("Failed to insert block, err %s", err)
 	}
@@ -1768,7 +1772,7 @@ func TestKnownBlockReorg(t *testing.T) {
 		t.Fatalf("Expect head header to be %d, got %d", 12, header.Number.Uint64())
 	}
 
-	_, err = chain.InsertChain(knownBlocks)
+	_, err = chain.InsertChain(knownBlocks, nil)
 	if err != nil {
 		t.Fatalf("Failed to insert block, err %s", err)
 	}
@@ -1883,7 +1887,7 @@ func TestUpgradeRoninTrustedOrg(t *testing.T) {
 			}
 		}
 
-		_, err = chain.InsertChain(block)
+		_, err = chain.InsertChain(block, nil)
 		if err != nil {
 			t.Fatalf("Failed to insert chain, err %s", err)
 		}
@@ -2018,7 +2022,7 @@ func TestUpgradeAxieProxyCode(t *testing.T) {
 		blocks[0] = blocks[0].WithSeal(header)
 		parent = blocks[0]
 
-		_, err = chain.InsertChain(blocks)
+		_, err = chain.InsertChain(blocks, nil)
 		if err != nil {
 			t.Fatalf("Failed to insert chain, err %s", err)
 		}
@@ -2178,7 +2182,7 @@ func TestSystemTransactionOrder(t *testing.T) {
 	block = types.NewBlockWithHeader(header)
 	block = types.NewBlock(block.Header(), []*types.Transaction{systemTx, normalTx}, nil, receipts[0], trie.NewStackTrie(nil))
 
-	_, err = chain.InsertChain(types.Blocks{block})
+	_, err = chain.InsertChain(types.Blocks{block}, nil)
 	if !errors.Is(err, core.ErrOutOfOrderSystemTx) {
 		t.Fatalf("Expected err: %s, got %s", core.ErrOutOfOrderSystemTx, err)
 	}
@@ -2209,7 +2213,7 @@ func TestIsPeriodBlock(t *testing.T) {
 	chain, _ := core.NewBlockChain(db, nil, &chainConfig, ethash.NewFullFaker(), vm.Config{}, nil, nil)
 	// create chain of up to 399 blocks, all of them are not period block
 	bs, _ := core.GenerateChain(&chainConfig, genesis, ethash.NewFaker(), db, 399, nil, true) // create chain of up to 399 blocks
-	if _, err := chain.InsertChain(bs[:]); err != nil {
+	if _, err := chain.InsertChain(bs[:], nil); err != nil {
 		panic(err)
 	}
 	recents, _ := arc.NewARC[common.Hash, *Snapshot](inmemorySnapshots)
@@ -2262,7 +2266,7 @@ func TestIsPeriodBlock(t *testing.T) {
 		block, _ := core.GenerateChain(&chainConfig, bs[len(bs)-1], ethash.NewFaker(), db, 1, callback, true)
 		bs = append(bs, block...)
 	}
-	if _, err := chain.InsertChain(bs[:]); err != nil {
+	if _, err := chain.InsertChain(bs[:], nil); err != nil {
 		panic(err)
 	}
 
@@ -2305,7 +2309,7 @@ func TestIsTrippEffective(t *testing.T) {
 	chain, _ := core.NewBlockChain(db, nil, &chainConfig, ethash.NewFullFaker(), vm.Config{}, nil, nil)
 	// create chain of up to 399 blocks, all of them are not Tripp effective
 	bs, _ := core.GenerateChain(&chainConfig, genesis, ethash.NewFaker(), db, 399, nil, true)
-	if _, err := chain.InsertChain(bs[:]); err != nil {
+	if _, err := chain.InsertChain(bs[:], nil); err != nil {
 		panic(err)
 	}
 	recents, _ := arc.NewARC[common.Hash, *Snapshot](inmemorySnapshots)
@@ -2364,7 +2368,7 @@ func TestIsTrippEffective(t *testing.T) {
 		block, _ := core.GenerateChain(&chainConfig, bs[len(bs)-1], ethash.NewFaker(), db, 1, callback, true)
 		bs = append(bs, block...)
 	}
-	if _, err := chain.InsertChain(bs[:]); err != nil {
+	if _, err := chain.InsertChain(bs[:], nil); err != nil {
 		panic(err)
 	}
 
@@ -2530,5 +2534,192 @@ func TestEncodeDecodeValidatorBitSet(t *testing.T) {
 		if producers[i] != dec[i] {
 			t.Fatal("mismatch validator")
 		}
+	}
+}
+
+func randFieldElement() [32]byte {
+	bytes := make([]byte, 32)
+	_, err := rand.Read(bytes)
+	if err != nil {
+		panic("failed to get random field element")
+	}
+	var r fr.Element
+	r.SetBytes(bytes)
+
+	return gokzg4844.SerializeScalar(r)
+}
+
+// randBlob generates a random blob with corresponding commitment and proof
+func randBlob() (*kzg4844.Blob, *kzg4844.Commitment, *kzg4844.Proof) {
+	var blob kzg4844.Blob
+	for i := 0; i < len(blob); i += gokzg4844.SerializedScalarSize {
+		fieldElementBytes := randFieldElement()
+		copy(blob[i:i+gokzg4844.SerializedScalarSize], fieldElementBytes[:])
+	}
+	commitment, err := kzg4844.BlobToCommitment(&blob)
+	if err != nil {
+		panic(err)
+	}
+	proof, err := kzg4844.ComputeBlobProof(&blob, commitment)
+	if err != nil {
+		panic(err)
+	}
+	return &blob, &commitment, &proof
+}
+
+// randTxsWithBlobs generates a random tx with random blobs, with corresponding sidecar
+func randTxsWithBlobs(numBlobs int) (*types.Transaction, *types.BlobTxSidecar) {
+	var blobs []kzg4844.Blob
+	var commitments []kzg4844.Commitment
+	var blobHashes []common.Hash
+	var proofs []kzg4844.Proof
+	hasher := sha256.New()
+	for i := 0; i < numBlobs; i++ {
+		blob, commitment, proof := randBlob()
+		blobs = append(blobs, *blob)
+		commitments = append(commitments, *commitment)
+		blobHashes = append(blobHashes, kzg4844.CalcBlobHashV1(hasher, commitment))
+		proofs = append(proofs, *proof)
+	}
+	blobTx := types.BlobTx{
+		BlobHashes: blobHashes,
+	}
+	return types.NewTx(&blobTx), &types.BlobTxSidecar{
+		Blobs:       blobs,
+		Commitments: commitments,
+		Proofs:      proofs,
+	}
+}
+
+func TestVerifyBlobHeader(t *testing.T) {
+	c := Consortium{
+		chainConfig: &params.ChainConfig{
+			TrippBlock: common.Big0,
+		},
+		config: &params.ConsortiumConfig{
+			EpochV2: 200,
+		},
+		isTest: true,
+	}
+	// Create random txs
+	var randTx *types.Transaction
+	var randSidecar *types.BlobTxSidecar
+	var randFakeSidecar *types.BlobTxSidecar
+
+	var txs []*types.Transaction
+	var sidecars []*types.BlobTxSidecar
+	var fakeSidecars []*types.BlobTxSidecar
+
+	// Create 2 txs with 2 and 3 blobs, respectively
+	randTx, randSidecar = randTxsWithBlobs(2)
+	_, randFakeSidecar = randTxsWithBlobs(2)
+	txs = append(txs, randTx)
+	sidecars = append(sidecars, randSidecar)
+	fakeSidecars = append(fakeSidecars, randFakeSidecar)
+
+	randTx, randSidecar = randTxsWithBlobs(3)
+	_, randFakeSidecar = randTxsWithBlobs(3)
+	txs = append(txs, randTx)
+	sidecars = append(sidecars, randSidecar)
+	fakeSidecars = append(fakeSidecars, randFakeSidecar)
+
+	// Test 1: Block with expired blobs, valid sidecars
+	block := types.NewBlock(&types.Header{
+		Time: uint64(time.Now().Unix() - int64(blobKeepPeriod) - 1000),
+	}, txs, []*types.Header{}, []*types.Receipt{}, trie.NewStackTrie(nil))
+
+	err, blobSidecars := c.VerifyBlobHeader(block, sidecars)
+	if err != nil {
+		t.Fatal("Expected blob check to be skipped, err:", err)
+	}
+	if blobSidecars != nil {
+		t.Fatal("Expected blobSidecars to be nil if skip check")
+	}
+
+	// Test 2: Block with expired blobs, invalid sidecars
+	block = types.NewBlock(&types.Header{
+		Time: uint64(time.Now().Unix() - int64(blobKeepPeriod) - 1000),
+	}, txs, []*types.Header{}, []*types.Receipt{}, trie.NewStackTrie(nil))
+
+	err, blobSidecars = c.VerifyBlobHeader(block, fakeSidecars)
+	if err != nil {
+		t.Fatal("Expected blob check to be skipped, err:", err)
+	}
+	if blobSidecars != nil {
+		t.Fatal("Expected blobSidecars to be nil if skip check")
+	}
+
+	// Test 3: Block with valid blobs, valid sidecars
+	block = types.NewBlock(&types.Header{
+		Time: uint64(time.Now().Unix()),
+	}, txs, []*types.Header{}, []*types.Receipt{}, trie.NewStackTrie(nil))
+
+	err, blobSidecars = c.VerifyBlobHeader(block, sidecars)
+	if err != nil {
+		t.Fatal("Expected blob check to pass, err:", err)
+	}
+	if len(*blobSidecars) != 2 {
+		t.Fatal("Expected blobSidecars to have 2 elements")
+	}
+
+	// Test 4: Block with valid blobs, invalid sidecars
+	block = types.NewBlock(&types.Header{
+		Time: uint64(time.Now().Unix()),
+	}, txs, []*types.Header{}, []*types.Receipt{}, trie.NewStackTrie(nil))
+
+	err, blobSidecars = c.VerifyBlobHeader(block, fakeSidecars)
+	if err == nil {
+		t.Fatal("Expected blob check to fail due to invalid sidecars")
+	}
+	if blobSidecars != nil {
+		t.Fatal("Expected blobSidecars to be nil if check failed")
+	}
+
+	// Test 5: Block with valid blobs, valid commitments, but invalid proofs
+	block = types.NewBlock(&types.Header{
+		Time: uint64(time.Now().Unix()),
+	}, txs, []*types.Header{}, []*types.Receipt{}, trie.NewStackTrie(nil))
+
+	err, blobSidecars = c.VerifyBlobHeader(block, []*types.BlobTxSidecar{
+		{
+			Blobs:       sidecars[0].Blobs,
+			Commitments: sidecars[0].Commitments,
+			Proofs:      fakeSidecars[0].Proofs,
+		},
+		{
+			Blobs:       sidecars[1].Blobs,
+			Commitments: sidecars[1].Commitments,
+			Proofs:      fakeSidecars[1].Proofs,
+		},
+	})
+
+	// Test 6: Block with valid blobs, invalid sidecars' length
+	block = types.NewBlock(&types.Header{
+		Time: uint64(time.Now().Unix()),
+	}, txs, []*types.Header{}, []*types.Receipt{}, trie.NewStackTrie(nil))
+
+	err, blobSidecars = c.VerifyBlobHeader(block, sidecars[:len(sidecars)-1])
+	if err == nil {
+		t.Fatal("Expected blob check to fail due to invalid commitments' length")
+	}
+	if blobSidecars != nil {
+		t.Fatal("Expected blobSidecars to be nil if check failed")
+	}
+
+	// Test 7: Block with exceeding blobs
+	randTx, randSidecar = randTxsWithBlobs(2)
+	txs = append(txs, randTx)
+	sidecars = append(sidecars, randSidecar)
+
+	block = types.NewBlock(&types.Header{
+		Time: uint64(time.Now().Unix()),
+	}, txs, []*types.Header{}, []*types.Receipt{}, trie.NewStackTrie(nil))
+
+	err, blobSidecars = c.VerifyBlobHeader(block, sidecars)
+	if err == nil {
+		t.Fatal("Expected blob check to fail due to exceeding blobs")
+	}
+	if blobSidecars != nil {
+		t.Fatal("Expected blobSidecars to be nil if check failed")
 	}
 }

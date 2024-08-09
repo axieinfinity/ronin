@@ -34,7 +34,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/clique"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
-	"github.com/ethereum/go-ethereum/consensus/misc"
+	"github.com/ethereum/go-ethereum/consensus/misc/eip1559"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -786,6 +786,24 @@ func (s *PublicBlockChainAPI) GetBlockByHash(ctx context.Context, hash common.Ha
 	return nil, err
 }
 
+// GetBlobSidecarsByHash returns the requested list of blob sidecars based on block number.
+func (s *PublicBlockChainAPI) GetBlobSidecarsByNumber(ctx context.Context, number rpc.BlockNumber) (types.BlobSidecars, error) {
+	sidecars, err := s.b.BlobSidecarsByNumber(ctx, number)
+	if sidecars != nil && err == nil {
+		return sidecars, nil
+	}
+	return nil, err
+}
+
+// GetBlobSidecarsByHash returns the requested list of blob sidecars based on block hash.
+func (s *PublicBlockChainAPI) GetBlobSidecarsByHash(ctx context.Context, hash common.Hash) (types.BlobSidecars, error) {
+	sidecars, err := s.b.BlobSidecarsByHash(ctx, hash)
+	if sidecars != nil && err == nil {
+		return sidecars, nil
+	}
+	return nil, err
+}
+
 // GetUncleByBlockNumberAndIndex returns the uncle block for the given block hash and index. When fullTx is true
 // all transactions in the block are returned in full detail, otherwise only the transaction hash is returned.
 func (s *PublicBlockChainAPI) GetUncleByBlockNumberAndIndex(ctx context.Context, blockNr rpc.BlockNumber, index hexutil.Uint) (map[string]interface{}, error) {
@@ -1246,6 +1264,13 @@ func RPCMarshalHeader(head *types.Header) map[string]interface{} {
 		result["baseFeePerGas"] = (*hexutil.Big)(head.BaseFee)
 	}
 
+	if head.BlobGasUsed != nil {
+		result["blobGasUsed"] = (*hexutil.Uint64)(head.BlobGasUsed)
+	}
+
+	if head.ExcessBlobGas != nil {
+		result["excessBlobGas"] = (*hexutil.Uint64)(head.ExcessBlobGas)
+	}
 	return result
 }
 
@@ -1407,7 +1432,7 @@ func newRPCPendingTransaction(tx *types.Transaction, current *types.Header, conf
 	var baseFee *big.Int
 	blockNumber := uint64(0)
 	if current != nil {
-		baseFee = misc.CalcBaseFee(config, current)
+		baseFee = eip1559.CalcBaseFee(config, current)
 		blockNumber = current.Number.Uint64()
 	}
 	return newRPCTransaction(tx, common.Hash{}, blockNumber, 0, baseFee, config)
@@ -1723,6 +1748,10 @@ func (s *PublicTransactionPoolAPI) GetTransactionReceipt(ctx context.Context, ha
 	}
 	if receipt.Logs == nil {
 		fields["logs"] = [][]*types.Log{}
+	}
+	if tx.Type() == types.BlobTxType {
+		fields["blobGasUsed"] = hexutil.Uint64(receipt.BlobGasUsed)
+		fields["blobGasPrice"] = (*hexutil.Big)(receipt.BlobGasPrice)
 	}
 	// If the ContractAddress is 20 0x0 bytes, assume it is not a contract creation
 	if receipt.ContractAddress != (common.Address{}) {

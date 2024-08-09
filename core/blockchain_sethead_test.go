@@ -1996,7 +1996,7 @@ func testSetHead(t *testing.T, tt *rewindTest, snapshots bool) {
 		sideblocks, _ = GenerateChain(params.TestChainConfig, genesis, engine, rawdb.NewMemoryDatabase(), tt.sidechainBlocks, func(i int, b *BlockGen) {
 			b.SetCoinbase(common.Address{0x01})
 		}, true)
-		if _, err := chain.InsertChain(sideblocks); err != nil {
+		if _, err := chain.InsertChain(sideblocks, nil); err != nil {
 			t.Fatalf("Failed to import side chain: %v", err)
 		}
 	}
@@ -2004,7 +2004,7 @@ func testSetHead(t *testing.T, tt *rewindTest, snapshots bool) {
 		b.SetCoinbase(common.Address{0x02})
 		b.SetDifficulty(big.NewInt(1000000))
 	}, true)
-	if _, err := chain.InsertChain(canonblocks[:tt.commitBlock]); err != nil {
+	if _, err := chain.InsertChain(canonblocks[:tt.commitBlock], nil); err != nil {
 		t.Fatalf("Failed to import canonical chain start: %v", err)
 	}
 	if tt.commitBlock > 0 {
@@ -2015,7 +2015,7 @@ func testSetHead(t *testing.T, tt *rewindTest, snapshots bool) {
 			}
 		}
 	}
-	if _, err := chain.InsertChain(canonblocks[tt.commitBlock:]); err != nil {
+	if _, err := chain.InsertChain(canonblocks[tt.commitBlock:], nil); err != nil {
 		t.Fatalf("Failed to import canonical chain tail: %v", err)
 	}
 	// Manually dereference anything not committed to not have to work with 128+ tries

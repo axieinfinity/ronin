@@ -140,12 +140,12 @@ func testVotePool(t *testing.T, isValidRules bool) {
 	mux.Post(downloader.DoneEvent{})
 
 	bs, _ := core.GenerateChain(params.TestChainConfig, genesis, ethash.NewFaker(), db, 1, nil, true)
-	if _, err := chain.InsertChain(bs); err != nil {
+	if _, err := chain.InsertChain(bs, nil); err != nil {
 		panic(err)
 	}
 	for i := 0; i < 10; i++ {
 		bs, _ = core.GenerateChain(params.TestChainConfig, bs[len(bs)-1], ethash.NewFaker(), db, 1, nil, true)
-		if _, err := chain.InsertChain(bs); err != nil {
+		if _, err := chain.InsertChain(bs, nil); err != nil {
 			panic(err)
 		}
 	}
@@ -178,7 +178,7 @@ func testVotePool(t *testing.T, isValidRules bool) {
 	}
 
 	bs, _ = core.GenerateChain(params.TestChainConfig, bs[len(bs)-1], ethash.NewFaker(), db, 1, nil, true)
-	if _, err := chain.InsertChain(bs); err != nil {
+	if _, err := chain.InsertChain(bs, nil); err != nil {
 		panic(err)
 	}
 
@@ -188,7 +188,7 @@ func testVotePool(t *testing.T, isValidRules bool) {
 
 	for i := 0; i < 256; i++ {
 		bs, _ = core.GenerateChain(params.TestChainConfig, bs[len(bs)-1], ethash.NewFaker(), db, 1, nil, true)
-		if _, err := chain.InsertChain(bs); err != nil {
+		if _, err := chain.InsertChain(bs, nil); err != nil {
 			panic(err)
 		}
 	}
@@ -281,7 +281,7 @@ func testVotePool(t *testing.T, isValidRules bool) {
 			futureVotesPq := votePool.futureVotesPq
 			futureVotesPq.Peek().TargetHash = futureBlockHash
 		}
-		if _, err := chain.InsertChain(bs); err != nil {
+		if _, err := chain.InsertChain(bs, nil); err != nil {
 			panic(err)
 		}
 	}
@@ -304,13 +304,13 @@ func testVotePool(t *testing.T, isValidRules bool) {
 
 	for i := 0; i < 224; i++ {
 		bs, _ = core.GenerateChain(params.TestChainConfig, bs[len(bs)-1], ethash.NewFaker(), db, 1, nil, true)
-		if _, err := chain.InsertChain(bs); err != nil {
+		if _, err := chain.InsertChain(bs, nil); err != nil {
 			panic(err)
 		}
 	}
 
 	bs, _ = core.GenerateChain(params.TestChainConfig, bs[len(bs)-1], ethash.NewFaker(), db, 1, nil, true)
-	if _, err := chain.InsertChain(bs); err != nil {
+	if _, err := chain.InsertChain(bs, nil); err != nil {
 		panic(err)
 	}
 }
@@ -396,7 +396,7 @@ func TestVotePoolDosProtection(t *testing.T) {
 	chain, _ := core.NewBlockChain(db, nil, params.TestChainConfig, ethash.NewFullFaker(), vm.Config{}, nil, nil)
 
 	bs, _ := core.GenerateChain(params.TestChainConfig, genesis, ethash.NewFaker(), db, 25, nil, true)
-	if _, err := chain.InsertChain(bs[:1]); err != nil {
+	if _, err := chain.InsertChain(bs[:1], nil); err != nil {
 		panic(err)
 	}
 	mockEngine := &mockPOSA{}
@@ -452,7 +452,7 @@ func TestVotePoolDosProtection(t *testing.T) {
 		t.Fatalf("Number of future vote per peer, expect %d have %d", 0, votePool.numFutureVotePerPeer["CCCC"])
 	}
 
-	if _, err := chain.InsertChain(bs[1:]); err != nil {
+	if _, err := chain.InsertChain(bs[1:], nil); err != nil {
 		panic(err)
 	}
 	time.Sleep(100 * time.Millisecond)
@@ -511,7 +511,7 @@ func TestVotePoolWrongTargetNumber(t *testing.T) {
 	chain, _ := core.NewBlockChain(db, nil, params.TestChainConfig, ethash.NewFullFaker(), vm.Config{}, nil, nil)
 
 	bs, _ := core.GenerateChain(params.TestChainConfig, genesis, ethash.NewFaker(), db, 1, nil, true)
-	if _, err := chain.InsertChain(bs[:1]); err != nil {
+	if _, err := chain.InsertChain(bs[:1], nil); err != nil {
 		panic(err)
 	}
 	mockEngine := &mockPOSAv2{}

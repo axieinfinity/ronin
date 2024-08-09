@@ -4,9 +4,11 @@ on:
   push:
     branches:
       - master
+      - blob-transaction
   pull_request:
     branches:
       - master
+      - blob-transaction
 
 concurrency:
   group: ${{ github.head_ref || github.run_id }}

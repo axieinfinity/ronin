@@ -25,6 +25,7 @@ import (
 	"sort"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb"
@@ -611,7 +612,12 @@ func ReadReceipts(db ethdb.Reader, hash common.Hash, number uint64, config *para
 		log.Error("Missing body but have receipt", "hash", hash, "number", number)
 		return nil
 	}
-	if err := receipts.DeriveFields(config, hash, number, body.Transactions); err != nil {
+	header := ReadHeader(db, hash, number)
+	var blobGasPrice *big.Int
+	if header != nil && header.ExcessBlobGas != nil {
+		blobGasPrice = eip4844.CalcBlobFee(*header.ExcessBlobGas)
+	}
+	if err := receipts.DeriveFields(config, hash, number, blobGasPrice, body.Transactions); err != nil {
 		log.Error("Failed to derive block receipts fields", "hash", hash, "number", number, "err", err)
 		return nil
 	}
@@ -817,6 +823,7 @@ func DeleteBlock(db ethdb.KeyValueWriter, hash common.Hash, number uint64) {
 	DeleteHeader(db, hash, number)
 	DeleteBody(db, hash, number)
 	DeleteTd(db, hash, number)
+	DeleteBlobSidecars(db, hash, number)
 }
 
 // DeleteBlockWithoutNumber removes all block data associated with a hash, except
@@ -1017,4 +1024,50 @@ func ReadDirtyAccounts(db ethdb.KeyValueReader) []*types.DirtyStateAccountsAndBl
 		return nil
 	}
 	return dirtyStateAccounts
+}
+
+// ReadBlobSidecarsRLP retrieves the block sidecars (blobs, commitments and proofs) in RLP encoding.
+func ReadBlobSidecarsRLP(db ethdb.Reader, hash common.Hash, number uint64) rlp.RawValue {
+	// As sidecars are not stored into ancient database, try to
+	// read sidecars from leveldb instead.
+	var data []byte
+	data, _ = db.Get(blobSidecarsKey(number, hash))
+	return data
+}
+
+// WriteBlobSidecarsRLP stores an RLP encoded block sidecars into the database.
+func WriteBlobSidecarsRLP(db ethdb.KeyValueWriter, hash common.Hash, number uint64, rlp rlp.RawValue) {
+	if err := db.Put(blobSidecarsKey(number, hash), rlp); err != nil {
+		log.Crit("Failed to store block sidecars", "err", err)
+	}
+}
+
+// ReadBlobSidecars retrieves the block sidecars corresponding to the hash.
+func ReadBlobSidecars(db ethdb.Reader, hash common.Hash, number uint64) types.BlobSidecars {
+	data := ReadBlobSidecarsRLP(db, hash, number)
+	if len(data) == 0 {
+		return nil
+	}
+	var sidecars types.BlobSidecars
+	if err := rlp.Decode(bytes.NewReader(data), &sidecars); err != nil {
+		log.Crit("Invalid block sidecars RLP", "hash", hash, "err", err)
+		return nil
+	}
+	return sidecars
+}
+
+// WriteBlobSidecars stores the block sidecars into the database.
+func WriteBlobSidecars(db ethdb.KeyValueWriter, hash common.Hash, number uint64, sidecars types.BlobSidecars) {
+	data, err := rlp.EncodeToBytes(sidecars)
+	if err != nil {
+		log.Crit("Failed to RLP encode sidecars", "err", err)
+	}
+	WriteBlobSidecarsRLP(db, hash, number, data)
+}
+
+// DeleteBlobSidecars removes all block sidecars associated with a hash.
+func DeleteBlobSidecars(db ethdb.KeyValueWriter, hash common.Hash, number uint64) {
+	if err := db.Delete(blobSidecarsKey(number, hash)); err != nil {
+		log.Crit("Failed to delete block sidecars", "err", err)
+	}
 }

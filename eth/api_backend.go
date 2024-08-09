@@ -32,6 +32,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/bloombits"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/core/txpool"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/eth/gasprice"
@@ -195,6 +196,37 @@ func (b *EthAPIBackend) GetReceipts(ctx context.Context, hash common.Hash) (type
 	return b.eth.blockchain.GetReceiptsByHash(hash), nil
 }
 
+func (b *EthAPIBackend) BlobSidecarsByNumber(ctx context.Context, number rpc.BlockNumber) (types.BlobSidecars, error) {
+	var hash common.Hash
+	if number == rpc.PendingBlockNumber {
+		hash = b.eth.miner.PendingBlock().Hash()
+	}
+	if number == rpc.LatestBlockNumber {
+		hash = b.eth.blockchain.CurrentBlock().Hash()
+	}
+	if number == rpc.FinalizedBlockNumber {
+		hash = b.eth.blockchain.FinalizedBlock().Hash()
+	}
+	if hash != (common.Hash{}) {
+		b.eth.blockchain.GetBlobSidecarsByHash(hash)
+	}
+	return b.eth.blockchain.GetBlobSidecarsByNumber(uint64(number)), nil
+}
+
+func (b *EthAPIBackend) BlobSidecarsByHash(ctx context.Context, hash common.Hash) (types.BlobSidecars, error) {
+	return b.eth.blockchain.GetBlobSidecarsByHash(hash), nil
+}
+
+func (b *EthAPIBackend) BlobSidecarsByNumberOrHash(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) (types.BlobSidecars, error) {
+	if blockNr, ok := blockNrOrHash.Number(); ok {
+		return b.BlobSidecarsByNumber(ctx, blockNr)
+	}
+	if hash, ok := blockNrOrHash.Hash(); ok {
+		return b.eth.blockchain.GetBlobSidecarsByHash(hash), nil
+	}
+	return nil, errors.New("invalid arguments: neither block number nor block hash hash specified")
+}
+
 func (b *EthAPIBackend) GetLogs(ctx context.Context, hash common.Hash) ([][]*types.Log, error) {
 	db := b.eth.ChainDb()
 	number := rawdb.ReadHeaderNumber(db, hash)
@@ -266,14 +298,16 @@ func (b *EthAPIBackend) SubscribeDirtyAccountEvent(ch chan<- []*types.DirtyState
 }
 
 func (b *EthAPIBackend) SendTx(ctx context.Context, signedTx *types.Transaction) error {
-	return b.eth.txPool.AddLocal(signedTx)
+	return b.eth.txPool.Add([]*types.Transaction{signedTx}, true, false)[0]
 }
 
 func (b *EthAPIBackend) GetPoolTransactions() (types.Transactions, error) {
-	pending := b.eth.txPool.Pending(false)
+	pending := b.eth.txPool.Pending(&txpool.PendingFilter{})
 	var txs types.Transactions
 	for _, batch := range pending {
-		txs = append(txs, batch...)
+		for _, lazy := range batch {
+			txs = append(txs, lazy.Resolve())
+		}
 	}
 	return txs, nil
 }
@@ -295,20 +329,20 @@ func (b *EthAPIBackend) Stats() (pending int, queued int) {
 	return b.eth.txPool.Stats()
 }
 
-func (b *EthAPIBackend) TxPoolContent() (map[common.Address]types.Transactions, map[common.Address]types.Transactions) {
+func (b *EthAPIBackend) TxPoolContent() (map[common.Address][]*types.Transaction, map[common.Address][]*types.Transaction) {
 	return b.eth.TxPool().Content()
 }
 
-func (b *EthAPIBackend) TxPoolContentFrom(addr common.Address) (types.Transactions, types.Transactions) {
+func (b *EthAPIBackend) TxPoolContentFrom(addr common.Address) ([]*types.Transaction, []*types.Transaction) {
 	return b.eth.TxPool().ContentFrom(addr)
 }
 
-func (b *EthAPIBackend) TxPool() *core.TxPool {
+func (b *EthAPIBackend) TxPool() *txpool.TxPool {
 	return b.eth.TxPool()
 }
 
 func (b *EthAPIBackend) SubscribeNewTxsEvent(ch chan<- core.NewTxsEvent) event.Subscription {
-	return b.eth.TxPool().SubscribeNewTxsEvent(ch)
+	return b.eth.TxPool().SubscribeTransactions(ch, true)
 }
 
 func (b *EthAPIBackend) SyncProgress() ethereum.SyncProgress {

@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/ecdsa"
+	"encoding/json"
 	"errors"
 	"math/big"
 	"reflect"
@@ -69,7 +70,7 @@ func newTestBackend(t *testing.T, n int, gspec *core.Genesis, engine consensus.E
 	if err != nil {
 		t.Fatalf("failed to create tester chain: %v", err)
 	}
-	if n, err := chain.InsertChain(blocks); err != nil {
+	if n, err := chain.InsertChain(blocks, nil); err != nil {
 		t.Fatalf("block %d: failed to insert into chain: %v", n, err)
 	}
 
@@ -209,10 +210,10 @@ func (b testBackend) GetPoolNonce(ctx context.Context, addr common.Address) (uin
 	panic("implement me")
 }
 func (b testBackend) Stats() (pending int, queued int) { panic("implement me") }
-func (b testBackend) TxPoolContent() (map[common.Address]types.Transactions, map[common.Address]types.Transactions) {
+func (b testBackend) TxPoolContent() (map[common.Address][]*types.Transaction, map[common.Address][]*types.Transaction) {
 	panic("implement me")
 }
-func (b testBackend) TxPoolContentFrom(addr common.Address) (types.Transactions, types.Transactions) {
+func (b testBackend) TxPoolContentFrom(addr common.Address) ([]*types.Transaction, []*types.Transaction) {
 	panic("implement me")
 }
 func (b testBackend) SubscribeNewTxsEvent(events chan<- core.NewTxsEvent) event.Subscription {
@@ -243,6 +244,16 @@ func (b testBackend) SubscribeDirtyAccountEvent(ch chan<- []*types.DirtyStateAcc
 }
 func (b testBackend) BloomStatus() (uint64, uint64) { panic("implement me") }
 func (b testBackend) ServiceFilter(ctx context.Context, session *bloombits.MatcherSession) {
+	panic("implement me")
+}
+
+func (b testBackend) BlobSidecarsByHash(ctx context.Context, hash common.Hash) (types.BlobSidecars, error) {
+	panic("implement me")
+}
+func (b testBackend) BlobSidecarsByNumber(ctx context.Context, number rpc.BlockNumber) (types.BlobSidecars, error) {
+	panic("implement me")
+}
+func (b testBackend) BlobSidecarsByNumberOrHash(ctx context.Context, blockNrOrHash rpc.BlockNumberOrHash) (types.BlobSidecars, error) {
 	panic("implement me")
 }
 
@@ -541,4 +552,35 @@ func newRPCBalance(balance *big.Int) **hexutil.Big {
 func hex2Bytes(str string) *hexutil.Bytes {
 	rpcBytes := hexutil.Bytes(common.Hex2Bytes(str))
 	return &rpcBytes
+}
+
+func TestHeader4844MarshalJson(t *testing.T) {
+	header := types.Header{
+		Number:     big.NewInt(100),
+		Difficulty: big.NewInt(7),
+	}
+	data, err := json.Marshal(RPCMarshalHeader(&header))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expect := `{"difficulty":"0x7","extraData":"0x","gasLimit":"0x0","gasUsed":"0x0","hash":"0x7638fef16ccc17d30038b807c09ca0f0bb47a6132d81253799448855504ed217","logsBloom":"0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000","miner":"0x0000000000000000000000000000000000000000","mixHash":"0x0000000000000000000000000000000000000000000000000000000000000000","nonce":"0x0000000000000000","number":"0x64","parentHash":"0x0000000000000000000000000000000000000000000000000000000000000000","receiptsRoot":"0x0000000000000000000000000000000000000000000000000000000000000000","sha3Uncles":"0x0000000000000000000000000000000000000000000000000000000000000000","size":"0x239","stateRoot":"0x0000000000000000000000000000000000000000000000000000000000000000","timestamp":"0x0","transactionsRoot":"0x0000000000000000000000000000000000000000000000000000000000000000"}`
+	if string(data) != expect {
+		t.Fatalf("Header mismatches, expect: %s\n got: %s", expect, string(data))
+	}
+
+	blobGasUsed := uint64(1 << 17)
+	excessBlobGas := 2 * blobGasUsed
+	header.BlobGasUsed = &blobGasUsed
+	header.ExcessBlobGas = &excessBlobGas
+
+	data, err = json.Marshal(RPCMarshalHeader(&header))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expect = `{"blobGasUsed":"0x20000","difficulty":"0x7","excessBlobGas":"0x40000","extraData":"0x","gasLimit":"0x0","gasUsed":"0x0","hash":"0xd2bae9d64fe00db8bc637990b38432d8281604d1caf81bfe7c0b46ecc1dfd1ca","logsBloom":"0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000","miner":"0x0000000000000000000000000000000000000000","mixHash":"0x0000000000000000000000000000000000000000000000000000000000000000","nonce":"0x0000000000000000","number":"0x64","parentHash":"0x0000000000000000000000000000000000000000000000000000000000000000","receiptsRoot":"0x0000000000000000000000000000000000000000000000000000000000000000","sha3Uncles":"0x0000000000000000000000000000000000000000000000000000000000000000","size":"0x239","stateRoot":"0x0000000000000000000000000000000000000000000000000000000000000000","timestamp":"0x0","transactionsRoot":"0x0000000000000000000000000000000000000000000000000000000000000000"}`
+	if string(data) != expect {
+		t.Fatalf("Header mismatches, expect: %s\n got: %s", expect, string(data))
+	}
 }
