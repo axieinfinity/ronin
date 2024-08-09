@@ -83,7 +83,7 @@ func makechain() (bc *core.BlockChain, addrHashes, txHashes []common.Hash) {
 			txHashes = append(txHashes, tx.Hash())
 		}, true)
 	bc, _ = core.NewBlockChain(db, nil, gspec.Config, ethash.NewFaker(), vm.Config{}, nil, nil)
-	if _, err := bc.InsertChain(blocks); err != nil {
+	if _, err := bc.InsertChain(blocks, nil); err != nil {
 		panic(err)
 	}
 	return

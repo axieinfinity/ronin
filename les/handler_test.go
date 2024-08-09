@@ -647,7 +647,7 @@ func testTransactionStatus(t *testing.T, protocol int) {
 		block.AddTx(tx1)
 		block.AddTx(tx2)
 	}, true)
-	if _, err := chain.InsertChain(gchain); err != nil {
+	if _, err := chain.InsertChain(gchain, nil); err != nil {
 		panic(err)
 	}
 	// wait until TxPool processes the inserted block
@@ -672,7 +672,7 @@ func testTransactionStatus(t *testing.T, protocol int) {
 
 	// create a reorg that rolls them back
 	gchain, _ = core.GenerateChain(params.TestChainConfig, chain.GetBlockByNumber(0), ethash.NewFaker(), server.db, 2, func(i int, block *core.BlockGen) {}, true)
-	if _, err := chain.InsertChain(gchain); err != nil {
+	if _, err := chain.InsertChain(gchain, nil); err != nil {
 		panic(err)
 	}
 	// wait until TxPool processes the reorg

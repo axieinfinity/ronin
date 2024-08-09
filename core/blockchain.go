@@ -210,7 +210,7 @@ type BlockChain struct {
 	receiptsCache             *lru.Cache[common.Hash, types.Receipts]               // Cache for the most recent receipts per block
 	blockCache                *lru.Cache[common.Hash, *types.Block]                 // Cache for the most recent entire blocks
 	txLookupCache             *lru.Cache[common.Hash, *rawdb.LegacyTxLookupEntry]   // Cache for the most recent transaction lookup data.
-	futureBlocks              *lru.Cache[common.Hash, *types.Block]                 // future blocks are blocks added for later processing
+	futureBlocks              *lru.Cache[common.Hash, *futureBlock]                 // future blocks are blocks added for later processing
 	dirtyAccountsCache        *lru.Cache[common.Hash, []*types.DirtyStateAccount]   // Cache for the most recent dirtyAccounts
 	internalTransactionsCache *lru.Cache[common.Hash, []*types.InternalTransaction] // Cache for most recent internal transactions with block hash at key
 	blobSidecarsCache         *lru.Cache[common.Hash, types.BlobSidecars]           // Cache for most recent blob sidecars
@@ -232,6 +232,11 @@ type BlockChain struct {
 	evmHook                    vm.EVMHook
 }
 
+type futureBlock struct {
+	block   *types.Block
+	sidecar []*types.BlobTxSidecar
+}
+
 // NewBlockChain returns a fully initialised block chain using information
 // available in the database. It initialises the default Ethereum Validator and
 // Processor.
@@ -247,7 +252,7 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 	receiptsCache, _ := lru.New[common.Hash, types.Receipts](receiptsCacheLimit)
 	blockCache, _ := lru.New[common.Hash, *types.Block](blockCacheLimit)
 	txLookupCache, _ := lru.New[common.Hash, *rawdb.LegacyTxLookupEntry](txLookupCacheLimit)
-	futureBlocks, _ := lru.New[common.Hash, *types.Block](maxFutureBlocks)
+	futureBlocks, _ := lru.New[common.Hash, *futureBlock](maxFutureBlocks)
 	dirtyAccountsCache, _ := lru.New[common.Hash, []*types.DirtyStateAccount](dirtyAccountsCacheLimit)
 	internalTxsCache, _ := lru.New[common.Hash, []*types.InternalTransaction](internalTxsCacheLimit)
 
@@ -989,7 +994,7 @@ func (bc *BlockChain) insertStopped() bool {
 }
 
 func (bc *BlockChain) procFutureBlocks() {
-	blocks := make([]*types.Block, 0, bc.futureBlocks.Len())
+	blocks := make([]*futureBlock, 0, bc.futureBlocks.Len())
 	for _, hash := range bc.futureBlocks.Keys() {
 		if block, exist := bc.futureBlocks.Peek(hash); exist {
 			blocks = append(blocks, block)
@@ -997,11 +1002,11 @@ func (bc *BlockChain) procFutureBlocks() {
 	}
 	if len(blocks) > 0 {
 		sort.Slice(blocks, func(i, j int) bool {
-			return blocks[i].NumberU64() < blocks[j].NumberU64()
+			return blocks[i].block.NumberU64() < blocks[j].block.NumberU64()
 		})
 		// Insert one by one as chain insertion needs contiguous ancestry between blocks
 		for i := range blocks {
-			bc.InsertChain(blocks[i : i+1])
+			bc.InsertChain([]*types.Block{blocks[i].block}, [][]*types.BlobTxSidecar{blocks[i].sidecar})
 		}
 	}
 }
@@ -1344,10 +1349,36 @@ func (bc *BlockChain) sendNewBlockEvent(
 
 var lastWrite uint64
 
+func writeBlockSidecars(batch ethdb.Batch, block *types.Block, sidecars []*types.BlobTxSidecar) {
+	var (
+		savedSidecars types.BlobSidecars
+		count         int
+	)
+	if len(sidecars) > 0 {
+		for _, tx := range block.Transactions() {
+			if tx.Type() == types.BlobTxType {
+				savedSidecars = append(savedSidecars, &types.BlobSidecar{
+					BlobTxSidecar: *sidecars[count],
+					TxHash:        tx.Hash(),
+				})
+				count++
+			}
+		}
+	}
+	if len(savedSidecars) > 0 {
+		rawdb.WriteBlobSidecars(batch, block.Hash(), block.NumberU64(), savedSidecars)
+	}
+}
+
 // writeBlockWithoutState writes only the block and its metadata to the database,
 // but does not write any state. This is used to construct competing side forks
 // up to the point where they exceed the canonical total difficulty.
-func (bc *BlockChain) writeBlockWithoutState(block *types.Block, td *big.Int) (err error) {
+func (bc *BlockChain) writeBlockWithoutState(
+	block *types.Block,
+	td *big.Int,
+	sidecars []*types.BlobTxSidecar,
+) (err error) {
+
 	if bc.insertStopped() {
 		return errInsertionInterrupted
 	}
@@ -1355,6 +1386,7 @@ func (bc *BlockChain) writeBlockWithoutState(block *types.Block, td *big.Int) (e
 	batch := bc.db.NewBatch()
 	rawdb.WriteTd(batch, block.Hash(), block.NumberU64(), td)
 	rawdb.WriteBlock(batch, block)
+	writeBlockSidecars(batch, block, sidecars)
 	if err := batch.Write(); err != nil {
 		log.Crit("Failed to write block into disk", "err", err)
 	}
@@ -1461,23 +1493,7 @@ func (bc *BlockChain) writeBlockWithState(
 	rawdb.WriteBlock(blockBatch, block)
 	rawdb.WriteReceipts(blockBatch, block.Hash(), block.NumberU64(), receipts)
 	rawdb.WritePreimages(blockBatch, state.Preimages())
-
-	var (
-		savedSidecars types.BlobSidecars
-		count         int
-	)
-	if len(sidecars) > 0 {
-		for _, tx := range block.Transactions() {
-			if tx.Type() == types.BlobTxType {
-				savedSidecars = append(savedSidecars, &types.BlobSidecar{
-					BlobTxSidecar: *sidecars[count],
-					TxHash:        tx.Hash(),
-				})
-				count++
-			}
-		}
-	}
-	rawdb.WriteBlobSidecars(blockBatch, block.Hash(), block.NumberU64(), savedSidecars)
+	writeBlockSidecars(blockBatch, block, sidecars)
 	// TODO: Implement prune blob sidecars logic
 
 	if err := blockBatch.Write(); err != nil {
@@ -1599,12 +1615,12 @@ func (bc *BlockChain) writeBlockWithState(
 // addFutureBlock checks if the block is within the max allowed window to get
 // accepted for future processing, and returns an error if the block is too far
 // ahead and was not added.
-func (bc *BlockChain) addFutureBlock(block *types.Block) error {
+func (bc *BlockChain) addFutureBlock(block *types.Block, sidecar []*types.BlobTxSidecar) error {
 	max := uint64(time.Now().Unix() + maxTimeFutureBlocks)
 	if block.Time() > max {
 		return fmt.Errorf("future block timestamp %v > allowed %v", block.Time(), max)
 	}
-	bc.futureBlocks.Add(block.Hash(), block)
+	bc.futureBlocks.Add(block.Hash(), &futureBlock{block: block, sidecar: sidecar})
 	return nil
 }
 
@@ -1614,7 +1630,9 @@ func (bc *BlockChain) addFutureBlock(block *types.Block) error {
 // wrong.
 //
 // After insertion is done, all accumulated events will be fired.
-func (bc *BlockChain) InsertChain(chain types.Blocks) (int, error) {
+//
+// The sidecars are assumed to have 0-length or same length as batch of blocks.
+func (bc *BlockChain) InsertChain(chain types.Blocks, sidecars [][]*types.BlobTxSidecar) (int, error) {
 	// Sanity check that we have something meaningful to import
 	if len(chain) == 0 {
 		return 0, nil
@@ -1644,7 +1662,7 @@ func (bc *BlockChain) InsertChain(chain types.Blocks) (int, error) {
 		return 0, errChainStopped
 	}
 	defer bc.chainmu.Unlock()
-	return bc.insertChain(chain, true)
+	return bc.insertChain(chain, true, sidecars)
 }
 
 // InsertChainWithoutSealVerification works exactly the same
@@ -1657,7 +1675,7 @@ func (bc *BlockChain) InsertChainWithoutSealVerification(block *types.Block) (in
 		return 0, errChainStopped
 	}
 	defer bc.chainmu.Unlock()
-	return bc.insertChain([]*types.Block{block}, false)
+	return bc.insertChain([]*types.Block{block}, false, nil)
 }
 
 // insertChain is the internal implementation of InsertChain, which assumes that
@@ -1668,7 +1686,7 @@ func (bc *BlockChain) InsertChainWithoutSealVerification(block *types.Block) (in
 // racey behaviour. If a sidechain import is in progress, and the historic state
 // is imported, but then new canon-head is added before the actual sidechain
 // completes, then the historic state could be pruned again
-func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, error) {
+func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool, sidecars [][]*types.BlobTxSidecar) (int, error) {
 	// If the chain is terminating, don't even bother starting up.
 	if bc.insertStopped() {
 		return 0, nil
@@ -1747,13 +1765,17 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, er
 	// First block is pruned, insert as sidechain and reorg only if TD grows enough
 	case errors.Is(err, consensus.ErrPrunedAncestor):
 		log.Debug("Pruned ancestor, inserting as sidechain", "number", block.Number(), "hash", block.Hash())
-		return bc.insertSideChain(block, it)
+		return bc.insertSideChain(block, it, sidecars)
 
 	// First block is future, shove it (and all children) to the future queue (unknown ancestor)
 	case errors.Is(err, consensus.ErrFutureBlock) || (errors.Is(err, consensus.ErrUnknownAncestor) && bc.futureBlocks.Contains(it.first().ParentHash())):
 		for block != nil && (it.index == 0 || errors.Is(err, consensus.ErrUnknownAncestor)) {
 			log.Debug("Future block, postponing import", "number", block.Number(), "hash", block.Hash())
-			if err := bc.addFutureBlock(block); err != nil {
+			var futureBlockSidecars []*types.BlobTxSidecar
+			if len(sidecars) > 0 {
+				futureBlockSidecars = sidecars[it.index]
+			}
+			if err := bc.addFutureBlock(block, futureBlockSidecars); err != nil {
 				return it.index, err
 			}
 			block, err = it.next()
@@ -1926,8 +1948,11 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, er
 
 		// Write the block to the chain and get the status.
 		substart = time.Now()
-		// TODO: edit the insertChain to pass the sidecars to writeBlockWithState
-		status, err := bc.writeBlockWithState(block, receipts, logs, internalTxs, statedb, false, nil)
+		var blockSidecars []*types.BlobTxSidecar
+		if len(sidecars) > 0 {
+			blockSidecars = sidecars[it.index]
+		}
+		status, err := bc.writeBlockWithState(block, receipts, logs, internalTxs, statedb, false, blockSidecars)
 		atomic.StoreUint32(&followupInterrupt, 1)
 		if err != nil {
 			return it.index, err
@@ -1978,13 +2003,21 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, er
 
 	// Any blocks remaining here? The only ones we care about are the future ones
 	if block != nil && errors.Is(err, consensus.ErrFutureBlock) {
-		if err := bc.addFutureBlock(block); err != nil {
+		var futureBlockSidecars []*types.BlobTxSidecar
+		if len(sidecars) > 0 {
+			futureBlockSidecars = sidecars[it.index]
+		}
+		if err := bc.addFutureBlock(block, futureBlockSidecars); err != nil {
 			return it.index, err
 		}
 		block, err = it.next()
 
 		for ; block != nil && errors.Is(err, consensus.ErrUnknownAncestor); block, err = it.next() {
-			if err := bc.addFutureBlock(block); err != nil {
+			var futureBlockSidecars []*types.BlobTxSidecar
+			if len(sidecars) > 0 {
+				futureBlockSidecars = sidecars[it.index]
+			}
+			if err := bc.addFutureBlock(block, futureBlockSidecars); err != nil {
 				return it.index, err
 			}
 			stats.queued++
@@ -2001,7 +2034,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, er
 //
 // The method writes all (header-and-body-valid) blocks to disk, then tries to
 // switch over to the new chain if the TD exceeded the current chain.
-func (bc *BlockChain) insertSideChain(block *types.Block, it *insertIterator) (int, error) {
+func (bc *BlockChain) insertSideChain(block *types.Block, it *insertIterator, sidecars [][]*types.BlobTxSidecar) (int, error) {
 	var (
 		externTd *big.Int
 		current  = bc.CurrentBlock()
@@ -2047,7 +2080,11 @@ func (bc *BlockChain) insertSideChain(block *types.Block, it *insertIterator) (i
 
 		if !bc.HasBlock(block.Hash(), block.NumberU64()) {
 			start := time.Now()
-			if err := bc.writeBlockWithoutState(block, externTd); err != nil {
+			var futureBlockSidecars []*types.BlobTxSidecar
+			if len(sidecars) > 0 {
+				futureBlockSidecars = sidecars[it.index]
+			}
+			if err := bc.writeBlockWithoutState(block, externTd, futureBlockSidecars); err != nil {
 				return it.index, err
 			}
 			log.Debug("Injected sidechain block", "number", block.Number(), "hash", block.Hash(),
@@ -2099,7 +2136,7 @@ func (bc *BlockChain) insertSideChain(block *types.Block, it *insertIterator) (i
 		// memory here.
 		if len(blocks) >= 2048 || memory > 64*1024*1024 {
 			log.Info("Importing heavy sidechain segment", "blocks", len(blocks), "start", blocks[0].NumberU64(), "end", block.NumberU64())
-			if _, err := bc.insertChain(blocks, false); err != nil {
+			if _, err := bc.insertChain(blocks, false, nil); err != nil {
 				return 0, err
 			}
 			blocks, memory = blocks[:0], 0
@@ -2113,7 +2150,7 @@ func (bc *BlockChain) insertSideChain(block *types.Block, it *insertIterator) (i
 	}
 	if len(blocks) > 0 {
 		log.Info("Importing sidechain segment", "start", blocks[0].NumberU64(), "end", blocks[len(blocks)-1].NumberU64())
-		return bc.insertChain(blocks, false)
+		return bc.insertChain(blocks, false, nil)
 	}
 	return 0, nil
 }

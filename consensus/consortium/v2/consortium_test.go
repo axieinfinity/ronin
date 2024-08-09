@@ -1444,7 +1444,7 @@ func TestVerifyVote(t *testing.T) {
 	chain, _ := core.NewBlockChain(db, nil, params.TestChainConfig, ethash.NewFullFaker(), vm.Config{}, nil, nil)
 
 	bs, _ := core.GenerateChain(params.TestChainConfig, genesis, ethash.NewFaker(), db, 1, nil, true)
-	if _, err := chain.InsertChain(bs[:]); err != nil {
+	if _, err := chain.InsertChain(bs[:], nil); err != nil {
 		panic(err)
 	}
 
@@ -1615,7 +1615,7 @@ func TestKnownBlockReorg(t *testing.T) {
 		},
 	)
 
-	_, err := chain.InsertChain(blocks)
+	_, err := chain.InsertChain(blocks, nil)
 	if err != nil {
 		t.Fatalf("Failed to insert block, err %s", err)
 	}
@@ -1660,7 +1660,7 @@ func TestKnownBlockReorg(t *testing.T) {
 		},
 	)
 
-	_, err = chain.InsertChain(blocks)
+	_, err = chain.InsertChain(blocks, nil)
 	if err != nil {
 		t.Fatalf("Failed to insert block, err %s", err)
 	}
@@ -1690,7 +1690,7 @@ func TestKnownBlockReorg(t *testing.T) {
 		},
 	)
 
-	_, err = chain.InsertChain(knownBlocks)
+	_, err = chain.InsertChain(knownBlocks, nil)
 	if err != nil {
 		t.Fatalf("Failed to insert block, err %s", err)
 	}
@@ -1762,7 +1762,7 @@ func TestKnownBlockReorg(t *testing.T) {
 		},
 	)
 
-	_, err = chain.InsertChain(justifiedBlocks)
+	_, err = chain.InsertChain(justifiedBlocks, nil)
 	if err != nil {
 		t.Fatalf("Failed to insert block, err %s", err)
 	}
@@ -1772,7 +1772,7 @@ func TestKnownBlockReorg(t *testing.T) {
 		t.Fatalf("Expect head header to be %d, got %d", 12, header.Number.Uint64())
 	}
 
-	_, err = chain.InsertChain(knownBlocks)
+	_, err = chain.InsertChain(knownBlocks, nil)
 	if err != nil {
 		t.Fatalf("Failed to insert block, err %s", err)
 	}
@@ -1887,7 +1887,7 @@ func TestUpgradeRoninTrustedOrg(t *testing.T) {
 			}
 		}
 
-		_, err = chain.InsertChain(block)
+		_, err = chain.InsertChain(block, nil)
 		if err != nil {
 			t.Fatalf("Failed to insert chain, err %s", err)
 		}
@@ -2022,7 +2022,7 @@ func TestUpgradeAxieProxyCode(t *testing.T) {
 		blocks[0] = blocks[0].WithSeal(header)
 		parent = blocks[0]
 
-		_, err = chain.InsertChain(blocks)
+		_, err = chain.InsertChain(blocks, nil)
 		if err != nil {
 			t.Fatalf("Failed to insert chain, err %s", err)
 		}
@@ -2182,7 +2182,7 @@ func TestSystemTransactionOrder(t *testing.T) {
 	block = types.NewBlockWithHeader(header)
 	block = types.NewBlock(block.Header(), []*types.Transaction{systemTx, normalTx}, nil, receipts[0], trie.NewStackTrie(nil))
 
-	_, err = chain.InsertChain(types.Blocks{block})
+	_, err = chain.InsertChain(types.Blocks{block}, nil)
 	if !errors.Is(err, core.ErrOutOfOrderSystemTx) {
 		t.Fatalf("Expected err: %s, got %s", core.ErrOutOfOrderSystemTx, err)
 	}
@@ -2213,7 +2213,7 @@ func TestIsPeriodBlock(t *testing.T) {
 	chain, _ := core.NewBlockChain(db, nil, &chainConfig, ethash.NewFullFaker(), vm.Config{}, nil, nil)
 	// create chain of up to 399 blocks, all of them are not period block
 	bs, _ := core.GenerateChain(&chainConfig, genesis, ethash.NewFaker(), db, 399, nil, true) // create chain of up to 399 blocks
-	if _, err := chain.InsertChain(bs[:]); err != nil {
+	if _, err := chain.InsertChain(bs[:], nil); err != nil {
 		panic(err)
 	}
 	recents, _ := arc.NewARC[common.Hash, *Snapshot](inmemorySnapshots)
@@ -2266,7 +2266,7 @@ func TestIsPeriodBlock(t *testing.T) {
 		block, _ := core.GenerateChain(&chainConfig, bs[len(bs)-1], ethash.NewFaker(), db, 1, callback, true)
 		bs = append(bs, block...)
 	}
-	if _, err := chain.InsertChain(bs[:]); err != nil {
+	if _, err := chain.InsertChain(bs[:], nil); err != nil {
 		panic(err)
 	}
 
@@ -2309,7 +2309,7 @@ func TestIsTrippEffective(t *testing.T) {
 	chain, _ := core.NewBlockChain(db, nil, &chainConfig, ethash.NewFullFaker(), vm.Config{}, nil, nil)
 	// create chain of up to 399 blocks, all of them are not Tripp effective
 	bs, _ := core.GenerateChain(&chainConfig, genesis, ethash.NewFaker(), db, 399, nil, true)
-	if _, err := chain.InsertChain(bs[:]); err != nil {
+	if _, err := chain.InsertChain(bs[:], nil); err != nil {
 		panic(err)
 	}
 	recents, _ := arc.NewARC[common.Hash, *Snapshot](inmemorySnapshots)
@@ -2368,7 +2368,7 @@ func TestIsTrippEffective(t *testing.T) {
 		block, _ := core.GenerateChain(&chainConfig, bs[len(bs)-1], ethash.NewFaker(), db, 1, callback, true)
 		bs = append(bs, block...)
 	}
-	if _, err := chain.InsertChain(bs[:]); err != nil {
+	if _, err := chain.InsertChain(bs[:], nil); err != nil {
 		panic(err)
 	}
 
