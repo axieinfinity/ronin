@@ -95,7 +95,7 @@ type chainHeightFn func() uint64
 type headersInsertFn func(headers []*types.Header) (int, error)
 
 // chainInsertFn is a callback type to insert a batch of blocks into the local chain.
-type chainInsertFn func(types.Blocks) (int, error)
+type chainInsertFn func(types.Blocks, [][]*types.BlobTxSidecar) (int, error)
 
 // peerDropFn is a callback type for dropping a peer detected as malicious.
 type peerDropFn func(id string)
@@ -203,7 +203,11 @@ type BlockFetcher struct {
 }
 
 // NewBlockFetcher creates a block fetcher to retrieve blocks based on hash announcements.
-func NewBlockFetcher(light bool, getHeader HeaderRetrievalFn, getBlock blockRetrievalFn, verifyHeader headerVerifierFn, verifyBlobHeader blobHeaderVerifierFn, broadcastBlock blockBroadcasterFn, chainHeight chainHeightFn, insertHeaders headersInsertFn, insertChain chainInsertFn, dropPeer peerDropFn) *BlockFetcher {
+func NewBlockFetcher(light bool, getHeader HeaderRetrievalFn, getBlock blockRetrievalFn, verifyHeader headerVerifierFn,
+	verifyBlobHeader blobHeaderVerifierFn, broadcastBlock blockBroadcasterFn, chainHeight chainHeightFn,
+	insertHeaders headersInsertFn, insertChain chainInsertFn, dropPeer peerDropFn,
+) *BlockFetcher {
+
 	return &BlockFetcher{
 		light:            light,
 		notify:           make(chan *blockAnnounce),
@@ -839,7 +843,7 @@ func (f *BlockFetcher) importBlocks(peer string, block *types.Block, sidecars []
 			return
 		}
 		// Run the actual import and log any issues
-		if _, err := f.insertChain(types.Blocks{block}); err != nil {
+		if _, err := f.insertChain(types.Blocks{block}, [][]*types.BlobTxSidecar{sidecars}); err != nil {
 			log.Debug("Propagated block import failed", "peer", peer, "number", block.Number(), "hash", hash, "err", err)
 			return
 		}

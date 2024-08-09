@@ -99,7 +99,7 @@ func (basic *snapshotTestBasic) prepare(t *testing.T) (*BlockChain, []*types.Blo
 	}
 	var startPoint uint64
 	for _, point := range breakpoints {
-		if _, err := chain.InsertChain(blocks[startPoint:point]); err != nil {
+		if _, err := chain.InsertChain(blocks[startPoint:point], nil); err != nil {
 			t.Fatalf("Failed to import canonical chain start: %v", err)
 		}
 		startPoint = point
@@ -118,7 +118,7 @@ func (basic *snapshotTestBasic) prepare(t *testing.T) (*BlockChain, []*types.Blo
 			}
 		}
 	}
-	if _, err := chain.InsertChain(blocks[startPoint:]); err != nil {
+	if _, err := chain.InsertChain(blocks[startPoint:], nil); err != nil {
 		t.Fatalf("Failed to import canonical chain tail: %v", err)
 	}
 
@@ -314,7 +314,7 @@ func (snaptest *gappedSnapshotTest) test(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to recreate chain: %v", err)
 	}
-	newchain.InsertChain(gappedBlocks)
+	newchain.InsertChain(gappedBlocks, nil)
 	newchain.Stop()
 
 	// Restart the chain with enabling the snapshot
@@ -382,7 +382,7 @@ func (snaptest *restartCrashSnapshotTest) test(t *testing.T) {
 		t.Fatalf("Failed to recreate chain: %v", err)
 	}
 	newBlocks, _ := GenerateChain(params.TestChainConfig, blocks[len(blocks)-1], snaptest.engine, snaptest.gendb, snaptest.newBlocks, func(i int, b *BlockGen) {}, true)
-	newchain.InsertChain(newBlocks)
+	newchain.InsertChain(newBlocks, nil)
 
 	// Commit the entire snapshot into the disk if requested. Note only
 	// (a) snapshot root and (b) snapshot generator will be committed,
@@ -434,7 +434,7 @@ func (snaptest *wipeCrashSnapshotTest) test(t *testing.T) {
 		t.Fatalf("Failed to recreate chain: %v", err)
 	}
 	newBlocks, _ := GenerateChain(params.TestChainConfig, blocks[len(blocks)-1], snaptest.engine, snaptest.gendb, snaptest.newBlocks, func(i int, b *BlockGen) {}, true)
-	newchain.InsertChain(newBlocks)
+	newchain.InsertChain(newBlocks, nil)
 	newchain.Stop()
 
 	// Restart the chain, the wiper should starts working
