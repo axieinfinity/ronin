@@ -131,8 +131,9 @@ const (
 	InitialBaseFee           = 1000000000 // Initial base fee for EIP-1559 blocks.
 	MinimumBaseFee           = 1000000000 // Minimum base fee after Venoki.
 
-	MaxCodeSize         = 24576                   // Maximum bytecode to permit for a contract
-	MaxCodeSizeShanghai = 32768                   // Maximum bytecode to permit for a contract after Shanghai
+	MaxCodeSize = 24576 // Maximum bytecode to permit for a contract
+	// MaxCodeSizeShanghai = 32768                   // Maximum bytecode to permit for a contract after Shanghai
+	MaxCodeSizeShanghai = 24576                   // Maximum bytecode to permit for a contract after Shanghai
 	MaxInitCodeSize     = 2 * MaxCodeSizeShanghai // Maximum initcode to permit in a creation transaction and create instructions
 
 	// Precompiled contract gas prices
