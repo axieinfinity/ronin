@@ -69,23 +69,27 @@ type btBlock struct {
 //go:generate gencodec -type btHeader -field-override btHeaderMarshaling -out gen_btheader.go
 
 type btHeader struct {
-	Bloom            types.Bloom
-	Coinbase         common.Address
-	MixHash          common.Hash
-	Nonce            types.BlockNonce
-	Number           *big.Int
-	Hash             common.Hash
-	ParentHash       common.Hash
-	ReceiptTrie      common.Hash
-	StateRoot        common.Hash
-	TransactionsTrie common.Hash
-	UncleHash        common.Hash
-	ExtraData        []byte
-	Difficulty       *big.Int
-	GasLimit         uint64
-	GasUsed          uint64
-	Timestamp        uint64
-	BaseFeePerGas    *big.Int
+	Bloom                 types.Bloom
+	Coinbase              common.Address
+	MixHash               common.Hash
+	Nonce                 types.BlockNonce
+	Number                *big.Int
+	Hash                  common.Hash
+	ParentHash            common.Hash
+	ReceiptTrie           common.Hash
+	StateRoot             common.Hash
+	TransactionsTrie      common.Hash
+	UncleHash             common.Hash
+	ExtraData             []byte
+	Difficulty            *big.Int
+	GasLimit              uint64
+	GasUsed               uint64
+	Timestamp             uint64
+	BaseFeePerGas         *big.Int
+	WithdrawalsRoot       *common.Hash
+	BlobGasUsed           *uint64
+	ExcessBlobGas         *uint64
+	ParentBeaconBlockRoot *common.Hash
 }
 
 type btHeaderMarshaling struct {
@@ -96,6 +100,8 @@ type btHeaderMarshaling struct {
 	GasUsed       math.HexOrDecimal64
 	Timestamp     math.HexOrDecimal64
 	BaseFeePerGas *math.HexOrDecimal256
+	BlobGasUsed   *math.HexOrDecimal64
+	ExcessBlobGas *math.HexOrDecimal64
 }
 
 func (t *BlockTest) Run(snapshotter bool) error {
@@ -159,18 +165,20 @@ func (t *BlockTest) Run(snapshotter bool) error {
 
 func (t *BlockTest) genesis(config *params.ChainConfig) *core.Genesis {
 	return &core.Genesis{
-		Config:     config,
-		Nonce:      t.json.Genesis.Nonce.Uint64(),
-		Timestamp:  t.json.Genesis.Timestamp,
-		ParentHash: t.json.Genesis.ParentHash,
-		ExtraData:  t.json.Genesis.ExtraData,
-		GasLimit:   t.json.Genesis.GasLimit,
-		GasUsed:    t.json.Genesis.GasUsed,
-		Difficulty: t.json.Genesis.Difficulty,
-		Mixhash:    t.json.Genesis.MixHash,
-		Coinbase:   t.json.Genesis.Coinbase,
-		Alloc:      t.json.Pre,
-		BaseFee:    t.json.Genesis.BaseFeePerGas,
+		Config:        config,
+		Nonce:         t.json.Genesis.Nonce.Uint64(),
+		Timestamp:     t.json.Genesis.Timestamp,
+		ParentHash:    t.json.Genesis.ParentHash,
+		ExtraData:     t.json.Genesis.ExtraData,
+		GasLimit:      t.json.Genesis.GasLimit,
+		GasUsed:       t.json.Genesis.GasUsed,
+		Difficulty:    t.json.Genesis.Difficulty,
+		Mixhash:       t.json.Genesis.MixHash,
+		Coinbase:      t.json.Genesis.Coinbase,
+		Alloc:         t.json.Pre,
+		BaseFee:       t.json.Genesis.BaseFeePerGas,
+		BlobGasUsed:   t.json.Genesis.BlobGasUsed,
+		ExcessBlobGas: t.json.Genesis.ExcessBlobGas,
 	}
 }
 

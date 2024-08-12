@@ -20,9 +20,10 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"github.com/ethereum/go-ethereum/eth/tracers/logger"
 	"reflect"
 	"testing"
+
+	"github.com/ethereum/go-ethereum/eth/tracers/logger"
 
 	"github.com/ethereum/go-ethereum/core/vm"
 )
@@ -56,6 +57,11 @@ func TestState(t *testing.T) {
 	//st.fails(`^stRevertTest/RevertPrecompiledTouch(_storage)?\.json/Constantinople/3`, "bug in test")
 	//st.fails(`^stRevertTest/RevertPrecompiledTouch(_storage)?\.json/ConstantinopleFix/0`, "bug in test")
 	//st.fails(`^stRevertTest/RevertPrecompiledTouch(_storage)?\.json/ConstantinopleFix/3`, "bug in test")
+
+	// This tests whether the precompiled contracts are the same as go-ethereum.
+	// Since we add some precompiled contracts, this test will surely fail. So
+	// skip this test
+	st.skipLoad(`^stPreCompiledContracts/idPrecomps.json`)
 
 	// For Istanbul, older tests were moved into LegacyTests
 	for _, dir := range []string{

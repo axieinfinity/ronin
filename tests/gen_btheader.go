@@ -17,23 +17,27 @@ var _ = (*btHeaderMarshaling)(nil)
 // MarshalJSON marshals as JSON.
 func (b btHeader) MarshalJSON() ([]byte, error) {
 	type btHeader struct {
-		Bloom            types.Bloom
-		Coinbase         common.Address
-		MixHash          common.Hash
-		Nonce            types.BlockNonce
-		Number           *math.HexOrDecimal256
-		Hash             common.Hash
-		ParentHash       common.Hash
-		ReceiptTrie      common.Hash
-		StateRoot        common.Hash
-		TransactionsTrie common.Hash
-		UncleHash        common.Hash
-		ExtraData        hexutil.Bytes
-		Difficulty       *math.HexOrDecimal256
-		GasLimit         math.HexOrDecimal64
-		GasUsed          math.HexOrDecimal64
-		Timestamp        math.HexOrDecimal64
-		BaseFeePerGas    *math.HexOrDecimal256
+		Bloom                 types.Bloom
+		Coinbase              common.Address
+		MixHash               common.Hash
+		Nonce                 types.BlockNonce
+		Number                *math.HexOrDecimal256
+		Hash                  common.Hash
+		ParentHash            common.Hash
+		ReceiptTrie           common.Hash
+		StateRoot             common.Hash
+		TransactionsTrie      common.Hash
+		UncleHash             common.Hash
+		ExtraData             hexutil.Bytes
+		Difficulty            *math.HexOrDecimal256
+		GasLimit              math.HexOrDecimal64
+		GasUsed               math.HexOrDecimal64
+		Timestamp             math.HexOrDecimal64
+		BaseFeePerGas         *math.HexOrDecimal256
+		WithdrawalsRoot       *common.Hash
+		BlobGasUsed           *math.HexOrDecimal64
+		ExcessBlobGas         *math.HexOrDecimal64
+		ParentBeaconBlockRoot *common.Hash
 	}
 	var enc btHeader
 	enc.Bloom = b.Bloom
@@ -53,29 +57,37 @@ func (b btHeader) MarshalJSON() ([]byte, error) {
 	enc.GasUsed = math.HexOrDecimal64(b.GasUsed)
 	enc.Timestamp = math.HexOrDecimal64(b.Timestamp)
 	enc.BaseFeePerGas = (*math.HexOrDecimal256)(b.BaseFeePerGas)
+	enc.WithdrawalsRoot = b.WithdrawalsRoot
+	enc.BlobGasUsed = (*math.HexOrDecimal64)(b.BlobGasUsed)
+	enc.ExcessBlobGas = (*math.HexOrDecimal64)(b.ExcessBlobGas)
+	enc.ParentBeaconBlockRoot = b.ParentBeaconBlockRoot
 	return json.Marshal(&enc)
 }
 
 // UnmarshalJSON unmarshals from JSON.
 func (b *btHeader) UnmarshalJSON(input []byte) error {
 	type btHeader struct {
-		Bloom            *types.Bloom
-		Coinbase         *common.Address
-		MixHash          *common.Hash
-		Nonce            *types.BlockNonce
-		Number           *math.HexOrDecimal256
-		Hash             *common.Hash
-		ParentHash       *common.Hash
-		ReceiptTrie      *common.Hash
-		StateRoot        *common.Hash
-		TransactionsTrie *common.Hash
-		UncleHash        *common.Hash
-		ExtraData        *hexutil.Bytes
-		Difficulty       *math.HexOrDecimal256
-		GasLimit         *math.HexOrDecimal64
-		GasUsed          *math.HexOrDecimal64
-		Timestamp        *math.HexOrDecimal64
-		BaseFeePerGas    *math.HexOrDecimal256
+		Bloom                 *types.Bloom
+		Coinbase              *common.Address
+		MixHash               *common.Hash
+		Nonce                 *types.BlockNonce
+		Number                *math.HexOrDecimal256
+		Hash                  *common.Hash
+		ParentHash            *common.Hash
+		ReceiptTrie           *common.Hash
+		StateRoot             *common.Hash
+		TransactionsTrie      *common.Hash
+		UncleHash             *common.Hash
+		ExtraData             *hexutil.Bytes
+		Difficulty            *math.HexOrDecimal256
+		GasLimit              *math.HexOrDecimal64
+		GasUsed               *math.HexOrDecimal64
+		Timestamp             *math.HexOrDecimal64
+		BaseFeePerGas         *math.HexOrDecimal256
+		WithdrawalsRoot       *common.Hash
+		BlobGasUsed           *math.HexOrDecimal64
+		ExcessBlobGas         *math.HexOrDecimal64
+		ParentBeaconBlockRoot *common.Hash
 	}
 	var dec btHeader
 	if err := json.Unmarshal(input, &dec); err != nil {
@@ -131,6 +143,18 @@ func (b *btHeader) UnmarshalJSON(input []byte) error {
 	}
 	if dec.BaseFeePerGas != nil {
 		b.BaseFeePerGas = (*big.Int)(dec.BaseFeePerGas)
+	}
+	if dec.WithdrawalsRoot != nil {
+		b.WithdrawalsRoot = dec.WithdrawalsRoot
+	}
+	if dec.BlobGasUsed != nil {
+		b.BlobGasUsed = (*uint64)(dec.BlobGasUsed)
+	}
+	if dec.ExcessBlobGas != nil {
+		b.ExcessBlobGas = (*uint64)(dec.ExcessBlobGas)
+	}
+	if dec.ParentBeaconBlockRoot != nil {
+		b.ParentBeaconBlockRoot = dec.ParentBeaconBlockRoot
 	}
 	return nil
 }
