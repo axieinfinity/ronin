@@ -134,7 +134,7 @@ func init() {
 	PrecompiledContractsConsortium[common.BytesToAddress([]byte{105})] = &consortiumValidateFinalityProof{}
 
 	PrecompiledContractsConsortiumMiko = copyPrecompiledContract(PrecompiledContractsConsortium)
-	PrecompiledContractsConsortiumMiko[common.BytesToAddress([]byte{106})] = &consortiumValidateProofOfPossession{}
+	// PrecompiledContractsConsortiumMiko[common.BytesToAddress([]byte{106})] = &consortiumValidateProofOfPossession{}
 
 	PrecompiledContractsBerlin = copyPrecompiledContract(PrecompiledContractsConsortiumMiko)
 	PrecompiledContractsBerlin[common.BytesToAddress([]byte{5})] = &bigModExp{eip2565: true}
