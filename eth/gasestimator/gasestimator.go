@@ -80,6 +80,15 @@ func Estimate(ctx context.Context, call core.Message, opts *Options, gasCap uint
 			}
 			available.Sub(available, call.Value())
 		}
+		if opts.Config.IsCancun(opts.Header.Number) {
+			blobGasPerBlob := new(big.Int).SetUint64(params.BlobTxBlobGasPerBlob)
+			blobBalanceUsage := new(big.Int).SetUint64(uint64(len(call.BlobHashes())))
+			blobBalanceUsage.Mul(blobBalanceUsage, blobGasPerBlob)
+			blobBalanceUsage.Mul(blobBalanceUsage, call.BlobGasFeeCap())
+			if blobBalanceUsage.Cmp(available) >= 0 {
+				return 0, nil, core.ErrInsufficientFunds
+			}
+		}
 		allowance := new(big.Int).Div(available, feeCap)
 
 		// If the allowance is larger than maximum uint64, skip checking
@@ -199,6 +208,8 @@ func execute(ctx context.Context, call core.Message, opts *Options, gasLimit uin
 		call.AccessList(),
 		// isFake == true means skipping nonce check
 		true,
+		call.BlobGasFeeCap(),
+		call.BlobHashes(),
 	)
 
 	// Execute the call and separate execution faults caused by a lack of gas or

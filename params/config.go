@@ -480,7 +480,7 @@ var (
 		Clique:                        nil,
 		Consortium:                    nil,
 		ConsortiumV2Contracts:         nil,
-		RoninTreasuryAddress:          nil,
+		RoninTreasuryAddress:          &common.Address{},
 	}
 	TestRules = TestChainConfig.Rules(new(big.Int))
 )

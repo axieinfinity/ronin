@@ -353,7 +353,7 @@ func TestInternals(t *testing.T) {
 				},
 			}, false)
 		evm := vm.NewEVM(context, txContext, statedb, params.MainnetChainConfig, vm.Config{Tracer: tc.tracer})
-		msg := types.NewMessage(origin, &to, 0, big.NewInt(0), 50000, big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, nil, false)
+		msg := types.NewMessage(origin, &to, 0, big.NewInt(0), 50000, big.NewInt(0), big.NewInt(0), big.NewInt(0), nil, nil, false, nil, nil)
 		st := core.NewStateTransition(evm, msg, new(core.GasPool).AddGas(msg.Gas()))
 		if _, err := st.TransitionDb(); err != nil {
 			t.Fatalf("test %v: failed to execute transaction: %v", tc.name, err)
