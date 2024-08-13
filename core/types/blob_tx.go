@@ -39,7 +39,7 @@ type BlobTx struct {
 	Value      *uint256.Int
 	Data       []byte
 	AccessList AccessList
-	BlobFeeCap *uint256.Int // a.k.a. maxFeePerDataGas
+	BlobFeeCap *uint256.Int // a.k.a. maxFeePerBlobGas
 	BlobHashes []common.Hash
 
 	// A blob transaction can optionally contain blobs. This field must be set when BlobTx
@@ -183,6 +183,12 @@ func (tx *BlobTx) setSignatureValues(chainID, v, r, s *big.Int) {
 func (tx *BlobTx) withoutSidecar() *BlobTx {
 	cpy := *tx
 	cpy.Sidecar = nil
+	return &cpy
+}
+
+func (tx *BlobTx) withSidecar(sideCar *BlobTxSidecar) *BlobTx {
+	cpy := *tx
+	cpy.Sidecar = sideCar
 	return &cpy
 }
 

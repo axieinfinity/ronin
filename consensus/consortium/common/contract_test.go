@@ -313,7 +313,7 @@ func TestApplyTransaction(t *testing.T) {
 		t.Fatal(err)
 	}
 	msg := types.NewMessage(minerAddr, tx.To(), tx.Nonce(), tx.Value(), tx.Gas(),
-		tx.GasPrice(), tx.GasFeeCap(), tx.GasTipCap(), tx.Data(), nil, false)
+		tx.GasPrice(), tx.GasFeeCap(), tx.GasTipCap(), tx.Data(), nil, false, nil, nil)
 
 	state, err := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
 	if err != nil {
