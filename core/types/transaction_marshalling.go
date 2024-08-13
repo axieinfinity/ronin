@@ -23,6 +23,8 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	"github.com/ethereum/go-ethereum/crypto/kzg4844"
+	"github.com/holiman/uint256"
 )
 
 // txJSON is the JSON representation of transactions.
@@ -34,6 +36,7 @@ type txJSON struct {
 	GasPrice             *hexutil.Big    `json:"gasPrice"`
 	MaxPriorityFeePerGas *hexutil.Big    `json:"maxPriorityFeePerGas"`
 	MaxFeePerGas         *hexutil.Big    `json:"maxFeePerGas"`
+	MaxFeePerBlobGas     *hexutil.Big    `json:"maxFeePerBlobGas,omitempty"`
 	Gas                  *hexutil.Uint64 `json:"gas"`
 	Value                *hexutil.Big    `json:"value"`
 	Data                 *hexutil.Bytes  `json:"input"`
@@ -51,6 +54,12 @@ type txJSON struct {
 	PayerV      *hexutil.Big    `json:"payerV,omitempty"`
 	PayerR      *hexutil.Big    `json:"payerR,omitempty"`
 	PayerS      *hexutil.Big    `json:"payerS,omitempty"`
+
+	// Blob transaction fields
+	BlobVersionedHashes []common.Hash        `json:"blobVersionedHashes,omitempty"`
+	Blobs               []kzg4844.Blob       `json:"blobs,omitempty"`
+	Commitments         []kzg4844.Commitment `json:"commitments,omitempty"`
+	Proofs              []kzg4844.Proof      `json:"proofs,omitempty"`
 
 	// Only used for encoding:
 	Hash common.Hash `json:"hash"`
@@ -96,6 +105,18 @@ func (t *Transaction) MarshalJSON() ([]byte, error) {
 		enc.PayerV = (*hexutil.Big)(tx.PayerV)
 		enc.PayerR = (*hexutil.Big)(tx.PayerR)
 		enc.PayerS = (*hexutil.Big)(tx.PayerS)
+	case *BlobTx:
+		enc.ChainID = (*hexutil.Big)(tx.ChainID.ToBig())
+		enc.AccessList = &tx.AccessList
+		enc.MaxFeePerGas = (*hexutil.Big)(tx.GasFeeCap.ToBig())
+		enc.MaxPriorityFeePerGas = (*hexutil.Big)(tx.GasTipCap.ToBig())
+		enc.MaxFeePerBlobGas = (*hexutil.Big)(tx.BlobFeeCap.ToBig())
+		enc.BlobVersionedHashes = tx.BlobHashes
+		if sidecar := tx.Sidecar; sidecar != nil {
+			enc.Blobs = tx.Sidecar.Blobs
+			enc.Commitments = tx.Sidecar.Commitments
+			enc.Proofs = tx.Sidecar.Proofs
+		}
 	}
 	return json.Marshal(&enc)
 }
@@ -268,7 +289,45 @@ func (t *Transaction) UnmarshalJSON(input []byte) error {
 		if err := sanityCheckSignature(itx.PayerV, itx.PayerR, itx.PayerS, false); err != nil {
 			return err
 		}
-
+	case BlobTxType:
+		itx := BlobTx{
+			Nonce: nonce,
+			Gas:   gas,
+			Value: uint256.MustFromBig(value),
+			Data:  data,
+			V:     uint256.MustFromBig(v),
+			R:     uint256.MustFromBig(r),
+			S:     uint256.MustFromBig(s),
+		}
+		inner = &itx
+		if dec.ChainID == nil {
+			return errors.New("missing required field 'chainId' in transaction")
+		}
+		itx.ChainID = uint256.MustFromBig((*big.Int)(dec.ChainID))
+		if dec.MaxPriorityFeePerGas == nil {
+			return errors.New("missing required field 'maxPriorityFeePerGas' for txdata")
+		}
+		itx.GasTipCap = uint256.MustFromBig((*big.Int)(dec.MaxPriorityFeePerGas))
+		if dec.MaxFeePerGas == nil {
+			return errors.New("missing required field 'maxFeePerGas' for txdata")
+		}
+		itx.GasFeeCap = uint256.MustFromBig((*big.Int)(dec.MaxFeePerGas))
+		if *to == (common.Address{}) {
+			return errors.New("missing required field 'to' in transaction")
+		}
+		itx.To = *to
+		
+		if dec.MaxFeePerBlobGas == nil {
+			return errors.New("missing required field 'maxFeePerBlobGas' in transaction")
+		}
+		itx.BlobFeeCap = uint256.MustFromBig((*big.Int)(dec.MaxFeePerBlobGas))
+		if dec.BlobVersionedHashes == nil {
+			return errors.New("missing required field 'blobVersionedHashes' in transaction")
+		}
+		itx.BlobHashes = dec.BlobVersionedHashes
+		if dec.AccessList != nil {
+			itx.AccessList = *dec.AccessList
+		}
 	default:
 		return ErrTxTypeNotSupported
 	}
