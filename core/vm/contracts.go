@@ -114,6 +114,9 @@ func init() {
 	PrecompiledContractsByzantium[common.BytesToAddress([]byte{8})] = &bn256PairingByzantium{}
 
 	PrecompiledContractsIstanbul = copyPrecompiledContract(PrecompiledContractsByzantium)
+	PrecompiledContractsIstanbul[common.BytesToAddress([]byte{6})] = &bn256AddIstanbul{}
+	PrecompiledContractsIstanbul[common.BytesToAddress([]byte{7})] = &bn256ScalarMulIstanbul{}
+	PrecompiledContractsIstanbul[common.BytesToAddress([]byte{8})] = &bn256PairingIstanbul{}
 	PrecompiledContractsIstanbul[common.BytesToAddress([]byte{9})] = &blake2F{}
 
 	PrecompiledContractsConsortium = copyPrecompiledContract(PrecompiledContractsIstanbul)

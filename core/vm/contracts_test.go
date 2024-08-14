@@ -28,6 +28,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/params"
 
 	"github.com/ethereum/go-ethereum/common"
 )
@@ -426,4 +427,43 @@ func BenchmarkPrecompiledBLS12381G2MultiExpWorstCase(b *testing.B) {
 		NoBenchmark: false,
 	}
 	benchmarkPrecompiled("0f", testcase, b)
+}
+
+func TestIstanbulPrecompile(t *testing.T) {
+	evm := EVM{
+		chainConfig: &params.ChainConfig{},
+		chainRules: params.Rules{
+			IsIstanbul: true,
+		},
+	}
+	caller := AccountRef(common.Address{0x1})
+	precompiledContract, ok := evm.precompile(caller, common.BytesToAddress([]byte{6}))
+	if !ok {
+		t.Fatal("Failed to get Istanbul precompiled contract")
+	}
+
+	_, ok = precompiledContract.(*bn256AddIstanbul)
+	if !ok {
+		t.Fatal("Incorrect precompiled contract")
+	}
+
+	precompiledContract, ok = evm.precompile(caller, common.BytesToAddress([]byte{7}))
+	if !ok {
+		t.Fatal("Failed to get Istanbul precompiled contract")
+	}
+
+	_, ok = precompiledContract.(*bn256ScalarMulIstanbul)
+	if !ok {
+		t.Fatal("Incorrect precompiled contract")
+	}
+
+	precompiledContract, ok = evm.precompile(caller, common.BytesToAddress([]byte{8}))
+	if !ok {
+		t.Fatal("Failed to get Istanbul precompiled contract")
+	}
+
+	_, ok = precompiledContract.(*bn256PairingIstanbul)
+	if !ok {
+		t.Fatal("Incorrect precompiled contract")
+	}
 }
