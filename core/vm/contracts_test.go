@@ -21,12 +21,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"math/big"
 	"os"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
+	"github.com/ethereum/go-ethereum/core/rawdb"
+	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 
@@ -465,5 +468,127 @@ func TestIstanbulPrecompile(t *testing.T) {
 	_, ok = precompiledContract.(*bn256PairingIstanbul)
 	if !ok {
 		t.Fatal("Incorrect precompiled contract")
+	}
+}
+
+func TestConsortiumPrecompileQuery(t *testing.T) {
+	evm := EVM{
+		chainConfig: &params.ChainConfig{},
+		chainRules: params.Rules{
+			IsMiko: true,
+		},
+	}
+	caller := AccountRef(common.Address{0x1})
+	precompiledContract, ok := evm.precompile(caller, common.BytesToAddress([]byte{106}))
+	if !ok {
+		t.Fatal("Failed to get Miko precompiled contract")
+	}
+
+	p, ok := precompiledContract.(*consortiumValidateProofOfPossession)
+	if !ok {
+		t.Fatal("Incorrect precompiled contract")
+	}
+
+	if p.evm != &evm {
+		t.Fatal("Incorrect evm in precompiled contract")
+	}
+
+	if p.caller != caller {
+		t.Fatal("Incorrect caller in precompiled contract")
+	}
+
+	precompiledContract, ok = evm.precompile(caller, common.BytesToAddress([]byte{1}))
+	if !ok {
+		t.Fatal("Failed to get ecrecover precompiled contract")
+	}
+	if _, ok := precompiledContract.(*ecrecover); !ok {
+		t.Fatal("Wrong ecrecover contract")
+	}
+
+	// Check precompiled contract after Berlin
+	evm.chainRules.IsBerlin = true
+	precompiledContract, ok = evm.precompile(caller, common.BytesToAddress([]byte{106}))
+	if !ok {
+		t.Fatal("Failed to get Miko precompiled contract")
+	}
+	p, ok = precompiledContract.(*consortiumValidateProofOfPossession)
+	if !ok {
+		t.Fatal("Incorrect precompiled contract")
+	}
+
+	if p.evm != &evm {
+		t.Fatal("Incorrect evm in precompiled contract")
+	}
+
+	if p.caller != caller {
+		t.Fatal("Incorrect caller in precompiled contract")
+	}
+}
+
+func BenchmarkConsortiumPrecompileQuery(b *testing.B) {
+	evm := EVM{
+		chainConfig: &params.ChainConfig{},
+		chainRules: params.Rules{
+			IsMiko: true,
+		},
+	}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		evm.precompile(nil, common.BytesToAddress([]byte{106}))
+	}
+}
+
+func TestConsortiumPrecompileCallGas(t *testing.T) {
+	statedb, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
+	chainConfig := params.ChainConfig{
+		EIP155Block:         big.NewInt(0),
+		EIP158Block:         big.NewInt(0),
+		ByzantiumBlock:      big.NewInt(0),
+		ConstantinopleBlock: big.NewInt(0),
+		PetersburgBlock:     big.NewInt(0),
+		IstanbulBlock:       big.NewInt(0),
+		MuirGlacierBlock:    big.NewInt(0),
+		ConsortiumV2Block:   big.NewInt(0),
+		MikoBlock:           big.NewInt(0),
+		BerlinBlock:         big.NewInt(0),
+		LondonBlock:         big.NewInt(0),
+	}
+
+	env := NewEVM(BlockContext{
+		BlockNumber: common.Big0,
+		CanTransfer: func(_ StateDB, _ common.Address, _ *big.Int) bool { return true },
+		Transfer:    func(_ StateDB, _, _ common.Address, _ *big.Int) {},
+	}, TxContext{}, statedb, &chainConfig, Config{})
+	contractAddr := common.Address{0x2}
+	code := []byte{
+		byte(PUSH1), byte(0x0), // retLength
+		byte(PUSH1), byte(0x0), // retOffset
+		byte(PUSH1), byte(0x0), // argsLength
+		byte(PUSH1), byte(0x0), // argsOffset
+		byte(PUSH1), byte(0x0), // value
+		byte(PUSH20),
+	}
+	code = append(code, common.BytesToAddress([]byte{104}).Bytes()...)   // consortium precompiled address
+	code = append(code, byte(PUSH3), byte(0x10), byte(0x00), byte(0x00)) // gas
+	code = append(code, byte(CALL))                                      // call
+	code = append(code, byte(STOP))
+
+	initialGas := uint64(100_000_000)
+	contract := &Contract{
+		Code: code,
+		self: contractRef{addr: contractAddr},
+		Gas:  initialGas,
+	}
+
+	statedb.Prepare(env.chainRules, common.Address{}, common.Address{}, &contractAddr, ActivePrecompiles(env.chainRules), nil)
+	_, err := env.interpreter.Run(contract, nil, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gasUsed := initialGas - contract.Gas
+	if gasUsed != 1051197 {
+		t.Fatalf("Expect gas used to be %d, got %d", 1051197, gasUsed)
 	}
 }

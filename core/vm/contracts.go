@@ -147,9 +147,22 @@ func init() {
 	for k := range PrecompiledContractsConsortiumMiko {
 		PrecompiledAddressesMiko = append(PrecompiledAddressesMiko, k)
 	}
-	for k := range PrecompiledContractsBerlin {
-		PrecompiledAddressesBerlin = append(PrecompiledAddressesBerlin, k)
-	}
+
+	// Commit 268d950147 ("core/vm: change Consortium precompiled mapping into global variable")
+	// tries to optimize how precompiled contracts mapping is calculated. However, it introduces
+	// a breaking change.
+	//
+	// In the current running network after Berlin, PrecompiledAddressesBerlin does not contain
+	// Consortium precompiled addresses even though the Consortium precompiled contracts are
+	// already activated. It is a bug. However, PrecompiledAddressesBerlin is used in
+	// ActivePrecompiles, which is called to get the active precompiled contracts to add to access
+	// list at the start of transaction. So we cannot fix this by just changing
+	// PrecompiledAddressesBerlin as it makes the breaking change in gas calculation.
+	//
+	// Therefore, we need to make PrecompiledAddressesBerlin the same as running network, which
+	// is equal to PrecompiledAddressesIstanbul. Consortium precompiled addresses are added in
+	// later hardfork.
+	PrecompiledAddressesBerlin = PrecompiledAddressesIstanbul
 }
 
 // ActivePrecompiles returns the precompiles enabled with the current configuration.
