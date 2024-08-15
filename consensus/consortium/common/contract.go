@@ -494,13 +494,13 @@ func ApplyTransaction(msg types.Message, opts *ApplyTransactOpts) (err error) {
 		// The system transaction is the transaction that have the receiver is ConsortiumV2Contracts
 		actualTx := (*receivedTxs)[0]
 		if !bytes.Equal(signer.Hash(actualTx).Bytes(), expectedHash.Bytes()) {
-			return fmt.Errorf("expected tx hash %v, get %v, nonce %d, to %s, value %s, gas %d, gasPrice %s, data %s", expectedHash.String(), actualTx.Hash().String(),
-				expectedTx.Nonce(),
-				expectedTx.To().String(),
-				expectedTx.Value().String(),
-				expectedTx.Gas(),
-				expectedTx.GasPrice().String(),
-				hex.EncodeToString(expectedTx.Data()),
+			return fmt.Errorf(
+				"expected transaction: nonce %d, to %s, value %s, gas %d, gasPrice %s, data %s\n"+
+					"got transaction: nonce %d, to %s, value %s, gas %d, gasPrice %s, data %s, hash %s",
+				expectedTx.Nonce(), expectedTx.To().String(), expectedTx.Value().String(), expectedTx.Gas(),
+				expectedTx.GasPrice().String(), hex.EncodeToString(expectedTx.Data()),
+				actualTx.Nonce(), actualTx.To().String(), actualTx.Value().String(), actualTx.Gas(),
+				actualTx.GasPrice().String(), hex.EncodeToString(actualTx.Data()), actualTx.Hash(),
 			)
 		}
 		expectedTx = actualTx
