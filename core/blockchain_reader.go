@@ -62,7 +62,11 @@ func (bc *BlockChain) FinalizedBlock() *types.Block {
 }
 
 func (bc *BlockChain) CurrentFinalBlock() *types.Header {
-	return bc.FinalizedBlock().Header()
+	if finalizedBlock := bc.FinalizedBlock(); finalizedBlock != nil {
+		return finalizedBlock.Header()
+	}
+
+	return nil
 }
 
 // HasHeader checks if a block header is present in the database or not, caching
