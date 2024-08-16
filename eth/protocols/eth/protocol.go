@@ -281,14 +281,13 @@ func (p *BlockBodiesPacket) Unpack() ([][]*types.Transaction, [][]*types.Header)
 // them in a split flat format that's more consistent with the internal data structures.
 func (p *BlockBodiesPacket100) Unpack() ([][]*types.Transaction, [][]*types.Header, [][]*types.BlobTxSidecar) {
 	var (
-		txset      = make([][]*types.Transaction, len(p.BlockBodiesPacket))
-		uncleset   = make([][]*types.Header, len(p.BlockBodiesPacket))
-		sidecarset = make([][]*types.BlobTxSidecar, len(p.BlockBodiesPacket))
+		txset    = make([][]*types.Transaction, len(p.BlockBodiesPacket))
+		uncleset = make([][]*types.Header, len(p.BlockBodiesPacket))
 	)
 	for i, body := range p.BlockBodiesPacket {
-		txset[i], uncleset[i], sidecarset[i] = body.Transactions, body.Uncles, p.Sidecars[i]
+		txset[i], uncleset[i] = body.Transactions, body.Uncles
 	}
-	return txset, uncleset, sidecarset
+	return txset, uncleset, p.Sidecars
 }
 
 // GetNodeDataPacket represents a trie node data query.

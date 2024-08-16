@@ -38,6 +38,7 @@ import (
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/trie"
 )
 
@@ -866,5 +867,66 @@ func testBroadcastMalformedBlock(t *testing.T, protocol uint) {
 			t.Fatalf("malformed block forwarded")
 		case <-time.After(100 * time.Millisecond):
 		}
+	}
+}
+
+// Block bodies packet with sidecars' length that are not either 0 or the same as number of
+// blocks is rejected
+func TestMalformedBlockBodiesPacket100(t *testing.T) {
+	t.Parallel()
+
+	// Create a sinkHandler handler to broadcast blocks from and a number of sinks
+	// to receive them.
+	sinkHandler := newTestHandler()
+	defer sinkHandler.close()
+
+	// Create a source handler to send messages through and a sink peer to receive them
+	p2pSink, p2pSrc := p2p.MsgPipe()
+	defer p2pSink.Close()
+	defer p2pSrc.Close()
+
+	sink := eth.NewPeer(eth.ETH100, p2p.NewPeerPipe(enode.ID{1}, "", nil, p2pSink), p2pSink, sinkHandler.txpool)
+	src := eth.NewPeer(eth.ETH100, p2p.NewPeerPipe(enode.ID{2}, "", nil, p2pSrc), p2pSrc, sinkHandler.txpool)
+	defer sink.Close()
+	defer src.Close()
+
+	sinkErr := make(chan error)
+	go func(sinkErr chan<- error) {
+		err := sinkHandler.handler.runEthPeer(sink, func(peer *eth.Peer) error {
+			return eth.Handle((*ethHandler)(sinkHandler.handler), peer)
+		})
+		sinkErr <- err
+	}(sinkErr)
+	// Run the handshake locally to avoid spinning up a sink handler
+	var (
+		genesis = sinkHandler.chain.Genesis()
+		td      = sinkHandler.chain.GetTd(genesis.Hash(), genesis.NumberU64())
+	)
+	if err := src.Handshake(1, td, genesis.Hash(), genesis.Hash(), forkid.NewIDWithChain(sinkHandler.chain), forkid.NewFilter(sinkHandler.chain)); err != nil {
+		t.Fatalf("failed to run protocol handshake")
+	}
+
+	bodies := []*eth.BlockBody{{}, {}}
+	var bodiesRlp []rlp.RawValue
+	for _, body := range bodies {
+		raw, err := rlp.EncodeToBytes(body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		bodiesRlp = append(bodiesRlp, raw)
+	}
+
+	// Malformed packets with 2 block bodies but 1 list of sidecars
+	err := src.ReplyBlockBodiesRLP100(1, bodiesRlp, [][]*types.BlobTxSidecar{{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	timeout := time.NewTimer(5 * time.Second)
+	select {
+	case err := <-sinkErr:
+		t.Logf("Expect invalid len of fields error, %v", err)
+	case <-timeout.C:
+		t.Fatal("Expect an error when handling packet")
 	}
 }
