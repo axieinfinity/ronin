@@ -259,11 +259,9 @@ func (h *handler) doSync(op *chainSyncOp) error {
 		// scenario will most often crop up in private and hackathon networks with
 		// degenerate connectivity, but it should be healthy for the mainnet too to
 		// more reliably update peers or the local TD state.
-		var sidecars []*types.BlobTxSidecar
-		for _, blobSidecar := range rawdb.ReadBlobSidecars(h.database, head.Hash(), head.NumberU64()) {
-			sidecars = append(sidecars, &blobSidecar.BlobTxSidecar)
-		}
-		h.BroadcastBlock(head, sidecars, false)
+		// We only announce block hash to the network so don't need to read sidecar
+		// here.
+		h.BroadcastBlock(head, nil, false)
 	}
 	return nil
 }
