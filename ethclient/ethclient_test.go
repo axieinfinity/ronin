@@ -31,13 +31,16 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/ethash"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
+	"github.com/ethereum/go-ethereum/core/txpool/blobpool"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 	"github.com/ethereum/go-ethereum/eth"
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
 	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/holiman/uint256"
 )
 
 // Verify that Client implements the ethereum interfaces.
@@ -188,7 +191,7 @@ var (
 )
 
 var genesis = &core.Genesis{
-	Config:    params.AllEthashProtocolChanges,
+	Config:    params.TestChainConfig,
 	Alloc:     core.GenesisAlloc{testAddr: {Balance: testBalance}},
 	ExtraData: []byte("test genesis"),
 	Timestamp: 9000,
@@ -211,9 +214,33 @@ var testTx2 = types.MustSignNewTx(testKey, types.LatestSigner(genesis.Config), &
 	To:       &common.Address{2},
 })
 
-func newTestBackend(t *testing.T) (*node.Node, []*types.Block) {
+var (
+	emptyBlob          = kzg4844.Blob{}
+	emptyBlobs         = []kzg4844.Blob{emptyBlob}
+	emptyBlobCommit, _ = kzg4844.BlobToCommitment(&emptyBlob)
+	emptyBlobProof, _  = kzg4844.ComputeBlobProof(&emptyBlob, emptyBlobCommit)
+
+	emptyBlobTxSidecar = types.BlobTxSidecar{
+		Blobs:       emptyBlobs,
+		Commitments: []kzg4844.Commitment{emptyBlobCommit},
+		Proofs:      []kzg4844.Proof{emptyBlobProof},
+	}
+)
+
+var blobTx = types.MustSignNewTx(testKey, types.LatestSigner(genesis.Config), &types.BlobTx{
+	Nonce:      2,
+	To:         common.Address{2},
+	BlobHashes: []common.Hash{{0x01, 0x02}},
+	BlobFeeCap: uint256.MustFromBig(common.Big1),
+	Sidecar:    &emptyBlobTxSidecar,
+	Gas:        params.TxGas,
+	GasTipCap:  uint256.MustFromBig(common.Big1),
+	GasFeeCap:  uint256.MustFromBig(big.NewInt(100)),
+})
+
+func newTestBackend(t *testing.T) (*node.Node, []*types.Block, [][]*types.BlobTxSidecar, [][]common.Hash) {
 	// Generate test chain.
-	blocks := generateTestChain()
+	blocks, blobSidecars, blobTxHashes := generateTestChain()
 
 	// Create node
 	n, err := node.New(&node.Config{})
@@ -221,7 +248,9 @@ func newTestBackend(t *testing.T) (*node.Node, []*types.Block) {
 		t.Fatalf("can't create new node: %v", err)
 	}
 	// Create Ethereum Service
-	config := &ethconfig.Config{Genesis: genesis}
+	genesis.Config.CancunBlock = common.Big1
+	config := &ethconfig.Config{Genesis: genesis, BlobPool: blobpool.Config{}}
+	config.Genesis.Config.CancunBlock = common.Big1
 	config.Ethash.PowMode = ethash.ModeFake
 	ethservice, err := eth.New(n, config)
 	if err != nil {
@@ -231,14 +260,17 @@ func newTestBackend(t *testing.T) (*node.Node, []*types.Block) {
 	if err := n.Start(); err != nil {
 		t.Fatalf("can't start test node: %v", err)
 	}
-	if _, err := ethservice.BlockChain().InsertChain(blocks[1:], nil); err != nil {
+	if _, err := ethservice.BlockChain().InsertChain(blocks[1:], blobSidecars[1:]); err != nil {
 		t.Fatalf("can't import test blocks: %v", err)
 	}
-	return n, blocks
+	return n, blocks, blobSidecars, blobTxHashes
 }
 
-func generateTestChain() []*types.Block {
+func generateTestChain() ([]*types.Block, [][]*types.BlobTxSidecar, [][]common.Hash) {
 	db := rawdb.NewMemoryDatabase()
+	blobSidecars := make([][]*types.BlobTxSidecar, 0)
+	blobTxHashes := make([][]common.Hash, 0)
+
 	generate := func(i int, g *core.BlockGen) {
 		g.OffsetTime(5)
 		g.SetExtra([]byte("test"))
@@ -246,17 +278,28 @@ func generateTestChain() []*types.Block {
 			// Test transactions are included in block #2.
 			g.AddTx(testTx1)
 			g.AddTx(testTx2)
+			g.AddTx(blobTx)
+
+			blobSidecars = append(blobSidecars, []*types.BlobTxSidecar{blobTx.BlobTxSidecar()})
+			blobTxHashes = append(blobTxHashes, []common.Hash{blobTx.Hash()})
+		} else {
+			blobSidecars = append(blobSidecars, []*types.BlobTxSidecar{})
+			blobTxHashes = append(blobTxHashes, []common.Hash{})
 		}
 	}
 	gblock := genesis.ToBlock(db)
 	engine := ethash.NewFaker()
 	blocks, _ := core.GenerateChain(genesis.Config, gblock, engine, db, 2, generate, true)
+	// add genesis blob/sidecars/txhash to the begining of the list
 	blocks = append([]*types.Block{gblock}, blocks...)
-	return blocks
+	blobSidecars = append([][]*types.BlobTxSidecar{[]*types.BlobTxSidecar{}}, blobSidecars...)
+	blobTxHashes = append([][]common.Hash{[]common.Hash{}}, blobTxHashes...)
+
+	return blocks, blobSidecars, blobTxHashes
 }
 
 func TestEthClient(t *testing.T) {
-	backend, chain := newTestBackend(t)
+	backend, chain, blobSidecars, blobTxHashes := newTestBackend(t)
 	client, _ := backend.Attach()
 	defer backend.Close()
 	defer client.Close()
@@ -290,6 +333,9 @@ func TestEthClient(t *testing.T) {
 		},
 		"TransactionSender": {
 			func(t *testing.T) { testTransactionSender(t, client) },
+		},
+		"GetBlobSidecars": {
+			func(t *testing.T) { testGetBlobSidecars(t, chain, blobSidecars, blobTxHashes, client) },
 		},
 	}
 
@@ -419,7 +465,7 @@ func testChainID(t *testing.T, client *rpc.Client) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if id == nil || id.Cmp(params.AllEthashProtocolChanges.ChainID) != 0 {
+	if id == nil || id.Cmp(params.TestChainConfig.ChainID) != 0 {
 		t.Fatalf("ChainID returned wrong number: %+v", id)
 	}
 }
@@ -668,4 +714,71 @@ func sendTransaction(ec *Client) error {
 		return err
 	}
 	return ec.SendTransaction(context.Background(), tx)
+}
+
+func testGetBlobSidecars(t *testing.T, chain []*types.Block, blobSidecars [][]*types.BlobTxSidecar, blobTxHashes [][]common.Hash, client *rpc.Client) {
+	tests := map[string]struct {
+		blkNum  *big.Int
+		blkHash common.Hash
+		want    types.BlobSidecars
+		wantErr error
+	}{
+		"first_block_blob_notfound_by_number": {
+			blkNum:  chain[1].Number(),
+			wantErr: ethereum.NotFound,
+		},
+		"first_block_blob_notfound_by_hash": {
+			blkHash: chain[1].Hash(),
+			wantErr: ethereum.NotFound,
+		},
+		"second_block_by_hash": {
+			blkHash: chain[2].Hash(),
+			want: types.BlobSidecars{
+				&types.BlobSidecar{
+					BlobTxSidecar: *blobSidecars[2][0],
+					TxHash:        blobTxHashes[2][0],
+				},
+			},
+		},
+		"second_block_by_number": {
+			blkNum: chain[2].Number(),
+			want: types.BlobSidecars{
+				&types.BlobSidecar{
+					BlobTxSidecar: *blobSidecars[2][0],
+					TxHash:        blobTxHashes[2][0],
+				},
+			},
+		},
+		"future_block": {
+			blkNum: big.NewInt(1000000),
+			wantErr: ethereum.NotFound,
+		},
+	}
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			ec := NewClient(client)
+			ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+			defer cancel()
+
+			var (
+				got    types.BlobSidecars
+				gotErr error
+			)
+			if tt.blkHash != (common.Hash{}) {
+				got, gotErr = ec.BlobSidecarsByHash(ctx, tt.blkHash)
+			}
+			if tt.blkNum != nil {
+				got, gotErr = ec.BlobSidecarsByNumber(ctx, tt.blkNum)
+			}
+			if !errors.Is(gotErr, tt.wantErr) {
+				t.Fatalf("got wrong error, got %v, want %s", gotErr, tt.wantErr)
+			}
+			if len(got) != len(tt.want) {
+				t.Fatal("mistmatch len")
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Fatalf("Failed to get BlobSidecarsByHash, got %v, want %v", got, tt.want)
+			}
+		})
+	}
 }
