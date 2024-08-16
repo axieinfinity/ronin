@@ -557,6 +557,14 @@ func applyMessage(
 	// Create a new context to be used in the EVM environment
 	opts.EVMContext.CurrentTransaction = tx
 	from, _ := types.Sender(types.MakeSigner(opts.ChainConfig, opts.Header.Number), tx)
+
+	chainRules := opts.ChainConfig.Rules(opts.Header.Number)
+	if chainRules.IsShanghai {
+		opts.State.Prepare(chainRules, from, from, tx.To(), vm.ActivePrecompiles(chainRules), nil)
+	} else if chainRules.IsBerlin {
+		opts.State.ResetAccessList()
+	}
+
 	// Create a new environment which holds all relevant information
 	// about the transaction and calling mechanisms.
 	vmenv := vm.NewEVM(*opts.EVMContext, vm.TxContext{Origin: from, GasPrice: big.NewInt(0)}, opts.State, opts.ChainConfig, vm.Config{})
