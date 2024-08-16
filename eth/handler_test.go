@@ -209,12 +209,12 @@ func randBlob() (*kzg4844.Blob, *kzg4844.Commitment, *kzg4844.Proof) {
 func newTestHandlerWithBlocks100(blocks int) (*testHandler, []*types.BlobTxSidecar) {
 	privateKey, _ := crypto.GenerateKey()
 	address := crypto.PubkeyToAddress(privateKey.PublicKey)
-	chainConfig := params.TestChainConfig
+	chainConfig := *params.TestChainConfig
 	chainConfig.RoninTreasuryAddress = &address
 	db := rawdb.NewMemoryDatabase()
 	engine := ethash.NewFaker()
 	gspec := &core.Genesis{
-		Config: chainConfig,
+		Config: &chainConfig,
 		Alloc: core.GenesisAlloc{
 			address: {
 				Balance: big.NewInt(1000000000),
@@ -222,7 +222,7 @@ func newTestHandlerWithBlocks100(blocks int) (*testHandler, []*types.BlobTxSidec
 		},
 	}
 	gspec.MustCommit(db)
-	chain, err := core.NewBlockChain(db, nil, chainConfig, engine, vm.Config{}, nil, nil)
+	chain, err := core.NewBlockChain(db, nil, &chainConfig, engine, vm.Config{}, nil, nil)
 	if err != nil {
 		panic(err)
 	}
@@ -241,7 +241,7 @@ func newTestHandlerWithBlocks100(blocks int) (*testHandler, []*types.BlobTxSidec
 	for i := 0; i < blocks; i++ {
 		sidecars[i] = sidecar
 	}
-	bs, _ := core.GenerateChain(chainConfig, chain.Genesis(), ethash.NewFaker(), db, blocks, func(i int, bg *core.BlockGen) {
+	bs, _ := core.GenerateChain(&chainConfig, chain.Genesis(), ethash.NewFaker(), db, blocks, func(i int, bg *core.BlockGen) {
 		tx, err := types.SignNewTx(privateKey, signer, &types.BlobTx{
 			ChainID:    uint256.MustFromBig(chainConfig.ChainID),
 			Nonce:      uint64(i),
