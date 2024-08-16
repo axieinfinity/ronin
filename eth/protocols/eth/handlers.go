@@ -364,6 +364,11 @@ func handleBlockBodies100(backend Backend, msg Decoder, peer *Peer) error {
 	if err := msg.Decode(res); err != nil {
 		return fmt.Errorf("%w: message %v: %v", errDecode, msg, err)
 	}
+	if len(res.Sidecars) != 0 && len(res.Sidecars) != len(res.BlockBodiesPacket) {
+		return fmt.Errorf("%w: message %v: invalid len of fields: %v %v",
+			errDecode, msg, len(res.BlockBodiesPacket), len(res.Sidecars))
+	}
+
 	requestTracker.Fulfil(peer.id, peer.version, BlockBodiesMsg, res.RequestId)
 
 	return backend.Handle(peer, res)
