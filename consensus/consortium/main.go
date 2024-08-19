@@ -49,7 +49,7 @@ func (c *Consortium) Author(header *types.Header) (common.Address, error) {
 }
 
 // VerifyBlobHeader implements consensus.Engine, verifies a block's header blob and corresponding sidecar
-func (c *Consortium) VerifyBlobHeader(block *types.Block, sidecars []*types.BlobTxSidecar) error {
+func (c *Consortium) VerifyBlobHeader(block *types.Block, sidecars *[]*types.BlobTxSidecar) error {
 	if c.chainConfig.IsConsortiumV2(block.Header().Number) && c.chainConfig.IsCancun(block.Header().Number) {
 		return c.v2.VerifyBlobHeader(block, sidecars)
 	}

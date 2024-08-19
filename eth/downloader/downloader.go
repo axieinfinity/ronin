@@ -1726,7 +1726,7 @@ func (d *Downloader) importBlockResults(results []*fetchResult) error {
 	sidecars := make([][]*types.BlobTxSidecar, len(results))
 	for i, result := range results {
 		blocks[i] = types.NewBlockWithHeader(result.Header).WithBody(result.Transactions, result.Uncles)
-		if err := d.verifyBlobHeader(blocks[i], result.Sidecars); err != nil {
+		if err := d.verifyBlobHeader(blocks[i], &result.Sidecars); err != nil {
 			return fmt.Errorf("%w: %v", errInvalidBody, err)
 		}
 		sidecars[i] = result.Sidecars
