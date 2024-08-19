@@ -124,8 +124,8 @@ func (f *fetcherTester) verifyHeader(header *types.Header) error {
 }
 
 // verifyBlobHeader is a non placeholder for the blob header verification.
-func (f *fetcherTester) verifyBlobHeader(block *types.Block, sidecars []*types.BlobTxSidecar) (error, *types.BlobSidecars) {
-	return nil, nil
+func (f *fetcherTester) verifyBlobHeader(block *types.Block, sidecars []*types.BlobTxSidecar) error {
+	return nil
 }
 
 // broadcastBlock is a nop placeholder for the block broadcasting.

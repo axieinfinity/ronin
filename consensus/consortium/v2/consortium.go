@@ -210,38 +210,28 @@ func (c *Consortium) Author(header *types.Header) (common.Address, error) {
 }
 
 // VerifyBlobHeader verifies a block's header blob and corresponding sidecar, returning BlobSideCars
-func (c *Consortium) VerifyBlobHeader(block *types.Block, sidecars []*types.BlobTxSidecar) (error, *types.BlobSidecars) {
+func (c *Consortium) VerifyBlobHeader(block *types.Block, sidecars []*types.BlobTxSidecar) error {
 	nCommitments := 0
 	for _, sidecar := range sidecars {
 		nCommitments += len(sidecar.Commitments)
 	}
 	if nCommitments > params.MaxBlobsPerBlock {
-		return fmt.Errorf("blobs per block limit exceeded, blobs: %d, limit: %d", nCommitments, params.MaxBlobsPerBlock), nil
+		return fmt.Errorf("blobs per block limit exceeded, blobs: %d, limit: %d", nCommitments, params.MaxBlobsPerBlock)
 	}
 	header := block.Header()
 	if c.skipBlobCheck(header) {
-		return nil, nil
+		return nil
 	}
 	if err := c.verifyVersionHash(block, sidecars); err != nil {
-		return err, nil
+		return err
 	}
 	for _, sidecar := range sidecars {
 		if err := c.verifySidecar(*sidecar); err != nil {
-			return err, nil
+			return err
 		}
 	}
-	blobSidecars := types.BlobSidecars{}
-	curIndex := 0
-	for _, tx := range block.Transactions() {
-		if tx.Type() == types.BlobTxType {
-			blobSidecars = append(blobSidecars, &types.BlobSidecar{
-				BlobTxSidecar: *sidecars[curIndex],
-				TxHash:        tx.Hash(),
-			})
-			curIndex++
-		}
-	}
-	return nil, &blobSidecars
+
+	return nil
 }
 
 // skipBlobCheck checks whether the blob is still kept
