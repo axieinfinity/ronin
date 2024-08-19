@@ -214,6 +214,9 @@ func (c *Consortium) Author(header *types.Header) (common.Address, error) {
 func (c *Consortium) VerifyBlobHeader(block *types.Block, sidecars *[]*types.BlobTxSidecar) error {
 	nCommitments := 0
 	for _, sidecar := range *sidecars {
+		if sidecar == nil {
+			return fmt.Errorf("nil sidecar")
+		}
 		nCommitments += len(sidecar.Commitments)
 	}
 	if nCommitments > params.MaxBlobsPerBlock {
