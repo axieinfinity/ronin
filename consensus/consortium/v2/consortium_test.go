@@ -2628,9 +2628,12 @@ func TestVerifyBlobHeader(t *testing.T) {
 		Time: uint64(time.Now().Unix() - int64(blobKeepPeriod) - 1000),
 	}, txs, []*types.Header{}, []*types.Receipt{}, trie.NewStackTrie(nil))
 
-	err := c.VerifyBlobHeader(block, sidecars)
+	err := c.VerifyBlobHeader(block, &sidecars)
 	if err != nil {
 		t.Fatal("Expected blob check to be skipped, err:", err)
+	}
+	if len(sidecars) != 0 {
+		t.Fatal("Expected sidecars to be cleared")
 	}
 
 	// Test 2: Block with expired blobs, invalid sidecars
@@ -2638,19 +2641,39 @@ func TestVerifyBlobHeader(t *testing.T) {
 		Time: uint64(time.Now().Unix() - int64(blobKeepPeriod) - 1000),
 	}, txs, []*types.Header{}, []*types.Receipt{}, trie.NewStackTrie(nil))
 
-	err = c.VerifyBlobHeader(block, fakeSidecars)
+	err = c.VerifyBlobHeader(block, &fakeSidecars)
 	if err != nil {
 		t.Fatal("Expected blob check to be skipped, err:", err)
 	}
+	if len(fakeSidecars) != 0 {
+		t.Fatal("Expected sidecars to be cleared")
+	}
+
+	// Create txs again since sidecars are cleared
+	txs = []*types.Transaction{}
+	randTx, randSidecar = randTxsWithBlobs(2)
+	_, randFakeSidecar = randTxsWithBlobs(2)
+	txs = append(txs, randTx)
+	sidecars = append(sidecars, randSidecar)
+	fakeSidecars = append(fakeSidecars, randFakeSidecar)
+
+	randTx, randSidecar = randTxsWithBlobs(3)
+	_, randFakeSidecar = randTxsWithBlobs(3)
+	txs = append(txs, randTx)
+	sidecars = append(sidecars, randSidecar)
+	fakeSidecars = append(fakeSidecars, randFakeSidecar)
 
 	// Test 3: Block with valid blobs, valid sidecars
 	block = types.NewBlock(&types.Header{
 		Time: uint64(time.Now().Unix()),
 	}, txs, []*types.Header{}, []*types.Receipt{}, trie.NewStackTrie(nil))
 
-	err = c.VerifyBlobHeader(block, sidecars)
+	err = c.VerifyBlobHeader(block, &sidecars)
 	if err != nil {
 		t.Fatal("Expected blob check to pass, err:", err)
+	}
+	if len(sidecars) != 2 {
+		t.Fatal("Expected sidecars to be kept")
 	}
 
 	// Test 4: Block with valid blobs, invalid sidecars
@@ -2658,9 +2681,12 @@ func TestVerifyBlobHeader(t *testing.T) {
 		Time: uint64(time.Now().Unix()),
 	}, txs, []*types.Header{}, []*types.Receipt{}, trie.NewStackTrie(nil))
 
-	err = c.VerifyBlobHeader(block, fakeSidecars)
+	err = c.VerifyBlobHeader(block, &fakeSidecars)
 	if err == nil {
 		t.Fatal("Expected blob check to fail due to invalid sidecars")
+	}
+	if len(fakeSidecars) != 2 {
+		t.Fatal("Expected sidecars to be kept")
 	}
 
 	// Test 5: Block with valid blobs, valid commitments, but invalid proofs
@@ -2668,7 +2694,7 @@ func TestVerifyBlobHeader(t *testing.T) {
 		Time: uint64(time.Now().Unix()),
 	}, txs, []*types.Header{}, []*types.Receipt{}, trie.NewStackTrie(nil))
 
-	err = c.VerifyBlobHeader(block, []*types.BlobTxSidecar{
+	err = c.VerifyBlobHeader(block, &[]*types.BlobTxSidecar{
 		{
 			Blobs:       sidecars[0].Blobs,
 			Commitments: sidecars[0].Commitments,
@@ -2685,10 +2711,13 @@ func TestVerifyBlobHeader(t *testing.T) {
 	block = types.NewBlock(&types.Header{
 		Time: uint64(time.Now().Unix()),
 	}, txs, []*types.Header{}, []*types.Receipt{}, trie.NewStackTrie(nil))
-
-	err = c.VerifyBlobHeader(block, sidecars[:len(sidecars)-1])
+	missingSidecars := sidecars[:len(sidecars)-1]
+	err = c.VerifyBlobHeader(block, &missingSidecars)
 	if err == nil {
 		t.Fatal("Expected blob check to fail due to invalid commitments' length")
+	}
+	if len(missingSidecars) != 1 {
+		t.Fatal("Expected sidecars to be kept")
 	}
 
 	// Test 7: Block with exceeding blobs
@@ -2700,8 +2729,11 @@ func TestVerifyBlobHeader(t *testing.T) {
 		Time: uint64(time.Now().Unix()),
 	}, txs, []*types.Header{}, []*types.Receipt{}, trie.NewStackTrie(nil))
 
-	err = c.VerifyBlobHeader(block, sidecars)
+	err = c.VerifyBlobHeader(block, &sidecars)
 	if err == nil {
 		t.Fatal("Expected blob check to fail due to exceeding blobs")
+	}
+	if len(sidecars) != 3 {
+		t.Fatal("Expected sidecars to be kept")
 	}
 }

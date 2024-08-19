@@ -83,7 +83,7 @@ type bodyRequesterFn func([]common.Hash) error
 type headerVerifierFn func(header *types.Header) error
 
 // blobHeaderVerifierFn is a callback type to verify a block's blobs
-type blobHeaderVerifierFn func(block *types.Block, sidecars []*types.BlobTxSidecar) error
+type blobHeaderVerifierFn func(block *types.Block, sidecars *[]*types.BlobTxSidecar) error
 
 // blockBroadcasterFn is a callback type for broadcasting a block to connected peers.
 type blockBroadcasterFn func(block *types.Block, sidecars []*types.BlobTxSidecar, propagate bool)
@@ -825,7 +825,9 @@ func (f *BlockFetcher) importBlocks(peer string, block *types.Block, sidecars []
 		// Quickly validate the header and propagate the block if it passes
 		err := f.verifyHeader(block.Header())
 		if err == nil {
-			err = f.verifyBlobHeader(block, sidecars)
+			if f.verifyBlobHeader != nil {
+				err = f.verifyBlobHeader(block, &sidecars)
+			}
 		}
 		switch err {
 		case nil:
