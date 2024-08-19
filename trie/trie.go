@@ -587,3 +587,12 @@ func (t *Trie) Reset() {
 	t.root = nil
 	t.unhashed = 0
 }
+
+// Copy returns a copy of Trie.
+func (t *Trie) Copy() *Trie {
+	return &Trie{
+		db:       t.db,
+		root:     t.root,
+		unhashed: t.unhashed,
+	}
+}
