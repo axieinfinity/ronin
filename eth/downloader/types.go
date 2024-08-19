@@ -26,7 +26,7 @@ import (
 type peerDropFn func(id string)
 
 // blobHeaderVerifierFn is a callback type to verify a block's blobs
-type blobHeaderVerifierFn func(block *types.Block, sidecars []*types.BlobTxSidecar) error
+type blobHeaderVerifierFn func(block *types.Block, sidecars *[]*types.BlobTxSidecar) error
 
 // dataPack is a data message returned by a peer for some query.
 type dataPack interface {
