@@ -849,7 +849,7 @@ func (f *BlockFetcher) importBlocks(peer string, block *types.Block, sidecars []
 		}
 		// If import succeeded, broadcast the block
 		blockAnnounceOutTimer.UpdateSince(block.ReceivedAt)
-		go f.broadcastBlock(block, sidecars, false)
+		go f.broadcastBlock(block, nil, false)
 
 		// Invoke the testing hook if needed
 		if f.importedHook != nil {
