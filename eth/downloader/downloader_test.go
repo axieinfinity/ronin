@@ -411,8 +411,8 @@ func (dl *downloadTester) dropPeer(id string) {
 }
 
 // verifyBlobHeader is a non placeholder for the blob header verification.
-func (dl *downloadTester) verifyBlobHeader(block *types.Block, sidecars []*types.BlobTxSidecar) (error, *types.BlobSidecars) {
-	return nil, nil
+func (dl *downloadTester) verifyBlobHeader(block *types.Block, sidecars []*types.BlobTxSidecar) error {
+	return nil
 }
 
 // Snapshots implements the BlockChain interface for the downloader, but is a noop.
