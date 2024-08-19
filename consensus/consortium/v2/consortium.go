@@ -209,10 +209,14 @@ func (c *Consortium) Author(header *types.Header) (common.Address, error) {
 	return header.Coinbase, nil
 }
 
-// VerifyBlobHeader verifies a block's header blob and corresponding sidecar, returning BlobSideCars
-func (c *Consortium) VerifyBlobHeader(block *types.Block, sidecars []*types.BlobTxSidecar) error {
+// VerifyBlobHeader verifies a block's header blob and corresponding sidecar
+// if skipBlobCheck due to old block, clear the sidecars
+func (c *Consortium) VerifyBlobHeader(block *types.Block, sidecars *[]*types.BlobTxSidecar) error {
 	nCommitments := 0
-	for _, sidecar := range sidecars {
+	for _, sidecar := range *sidecars {
+		if sidecar == nil {
+			return fmt.Errorf("nil sidecar")
+		}
 		nCommitments += len(sidecar.Commitments)
 	}
 	if nCommitments > params.MaxBlobsPerBlock {
@@ -220,12 +224,13 @@ func (c *Consortium) VerifyBlobHeader(block *types.Block, sidecars []*types.Blob
 	}
 	header := block.Header()
 	if c.skipBlobCheck(header) {
+		*sidecars = []*types.BlobTxSidecar{}
 		return nil
 	}
-	if err := c.verifyVersionHash(block, sidecars); err != nil {
+	if err := c.verifyVersionHash(block, *sidecars); err != nil {
 		return err
 	}
-	for _, sidecar := range sidecars {
+	for _, sidecar := range *sidecars {
 		if err := c.verifySidecar(*sidecar); err != nil {
 			return err
 		}

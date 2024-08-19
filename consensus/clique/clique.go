@@ -215,7 +215,7 @@ func (c *Clique) Author(header *types.Header) (common.Address, error) {
 }
 
 // VerifyBlobHeader only available in v2
-func (c *Clique) VerifyBlobHeader(block *types.Block, sidecars []*types.BlobTxSidecar) error {
+func (c *Clique) VerifyBlobHeader(block *types.Block, sidecars *[]*types.BlobTxSidecar) error {
 	return nil
 }
 
