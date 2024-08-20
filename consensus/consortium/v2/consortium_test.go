@@ -2625,7 +2625,7 @@ func TestVerifyBlobHeader(t *testing.T) {
 
 	// Test 1: Block with expired blobs, valid sidecars
 	block := types.NewBlock(&types.Header{
-		Time: uint64(time.Now().Unix() - int64(blobKeepPeriod) - 1000),
+		Time: uint64(time.Now().Unix() - int64(params.BlobKeepPeriod) - 1000),
 	}, txs, []*types.Header{}, []*types.Receipt{}, trie.NewStackTrie(nil))
 
 	err := c.VerifyBlobHeader(block, &sidecars)
@@ -2638,7 +2638,7 @@ func TestVerifyBlobHeader(t *testing.T) {
 
 	// Test 2: Block with expired blobs, invalid sidecars
 	block = types.NewBlock(&types.Header{
-		Time: uint64(time.Now().Unix() - int64(blobKeepPeriod) - 1000),
+		Time: uint64(time.Now().Unix() - int64(params.BlobKeepPeriod) - 1000),
 	}, txs, []*types.Header{}, []*types.Receipt{}, trie.NewStackTrie(nil))
 
 	err = c.VerifyBlobHeader(block, &fakeSidecars)
