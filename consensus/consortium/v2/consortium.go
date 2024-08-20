@@ -54,8 +54,6 @@ const (
 	assemblingFinalityVoteDuration         = 1 * time.Second
 	MaxValidatorCandidates                 = 64 // Maximum number of validator candidates.
 	dayInSeconds                           = uint64(86400)
-
-	blobKeepPeriod = 18 * 24 * time.Hour // The period of time before which the blob is pruned
 )
 
 // Consortium delegated proof-of-stake protocol constants.
@@ -241,7 +239,7 @@ func (c *Consortium) VerifyBlobHeader(block *types.Block, sidecars *[]*types.Blo
 
 // skipBlobCheck checks whether the blob is still kept
 func (c *Consortium) skipBlobCheck(header *types.Header) bool {
-	return time.Unix(int64(header.Time), 0).Add(blobKeepPeriod).Before(time.Now())
+	return time.Unix(int64(header.Time), 0).Add(params.BlobKeepPeriod).Before(time.Now())
 }
 
 // verifyVersionHash checks whether the blob hashes in the block match the commitments in the sidecars
