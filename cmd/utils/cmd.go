@@ -162,6 +162,7 @@ func ImportChain(chain *core.BlockChain, fn string) error {
 
 	// Run actual the import.
 	blocks := make(types.Blocks, importBatchSize)
+	sidecars := make([][]*types.BlobTxSidecar, importBatchSize)
 	n := 0
 	for batch := 0; ; batch++ {
 		// Load a batch of RLP blocks.
@@ -182,6 +183,13 @@ func ImportChain(chain *core.BlockChain, fn string) error {
 				continue
 			}
 			blocks[i] = &b
+
+			var blockSidecars []*types.BlobTxSidecar
+			if err := stream.Decode(&blockSidecars); err != nil {
+				return fmt.Errorf("sidecars at block %d: %v", n, err)
+			}
+
+			sidecars[i] = blockSidecars
 			n++
 		}
 		if i == 0 {
@@ -191,35 +199,46 @@ func ImportChain(chain *core.BlockChain, fn string) error {
 		if checkInterrupt() {
 			return fmt.Errorf("interrupted")
 		}
-		missing := missingBlocks(chain, blocks[:i])
+		missing, sidecars := missingBlocks(chain, blocks[:i], sidecars[:i])
 		if len(missing) == 0 {
 			log.Info("Skipping batch as all blocks present", "batch", batch, "first", blocks[0].Hash(), "last", blocks[i-1].Hash())
 			continue
 		}
-		// TODO: support dump and import block with sidecars
-		if _, err := chain.InsertChain(missing, nil); err != nil {
+
+		for i := range missing {
+			err := chain.Engine().VerifyBlobHeader(missing[i], &sidecars[i])
+			if err != nil {
+				return fmt.Errorf("invalid sidecars %d: %v", missing[i].NumberU64(), err)
+			}
+		}
+
+		if _, err := chain.InsertChain(missing, sidecars); err != nil {
 			return fmt.Errorf("invalid block %d: %v", n, err)
 		}
 	}
 	return nil
 }
 
-func missingBlocks(chain *core.BlockChain, blocks []*types.Block) []*types.Block {
+func missingBlocks(
+	chain *core.BlockChain,
+	blocks []*types.Block,
+	sidecars [][]*types.BlobTxSidecar,
+) ([]*types.Block, [][]*types.BlobTxSidecar) {
 	head := chain.CurrentBlock()
 	for i, block := range blocks {
 		// If we're behind the chain head, only check block, state is available at head
 		if head.NumberU64() > block.NumberU64() {
 			if !chain.HasBlock(block.Hash(), block.NumberU64()) {
-				return blocks[i:]
+				return blocks[i:], sidecars[i:]
 			}
 			continue
 		}
 		// If we're above the chain head, state availability is a must
 		if !chain.HasBlockAndState(block.Hash(), block.NumberU64()) {
-			return blocks[i:]
+			return blocks[i:], sidecars[i:]
 		}
 	}
-	return nil
+	return nil, nil
 }
 
 // ExportChain exports a blockchain into the specified file, truncating any data

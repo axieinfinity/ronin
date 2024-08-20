@@ -233,6 +233,7 @@ func (api *PrivateAdminAPI) ImportChain(file string) (bool, error) {
 	stream := rlp.NewStream(reader, 0)
 
 	blocks, index := make([]*types.Block, 0, 2500), 0
+	sidecars := make([][]*types.BlobTxSidecar, 0, cap(blocks))
 	for batch := 0; ; batch++ {
 		// Load a batch of blocks from the input file
 		for len(blocks) < cap(blocks) {
@@ -243,6 +244,13 @@ func (api *PrivateAdminAPI) ImportChain(file string) (bool, error) {
 				return false, fmt.Errorf("block %d: failed to parse: %v", index, err)
 			}
 			blocks = append(blocks, block)
+
+			var blockSidecars []*types.BlobTxSidecar
+			if err := stream.Decode(&blockSidecars); err != nil {
+				return false, fmt.Errorf("block %d: failed to parse sidecars: %v", index, err)
+			}
+			sidecars = append(sidecars, blockSidecars)
+
 			index++
 		}
 		if len(blocks) == 0 {
@@ -253,9 +261,16 @@ func (api *PrivateAdminAPI) ImportChain(file string) (bool, error) {
 			blocks = blocks[:0]
 			continue
 		}
+
+		for i := range blocks {
+			err := api.eth.BlockChain().Engine().VerifyBlobHeader(blocks[i], &sidecars[i])
+			if err != nil {
+				return false, fmt.Errorf("invalid sidecars %d: %v", blocks[i].NumberU64(), err)
+			}
+		}
+
 		// Import the batch and reset the buffer
-		// TODO: support dump and import block with sidecars
-		if _, err := api.eth.BlockChain().InsertChain(blocks, nil); err != nil {
+		if _, err := api.eth.BlockChain().InsertChain(blocks, sidecars); err != nil {
 			return false, fmt.Errorf("batch %d: failed to insert: %v", batch, err)
 		}
 		blocks = blocks[:0]
