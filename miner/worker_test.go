@@ -810,4 +810,31 @@ func TestCommitBlobTransaction(t *testing.T) {
 			len(w.current.txs), w.current.header.GasUsed, *w.current.header.BlobGasUsed,
 		)
 	}
+
+	// Case 4: Blob sidecars should be discarded when commit blob transactions
+	w.current = newCurrent(t, signer, w.chain)
+	w.current.state.AddBalance(senderAddress1, new(big.Int).Exp(big.NewInt(10), big.NewInt(20), nil))
+	w.current.header.BlobGasUsed = new(uint64)
+	chainConfig.CancunBlock = common.Big0
+	w.chainConfig = chainConfig
+
+	blobTxs = make(map[common.Address][]*txpool.LazyTransaction)
+	blobTxs[senderAddress1] = append(blobTxs[senderAddress1], toLazyTransaction(blobTx1))
+	blobTxsByPrice = NewTransactionsByPriceAndNonce(signer, blobTxs, common.Big0)
+	failed = w.commitTransactions(plainTxsByPrice, blobTxsByPrice, senderAddress1, nil)
+	if failed {
+		t.Fatal("Commit transaction failed")
+	}
+	if len(w.current.txs) != 1 || w.current.header.GasUsed != 21000 {
+		t.Fatalf(
+			"Unexpected mined block, number of txs %d, gas used %d, blob gas used %d",
+			len(w.current.txs), w.current.header.GasUsed, *w.current.header.BlobGasUsed,
+		)
+	}
+	if w.current.txs[0].Type() != types.BlobTxType {
+		t.Fatal("Must be blob transaction")
+	}
+	if w.current.txs[0].BlobTxSidecar() != nil {
+		t.Fatal("Unexpected blob sidecars attached")
+	}
 }

@@ -886,7 +886,7 @@ func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Addres
 		w.current.state.RevertToSnapshot(snap)
 		return nil, err
 	}
-	w.current.txs = append(w.current.txs, tx)
+	w.current.txs = append(w.current.txs, tx.WithoutBlobTxSidecar())
 	w.current.receipts = append(w.current.receipts, receipt)
 	w.current.tcount++
 	w.current.estimatedBlockSize += uint64(tx.Size())
