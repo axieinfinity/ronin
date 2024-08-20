@@ -854,6 +854,16 @@ func (bc *BlockChain) ExportN(w io.Writer, first uint64, last uint64) error {
 		if err := block.EncodeRLP(w); err != nil {
 			return err
 		}
+
+		sidecars := bc.GetBlobSidecarsByHash(block.Hash())
+		exportedSidecars := make([]*types.BlobTxSidecar, 0, len(sidecars))
+		for _, sidecar := range sidecars {
+			exportedSidecars = append(exportedSidecars, &sidecar.BlobTxSidecar)
+		}
+		if err := rlp.Encode(w, exportedSidecars); err != nil {
+			return err
+		}
+
 		if time.Since(reported) >= statsReportLimit {
 			log.Info("Exporting blocks", "exported", block.NumberU64()-first, "elapsed", common.PrettyDuration(time.Since(start)))
 			reported = time.Now()
