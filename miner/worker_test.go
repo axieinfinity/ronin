@@ -646,6 +646,12 @@ func newCurrent(t *testing.T, signer types.Signer, chain *core.BlockChain) *envi
 	return env
 }
 
+type mockPool struct{}
+
+func (m *mockPool) Get(hash common.Hash) *types.Transaction {
+	return nil
+}
+
 func TestCommitBlobTransaction(t *testing.T) {
 	var (
 		emptyBlob          = new(kzg4844.Blob)
@@ -836,5 +842,38 @@ func TestCommitBlobTransaction(t *testing.T) {
 	}
 	if w.current.txs[0].BlobTxSidecar() != nil {
 		t.Fatal("Unexpected blob sidecars attached")
+	}
+
+	// Case 5: correctly handle evicted pending transaction
+	w.current = newCurrent(t, signer, w.chain)
+	w.current.state.AddBalance(senderAddress1, new(big.Int).Exp(big.NewInt(10), big.NewInt(20), nil))
+	w.current.state.AddBalance(senderAddress2, new(big.Int).Exp(big.NewInt(10), big.NewInt(20), nil))
+	w.current.header.BlobGasUsed = new(uint64)
+	chainConfig.CancunBlock = common.Big0
+	w.chainConfig = chainConfig
+
+	blobTxs = make(map[common.Address][]*txpool.LazyTransaction)
+
+	// Emulate an evicted pending transaction where Tx = nil and txpool returns nil when
+	// querying using transaction hash
+	var pool mockPool
+	blobTxs[senderAddress2] = append(blobTxs[senderAddress1], &txpool.LazyTransaction{
+		Tx:        nil,
+		GasFeeCap: uint256.NewInt(30_000_000_000),
+		GasTipCap: uint256.NewInt(30_000_000_000),
+		Pool:      &pool,
+	})
+	blobTxs[senderAddress1] = append(blobTxs[senderAddress1], toLazyTransaction(blobTx1))
+	blobTxsByPrice = NewTransactionsByPriceAndNonce(signer, blobTxs, common.Big0)
+	failed = w.commitTransactions(plainTxsByPrice, blobTxsByPrice, senderAddress1, nil)
+	if failed {
+		t.Fatal("Commit transaction failed")
+	}
+
+	if len(w.current.txs) != 1 || w.current.header.GasUsed != 21000 || *w.current.header.BlobGasUsed != 6*params.BlobTxBlobGasPerBlob {
+		t.Fatalf(
+			"Unexpected mined block, number of txs %d, gas used %d, blob gas used %d",
+			len(w.current.txs), w.current.header.GasUsed, *w.current.header.BlobGasUsed,
+		)
 	}
 }

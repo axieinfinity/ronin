@@ -1038,6 +1038,12 @@ Loop:
 		}
 
 		tx := selectedTx.Resolve()
+		if tx == nil {
+			log.Trace("Transaction is evicted from pool", "hash", selectedTx.Hash)
+			txs.Pop()
+			continue
+		}
+
 		// Error may be ignored here. The error has already been checked
 		// during transaction acceptance is the transaction pool.
 		//
