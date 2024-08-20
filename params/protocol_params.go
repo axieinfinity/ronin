@@ -18,6 +18,7 @@ package params
 
 import (
 	"math/big"
+	"time"
 )
 
 const (
@@ -182,6 +183,7 @@ const (
 	MaxBlobGasPerBlock          = 6 * BlobTxBlobGasPerBlob // Maximum consumable blob gas for data blobs per block
 	MaxBlobsPerBlock            = 6                        // Maximum number of data blobs per block
 	BlobPrunePeriod             = 518400                   // Number of blocks after which to prune old blob
+	BlobKeepPeriod              = 18 * 24 * time.Hour      // The approximate period of time before which the blob is pruned
 )
 
 // Gas discount table for BLS12-381 G1 and G2 multi exponentiation operations
