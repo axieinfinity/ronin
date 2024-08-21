@@ -190,6 +190,7 @@ func enable1153(jt *JumpTable) {
 		constantGas: params.WarmStorageReadCostEIP2929,
 		minStack:    minStack(2, 0),
 		maxStack:    maxStack(2, 0),
+		writes:      true,
 	}
 }
 
@@ -204,9 +205,6 @@ func opTload(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]by
 
 // opTstore implements TSTORE opcode
 func opTstore(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]byte, error) {
-	if interpreter.readOnly {
-		return nil, ErrWriteProtection
-	}
 	loc := scope.Stack.pop()
 	val := scope.Stack.pop()
 	interpreter.evm.StateDB.SetTransientState(scope.Contract.Address(), loc.Bytes32(), val.Bytes32())
