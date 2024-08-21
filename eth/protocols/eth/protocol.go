@@ -212,6 +212,11 @@ func (request *NewBlockPacket100) sanityCheck() error {
 	if tdlen := request.TD.BitLen(); tdlen > 100 {
 		return fmt.Errorf("too large block TD: bitlen %d", tdlen)
 	}
+	for _, tx := range request.Block.Transactions() {
+		if tx.BlobTxSidecar() != nil {
+			return fmt.Errorf("transaction in mined block should not contain sidecars")
+		}
+	}
 	return nil
 }
 

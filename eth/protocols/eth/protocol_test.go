@@ -23,7 +23,9 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/ethereum/go-ethereum/trie"
 )
 
 // Tests that the custom union field encoder and decoder works correctly.
@@ -264,5 +266,43 @@ func TestEth66Messages(t *testing.T) {
 		if have, _ := rlp.EncodeToBytes(tc.message); !bytes.Equal(have, tc.want) {
 			t.Errorf("test %d, type %T, have\n\t%x\nwant\n\t%x", i, tc.message, have, tc.want)
 		}
+	}
+}
+
+// TestNewBlockPacket100SanityCheck tests the sanity check of the NewBlockPacket100
+func TestNewBlockPacket100SanityCheck(t *testing.T) {
+	var txs []*types.Transaction
+
+	// Case 1: some txs contain sidecars
+	txs = append(txs, types.NewTx(&types.BlobTx{}))
+	txs = append(txs, types.NewTx(&types.BlobTx{
+		Sidecar: &types.BlobTxSidecar{
+			Blobs: []kzg4844.Blob{},
+		},
+	}))
+	txs = append(txs, types.NewTx(&types.LegacyTx{}))
+	block := types.NewBlock(&types.Header{}, txs, []*types.Header{}, []*types.Receipt{}, trie.NewStackTrie(nil))
+	packet := NewBlockPacket100{
+		Block: block,
+		TD:    big.NewInt(1),
+	}
+	err := packet.sanityCheck()
+	if err == nil {
+		t.Fatal("expected error since the transaction in mined block should not contain sidecars")
+	}
+
+	// Case 2: no txs contain sidecars
+	txs = txs[:0]
+	txs = append(txs, types.NewTx(&types.BlobTx{}))
+	txs = append(txs, types.NewTx(&types.LegacyTx{}))
+	txs = append(txs, types.NewTx(&types.AccessListTx{}))
+	block = types.NewBlock(&types.Header{}, txs, []*types.Header{}, []*types.Receipt{}, trie.NewStackTrie(nil))
+	packet = NewBlockPacket100{
+		Block: block,
+		TD:    big.NewInt(1),
+	}
+	err = packet.sanityCheck()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
