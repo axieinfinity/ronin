@@ -170,14 +170,6 @@ func TestStateProcessorErrors(t *testing.T) {
 				},
 				want: "could not apply tx 0 [0xbd49d8dadfd47fb846986695f7d4da3f7b2c48c8da82dbc211a26eb124883de9]: gas limit reached",
 			},
-			/*
-				{ // ErrFeeCapTooLow
-					txs: []*types.Transaction{
-						mkDynamicTx(0, common.Address{}, params.TxGas, big.NewInt(0), big.NewInt(0)),
-					},
-					want: "could not apply tx 0 [0xc4ab868fef0c82ae0387b742aee87907f2d0fc528fc6ea0a021459fb0fc4a4a8]: max fee per gas less than block base fee: address 0x71562b71999873DB5b286dF957af199Ec94617F7, maxFeePerGas: 0 baseFee: 875000000",
-				},
-			*/
 			{ // ErrTipVeryHigh
 				txs: []*types.Transaction{
 					mkDynamicTx(0, common.Address{}, params.TxGas, tooBigNumber, big.NewInt(1)),
@@ -376,6 +368,61 @@ func TestStateProcessorErrors(t *testing.T) {
 			}
 		}
 	}
+
+	// ErrFeeCapTooLow when base fee is enabled after Venoki
+	{
+		var (
+			db    = rawdb.NewMemoryDatabase()
+			gspec = &Genesis{
+				Config: &params.ChainConfig{
+					ChainID:             big.NewInt(1),
+					HomesteadBlock:      big.NewInt(0),
+					EIP150Block:         big.NewInt(0),
+					EIP155Block:         big.NewInt(0),
+					EIP158Block:         big.NewInt(0),
+					ByzantiumBlock:      big.NewInt(0),
+					ConstantinopleBlock: big.NewInt(0),
+					PetersburgBlock:     big.NewInt(0),
+					IstanbulBlock:       big.NewInt(0),
+					MuirGlacierBlock:    big.NewInt(0),
+					BerlinBlock:         big.NewInt(0),
+					LondonBlock:         big.NewInt(0),
+					ArrowGlacierBlock:   big.NewInt(0),
+					ShanghaiBlock:       big.NewInt(0),
+					VenokiBlock:         big.NewInt(0),
+				},
+				Alloc: GenesisAlloc{
+					common.HexToAddress("0x71562b71999873DB5b286dF957af199Ec94617F7"): GenesisAccount{
+						Balance: big.NewInt(1000000000000000000), // 1 ether
+						Nonce:   0,
+					},
+				},
+			}
+			genesis       = gspec.MustCommit(db)
+			blockchain, _ = NewBlockChain(db, nil, gspec.Config, ethash.NewFaker(), vm.Config{}, nil, nil)
+		)
+		defer blockchain.Stop()
+		for i, tt := range []struct {
+			txs  []*types.Transaction
+			want string
+		}{
+			{ // ErrFeeCapTooLow
+				txs: []*types.Transaction{
+					mkDynamicTx(0, common.Address{}, params.TxGas, big.NewInt(0), big.NewInt(0)),
+				},
+				want: "could not apply tx 0 [0xc4ab868fef0c82ae0387b742aee87907f2d0fc528fc6ea0a021459fb0fc4a4a8]: max fee per gas less than block base fee: address 0x71562b71999873DB5b286dF957af199Ec94617F7, maxFeePerGas: 0 baseFee: 1000000000",
+			},
+		} {
+			block := GenerateBadBlock(genesis, ethash.NewFaker(), tt.txs, gspec.Config)
+			_, err := blockchain.InsertChain(types.Blocks{block}, nil)
+			if err == nil {
+				t.Fatal("block imported without errors")
+			}
+			if have, want := err.Error(), tt.want; have != want {
+				t.Errorf("test %d:\nhave \"%v\"\nwant \"%v\"\n", i, have, want)
+			}
+		}
+	}
 }
 
 // GenerateBadBlock constructs a "block" which contains the transactions. The transactions are not expected to be
@@ -511,5 +558,66 @@ func TestBlobTxStateTransition(t *testing.T) {
 			}
 		}()
 		testBlobTxGasExecution(expectedBlobFee, nBlobs)
+	}
+}
+
+func TestBaseFee(t *testing.T) {
+	var (
+		initialFund          = 100_000_000_000_000
+		roninTreasuryAddress = &common.Address{0x11}
+		gendb                = rawdb.NewMemoryDatabase()
+		key, _               = crypto.GenerateKey()
+		addr                 = crypto.PubkeyToAddress(key.PublicKey)
+		chainConfig          = *params.TestChainConfig
+		gspec                = &Genesis{
+			Config:  &chainConfig,
+			Alloc:   GenesisAlloc{addr: {Balance: big.NewInt(int64(initialFund))}},
+			BaseFee: big.NewInt(params.InitialBaseFee),
+		}
+		genesis = gspec.MustCommit(gendb)
+		signer  = types.LatestSigner(gspec.Config)
+	)
+	gspec.Config.ConsortiumV2Block = common.Big0
+	gspec.Config.RoninTreasuryAddress = roninTreasuryAddress
+	gspec.Config.VenokiBlock = common.Big0
+	chain, _ := NewBlockChain(gendb, nil, &chainConfig, ethash.NewFullFaker(), vm.Config{}, nil, nil)
+	blocks, _ := GenerateChain(gspec.Config, genesis, ethash.NewFaker(), gendb, 1, func(i int, block *BlockGen) {
+		tx, _ := types.SignTx(types.NewTx(&types.LegacyTx{
+			To:       &addr,
+			Nonce:    0,
+			GasPrice: big.NewInt(3_000_000_000), // 3 gwei
+			Gas:      30000,
+			Value:    big.NewInt(0),
+			Data:     []byte{},
+		}), signer, key)
+
+		block.AddTx(tx)
+	}, true)
+	if _, err := chain.InsertChain(blocks[:], nil); err != nil {
+		t.Fatal(err)
+	}
+	statedb, _ := state.New(chain.CurrentHeader().Root, chain.stateCache, nil)
+	systemBalance := statedb.GetBalance(consensus.SystemAddress).Uint64()
+	userBalance := statedb.GetBalance(addr).Uint64()
+	treasuryBalance := statedb.GetBalance(*roninTreasuryAddress).Uint64()
+
+	if systemBalance+userBalance+treasuryBalance != uint64(initialFund) {
+		t.Fatalf("Total balance mismatch, system balance %d, user balance: %d, treasury balance: %d",
+			systemBalance, userBalance, treasuryBalance)
+	}
+
+	// Base fee is 1 gwei, so tip fee is 2 gwei
+	tip := uint64(21000 * 2_000_000_000)
+	if systemBalance != tip {
+		t.Fatalf("System balance mismatches, expect %d got %d", tip, systemBalance)
+	}
+
+	fee := uint64(21000 * 1_000_000_000)
+	if userBalance != uint64(initialFund)-fee-tip {
+		t.Fatalf("System balance mismatches, expect %d got %d", uint64(initialFund)-fee-tip, userBalance)
+	}
+
+	if treasuryBalance != fee {
+		t.Fatalf("Treasury balance mismatches, expect %d got %d", fee, treasuryBalance)
 	}
 }
