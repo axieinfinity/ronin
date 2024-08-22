@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/consensus/consortium"
+	"github.com/ethereum/go-ethereum/core/forkid"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/vote"
 
@@ -214,6 +215,8 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 		go eth.blockchain.StartFinalityVoteMonitor()
 	}
 
+	StartENRFilter(eth.blockchain, eth.p2pServer)
+
 	// Rewind the chain in case of an incompatible config upgrade.
 	if compat, ok := genesisErr.(*params.ConfigCompatError); ok {
 		log.Warn("Rewinding chain to upgrade configuration", "err", compat)
@@ -351,6 +354,11 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 		}
 	}
 	return eth, nil
+}
+
+func StartENRFilter(chain *core.BlockChain, p2p *p2p.Server) {
+	forkFilter := forkid.NewFilter(chain)
+	p2p.SetFilter(forkFilter)
 }
 
 // MakeEthApiBackend is used by MakeChain to create a minimal eth API backend for consortium
@@ -639,7 +647,6 @@ func (s *Ethereum) Protocols() []p2p.Protocol {
 // Start implements node.Lifecycle, starting all internal goroutines needed by the
 // Ethereum protocol implementation.
 func (s *Ethereum) Start() error {
-	eth.StartENRFilter(s.blockchain, s.p2pServer)
 	eth.StartENRUpdater(s.blockchain, s.p2pServer.LocalNode())
 
 	// Start the bloom bits servicing goroutines
