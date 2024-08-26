@@ -74,11 +74,8 @@ const (
 //   reserving it for go-ethereum. This would also reduce the memory requirements
 //   of Geth, and thus also GC overhead.
 type freezer struct {
-	// WARNING: The `frozen` field is accessed atomically. On 32 bit platforms, only
-	// 64-bit aligned fields can be atomic. The struct is guaranteed to be so aligned,
-	// so take advantage of that (https://golang.org/pkg/sync/atomic/#pkg-note-BUG).
-	frozen    uint64 // Number of blocks already frozen
-	threshold uint64 // Number of recent blocks not to freeze (params.FullImmutabilityThreshold apart from tests)
+	frozen    atomic.Uint64 // Number of items already frozen
+	threshold atomic.Uint64 // Number of recent blocks not to freeze (params.FullImmutabilityThreshold apart from tests)
 
 	// This lock synchronizes writers and the truncate operation, as well as
 	// the "atomic" (batched) read operations.
@@ -124,12 +121,12 @@ func newFreezer(datadir string, namespace string, readonly bool, maxTableSize ui
 	// Open all the supported data tables
 	freezer := &freezer{
 		readonly:     readonly,
-		threshold:    params.FullImmutabilityThreshold,
 		tables:       make(map[string]*freezerTable),
 		instanceLock: lock,
 		trigger:      make(chan chan struct{}),
 		quit:         make(chan struct{}),
 	}
+	freezer.threshold.Store(params.FullImmutabilityThreshold)
 
 	// Create the tables.
 	for name, disableSnappy := range tables {
@@ -216,7 +213,7 @@ func (f *freezer) AncientRange(kind string, start, count, maxBytes uint64) ([][]
 
 // Ancients returns the length of the frozen items.
 func (f *freezer) Ancients() (uint64, error) {
-	return atomic.LoadUint64(&f.frozen), nil
+	return f.frozen.Load(), nil
 }
 
 // AncientSize returns the ancient size of the specified category.
@@ -249,7 +246,7 @@ func (f *freezer) ModifyAncients(fn func(ethdb.AncientWriteOp) error) (writeSize
 	defer f.writeLock.Unlock()
 
 	// Roll back all tables to the starting position in case of error.
-	prevItem := f.frozen
+	prevItem := f.frozen.Load()
 	defer func() {
 		if err != nil {
 			// The write operation has failed. Go back to the previous item position.
@@ -270,7 +267,7 @@ func (f *freezer) ModifyAncients(fn func(ethdb.AncientWriteOp) error) (writeSize
 	if err != nil {
 		return 0, err
 	}
-	atomic.StoreUint64(&f.frozen, item)
+	f.frozen.Store(item)
 	return writeSize, nil
 }
 
@@ -282,7 +279,7 @@ func (f *freezer) TruncateAncients(items uint64) error {
 	f.writeLock.Lock()
 	defer f.writeLock.Unlock()
 
-	if atomic.LoadUint64(&f.frozen) <= items {
+	if f.frozen.Load() <= items {
 		return nil
 	}
 	for _, table := range f.tables {
@@ -290,7 +287,7 @@ func (f *freezer) TruncateAncients(items uint64) error {
 			return err
 		}
 	}
-	atomic.StoreUint64(&f.frozen, items)
+	f.frozen.Store(items)
 	return nil
 }
 
@@ -322,7 +319,7 @@ func (f *freezer) repair() error {
 			return err
 		}
 	}
-	atomic.StoreUint64(&f.frozen, min)
+	f.frozen.Store(min)
 	return nil
 }
 
@@ -368,7 +365,7 @@ func (f *freezer) freeze(db ethdb.KeyValueStore) {
 			continue
 		}
 		number := ReadHeaderNumber(nfdb, hash)
-		threshold := atomic.LoadUint64(&f.threshold)
+		threshold := f.threshold.Load()
 
 		switch {
 		case number == nil:
@@ -381,8 +378,8 @@ func (f *freezer) freeze(db ethdb.KeyValueStore) {
 			backoff = true
 			continue
 
-		case *number-threshold <= f.frozen:
-			log.Debug("Ancient blocks frozen already", "number", *number, "hash", hash, "frozen", f.frozen)
+		case *number-threshold <= f.frozen.Load():
+			log.Debug("Ancient blocks frozen already", "number", *number, "hash", hash, "frozen", f.frozen.Load())
 			backoff = true
 			continue
 		}
@@ -430,7 +427,7 @@ func (f *freezer) freeze(db ethdb.KeyValueStore) {
 
 		// Wipe out side chains also and track dangling side chains
 		var dangling []common.Hash
-		for number := first; number < f.frozen; number++ {
+		for number := first; number < f.frozen.Load(); number++ {
 			// Always keep the genesis block in active database
 			if number != 0 {
 				dangling = ReadAllHashes(db, number)
@@ -446,8 +443,8 @@ func (f *freezer) freeze(db ethdb.KeyValueStore) {
 		batch.Reset()
 
 		// Step into the future and delete and dangling side chains
-		if f.frozen > 0 {
-			tip := f.frozen
+		if f.frozen.Load() > 0 {
+			tip := f.frozen.Load()
 			for len(dangling) > 0 {
 				drop := make(map[common.Hash]struct{})
 				for _, hash := range dangling {
@@ -481,7 +478,7 @@ func (f *freezer) freeze(db ethdb.KeyValueStore) {
 
 		// Log something friendly for the user
 		context := []interface{}{
-			"blocks", f.frozen - first, "elapsed", common.PrettyDuration(time.Since(start)), "number", f.frozen - 1,
+			"blocks", f.frozen.Load() - first, "elapsed", common.PrettyDuration(time.Since(start)), "number", f.frozen.Load() - 1,
 		}
 		if n := len(ancients); n > 0 {
 			context = append(context, []interface{}{"hash", ancients[n-1]}...)
@@ -489,7 +486,7 @@ func (f *freezer) freeze(db ethdb.KeyValueStore) {
 		log.Info("Deep froze chain segment", context...)
 
 		// Avoid database thrashing with tiny writes
-		if f.frozen-first < freezerBatchLimit {
+		if f.frozen.Load()-first < freezerBatchLimit {
 			backoff = true
 		}
 	}
