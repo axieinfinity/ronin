@@ -297,7 +297,7 @@ func (h *handler) handleCallMsg(ctx *callProc, msg *jsonrpcMessage) *jsonrpcMess
 	case msg.isCall():
 		resp := h.handleCall(ctx, msg)
 		var ctx []interface{}
-		ctx = append(ctx, "elapsed", time.Since(start), "id", RawMsgForLog{msg.ID}, "params", RawMsgForLog{msg.Params})
+		ctx = append(ctx, "elapsed", time.Since(start), "id", RawMsgForLog{msg.ID})
 		if resp.Error != nil {
 			ctx = append(ctx, "err", resp.Error.Message)
 			if resp.Error.Data != nil {
