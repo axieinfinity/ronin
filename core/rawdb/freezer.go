@@ -443,8 +443,8 @@ func (f *freezer) freeze(db ethdb.KeyValueStore) {
 		batch.Reset()
 
 		// Step into the future and delete and dangling side chains
-		if f.frozen.Load() > 0 {
-			tip := f.frozen.Load()
+		tip := f.frozen.Load()
+		if tip > 0 {
 			for len(dangling) > 0 {
 				drop := make(map[common.Hash]struct{})
 				for _, hash := range dangling {
