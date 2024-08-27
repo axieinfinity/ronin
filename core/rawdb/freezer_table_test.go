@@ -191,7 +191,7 @@ func TestFreezerRepairDanglingHeadLarge(t *testing.T) {
 		writeChunks(t, f, 255, 15)
 
 		// The last item should be there
-		if _, err = f.Retrieve(f.items - 1); err != nil {
+		if _, err = f.Retrieve(f.items.Load() - 1); err != nil {
 			t.Fatal(err)
 		}
 		f.Close()
@@ -317,7 +317,7 @@ func TestFreezerRepairDanglingIndex(t *testing.T) {
 		writeChunks(t, f, 9, 15)
 
 		// The last item should be there
-		if _, err = f.Retrieve(f.items - 1); err != nil {
+		if _, err = f.Retrieve(f.items.Load() - 1); err != nil {
 			f.Close()
 			t.Fatal(err)
 		}
@@ -350,8 +350,8 @@ func TestFreezerRepairDanglingIndex(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer f.Close()
-		if f.items != 7 {
-			t.Fatalf("expected %d items, got %d", 7, f.items)
+		if f.items.Load() != 7 {
+			t.Fatalf("expected %d items, got %d", 7, f.items.Load())
 		}
 		if err := assertFileSize(fileToCrop, 15); err != nil {
 			t.Fatal(err)
@@ -374,7 +374,7 @@ func TestFreezerTruncate(t *testing.T) {
 		writeChunks(t, f, 30, 15)
 
 		// The last item should be there
-		if _, err = f.Retrieve(f.items - 1); err != nil {
+		if _, err = f.Retrieve(f.items.Load() - 1); err != nil {
 			t.Fatal(err)
 		}
 		f.Close()
@@ -388,8 +388,8 @@ func TestFreezerTruncate(t *testing.T) {
 		}
 		defer f.Close()
 		f.truncate(10) // 150 bytes
-		if f.items != 10 {
-			t.Fatalf("expected %d items, got %d", 10, f.items)
+		if f.items.Load() != 10 {
+			t.Fatalf("expected %d items, got %d", 10, f.items.Load())
 		}
 		// 45, 45, 45, 15 -- bytes should be 15
 		if f.headBytes != 15 {
@@ -444,9 +444,9 @@ func TestFreezerRepairFirstFile(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if f.items != 1 {
+		if f.items.Load() != 1 {
 			f.Close()
-			t.Fatalf("expected %d items, got %d", 0, f.items)
+			t.Fatalf("expected %d items, got %d", 0, f.items.Load())
 		}
 
 		// Write 40 bytes
@@ -483,7 +483,7 @@ func TestFreezerReadAndTruncate(t *testing.T) {
 		writeChunks(t, f, 30, 15)
 
 		// The last item should be there
-		if _, err = f.Retrieve(f.items - 1); err != nil {
+		if _, err = f.Retrieve(f.items.Load() - 1); err != nil {
 			t.Fatal(err)
 		}
 		f.Close()
@@ -495,9 +495,9 @@ func TestFreezerReadAndTruncate(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if f.items != 30 {
+		if f.items.Load() != 30 {
 			f.Close()
-			t.Fatalf("expected %d items, got %d", 0, f.items)
+			t.Fatalf("expected %d items, got %d", 0, f.items.Load())
 		}
 		for y := byte(0); y < 30; y++ {
 			f.Retrieve(uint64(y))

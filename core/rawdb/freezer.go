@@ -309,7 +309,7 @@ func (f *freezer) Sync() error {
 func (f *freezer) repair() error {
 	min := uint64(math.MaxUint64)
 	for _, table := range f.tables {
-		items := atomic.LoadUint64(&table.items)
+		items := table.items.Load()
 		if min > items {
 			min = items
 		}
