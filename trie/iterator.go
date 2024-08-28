@@ -361,10 +361,16 @@ func (it *nodeIterator) resolveHash(hash hashNode, path []byte) (node, error) {
 			}
 		}
 	}
-	resolved, err := it.trie.resolveHash(hash, path)
-	return resolved, err
+	return it.trie.resolveHash(hash, path)
 }
-
+func (it *nodeIterator) resolveBlob(hash hashNode, path []byte) ([]byte, error) {
+	if it.resolver != nil {
+		if blob, err := it.resolver.Get(hash); err == nil && len(blob) > 0 {
+			return blob, nil
+		}
+	}
+	return it.trie.resolveBlob(hash, path)
+}
 func (st *nodeIteratorState) resolve(it *nodeIterator, path []byte) error {
 	if hash, ok := st.node.(hashNode); ok {
 		resolved, err := it.resolveHash(hash, path)

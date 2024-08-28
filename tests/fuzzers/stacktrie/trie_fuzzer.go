@@ -115,8 +115,10 @@ func (k kvs) Swap(i, j int) {
 
 // The function must return
 // 1 if the fuzzer should increase priority of the
-//    given input during subsequent fuzzing (for example, the input is lexically
-//    correct and was parsed successfully);
+//
+//	given input during subsequent fuzzing (for example, the input is lexically
+//	correct and was parsed successfully);
+//
 // -1 if the input must not be added to corpus even if gives new coverage; and
 // 0  otherwise
 // other values are reserved for future use.
@@ -174,9 +176,12 @@ func (f *fuzzer) fuzz() int {
 		return 0
 	}
 	// Flush trie -> database
-	rootA, _, err := trieA.Commit(nil)
+	rootA, nodes, err := trieA.Commit(false)
 	if err != nil {
 		panic(err)
+	}
+	if nodes != nil {
+		dbA.Update(trie.NewWithNodeSet(nodes))
 	}
 	// Flush memdb -> disk (sponge)
 	dbA.Commit(rootA, false, nil)
