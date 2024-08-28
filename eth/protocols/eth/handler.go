@@ -24,6 +24,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
@@ -57,6 +58,11 @@ const (
 	// containing 200+ transactions nowadays, the practical limit will always
 	// be softResponseLimit.
 	maxReceiptsServe = 1024
+)
+
+var (
+	// estBlobSize is the approximate size of a RLP encoded blob.
+	estBlobSize = len(kzg4844.Blob{}) + len(kzg4844.Commitment{}) + len(kzg4844.Proof{}) + 100
 )
 
 // Handler is a callback to invoke from an outside runner after the boilerplate
