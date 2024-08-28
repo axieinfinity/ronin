@@ -6,7 +6,7 @@ type BlobSidecars []*BlobSidecar
 
 type BlobSidecar struct {
 	BlobTxSidecar
-	TxHash common.Hash
+	TxHash common.Hash `json:"txHash"`
 }
 
 func NewBlobSidecarFromTx(tx *Transaction) *BlobSidecar {
