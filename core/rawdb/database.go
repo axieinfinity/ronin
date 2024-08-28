@@ -22,7 +22,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sync/atomic"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -65,9 +64,9 @@ func (frdb *freezerdb) Freeze(threshold uint64) error {
 	}
 	// Set the freezer threshold to a temporary value
 	defer func(old uint64) {
-		atomic.StoreUint64(&frdb.AncientStore.(*freezer).threshold, old)
-	}(atomic.LoadUint64(&frdb.AncientStore.(*freezer).threshold))
-	atomic.StoreUint64(&frdb.AncientStore.(*freezer).threshold, threshold)
+		frdb.AncientStore.(*freezer).threshold.Store(old)
+	}(frdb.AncientStore.(*freezer).threshold.Load())
+	frdb.AncientStore.(*freezer).threshold.Store(threshold)
 
 	// Trigger a freeze cycle and block until it's done
 	trigger := make(chan struct{}, 1)

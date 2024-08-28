@@ -89,10 +89,8 @@ func (start *indexEntry) bounds(end *indexEntry) (startOffset, endOffset, fileId
 // It consists of a data file (snappy encoded arbitrary data blobs) and an indexEntry
 // file (uncompressed 64 bit indices into the data file).
 type freezerTable struct {
-	// WARNING: The `items` field is accessed atomically. On 32 bit platforms, only
-	// 64-bit aligned fields can be atomic. The struct is guaranteed to be so aligned,
-	// so take advantage of that (https://golang.org/pkg/sync/atomic/#pkg-note-BUG).
-	items uint64 // Number of items stored in the table (including items removed from tail)
+	items      atomic.Uint64 // Number of items stored in the table (including items removed from tail)
+	itemOffset atomic.Uint64 // Number of items removed from the table
 
 	noCompression bool   // if true, disables snappy compression. Note: does not work retroactively
 	maxFileSize   uint32 // Max file size for data-files
@@ -104,10 +102,6 @@ type freezerTable struct {
 	headId uint32              // number of the currently active head file
 	tailId uint32              // number of the earliest file
 	index  *os.File            // File descriptor for the indexEntry file of the table
-
-	// In the case that old items are deleted (from the tail), we use itemOffset
-	// to count how many historic items have gone missing.
-	itemOffset uint32 // Offset (number of discarded items)
 
 	headBytes  int64         // Number of bytes written to the head file
 	readMeter  metrics.Meter // Meter for measuring the effective amount of data read
@@ -248,7 +242,7 @@ func (t *freezerTable) repair() error {
 	firstIndex.unmarshalBinary(buffer)
 
 	t.tailId = firstIndex.filenum
-	t.itemOffset = firstIndex.offset
+	t.itemOffset.Store(uint64(firstIndex.offset))
 
 	t.index.ReadAt(buffer, offsetsSize-indexEntrySize)
 	lastIndex.unmarshalBinary(buffer)
@@ -309,7 +303,7 @@ func (t *freezerTable) repair() error {
 		return err
 	}
 	// Update the item and byte counters and return
-	t.items = uint64(t.itemOffset) + uint64(offsetsSize/indexEntrySize-1) // last indexEntry points to the end of the data file
+	t.items.Store(t.itemOffset.Load() + uint64(offsetsSize/indexEntrySize-1)) // last indexEntry points to the end of the data file
 	t.headBytes = contentSize
 	t.headId = lastIndex.filenum
 
@@ -317,7 +311,7 @@ func (t *freezerTable) repair() error {
 	if err := t.preopen(); err != nil {
 		return err
 	}
-	t.logger.Debug("Chain freezer table opened", "items", t.items, "size", common.StorageSize(t.headBytes))
+	t.logger.Debug("Chain freezer table opened", "items", t.items.Load(), "size", common.StorageSize(t.headBytes))
 	return nil
 }
 
@@ -345,7 +339,7 @@ func (t *freezerTable) truncate(items uint64) error {
 	defer t.lock.Unlock()
 
 	// If our item count is correct, don't do anything
-	existing := atomic.LoadUint64(&t.items)
+	existing := t.items.Load()
 	if existing <= items {
 		return nil
 	}
@@ -391,7 +385,7 @@ func (t *freezerTable) truncate(items uint64) error {
 	}
 	// All data files truncated, set internal counters and return
 	t.headBytes = int64(expected.offset)
-	atomic.StoreUint64(&t.items, items)
+	t.items.Store(items)
 
 	// Retrieve the new size and update the total size counter
 	newSize, err := t.sizeNolock()
@@ -476,7 +470,7 @@ func (t *freezerTable) releaseFilesAfter(num uint32, remove bool) {
 // it will return error.
 func (t *freezerTable) getIndices(from, count uint64) ([]*indexEntry, error) {
 	// Apply the table-offset
-	from = from - uint64(t.itemOffset)
+	from = from - t.itemOffset.Load()
 	// For reading N items, we need N+1 indices.
 	buffer := make([]byte, (count+1)*indexEntrySize)
 	if _, err := t.index.ReadAt(buffer, int64(from*indexEntrySize)); err != nil {
@@ -565,10 +559,10 @@ func (t *freezerTable) retrieveItems(start, count, maxBytes uint64) ([]byte, []i
 	if t.index == nil || t.head == nil {
 		return nil, nil, errClosed
 	}
-	itemCount := atomic.LoadUint64(&t.items) // max number
+	itemCount := t.items.Load() // max number
 	// Ensure the start is written, not deleted from the tail, and that the
 	// caller actually wants something
-	if itemCount <= start || uint64(t.itemOffset) > start || count == 0 {
+	if itemCount <= start || t.itemOffset.Load() > start || count == 0 {
 		return nil, nil, errOutOfBounds
 	}
 	if start+count > itemCount {
@@ -651,7 +645,7 @@ func (t *freezerTable) retrieveItems(start, count, maxBytes uint64) ([]byte, []i
 // has returns an indicator whether the specified number data
 // exists in the freezer table.
 func (t *freezerTable) has(number uint64) bool {
-	return atomic.LoadUint64(&t.items) > number
+	return t.items.Load() > number
 }
 
 // size returns the total data size in the freezer table.
