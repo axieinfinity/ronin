@@ -193,3 +193,25 @@ func benchmarkVerifyBlobProof(b *testing.B, ckzg bool) {
 		VerifyBlobProof(blob, commitment, proof)
 	}
 }
+
+func BenchmarkCKZGVerifyBlobProofCacheMiss(b *testing.B) { benchmarkVerifyBlobProofCacheMiss(b, true) }
+func BenchmarkGoKZGVerifyBlobProofCacheMiss(b *testing.B) {
+	benchmarkVerifyBlobProofCacheMiss(b, false)
+}
+func benchmarkVerifyBlobProofCacheMiss(b *testing.B, ckzg bool) {
+	if ckzg && !ckzgAvailable {
+		b.Skip("CKZG unavailable in this test build")
+	}
+	defer func(old bool) { useCKZG.Store(old) }(useCKZG.Load())
+	useCKZG.Store(ckzg)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		b.StopTimer()
+		blob := randBlob()
+		commitment, _ := BlobToCommitment(blob)
+		proof, _ := ComputeBlobProof(blob, commitment)
+		b.StartTimer()
+		VerifyBlobProof(blob, commitment, proof)
+	}
+}
