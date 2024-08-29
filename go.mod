@@ -71,10 +71,10 @@ require (
 	github.com/cockroachdb/pebble v0.0.0-20230928194634-aa077af62593
 	github.com/common-nighthawk/go-figure v0.0.0-20210622060536-734e95fb86be
 	github.com/golang/mock v1.6.0
-	github.com/grafana/pyroscope-go v1.1.1
+	github.com/grafana/pyroscope-go v1.1.2
 	github.com/hashicorp/golang-lru/arc/v2 v2.0.7
 	github.com/hashicorp/golang-lru/v2 v2.0.7
-	github.com/klauspost/compress v1.17.3
+	github.com/klauspost/compress v1.17.8
 	github.com/pkg/errors v0.9.1
 	github.com/supranational/blst v0.3.11
 	github.com/wealdtech/go-eth2-wallet-encryptor-keystorev4 v1.3.1
@@ -107,7 +107,7 @@ require (
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/google/go-cmp v0.5.9 // indirect
 	github.com/google/pprof v0.0.0-20230405160723-4a4c7d95572b // indirect
-	github.com/grafana/pyroscope-go/godeltaprof v0.1.6 // indirect
+	github.com/grafana/pyroscope-go/godeltaprof v0.1.8 // indirect
 	github.com/herumi/bls-eth-go-binary v1.31.0 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/kr/text v0.2.0 // indirect
