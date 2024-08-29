@@ -296,6 +296,7 @@ var (
 		// TODO: Fill this
 		ShanghaiBlock:        nil,
 		CancunBlock:          nil,
+		VenokiBlock:          nil,
 		RoninTreasuryAddress: nil,
 	}
 
@@ -354,6 +355,7 @@ var (
 		// TODO: Fill this
 		ShanghaiBlock:        nil,
 		CancunBlock:          nil,
+		VenokiBlock:          nil,
 		RoninTreasuryAddress: nil,
 	}
 
@@ -575,13 +577,13 @@ type ChainConfig struct {
 
 	AntennaBlock *big.Int `json:"antennaBlock,omitempty"` // AntennaBlock switch block (nil = no fork, 0 = already on activated)
 	// Miko hardfork introduces sponsored transactions
-	MikoBlock   *big.Int `json:"mikoBlock,omitempty"`   // Miko switch block (nil = no fork, 0 = already on activated)
-	TrippBlock  *big.Int `json:"trippBlock,omitempty"`  // Tripp switch block (nil = no fork, 0 = already on activated)
-	TrippPeriod *big.Int `json:"trippPeriod,omitempty"` // The period number at Tripp fork block.
-	AaronBlock  *big.Int `json:"aaronBlock,omitempty"`  // Aaron switch block (nil = no fork, 0 = already on activated)
-	CancunBlock *big.Int `json:"cancunBlock,omitempty"` // Cancun switch block (nil = no fork, 0 = already on activated)
-
+	MikoBlock     *big.Int `json:"mikoBlock,omitempty"`     // Miko switch block (nil = no fork, 0 = already on activated)
+	TrippBlock    *big.Int `json:"trippBlock,omitempty"`    // Tripp switch block (nil = no fork, 0 = already on activated)
+	TrippPeriod   *big.Int `json:"trippPeriod,omitempty"`   // The period number at Tripp fork block.
+	AaronBlock    *big.Int `json:"aaronBlock,omitempty"`    // Aaron switch block (nil = no fork, 0 = already on activated)
 	ShanghaiBlock *big.Int `json:"shanghaiBlock,omitempty"` // Shanghai switch block (nil = no fork, 0 = already on activated)
+	CancunBlock   *big.Int `json:"cancunBlock,omitempty"`   // Cancun switch block (nil = no fork, 0 = already on activated)
+	VenokiBlock   *big.Int `json:"venokiBlock,omitempty"`   // Venoki switch block (nil = no fork, 0 = already on activated)
 
 	BlacklistContractAddress           *common.Address `json:"blacklistContractAddress,omitempty"`           // Address of Blacklist Contract (nil = no blacklist)
 	FenixValidatorContractAddress      *common.Address `json:"fenixValidatorContractAddress,omitempty"`      // Address of Ronin Contract in the Fenix hardfork (nil = no blacklist)
@@ -715,7 +717,7 @@ func (c *ChainConfig) String() string {
 	chainConfigFmt += "Engine: %v, Blacklist Contract: %v, Fenix Validator Contract: %v, ConsortiumV2: %v, ConsortiumV2.RoninValidatorSet: %v, "
 	chainConfigFmt += "ConsortiumV2.SlashIndicator: %v, ConsortiumV2.StakingContract: %v, Puffy: %v, Buba: %v, Olek: %v, Shillin: %v, Antenna: %v, "
 	chainConfigFmt += "ConsortiumV2.ProfileContract: %v, ConsortiumV2.FinalityTracking: %v, whiteListDeployerContractV2Address: %v, roninTreasuryAddress: %v, "
-	chainConfigFmt += "Miko: %v, Tripp: %v, TrippPeriod: %v, Aaron: %v, Shanghai: %v, Cancun: %v}"
+	chainConfigFmt += "Miko: %v, Tripp: %v, TrippPeriod: %v, Aaron: %v, Shanghai: %v, Cancun: %v, Venoki: %v}"
 
 	return fmt.Sprintf(chainConfigFmt,
 		c.ChainID,
@@ -757,6 +759,7 @@ func (c *ChainConfig) String() string {
 		c.AaronBlock,
 		c.ShanghaiBlock,
 		c.CancunBlock,
+		c.VenokiBlock,
 	)
 }
 
@@ -903,6 +906,11 @@ func (c *ChainConfig) IsShanghai(num *big.Int) bool {
 // IsCancun returns whether the num is equals to or larger than the cancun fork block.
 func (c *ChainConfig) IsCancun(num *big.Int) bool {
 	return isForked(c.CancunBlock, num)
+}
+
+// IsVenoki returns whether the num is equals to or larger than the venoki fork block.
+func (c *ChainConfig) IsVenoki(num *big.Int) bool {
+	return isForked(c.VenokiBlock, num)
 }
 
 // CheckCompatible checks whether scheduled fork transitions have been imported
@@ -1127,6 +1135,7 @@ type Rules struct {
 	IsBerlin, IsLondon                                      bool
 	IsOdysseusFork, IsFenix, IsConsortiumV2, IsAntenna      bool
 	IsMiko, IsTripp, IsAaron, IsShanghai, IsCancun          bool
+	IsVenoki                                                bool
 }
 
 // Rules ensures c's ChainID is not nil.
@@ -1156,5 +1165,6 @@ func (c *ChainConfig) Rules(num *big.Int) Rules {
 		IsAaron:          c.IsAaron(num),
 		IsShanghai:       c.IsShanghai(num),
 		IsCancun:         c.IsCancun(num),
+		IsVenoki:         c.IsVenoki(num),
 	}
 }
