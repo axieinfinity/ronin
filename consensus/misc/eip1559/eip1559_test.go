@@ -53,6 +53,7 @@ func copyConfig(original *params.ChainConfig) *params.ChainConfig {
 func config() *params.ChainConfig {
 	config := copyConfig(params.TestChainConfig)
 	config.LondonBlock = big.NewInt(5)
+	config.VenokiBlock = big.NewInt(10)
 	return config
 }
 
@@ -104,24 +105,26 @@ func TestBlockGasLimits(t *testing.T) {
 	}
 }
 
-/*
-TODO: Enable this test when the basefee calculation logic is enabled again
-
-// TestCalcBaseFee assumes all blocks are 1559-blocks
 func TestCalcBaseFee(t *testing.T) {
 	tests := []struct {
-		parentBaseFee   int64
-		parentGasLimit  uint64
-		parentGasUsed   uint64
-		expectedBaseFee int64
+		parentBlockNumber int64
+		parentBaseFee     int64
+		parentGasLimit    uint64
+		parentGasUsed     uint64
+		expectedBaseFee   int64
 	}{
-		{params.InitialBaseFee, 20000000, 10000000, params.InitialBaseFee}, // usage == target
-		{params.InitialBaseFee, 20000000, 9000000, 987500000},              // usage below target
-		{params.InitialBaseFee, 20000000, 11000000, 1012500000},            // usage above target
+		{8, 0, 20000000, 20000000, 0},                                         // before Venoki base fee = 0
+		{9, 0, 20000000, 20000000, params.InitialBaseFee},                     // first Venoki block base fee = initial base fee
+		{10, 2_000_000_000, 20000000, 10000000, 2_000_000_000},                // usage == target
+		{10, 1_000_000_000, 100_000_000, 50_000_001, 1_000_000_001},           // usage > target
+		{10, 1_000_000_000, 20000000, 11000000, 1003125000},                   // usage > target
+		{10, 1_000_000_001, 100_000_000, 49_999_999, 1_000_000_001},           // usage < target
+		{10, 2_000_000_000, 20000000, 9000000, 1_993_750_000},                 // usage < target
+		{10, params.MinimumBaseFee, 20000000, 9000000, params.MinimumBaseFee}, // usage < target but parent base fee is at the minimum value
 	}
 	for i, test := range tests {
 		parent := &types.Header{
-			Number:   common.Big32,
+			Number:   big.NewInt(test.parentBlockNumber),
 			GasLimit: test.parentGasLimit,
 			GasUsed:  test.parentGasUsed,
 			BaseFee:  big.NewInt(test.parentBaseFee),
@@ -131,4 +134,3 @@ func TestCalcBaseFee(t *testing.T) {
 		}
 	}
 }
-*/

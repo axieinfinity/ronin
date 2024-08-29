@@ -501,6 +501,15 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 		st.state.AddBalance(st.evm.Context.Coinbase, newEffectiveTip)
 	}
 
+	// After Venoki the base fee is non-zero and the fee is transferred to treasury
+	if rules.IsVenoki {
+		treasuryAddress := st.evm.ChainConfig().RoninTreasuryAddress
+		if treasuryAddress != nil {
+			fee := new(big.Int).Mul(big.NewInt(int64(st.gasUsed())), st.evm.Context.BaseFee)
+			st.state.AddBalance(*treasuryAddress, fee)
+		}
+	}
+
 	return &ExecutionResult{
 		UsedGas:     st.gasUsed(),
 		RefundedGas: gasRefund,
