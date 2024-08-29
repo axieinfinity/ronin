@@ -78,9 +78,11 @@ func MigrateGlobalFlags(ctx *cli.Context) {
 	// This iterates over all commands and wraps their action function.
 	iterate(ctx.App.Commands, func(cmd *cli.Command) {
 		action := cmd.Action
-		cmd.Action = func(ctx *cli.Context) error {
-			doMigrateFlags(ctx)
-			return action(ctx)
+		if action != nil {
+			cmd.Action = func(ctx *cli.Context) error {
+				doMigrateFlags(ctx)
+				return action(ctx)
+			}
 		}
 	})
 }
