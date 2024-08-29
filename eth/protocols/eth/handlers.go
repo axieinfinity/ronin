@@ -180,10 +180,9 @@ func answerGetBlockBodiesQuery100(backend Backend, query GetBlockBodiesPacket, p
 			bytes += len(data)
 			sidecars := make([]*types.BlobTxSidecar, 0)
 			blobSidecars := backend.Chain().GetBlobSidecarsByHash(hash)
-			if blobSidecars != nil {
-				for _, sidecar := range blobSidecars {
-					sidecars = append(sidecars, &sidecar.BlobTxSidecar)
-				}
+			for _, sidecar := range blobSidecars {
+				sidecars = append(sidecars, &sidecar.BlobTxSidecar)
+				bytes += len(sidecar.BlobTxSidecar.Blobs) * estBlobSize
 			}
 			sidecarsList = append(sidecarsList, sidecars)
 		}
