@@ -444,17 +444,20 @@ func (bc *BlockChain) ReadDirtyAccounts(hash common.Hash) []*types.DirtyStateAcc
 }
 
 func (bc *BlockChain) OpEvents() []*vm.PublishEvent {
-	return []*vm.PublishEvent{
-		{
-			OpCodes: []vm.OpCode{
-				vm.CALL,
-				vm.DELEGATECALL,
-				vm.CREATE,
-				vm.CREATE2,
+	if bc.enableAdditionalChainEvent {
+		return []*vm.PublishEvent{
+			{
+				OpCodes: []vm.OpCode{
+					vm.CALL,
+					vm.DELEGATECALL,
+					vm.CREATE,
+					vm.CREATE2,
+				},
+				Event: &InternalTransactionEvent{},
 			},
-			Event: &InternalTransactionEvent{},
-		},
+		}
 	}
+	return nil
 }
 
 type InternalTransactionEvent struct{}
