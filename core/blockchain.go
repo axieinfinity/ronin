@@ -1843,11 +1843,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool) (int, er
 
 		// Process block using the parent state as reference point
 		substart := time.Now()
-		publishEvents := []*vm.PublishEvent{}
-		if bc.enableAdditionalChainEvent {
-			publishEvents = bc.OpEvents()
-		}
-		receipts, logs, internalTxs, usedGas, err := bc.processor.Process(block, statedb, bc.vmConfig, publishEvents...)
+		receipts, logs, internalTxs, usedGas, err := bc.processor.Process(block, statedb, bc.vmConfig, bc.OpEvents()...)
 		if err != nil {
 			bc.reportBlock(block, receipts, err)
 			atomic.StoreUint32(&followupInterrupt, 1)
