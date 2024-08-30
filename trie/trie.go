@@ -24,6 +24,7 @@ import (
 	"sync"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
@@ -66,11 +67,23 @@ type Trie struct {
 	// hashing operation. This number will not directly map to the number of
 	// actually unhashed nodes
 	unhashed int
+
+	tracer *tracer
 }
 
 // newFlag returns the cache flag value for a newly created node.
 func (t *Trie) newFlag() nodeFlag {
 	return nodeFlag{dirty: true}
+}
+
+// newWithRootNode initializes the trie with the given root node.
+// It's only used by range prover.
+func newWithRootNode(root node) *Trie {
+	return &Trie{
+		root: root,
+		//tracer: newTracer(),
+		db: NewDatabase(rawdb.NewMemoryDatabase()),
+	}
 }
 
 // New creates a trie with an existing root node from db.
@@ -85,6 +98,7 @@ func New(root common.Hash, db *Database) (*Trie, error) {
 	}
 	trie := &Trie{
 		db: db,
+		//tracer: newTracer(),
 	}
 	if root != (common.Hash{}) && root != emptyRoot {
 		rootnode, err := trie.resolveHash(root[:], nil)
@@ -317,6 +331,11 @@ func (t *Trie) insert(n node, prefix, key []byte, value node) (bool, node, error
 		if matchlen == 0 {
 			return true, branch, nil
 		}
+
+		// New branch node is created as a child of the original short node.
+		// Track the newly inserted node in the tracer. The node identifier
+		// passed is the path from the root node.
+		t.tracer.onInsert(append(prefix, key[:matchlen]...))
 		// Otherwise, replace it with a short node leading up to the branch.
 		return true, &shortNode{key[:matchlen], branch, t.newFlag()}, nil
 
@@ -331,6 +350,10 @@ func (t *Trie) insert(n node, prefix, key []byte, value node) (bool, node, error
 		return true, n, nil
 
 	case nil:
+		// New short node is created and track it in the tracer. The node identifier
+		// passed is the path from the root node. Note the valueNode won't be tracked
+		// since it's always embedded in its parent.
+		t.tracer.onInsert(prefix)
 		return true, &shortNode{key, value, t.newFlag()}, nil
 
 	case hashNode:
@@ -372,6 +395,33 @@ func (t *Trie) TryDelete(key []byte) error {
 	return nil
 }
 
+// traverse method mostly for learning and testing purposes.
+func (t *Trie) traverse(n node, prefix []byte) {
+	switch n := n.(type) {
+	case *shortNode:
+		// If it's a short node, print the prefix and key
+		newPrefix := append(prefix, n.Key...)
+		fmt.Printf("[Traverse] Short Node: %+v\n", n)
+		t.traverse(n.Val, newPrefix)
+	case *fullNode:
+		// If it's a full node, print the prefix and each child
+
+		for i, _ := range n.Children {
+			if n.Children[i] != nil {
+				fmt.Printf("[Traverse] Full Node: %+v\n", n.Children[i])
+				newPrefix := append(prefix, byte(i))
+				t.traverse(n.Children[i], newPrefix)
+			}
+		}
+	case valueNode:
+		// If it's a value node, print the prefix and value
+		fmt.Printf("Value Node: %s -> %s\n", string(prefix), string(n))
+	case hashNode:
+		// If it's a hash node, resolve it and traverse the result
+		fmt.Printf("Hash Node: %s -> %s \n", string(prefix), string(n))
+	}
+}
+
 // delete returns the new root of the trie with key deleted.
 // It reduces the trie to minimal form by simplifying
 // nodes on the way up after deleting recursively.
@@ -383,6 +433,10 @@ func (t *Trie) delete(n node, prefix, key []byte) (bool, node, error) {
 			return false, n, nil // don't replace n on mismatch
 		}
 		if matchlen == len(key) {
+			// It means that matched short node is deleted entirely, and track
+			// it in the deletion set. The same the valueNode doesn't need
+			// to be tracked at all since it's always be embedded in its parent.
+			t.tracer.onDelete(prefix)
 			return true, nil, nil // remove n entirely for whole matches
 		}
 		// The key is longer than n.Key. Remove the remaining suffix
@@ -395,6 +449,10 @@ func (t *Trie) delete(n node, prefix, key []byte) (bool, node, error) {
 		}
 		switch child := child.(type) {
 		case *shortNode:
+			// The child shortNode is merged into its parent, track
+			// is deleted as well.
+			t.tracer.onDelete(append(prefix, n.Key...))
+
 			// Deleting from the subtrie reduced it to another
 			// short node. Merge the nodes to avoid creating a
 			// shortNode{..., shortNode{...}}. Use concat (which
@@ -456,6 +514,11 @@ func (t *Trie) delete(n node, prefix, key []byte) (bool, node, error) {
 					return false, nil, err
 				}
 				if cnode, ok := cnode.(*shortNode); ok {
+					// Replace the entire full node with the short node.
+					// Mark the original short nodes as delete since the value
+					// is embedded in its parent now.
+					t.tracer.onDelete(append(prefix, byte(pos)))
+
 					k := append([]byte{byte(pos)}, cnode.Key...)
 					return true, &shortNode{k, cnode.Val, t.newFlag()}, nil
 				}
@@ -528,6 +591,9 @@ func (t *Trie) Commit(onleaf LeafCallback) (common.Hash, int, error) {
 	if t.db == nil {
 		panic("commit called on trie with nil database")
 	}
+
+	defer t.tracer.reset()
+
 	if t.root == nil {
 		return emptyRoot, 0, nil
 	}
@@ -586,6 +652,7 @@ func (t *Trie) hashRoot() (node, node, error) {
 func (t *Trie) Reset() {
 	t.root = nil
 	t.unhashed = 0
+	t.tracer.reset()
 }
 
 // Copy returns a copy of Trie.
@@ -594,5 +661,6 @@ func (t *Trie) Copy() *Trie {
 		db:       t.db,
 		root:     t.root,
 		unhashed: t.unhashed,
+		tracer:   t.tracer.copy(),
 	}
 }
