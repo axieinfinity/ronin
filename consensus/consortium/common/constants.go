@@ -10,6 +10,9 @@ const (
 	ExtraSeal                        = crypto.SignatureLength
 	ExtraVanity                      = 32
 	MaxFinalityVotePercentage uint16 = 10_000
+
+	// The gas limit of system transaction after Venoki
+	systemTransactionGasLimit = 50_000_000
 )
 
 var (
