@@ -38,11 +38,17 @@ import (
 var errMethodUnimplemented = errors.New("method is unimplemented")
 
 // getTransactionOpts is a helper function that creates TransactOpts with GasPrice equals 0
-func getTransactionOpts(from common.Address, nonce uint64, chainId *big.Int, signTxFn SignerTxFn) *bind.TransactOpts {
+func getTransactionOpts(from common.Address, nonce uint64, signTxFn SignerTxFn, isVenoki bool) *bind.TransactOpts {
+	var gasLimit uint64
+	if isVenoki {
+		gasLimit = systemTransactionGasLimit
+	} else {
+		gasLimit = math.MaxUint64 / 2
+	}
+
 	return &bind.TransactOpts{
-		From: from,
-		// FIXME(linh): Decrease gasLimit later, math.MaxUint64 / 2 is too large
-		GasLimit: uint64(math.MaxUint64 / 2),
+		From:     from,
+		GasLimit: gasLimit,
 		GasPrice: big.NewInt(0),
 		// Set dummy value always equal 0 since it will be overridden when creating a new message
 		Value:  new(big.Int).SetUint64(0),
@@ -183,7 +189,8 @@ func (c *ContractIntegrator) GetValidatorCandidates(blockHash common.Hash, block
 // WrapUpEpoch distributes rewards to validators and updates validators set
 func (c *ContractIntegrator) WrapUpEpoch(opts *ApplyTransactOpts) error {
 	nonce := opts.State.GetNonce(c.coinbase)
-	tx, err := c.roninValidatorSetSC.WrapUpEpoch(getTransactionOpts(c.coinbase, nonce, c.chainConfig.ChainID, c.signTxFn))
+	isVenoki := c.chainConfig.IsVenoki(opts.Header.Number)
+	tx, err := c.roninValidatorSetSC.WrapUpEpoch(getTransactionOpts(c.coinbase, nonce, c.signTxFn, isVenoki))
 	if err != nil {
 		return err
 	}
@@ -220,7 +227,8 @@ func (c *ContractIntegrator) SubmitBlockReward(opts *ApplyTransactOpts) error {
 	opts.State.AddBalance(coinbase, balance)
 
 	nonce := opts.State.GetNonce(c.coinbase)
-	tx, err := c.roninValidatorSetSC.SubmitBlockReward(getTransactionOpts(c.coinbase, nonce, c.chainConfig.ChainID, c.signTxFn))
+	isVenoki := c.chainConfig.IsVenoki(opts.Header.Number)
+	tx, err := c.roninValidatorSetSC.SubmitBlockReward(getTransactionOpts(c.coinbase, nonce, c.signTxFn, isVenoki))
 	if err != nil {
 		return err
 	}
@@ -254,7 +262,8 @@ func (c *ContractIntegrator) SubmitBlockReward(opts *ApplyTransactOpts) error {
 // and calls the slash method corresponding
 func (c *ContractIntegrator) Slash(opts *ApplyTransactOpts, spoiledValidator common.Address) error {
 	nonce := opts.State.GetNonce(c.coinbase)
-	tx, err := c.slashIndicatorSC.SlashUnavailability(getTransactionOpts(c.coinbase, nonce, c.chainConfig.ChainID, c.signTxFn), spoiledValidator)
+	isVenoki := c.chainConfig.IsVenoki(opts.Header.Number)
+	tx, err := c.slashIndicatorSC.SlashUnavailability(getTransactionOpts(c.coinbase, nonce, c.signTxFn, isVenoki), spoiledValidator)
 	if err != nil {
 		return err
 	}
@@ -284,7 +293,8 @@ func (c *ContractIntegrator) Slash(opts *ApplyTransactOpts, spoiledValidator com
 
 func (c *ContractIntegrator) FinalityReward(opts *ApplyTransactOpts, votedValidators []common.Address) error {
 	nonce := opts.State.GetNonce(c.coinbase)
-	tx, err := c.finalityTrackingSC.RecordFinality(getTransactionOpts(c.coinbase, nonce, c.chainConfig.ChainID, c.signTxFn), votedValidators)
+	isVenoki := c.chainConfig.IsVenoki(opts.Header.Number)
+	tx, err := c.finalityTrackingSC.RecordFinality(getTransactionOpts(c.coinbase, nonce, c.signTxFn, isVenoki), votedValidators)
 	if err != nil {
 		return err
 	}
@@ -420,7 +430,7 @@ func (c *ContractIntegrator) contractCall(
 		// do smart contract call
 		msgData := (hexutil.Bytes)(data)
 		to := address
-		gas := (hexutil.Uint64)(uint64(math.MaxUint64 / 2))
+		gas := (hexutil.Uint64)(systemTransactionGasLimit)
 		result, err = c.ethAPI.Call(context.Background(), ethapi.TransactionArgs{
 			Gas:  &gas,
 			To:   &to,
@@ -618,7 +628,7 @@ func (b *ConsortiumBackend) CallContract(ctx context.Context, call ethereum.Call
 		blkNumber = rpc.BlockNumber(blockNumber.Int64())
 	}
 	block := rpc.BlockNumberOrHashWithNumber(blkNumber)
-	gas := (hexutil.Uint64)(uint64(math.MaxUint64 / 2))
+	gas := (hexutil.Uint64)(systemTransactionGasLimit)
 	data := (hexutil.Bytes)(call.Data)
 
 	result, err := b.Call(ctx, ethapi.TransactionArgs{
@@ -667,9 +677,8 @@ func (b *ConsortiumBackend) SuggestGasTipCap(ctx context.Context) (*big.Int, err
 
 // EstimateGas tries to estimate the gas needed to execute a specific
 // transaction based on the current pending state of the backend blockchain.
-// NOTE(linh): We allow math.MaxUint64 / 2 because it is only called by the validator
 func (b *ConsortiumBackend) EstimateGas(ctx context.Context, call ethereum.CallMsg) (gas uint64, err error) {
-	return math.MaxUint64 / 2, nil
+	return systemTransactionGasLimit, nil
 }
 
 // SendTransaction injects the transaction into the pending pool for execution.
