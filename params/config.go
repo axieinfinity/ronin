@@ -1065,6 +1065,9 @@ func (c *ChainConfig) checkCompatible(newcfg *ChainConfig, head *big.Int) *Confi
 	if isForkIncompatible(c.CancunBlock, newcfg.CancunBlock, head) {
 		return newCompatError("Cancun fork block", c.CancunBlock, newcfg.CancunBlock)
 	}
+	if isForkIncompatible(c.VenokiBlock, newcfg.VenokiBlock, head) {
+		return newCompatError("Venoki fork block", c.VenokiBlock, newcfg.VenokiBlock)
+	}
 	return nil
 }
 
