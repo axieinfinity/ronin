@@ -25,6 +25,7 @@ import (
 	"sync/atomic"
 
 	"github.com/ethereum/go-ethereum/common/hexutil"
+	lru "github.com/hashicorp/golang-lru/v2"
 )
 
 //go:embed trusted_setup.json
@@ -34,7 +35,22 @@ var (
 	blobT       = reflect.TypeOf(Blob{})
 	commitmentT = reflect.TypeOf(Commitment{})
 	proofT      = reflect.TypeOf(Proof{})
+
+	blobProofVerificationCache *lru.Cache[cacheKey, error]
 )
+
+const verificationCacheLimit = 64
+
+type cacheKey struct {
+	blob       Blob
+	commitment Commitment
+	proof      Proof
+}
+
+func init() {
+	// lru.New only returns error when the provided size <= 0, so skip error check here
+	blobProofVerificationCache, _ = lru.New[cacheKey, error](verificationCacheLimit)
+}
 
 // Blob represents a 4844 data blob.
 type Blob [131072]byte
@@ -143,10 +159,20 @@ func ComputeBlobProof(blob *Blob, commitment Commitment) (Proof, error) {
 
 // VerifyBlobProof verifies that the blob data corresponds to the provided commitment.
 func VerifyBlobProof(blob *Blob, commitment Commitment, proof Proof) error {
-	if useCKZG.Load() {
-		return ckzgVerifyBlobProof(blob, commitment, proof)
+	key := cacheKey{blob: *blob, commitment: commitment, proof: proof}
+	value, ok := blobProofVerificationCache.Get(key)
+	if ok {
+		return value
 	}
-	return gokzgVerifyBlobProof(blob, commitment, proof)
+
+	if useCKZG.Load() {
+		err := ckzgVerifyBlobProof(blob, commitment, proof)
+		blobProofVerificationCache.Add(key, err)
+		return err
+	}
+	err := gokzgVerifyBlobProof(blob, commitment, proof)
+	blobProofVerificationCache.Add(key, err)
+	return err
 }
 
 // CalcBlobHashV1 calculates the 'versioned blob hash' of a commitment.
