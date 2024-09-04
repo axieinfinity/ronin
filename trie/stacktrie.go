@@ -39,9 +39,10 @@ var stPool = sync.Pool{
 	},
 }
 
-func stackTrieFromPool(db ethdb.KeyValueWriter) *StackTrie {
+func stackTrieFromPool(db ethdb.KeyValueWriter, owner common.Hash) *StackTrie {
 	st := stPool.Get().(*StackTrie)
 	st.db = db
+	st.owner = owner
 	return st
 }
 
@@ -54,6 +55,7 @@ func returnToPool(st *StackTrie) {
 // in order. Once it determines that a subtree will no longer be inserted
 // into, it will hash it and free up the memory it uses.
 type StackTrie struct {
+	owner     common.Hash          // the owner of the trie
 	nodeType  uint8                // node type (as in branch, ext, leaf)
 	val       []byte               // value contained by this node if it's a leaf
 	key       []byte               // key chunk covered by this (full|ext) node
@@ -65,6 +67,16 @@ type StackTrie struct {
 // NewStackTrie allocates and initializes an empty trie.
 func NewStackTrie(db ethdb.KeyValueWriter) *StackTrie {
 	return &StackTrie{
+		nodeType: emptyNode,
+		db:       db,
+	}
+}
+
+// NewStackTrieWithOwner allocates and initializes an empty trie, but with
+// the additional owner field.
+func NewStackTrieWithOwner(db ethdb.KeyValueWriter, owner common.Hash) *StackTrie {
+	return &StackTrie{
+		owner:    owner,
 		nodeType: emptyNode,
 		db:       db,
 	}
@@ -90,11 +102,13 @@ func (st *StackTrie) MarshalBinary() (data []byte, err error) {
 		w = bufio.NewWriter(&b)
 	)
 	if err := gob.NewEncoder(w).Encode(struct {
-		Nodetype  uint8
+		Owner     common.Hash
+		NodeType  uint8
 		Val       []byte
 		Key       []byte
 		KeyOffset uint8
 	}{
+		st.owner,
 		st.nodeType,
 		st.val,
 		st.key,
@@ -126,13 +140,15 @@ func (st *StackTrie) UnmarshalBinary(data []byte) error {
 
 func (st *StackTrie) unmarshalBinary(r io.Reader) error {
 	var dec struct {
-		Nodetype  uint8
+		Owner     common.Hash
+		NodeType  uint8
 		Val       []byte
 		Key       []byte
 		KeyOffset uint8
 	}
 	gob.NewDecoder(r).Decode(&dec)
-	st.nodeType = dec.Nodetype
+	st.owner = dec.Owner
+	st.nodeType = dec.NodeType
 	st.val = dec.Val
 	st.key = dec.Key
 	st.keyOffset = int(dec.KeyOffset)
@@ -160,8 +176,8 @@ func (st *StackTrie) setDb(db ethdb.KeyValueWriter) {
 	}
 }
 
-func newLeaf(ko int, key, val []byte, db ethdb.KeyValueWriter) *StackTrie {
-	st := stackTrieFromPool(db)
+func newLeaf(owner common.Hash, ko int, key, val []byte, db ethdb.KeyValueWriter) *StackTrie {
+	st := stackTrieFromPool(db, owner)
 	st.nodeType = leafNode
 	st.keyOffset = ko
 	st.key = append(st.key, key[ko:]...)
@@ -169,8 +185,8 @@ func newLeaf(ko int, key, val []byte, db ethdb.KeyValueWriter) *StackTrie {
 	return st
 }
 
-func newExt(ko int, key []byte, child *StackTrie, db ethdb.KeyValueWriter) *StackTrie {
-	st := stackTrieFromPool(db)
+func newExt(owner common.Hash, ko int, key []byte, child *StackTrie, db ethdb.KeyValueWriter) *StackTrie {
+	st := stackTrieFromPool(db, owner)
 	st.nodeType = extNode
 	st.keyOffset = ko
 	st.key = append(st.key, key[ko:]...)
@@ -204,6 +220,7 @@ func (st *StackTrie) Update(key, value []byte) {
 }
 
 func (st *StackTrie) Reset() {
+	st.owner = common.Hash{}
 	st.db = nil
 	st.key = st.key[:0]
 	st.val = nil
@@ -241,7 +258,7 @@ func (st *StackTrie) insert(key, value []byte) {
 		}
 		// Add new child
 		if st.children[idx] == nil {
-			st.children[idx] = stackTrieFromPool(st.db)
+			st.children[idx] = stackTrieFromPool(st.db, st.owner)
 			st.children[idx].keyOffset = st.keyOffset + 1
 		}
 		st.children[idx].insert(key, value)
@@ -266,7 +283,7 @@ func (st *StackTrie) insert(key, value []byte) {
 		// node directly.
 		var n *StackTrie
 		if diffidx < len(st.key)-1 {
-			n = newExt(diffidx+1, st.key, st.children[0], st.db)
+			n = newExt(st.owner, diffidx+1, st.key, st.children[0], st.db)
 		} else {
 			// Break on the last byte, no need to insert
 			// an extension node: reuse the current node
@@ -286,13 +303,13 @@ func (st *StackTrie) insert(key, value []byte) {
 			// the common prefix is at least one byte
 			// long, insert a new intermediate branch
 			// node.
-			st.children[0] = stackTrieFromPool(st.db)
+			st.children[0] = stackTrieFromPool(st.db, st.owner)
 			st.children[0].nodeType = branchNode
 			st.children[0].keyOffset = st.keyOffset + diffidx
 			p = st.children[0]
 		}
 		// Create a leaf for the inserted part
-		o := newLeaf(st.keyOffset+diffidx+1, key, value, st.db)
+		o := newLeaf(st.owner, st.keyOffset+diffidx+1, key, value, st.db)
 
 		// Insert both child leaves where they belong:
 		origIdx := st.key[diffidx]
@@ -328,7 +345,7 @@ func (st *StackTrie) insert(key, value []byte) {
 			// Convert current node into an ext,
 			// and insert a child branch node.
 			st.nodeType = extNode
-			st.children[0] = NewStackTrie(st.db)
+			st.children[0] = NewStackTrieWithOwner(st.db, st.owner)
 			st.children[0].nodeType = branchNode
 			st.children[0].keyOffset = st.keyOffset + diffidx
 			p = st.children[0]
@@ -339,11 +356,11 @@ func (st *StackTrie) insert(key, value []byte) {
 		// The child leave will be hashed directly in order to
 		// free up some memory.
 		origIdx := st.key[diffidx]
-		p.children[origIdx] = newLeaf(diffidx+1, st.key, st.val, st.db)
+		p.children[origIdx] = newLeaf(st.owner, diffidx+1, st.key, st.val, st.db)
 		p.children[origIdx].hash()
 
 		newIdx := key[diffidx+st.keyOffset]
-		p.children[newIdx] = newLeaf(p.keyOffset+1, key, value, st.db)
+		p.children[newIdx] = newLeaf(st.owner, p.keyOffset+1, key, value, st.db)
 
 		// Finally, cut off the key part that has been passed
 		// over to the children.
@@ -363,11 +380,12 @@ func (st *StackTrie) insert(key, value []byte) {
 // hash() hashes the node 'st' and converts it into 'hashedNode', if possible.
 // Possible outcomes:
 // 1. The rlp-encoded value was >= 32 bytes:
-//  - Then the 32-byte `hash` will be accessible in `st.val`.
-//  - And the 'st.type' will be 'hashedNode'
+//   - Then the 32-byte `hash` will be accessible in `st.val`.
+//   - And the 'st.type' will be 'hashedNode'
+//
 // 2. The rlp-encoded value was < 32 bytes
-//  - Then the <32 byte rlp-encoded value will be accessible in 'st.val'.
-//  - And the 'st.type' will be 'hashedNode' AGAIN
+//   - Then the <32 byte rlp-encoded value will be accessible in 'st.val'.
+//   - And the 'st.type' will be 'hashedNode' AGAIN
 //
 // This method will also:
 // set 'st.type' to hashedNode
