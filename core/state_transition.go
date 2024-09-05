@@ -349,8 +349,11 @@ func (st *StateTransition) preCheck() error {
 				msg.ExpiredTime(), st.evm.Context.Time)
 		}
 
-		if msg.GasTipCap().Cmp(msg.GasFeeCap()) != 0 {
-			return ErrDifferentFeeCapTipCap
+		// Before Venoki (base fee is 0), we have the rule that these 2 fields must be the same
+		if !st.evm.ChainConfig().IsVenoki(st.evm.Context.BlockNumber) {
+			if msg.GasTipCap().Cmp(msg.GasFeeCap()) != 0 {
+				return ErrDifferentFeeCapTipCap
+			}
 		}
 	}
 
