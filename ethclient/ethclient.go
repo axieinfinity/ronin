@@ -567,7 +567,7 @@ func toCallArg(msg ethereum.CallMsg) interface{} {
 // else if sidecars do not exist or are expired return not found err
 func (ec *Client) BlobSidecarsByHash(ctx context.Context, hash common.Hash) (types.BlobSidecars, error) {
 	var sidecars types.BlobSidecars
-	err := ec.c.CallContext(ctx, &sidecars, "eth_getBlobSidecarsByHash", hash)
+	err := ec.c.CallContext(ctx, &sidecars, "ronin_getBlobSidecarsByHash", hash)
 	if err == nil && sidecars == nil {
 		err = ethereum.NotFound
 	}
@@ -578,7 +578,7 @@ func (ec *Client) BlobSidecarsByHash(ctx context.Context, hash common.Hash) (typ
 // else if sidecars do not exist or are expired return not found err
 func (ec *Client) BlobSidecarsByNumber(ctx context.Context, number *big.Int) (types.BlobSidecars, error) {
 	var sidecars types.BlobSidecars
-	err := ec.c.CallContext(ctx, &sidecars, "eth_getBlobSidecarsByNumber", toBlockNumArg(number))
+	err := ec.c.CallContext(ctx, &sidecars, "ronin_getBlobSidecarsByNumber", toBlockNumArg(number))
 	if err == nil && sidecars == nil {
 		err = ethereum.NotFound
 	}
