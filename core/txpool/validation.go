@@ -143,6 +143,15 @@ func ValidateTransaction(tx *types.Transaction, head *types.Header, signer types
 	if tx.GasTipCapIntCmp(opts.MinTip) < 0 {
 		return fmt.Errorf("%w: tip needed %v, tip permitted %v", ErrUnderpriced, opts.MinTip, tx.GasTipCap())
 	}
+	// If base fee is enabled, ensure the max tip based on fee cap is high enough
+	isVenoki := opts.Config.IsVenoki(head.Number)
+	if isVenoki {
+		tip := new(big.Int).Sub(tx.GasFeeCap(), big.NewInt(params.MinimumBaseFee))
+		if tip.Cmp(opts.MinTip) < 0 {
+			return fmt.Errorf("%w: tip needed %v, tip permitted (based on fee cap) %v", ErrUnderpriced, opts.MinTip, tip)
+		}
+	}
+
 	// Ensure blob transactions have valid commitments
 	if tx.Type() == types.BlobTxType {
 		// Ensure the blob fee cap satisfies the minimum blob gas price
@@ -168,7 +177,7 @@ func ValidateTransaction(tx *types.Transaction, head *types.Header, signer types
 		}
 	} else if tx.Type() == types.SponsoredTxType {
 		// Before Venoki (base fee is 0), we have the rule that these 2 fields must be the same
-		if !opts.Config.IsVenoki(head.Number) {
+		if !isVenoki {
 			if tx.GasFeeCap().Cmp(tx.GasTipCap()) != 0 {
 				return core.ErrDifferentFeeCapTipCap
 			}

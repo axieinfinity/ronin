@@ -429,7 +429,8 @@ func (pool *LegacyPool) SetGasTip(tip *big.Int) {
 	// If the min miner fee increased, remove transactions below the new threshold
 	if tip.Cmp(old) > 0 {
 		// pool.priced is sorted by GasFeeCap, so we have to iterate through pool.all instead
-		drop := pool.all.RemotesBelowTip(tip)
+		isVenoki := pool.chainconfig.IsVenoki(pool.currentHead.Load().Number)
+		drop := pool.all.RemotesBelowTip(tip, isVenoki)
 		for _, tx := range drop {
 			pool.removeTx(tx.Hash(), false, true)
 		}
@@ -1917,10 +1918,17 @@ func (t *lookup) RemoteToLocals(locals *accountSet) int {
 }
 
 // RemotesBelowTip finds all remote transactions below the given tip threshold.
-func (t *lookup) RemotesBelowTip(threshold *big.Int) types.Transactions {
+func (t *lookup) RemotesBelowTip(threshold *big.Int, isVenoki bool) types.Transactions {
 	found := make(types.Transactions, 0, 128)
 	t.Range(func(hash common.Hash, tx *types.Transaction, local bool) bool {
-		if tx.GasTipCapIntCmp(threshold) < 0 {
+		// If base fee is enabled, ensure the max tip based on fee cap is high enough
+		var feeCapUnderpriced bool
+		if isVenoki {
+			// Calculate the max tip based on the the restriction of fee cap
+			maxTip := new(big.Int).Sub(tx.GasFeeCap(), big.NewInt(params.MinimumBaseFee))
+			feeCapUnderpriced = maxTip.Cmp(threshold) < 0
+		}
+		if tx.GasTipCapIntCmp(threshold) < 0 || feeCapUnderpriced {
 			found = append(found, tx)
 		}
 		return true
