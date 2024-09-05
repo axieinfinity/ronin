@@ -167,11 +167,11 @@ func ValidateTransaction(tx *types.Transaction, head *types.Header, signer types
 			return err
 		}
 	} else if tx.Type() == types.SponsoredTxType {
-		// Currently, these 2 fields must be the same in sponsored transaction.
-		// We create 2 separate fields to reserve for the future, in case we
-		// decide to support dynamic fee transaction.
-		if tx.GasFeeCap().Cmp(tx.GasTipCap()) != 0 {
-			return core.ErrDifferentFeeCapTipCap
+		// Before Venoki (base fee is 0), we have the rule that these 2 fields must be the same
+		if !opts.Config.IsVenoki(head.Number) {
+			if tx.GasFeeCap().Cmp(tx.GasTipCap()) != 0 {
+				return core.ErrDifferentFeeCapTipCap
+			}
 		}
 
 		// Ensure sponsored transaction is not expired

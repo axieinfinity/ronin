@@ -3424,6 +3424,7 @@ func TestSponsoredTxTransition(t *testing.T) {
 	chainConfig.EIP150Block = common.Big0
 	chainConfig.EIP155Block = common.Big0
 	chainConfig.MikoBlock = common.Big0
+	chainConfig.VenokiBlock = common.Big2
 	chainConfig.ChainID = big.NewInt(2020)
 
 	engine := ethash.NewFaker()
@@ -3585,7 +3586,7 @@ func TestSponsoredTxTransition(t *testing.T) {
 		t.Fatalf("Expect error %s, get %s", ErrInsufficientSenderFunds, err)
 	}
 
-	// 5. Successfully add tx, sponsored tx with expired time = 0 is accepted
+	// 6. Successfully add tx, sponsored tx with expired time = 0 is accepted
 	innerTx.ExpiredTime = 0
 	innerTx.PayerR, innerTx.PayerS, innerTx.PayerV, err = types.PayerSign(
 		payerKey,
@@ -3629,6 +3630,43 @@ func TestSponsoredTxTransition(t *testing.T) {
 	have = statedb.GetBalance(payerAddr)
 	if have.Cmp(want) != 0 {
 		t.Fatalf("Expect sender's balance %d, get %d", want.Uint64(), have.Uint64())
+	}
+
+	// 7. After Venoki, gas fee cap and gas tip cap can be different
+	innerTx.ExpiredTime = 0
+	innerTx.GasFeeCap = new(big.Int).Add(innerTx.GasTipCap, common.Big1)
+	innerTx.Nonce = 1
+	innerTx.Gas = 21000
+	innerTx.Value = common.Big0
+	innerTx.PayerR, innerTx.PayerS, innerTx.PayerV, err = types.PayerSign(
+		payerKey,
+		mikoSigner,
+		crypto.PubkeyToAddress(senderKey.PublicKey),
+		&innerTx,
+	)
+	if err != nil {
+		t.Fatalf("Payer fails to sign transaction, err %s", err)
+	}
+
+	sponsoredTx, err = types.SignNewTx(senderKey, mikoSigner, &innerTx)
+	if err != nil {
+		t.Fatalf("Fail to sign transaction, err %s", err)
+	}
+
+	blocks, _ = GenerateChain(&chainConfig, blocks[0], engine, db, 1, func(i int, bg *BlockGen) {
+		// Send some fund to payer from admin account to pay for below sponsored transaction
+		fund := new(big.Int).Mul(innerTx.GasFeeCap, big.NewInt(21000))
+		tx, err := types.SignTx(types.NewTransaction(2, payerAddr, fund, params.TxGas, bg.header.BaseFee, nil), mikoSigner, adminKey)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		bg.AddTx(tx)
+		bg.AddTx(sponsoredTx)
+	}, true)
+	_, err = chain.InsertChain(blocks, nil)
+	if err != nil {
+		t.Fatalf("Failed to insert blocks, err %s", err)
 	}
 }
 
