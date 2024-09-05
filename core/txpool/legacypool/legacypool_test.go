@@ -2788,6 +2788,7 @@ func TestExpiredTimeAndGasCheckSponsoredTx(t *testing.T) {
 
 	chainConfig.EIP155Block = common.Big0
 	chainConfig.MikoBlock = common.Big0
+	chainConfig.VenokiBlock = common.Big1
 	chainConfig.ChainID = big.NewInt(2020)
 
 	recipient := common.HexToAddress("1000000000000000000000000000000000000001")
@@ -2840,7 +2841,7 @@ func TestExpiredTimeAndGasCheckSponsoredTx(t *testing.T) {
 		t.Fatalf("Fail to sign transaction, err %s", err)
 	}
 
-	// 1. Failed when gas tip cap and gas tip cap are different
+	// 1. Failed when gas fee cap and gas tip cap are different
 	err = txpool.addRemoteSync(tx)
 	if err == nil || !errors.Is(err, core.ErrDifferentFeeCapTipCap) {
 		t.Fatalf("Expect error %s, get %s", core.ErrDifferentFeeCapTipCap, err)
@@ -2930,6 +2931,32 @@ func TestExpiredTimeAndGasCheckSponsoredTx(t *testing.T) {
 	// 7. Sponsored tx with expired time == 0 is accepted
 	innerTx.ExpiredTime = 0
 	innerTx.Nonce = 2
+	innerTx.PayerR, innerTx.PayerS, innerTx.PayerV, err = types.PayerSign(
+		payerKey,
+		mikoSigner,
+		crypto.PubkeyToAddress(senderKey.PublicKey),
+		&innerTx,
+	)
+	if err != nil {
+		t.Fatalf("Payer fails to sign transaction, err %s", err)
+	}
+
+	tx, err = types.SignNewTx(senderKey, mikoSigner, &innerTx)
+	if err != nil {
+		t.Fatalf("Fail to sign transaction, err %s", err)
+	}
+
+	err = txpool.addRemoteSync(tx)
+	if err != nil {
+		t.Fatalf("Expect successfully add tx, get %s", err)
+	}
+
+	// 8. After Venoki, gas fee cap and gas tip cap can be different
+	txpool.currentHead.Store(&types.Header{Number: common.Big1, GasLimit: 10000000})
+	innerTx.Nonce = 3
+	innerTx.GasFeeCap = new(big.Int).Mul(innerTx.GasTipCap, common.Big2)
+	innerTx.Value = common.Big0
+	statedb.SetBalance(crypto.PubkeyToAddress(payerKey.PublicKey), new(big.Int).Mul(innerTx.GasFeeCap, big.NewInt(22000)))
 	innerTx.PayerR, innerTx.PayerS, innerTx.PayerV, err = types.PayerSign(
 		payerKey,
 		mikoSigner,
