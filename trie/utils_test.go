@@ -19,12 +19,14 @@ package trie
 import (
 	"testing"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 )
 
 // Tests if the trie diffs are tracked correctly.
 func TestTrieTracer(t *testing.T) {
-	trie := NewEmpty(NewDatabase(rawdb.NewMemoryDatabase()))
+	db := NewDatabase(rawdb.NewMemoryDatabase())
+	trie := NewEmpty(db)
 	trie.tracer = newTracer()
 
 	// Insert a batch of entries, all the nodes should be marked as inserted
@@ -66,7 +68,10 @@ func TestTrieTracer(t *testing.T) {
 	}
 
 	// Commit the changes
-	trie.Commit(nil)
+	root, nodes, _ := trie.Commit(false)
+	db.Update(NewWithNodeSet(nodes))
+	trie, _ = New(common.Hash{}, root, db)
+	trie.tracer = newTracer()
 
 	// Delete all the elements, check deletion set
 	for _, val := range vals {

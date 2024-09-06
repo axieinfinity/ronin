@@ -957,7 +957,11 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (common.Hash, error) {
 	s.IntermediateRoot(deleteEmptyObjects)
 
 	// Commit objects to the trie, measuring the elapsed time
-	var storageCommitted int
+	var (
+		accountTrieNodes int
+		storageTrieNodes int
+		nodes            = trie.NewMergedNodeSet()
+	)
 	codeWriter := s.db.TrieDB().DiskDB().NewBatch()
 	for addr := range s.stateObjectsDirty {
 		if obj := s.stateObjects[addr]; !obj.deleted {
@@ -967,11 +971,18 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (common.Hash, error) {
 				obj.dirtyCode = false
 			}
 			// Write any storage changes in the state object to its storage trie
-			committed, err := obj.CommitTrie(s.db)
+			nodeSet, err := obj.CommitTrie(s.db)
 			if err != nil {
 				return common.Hash{}, err
 			}
-			storageCommitted += committed
+
+			// Merge the dirty nodes of storage trie into global set
+			if nodeSet != nil {
+				if err := nodes.Merge(nodeSet); err != nil {
+					return common.Hash{}, err
+				}
+				storageTrieNodes += nodeSet.Len()
+			}
 		}
 	}
 	if len(s.stateObjectsDirty) > 0 {
@@ -987,20 +998,17 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (common.Hash, error) {
 	if metrics.EnabledExpensive {
 		start = time.Now()
 	}
-	// The onleaf func is called _serially_, so we can reuse the same account
-	// for unmarshalling every time.
-	var account types.StateAccount
-	root, accountCommitted, err := s.trie.Commit(func(_ [][]byte, _ []byte, leaf []byte, parent common.Hash) error {
-		if err := rlp.DecodeBytes(leaf, &account); err != nil {
-			return nil
-		}
-		if account.Root != emptyRoot {
-			s.db.TrieDB().Reference(account.Root, parent)
-		}
-		return nil
-	})
+	root, nodeSet, err := s.trie.Commit(true)
 	if err != nil {
 		return common.Hash{}, err
+	}
+
+	// Merge the dirty nodes of account trie into global set
+	if nodeSet != nil {
+		if err := nodes.Merge(nodeSet); err != nil {
+			return common.Hash{}, err
+		}
+		accountTrieNodes = nodeSet.Len()
 	}
 	if metrics.EnabledExpensive {
 		s.AccountCommits += time.Since(start)
@@ -1009,8 +1017,8 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (common.Hash, error) {
 		storageUpdatedMeter.Mark(int64(s.StorageUpdated))
 		accountDeletedMeter.Mark(int64(s.AccountDeleted))
 		storageDeletedMeter.Mark(int64(s.StorageDeleted))
-		accountCommittedMeter.Mark(int64(accountCommitted))
-		storageCommittedMeter.Mark(int64(storageCommitted))
+		accountTrieCommittedMeter.Mark(int64(accountTrieNodes))
+		storageTriesCommittedMeter.Mark(int64(storageTrieNodes))
 		s.AccountUpdated, s.AccountDeleted = 0, 0
 		s.StorageUpdated, s.StorageDeleted = 0, 0
 	}
@@ -1033,6 +1041,11 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (common.Hash, error) {
 			}
 		}
 		s.snap, s.snapDestructs, s.snapAccounts, s.snapStorage = nil, nil, nil, nil
+	}
+
+	// Update Trie MergeNodeSets.
+	if err := s.db.TrieDB().Update(nodes); err != nil {
+		return common.Hash{}, err
 	}
 	s.originalRoot = root
 	return root, err
