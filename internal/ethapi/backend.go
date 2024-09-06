@@ -146,5 +146,11 @@ func GetAPIs(apiBackend Backend) []rpc.API {
 			Service:   NewPrivateAccountAPI(apiBackend, nonceLock),
 			Public:    false,
 		},
+		{
+			Namespace: "ronin",
+			Version:   "1.0",
+			Service:   NewPublicRoninAPI(apiBackend),
+			Public:    true,
+		},
 	}
 }
