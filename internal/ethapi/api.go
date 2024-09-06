@@ -2210,7 +2210,7 @@ func NewPublicRoninAPI(b Backend) *PublicRoninAPI {
 	return &PublicRoninAPI{b}
 }
 
-// GetBlobSidecarsByHash returns the requested list of blob sidecars based on block number.
+// GetBlobSidecarsByNumber returns the requested list of blob sidecars based on block number.
 func (s *PublicRoninAPI) GetBlobSidecarsByNumber(ctx context.Context, number rpc.BlockNumber) (types.BlobSidecars, error) {
 	sidecars, err := s.b.BlobSidecarsByNumber(ctx, number)
 	if sidecars != nil && err == nil {
