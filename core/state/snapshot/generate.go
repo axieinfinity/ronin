@@ -436,7 +436,10 @@ func (dl *diskLayer) generateRange(owner common.Hash, root common.Hash, prefix [
 		for i, key := range result.keys {
 			snapTrie.Update(key, result.vals[i])
 		}
-		root, _, _ := snapTrie.Commit(nil)
+		root, nodes, _ := snapTrie.Commit(false)
+		if nodes != nil {
+			snapTrieDb.Update(trie.NewWithNodeSet(nodes))
+		}
 		snapTrieDb.Commit(root, false, nil)
 	}
 	tr := result.tr

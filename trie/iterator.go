@@ -361,8 +361,7 @@ func (it *nodeIterator) resolveHash(hash hashNode, path []byte) (node, error) {
 			}
 		}
 	}
-	resolved, err := it.trie.resolveHash(hash, path)
-	return resolved, err
+	return it.trie.resolveHash(hash, path)
 }
 
 func (st *nodeIteratorState) resolve(it *nodeIterator, path []byte) error {
