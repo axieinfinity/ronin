@@ -2954,7 +2954,7 @@ func TestExpiredTimeAndGasCheckSponsoredTx(t *testing.T) {
 	// 8. After Venoki, gas fee cap and gas tip cap can be different
 	txpool.currentHead.Store(&types.Header{Number: common.Big1, GasLimit: 10000000})
 	innerTx.Nonce = 3
-	innerTx.GasFeeCap = new(big.Int).Mul(innerTx.GasTipCap, common.Big2)
+	innerTx.GasFeeCap = big.NewInt(params.MinimumBaseFee + 1)
 	innerTx.Value = common.Big0
 	statedb.SetBalance(crypto.PubkeyToAddress(payerKey.PublicKey), new(big.Int).Mul(innerTx.GasFeeCap, big.NewInt(22000)))
 	innerTx.PayerR, innerTx.PayerS, innerTx.PayerV, err = types.PayerSign(
@@ -3241,5 +3241,59 @@ func TestSponsoredTxInTxPoolQueue(t *testing.T) {
 	pending, _ = txpool.Stats()
 	if pending != 1 {
 		t.Fatalf("Pending txpool, expect %d get %d", 1, pending)
+	}
+}
+
+func TestFeeCapCheckVenoki(t *testing.T) {
+	var chainConfig params.ChainConfig
+
+	chainConfig.EIP155Block = common.Big0
+	chainConfig.LondonBlock = common.Big0
+	chainConfig.VenokiBlock = common.Big0
+	chainConfig.ChainID = params.TestChainConfig.ChainID
+
+	senderKey, err := crypto.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	senderAddr := crypto.PubkeyToAddress(senderKey.PublicKey)
+
+	statedb, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
+	statedb.AddBalance(senderAddr, new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil))
+
+	blockchain := &testBlockChain{10000000, statedb, new(event.Feed), 0}
+
+	pool := New(testTxPoolConfig, &chainConfig, blockchain)
+	defer pool.Close()
+	pool.Init(
+		1,
+		blockchain.CurrentBlock().Header(),
+		func(addr common.Address, reserve bool) error { return nil },
+	)
+
+	// 1. fee cap restrict the max tip to 0, lower than pool's required tip
+	tx := dynamicFeeTx(0, 21000, big.NewInt(params.MinimumBaseFee), common.Big2, senderKey)
+	err = pool.addRemoteSync(tx)
+	if !errors.Is(err, txpool.ErrUnderpriced) {
+		t.Fatalf("Expect error %v, have %v", txpool.ErrUnderpriced, err)
+	}
+
+	// 2. Successfully add transaction
+	tx = dynamicFeeTx(0, 21000, big.NewInt(params.MinimumBaseFee+1), common.Big2, senderKey)
+	err = pool.addRemoteSync(tx)
+	if err != nil {
+		t.Fatalf("Expect successful add transaction have %v", err)
+	}
+
+	pending, _ := pool.Stats()
+	if pending != 1 {
+		t.Fatalf("Pending txpool, expect %d get %d", 1, pending)
+	}
+
+	// 3. Pool's required tip is increased, underpriced transaction is removed
+	pool.SetGasTip(common.Big2)
+	pending, _ = pool.Stats()
+	if pending != 0 {
+		t.Fatalf("Pending txpool, expect %d get %d", 0, pending)
 	}
 }

@@ -634,6 +634,48 @@ func TestOpenDrops(t *testing.T) {
 	verifyPoolInternals(t, pool)
 }
 
+func TestOpenDropsFeeCapUnderpriced(t *testing.T) {
+	log.Root().SetHandler(log.StdoutHandler)
+	// Create a temporary folder for the persistent backend
+	storage, _ := os.MkdirTemp("", "blobpool-")
+	defer os.RemoveAll(storage)
+
+	os.MkdirAll(filepath.Join(storage, pendingTransactionStore), 0700)
+	store, _ := billy.Open(billy.Options{Path: filepath.Join(storage, pendingTransactionStore)}, newSlotter(), nil)
+
+	underpayer, _ := crypto.GenerateKey()
+
+	tx := makeTx(0, 1, 1, 0, underpayer)
+	blob, _ := rlp.EncodeToBytes(tx)
+	id, _ := store.Put(blob)
+
+	store.Close()
+
+	chainConfig := *testChainConfig
+	chainConfig.VenokiBlock = common.Big0
+	statedb, _ := state.New(types.EmptyRootHash, state.NewDatabase(rawdb.NewDatabase(memorydb.New())), nil)
+	statedb.AddBalance(crypto.PubkeyToAddress(underpayer.PublicKey), big.NewInt(1000000))
+	chain := &testBlockChain{
+		config:  &chainConfig,
+		basefee: uint256.NewInt(params.InitialBaseFee),
+		blobfee: uint256.NewInt(params.BlobTxMinBlobGasprice),
+		statedb: statedb,
+	}
+	pool := New(Config{Datadir: storage}, &chainConfig, chain)
+	if err := pool.Init(1, chain.CurrentBlock().Header(), makeAddressReserver()); err != nil {
+		t.Fatalf("failed to create blob pool: %v", err)
+	}
+	defer pool.Close()
+
+	for _, txs := range pool.index {
+		for _, tx := range txs {
+			if tx.id == id {
+				t.Fatal("Underpriced transaction is not dropped")
+			}
+		}
+	}
+}
+
 // Tests that transactions loaded from disk are indexed correctly.
 //
 //   - 1. Transactions must be grouped by sender, sorted by nonce
