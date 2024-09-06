@@ -1014,7 +1014,15 @@ func (p *BlobPool) SetGasTip(tip *big.Int) {
 	if old == nil || p.gasTip.Cmp(old) > 0 {
 		for addr, txs := range p.index {
 			for i, tx := range txs {
-				if tx.execTipCap.Cmp(p.gasTip) < 0 {
+				// If base fee is enabled, ensure the max tip based on fee cap is high enough
+				var feeCapUnderpriced bool
+				if p.chainConfig.IsVenoki(p.head.Number) {
+					// Calculate the minimum fee cap
+					minGasFeeCap := new(uint256.Int).Add(p.gasTip, uint256.NewInt(params.MinimumBaseFee))
+					feeCapUnderpriced = tx.execFeeCap.Cmp(minGasFeeCap) < 0
+				}
+
+				if tx.execTipCap.Cmp(p.gasTip) < 0 || feeCapUnderpriced {
 					// Drop the offending transaction
 					var (
 						ids    = []uint64{tx.id}
