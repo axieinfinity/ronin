@@ -652,14 +652,3 @@ func (t *Trie) Copy() *Trie {
 		tracer:   t.tracer.copy(),
 	}
 }
-
-// resolveHash loads rlp-encoded node blob from the underlying database
-// with the provided node hash and path prefix.
-func (t *Trie) resolveBlob(n hashNode, prefix []byte) ([]byte, error) {
-	hash := common.BytesToHash(n)
-	blob, _ := t.db.Node(hash)
-	if len(blob) != 0 {
-		return blob, nil
-	}
-	return nil, &MissingNodeError{Owner: t.owner, NodeHash: hash, Path: prefix}
-}
