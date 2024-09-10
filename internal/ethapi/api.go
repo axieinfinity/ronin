@@ -2213,19 +2213,19 @@ func NewPublicRoninAPI(b Backend) *PublicRoninAPI {
 // GetBlobSidecarsByNumber returns the requested list of blob sidecars based on block number.
 func (s *PublicRoninAPI) GetBlobSidecarsByNumber(ctx context.Context, number rpc.BlockNumber) (types.BlobSidecars, error) {
 	sidecars, err := s.b.BlobSidecarsByNumber(ctx, number)
-	if sidecars != nil && err == nil {
-		return sidecars, nil
+	if err != nil {
+		return nil, err
 	}
-	return nil, err
+	return sidecars, nil
 }
 
 // GetBlobSidecarsByHash returns the requested list of blob sidecars based on block hash.
 func (s *PublicRoninAPI) GetBlobSidecarsByHash(ctx context.Context, hash common.Hash) (types.BlobSidecars, error) {
 	sidecars, err := s.b.BlobSidecarsByHash(ctx, hash)
-	if sidecars != nil && err == nil {
-		return sidecars, nil
+	if err != nil {
+		return nil, err
 	}
-	return nil, err
+	return sidecars, nil
 }
 
 // checkTxFee is an internal function used to check whether the fee of

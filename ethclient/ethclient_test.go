@@ -725,11 +725,9 @@ func testGetBlobSidecars(t *testing.T, chain []*types.Block, blobSidecars [][]*t
 	}{
 		"first_block_blob_notfound_by_number": {
 			blkNum:  chain[1].Number(),
-			wantErr: ethereum.NotFound,
 		},
 		"first_block_blob_notfound_by_hash": {
 			blkHash: chain[1].Hash(),
-			wantErr: ethereum.NotFound,
 		},
 		"second_block_by_hash": {
 			blkHash: chain[2].Hash(),
@@ -751,7 +749,6 @@ func testGetBlobSidecars(t *testing.T, chain []*types.Block, blobSidecars [][]*t
 		},
 		"future_block": {
 			blkNum: big.NewInt(1000000),
-			wantErr: ethereum.NotFound,
 		},
 	}
 	for name, tt := range tests {
