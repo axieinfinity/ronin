@@ -104,6 +104,11 @@ func (h *ethHandler) Handle(peer *eth.Peer, packet eth.Packet) error {
 		return h.txFetcher.Notify(peer.ID(), packet.Types, packet.Sizes, packet.Hashes)
 
 	case *eth.TransactionsPacket:
+		for _, tx := range *packet {
+			if tx.Type() == types.BlobTxType {
+				return errors.New("disallowed broadcast blob transaction")
+			}
+		}
 		return h.txFetcher.Enqueue(peer.ID(), *packet, false)
 
 	case *eth.PooledTransactionsPacket:
