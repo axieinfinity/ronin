@@ -103,8 +103,9 @@ var (
 	internalTxsPrefix = []byte("itxs") // internalTxsPrefix + block hash -> internal transactions
 	dirtyAccountsKey  = []byte("dacc") // dirtyAccountsPrefix + block hash -> dirty accounts
 
-	PreimagePrefix = []byte("secure-key-")      // PreimagePrefix + hash -> preimage
-	configPrefix   = []byte("ethereum-config-") // config prefix for the db
+	PreimagePrefix = []byte("secure-key-")       // PreimagePrefix + hash -> preimage
+	configPrefix   = []byte("ethereum-config-")  // config prefix for the db
+	genesisPrefix  = []byte("ethereum-genesis-") // genesis state prefix for the db
 
 	// Chain index prefixes (use `i` + single byte to avoid mixing data types).
 	BloomBitsIndexPrefix = []byte("iB") // BloomBitsIndexPrefix is the data table of a chain indexer to track its progress
@@ -252,6 +253,11 @@ func IsCodeKey(key []byte) (bool, []byte) {
 // configKey = configPrefix + hash
 func configKey(hash common.Hash) []byte {
 	return append(configPrefix, hash.Bytes()...)
+}
+
+// genesisStateSpecKey = genesisPrefix + hash
+func genesisStateSpecKey(hash common.Hash) []byte {
+	return append(genesisPrefix, hash.Bytes()...)
 }
 
 func snapshotConsortiumKey(hash common.Hash) []byte {
