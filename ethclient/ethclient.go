@@ -564,23 +564,21 @@ func toCallArg(msg ethereum.CallMsg) interface{} {
 }
 
 // BlobSidecarsByHash returns blob sidecars with given block hash
-// else if sidecars do not exist or are expired return not found err
+// else if sidecars do not exist or are expired, just return nil
 func (ec *Client) BlobSidecarsByHash(ctx context.Context, hash common.Hash) (types.BlobSidecars, error) {
 	var sidecars types.BlobSidecars
-	err := ec.c.CallContext(ctx, &sidecars, "ronin_getBlobSidecarsByHash", hash)
-	if err == nil && sidecars == nil {
-		err = ethereum.NotFound
+	if err := ec.c.CallContext(ctx, &sidecars, "ronin_getBlobSidecarsByHash", hash); err != nil {
+		return nil, err
 	}
-	return sidecars, err
+	return sidecars, nil
 }
 
 // BlobSidecarsByNumber returns blob sidecars with given block number
-// else if sidecars do not exist or are expired return not found err
+// else if sidecars do not exist or are expired, just return nil
 func (ec *Client) BlobSidecarsByNumber(ctx context.Context, number *big.Int) (types.BlobSidecars, error) {
 	var sidecars types.BlobSidecars
-	err := ec.c.CallContext(ctx, &sidecars, "ronin_getBlobSidecarsByNumber", toBlockNumArg(number))
-	if err == nil && sidecars == nil {
-		err = ethereum.NotFound
+	if err := ec.c.CallContext(ctx, &sidecars, "ronin_getBlobSidecarsByNumber", toBlockNumArg(number)); err != nil {
+		return nil, err
 	}
-	return sidecars, err
+	return sidecars, nil
 }
