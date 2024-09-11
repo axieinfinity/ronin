@@ -1433,11 +1433,12 @@ func TestVerifyVote(t *testing.T) {
 	}
 
 	db := rawdb.NewMemoryDatabase()
-	genesis := (&core.Genesis{
+	gspec := &core.Genesis{
 		Config:  params.TestChainConfig,
 		BaseFee: big.NewInt(params.InitialBaseFee),
-	}).MustCommit(db)
-	chain, _ := core.NewBlockChain(db, nil, params.TestChainConfig, ethash.NewFullFaker(), vm.Config{}, nil, nil)
+	}
+	genesis := gspec.MustCommit(db)
+	chain, _ := core.NewBlockChain(db, nil, gspec, nil, ethash.NewFullFaker(), vm.Config{}, nil, nil)
 
 	bs, _ := core.GenerateChain(params.TestChainConfig, genesis, ethash.NewFaker(), db, 1, nil, true)
 	if _, err := chain.InsertChain(bs[:]); err != nil {
@@ -1564,9 +1565,10 @@ func TestKnownBlockReorg(t *testing.T) {
 		},
 	}
 
-	genesis := (&core.Genesis{
+	gspec := &core.Genesis{
 		Config: &chainConfig,
-	}).MustCommit(db)
+	}
+	genesis := gspec.MustCommit(db)
 
 	mock := &mockContract{
 		validators: make(map[common.Address]blsCommon.PublicKey),
@@ -1584,7 +1586,7 @@ func TestKnownBlockReorg(t *testing.T) {
 		db:          db,
 	}
 
-	chain, _ := core.NewBlockChain(db, nil, &chainConfig, &v2, vm.Config{}, nil, nil)
+	chain, _ := core.NewBlockChain(db, nil, gspec, nil, &v2, vm.Config{}, nil, nil)
 	extraData := [consortiumCommon.ExtraVanity + consortiumCommon.ExtraSeal]byte{}
 
 	blocks, _ := core.GenerateConsortiumChain(
@@ -1811,13 +1813,14 @@ func TestUpgradeRoninTrustedOrg(t *testing.T) {
 		},
 	}
 
-	genesis := (&core.Genesis{
+	gspec := &core.Genesis{
 		Config: &chainConfig,
 		Alloc: core.GenesisAlloc{
 			// Make proxy address non-empty to avoid being deleted
 			common.Address{0x10}: core.GenesisAccount{Balance: common.Big1},
 		},
-	}).MustCommit(db)
+	}
+	genesis := gspec.MustCommit(db)
 
 	mock := &mockContract{
 		validators: map[common.Address]blsCommon.PublicKey{
@@ -1837,7 +1840,7 @@ func TestUpgradeRoninTrustedOrg(t *testing.T) {
 		},
 	}
 
-	chain, _ := core.NewBlockChain(db, nil, &chainConfig, &v2, vm.Config{}, nil, nil)
+	chain, _ := core.NewBlockChain(db, nil, gspec, nil, &v2, vm.Config{}, nil, nil)
 	extraData := [consortiumCommon.ExtraVanity + consortiumCommon.ExtraSeal]byte{}
 
 	parent := genesis
@@ -1956,9 +1959,10 @@ func TestUpgradeAxieProxyCode(t *testing.T) {
 			Code:        code,
 		},
 	}
-	genesis := (&core.Genesis{
+	gspec := &core.Genesis{
 		Config: chainConfig,
-	}).MustCommit(db)
+	}
+	genesis := gspec.MustCommit(db)
 	mock := &mockTrippContract{
 		checkpointValidators: []validatorWithBlsWeight{
 			validatorWithBlsWeight{
@@ -1985,7 +1989,7 @@ func TestUpgradeAxieProxyCode(t *testing.T) {
 		testTrippEffective: true,
 	}
 
-	chain, _ := core.NewBlockChain(db, nil, chainConfig, v2, vm.Config{}, nil, nil)
+	chain, _ := core.NewBlockChain(db, nil, gspec, nil, v2, vm.Config{}, nil, nil)
 	extraData := &finality.HeaderExtraData{}
 
 	parent := genesis
@@ -2078,13 +2082,14 @@ func TestSystemTransactionOrder(t *testing.T) {
 		},
 	}
 
-	genesis := (&core.Genesis{
+	gspec := &core.Genesis{
 		Config: &chainConfig,
 		Alloc: core.GenesisAlloc{
 			// Make proxy address non-empty to avoid being deleted
 			common.Address{0x10}: core.GenesisAccount{Balance: common.Big1},
 		},
-	}).MustCommit(db)
+	}
+	genesis := gspec.MustCommit(db)
 
 	mock := &mockContract{
 		validators: map[common.Address]blsCommon.PublicKey{
@@ -2104,7 +2109,7 @@ func TestSystemTransactionOrder(t *testing.T) {
 		},
 	}
 
-	chain, _ := core.NewBlockChain(db, nil, &chainConfig, &v2, vm.Config{}, nil, nil)
+	chain, _ := core.NewBlockChain(db, nil, gspec, nil, &v2, vm.Config{}, nil, nil)
 	extraData := [consortiumCommon.ExtraVanity + consortiumCommon.ExtraSeal]byte{}
 
 	signer := types.NewEIP155Signer(big.NewInt(2021))
@@ -2201,12 +2206,13 @@ func TestIsPeriodBlock(t *testing.T) {
 			RoninValidatorSet: common.HexToAddress("0xaa"),
 		},
 	}
-	genesis := (&core.Genesis{
+	gspec := &core.Genesis{
 		Config:    &chainConfig,
 		BaseFee:   big.NewInt(params.InitialBaseFee),
 		Timestamp: midnight, // genesis at day 1
-	}).MustCommit(db)
-	chain, _ := core.NewBlockChain(db, nil, &chainConfig, ethash.NewFullFaker(), vm.Config{}, nil, nil)
+	}
+	genesis := gspec.MustCommit(db)
+	chain, _ := core.NewBlockChain(db, nil, gspec, nil, ethash.NewFullFaker(), vm.Config{}, nil, nil)
 	// create chain of up to 399 blocks, all of them are not period block
 	bs, _ := core.GenerateChain(&chainConfig, genesis, ethash.NewFaker(), db, 399, nil, true) // create chain of up to 399 blocks
 	if _, err := chain.InsertChain(bs[:]); err != nil {
@@ -2297,12 +2303,13 @@ func TestIsTrippEffective(t *testing.T) {
 		},
 		TrippPeriod: new(big.Int).SetUint64(now / dayInSeconds),
 	}
-	genesis := (&core.Genesis{
+	gspec := &core.Genesis{
 		Config:    &chainConfig,
 		BaseFee:   big.NewInt(params.InitialBaseFee),
 		Timestamp: midnight, // genesis at day 1
-	}).MustCommit(db)
-	chain, _ := core.NewBlockChain(db, nil, &chainConfig, ethash.NewFullFaker(), vm.Config{}, nil, nil)
+	}
+	genesis := gspec.MustCommit(db)
+	chain, _ := core.NewBlockChain(db, nil, gspec, nil, ethash.NewFullFaker(), vm.Config{}, nil, nil)
 	// create chain of up to 399 blocks, all of them are not Tripp effective
 	bs, _ := core.GenerateChain(&chainConfig, genesis, ethash.NewFaker(), db, 399, nil, true)
 	if _, err := chain.InsertChain(bs[:]); err != nil {
