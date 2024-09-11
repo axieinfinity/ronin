@@ -570,7 +570,6 @@ func BenchmarkCommitAfterHash(b *testing.B) {
 	b.Run("no-onleaf", func(b *testing.B) {
 		benchmarkCommitAfterHash(b, false)
 	})
-
 	b.Run("with-onleaf", func(b *testing.B) {
 		benchmarkCommitAfterHash(b, true)
 	})
