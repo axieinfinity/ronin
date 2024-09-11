@@ -420,8 +420,10 @@ func (st *StateTransition) TransitionDb() (*ExecutionResult, error) {
 	// 6. caller has enough balance to cover asset transfer for **topmost** call
 
 	// Check clauses 1-3, buy gas if everything is correct
-	if err := st.preCheck(); err != nil {
-		return nil, err
+	if !st.evm.Config.IsSystemTransaction {
+		if err := st.preCheck(); err != nil {
+			return nil, err
+		}
 	}
 
 	if tracer := st.evm.Config.Tracer; tracer != nil {

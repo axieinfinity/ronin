@@ -27,6 +27,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/eth/tracers"
+	"github.com/ethereum/go-ethereum/params"
 )
 
 //go:generate go run github.com/fjl/gencodec -type account -field-override accountMarshaling -out gen_account_json.go
@@ -101,6 +102,10 @@ func (t *prestateTracer) CaptureStart(env *vm.EVM, from common.Address, to commo
 	t.lookupAccount(from)
 	t.lookupAccount(to)
 	t.lookupAccount(env.Context.Coinbase)
+	treasury := env.ChainConfig().RoninTreasuryAddress
+	if treasury != nil {
+		t.lookupAccount(*treasury)
+	}
 
 	// The recipient balance includes the value transferred.
 	toBal := new(big.Int).Sub(t.pre[to].Balance, value)
@@ -117,6 +122,17 @@ func (t *prestateTracer) CaptureStart(env *vm.EVM, from common.Address, to commo
 	} else {
 		diffFromBal.Add(diffFromBal, consumedGas)
 	}
+	// At this time, the blob fee is already subtracted from sender and added to treasury.
+	// So we need to add blob fee back to sender and subtract from treasury to get the correct
+	// pre-tx balance.
+	if len(env.BlobHashes) > 0 {
+		blobFee := new(big.Int).Mul(big.NewInt(int64(len(env.BlobHashes)*params.BlobTxBlobGasPerBlob)), env.Context.BlobBaseFee)
+		diffFromBal.Add(diffFromBal, blobFee)
+		if treasury != nil {
+			t.pre[*treasury].Balance = new(big.Int).Sub(t.pre[*treasury].Balance, blobFee)
+		}
+	}
+
 	fromBal.Add(fromBal, diffFromBal)
 	t.pre[from].Balance = fromBal
 	t.pre[from].Nonce--
