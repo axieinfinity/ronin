@@ -70,8 +70,6 @@ type Freezer struct {
 	frozen    uint64 // Number of blocks already frozen
 	threshold uint64 // Number of recent blocks not to freeze (params.FullImmutabilityThreshold apart from tests)
 
-	datadir string // Path of root directory of ancient store
-
 	// This lock synchronizes writers and the truncate operation, as well as
 	// the "atomic" (batched) read operations.
 	writeLock  sync.RWMutex
@@ -121,7 +119,6 @@ func NewFreezer(datadir string, namespace string, readonly bool, maxTableSize ui
 		instanceLock: lock,
 		trigger:      make(chan chan struct{}),
 		quit:         make(chan struct{}),
-		datadir:      datadir,
 	}
 
 	// Create the tables.
@@ -317,9 +314,4 @@ func (f *Freezer) repair() error {
 	}
 	atomic.StoreUint64(&f.frozen, min)
 	return nil
-}
-
-// AncientDatadir returns the root directory path of the ancient store.
-func (f *Freezer) AncientDatadir() (string, error) {
-	return f.datadir, nil
 }
