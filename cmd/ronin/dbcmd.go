@@ -24,7 +24,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"sort"
 	"strconv"
 	"strings"
 	"syscall"
@@ -204,8 +203,8 @@ WARNING: This is a low-level operation which may cause database corruption!`,
 	dbDumpFreezerIndex = &cli.Command{
 		Action:    freezerInspect,
 		Name:      "freezer-index",
-		Usage:     "Dump out the index of a given freezer type",
-		ArgsUsage: "<type> <start (int)> <end (int)>",
+		Usage:     "Dump out the index of a specific freezer table",
+		ArgsUsage: "<freezer-type> <table-type> <start (int)> <end (int)>",
 		Flags: []cli.Flag{
 			utils.DataDirFlag,
 			utils.DBEngineFlag,
@@ -403,7 +402,7 @@ func inspect(ctx *cli.Context) error {
 		start  []byte
 	)
 	if ctx.NArg() > 2 {
-		return fmt.Errorf("Max 2 arguments: %v", ctx.Command.ArgsUsage)
+		return fmt.Errorf("max 2 arguments: %v", ctx.Command.ArgsUsage)
 	}
 	if ctx.NArg() >= 1 {
 		if d, err := hexutil.Decode(ctx.Args().Get(0)); err != nil {
@@ -611,25 +610,19 @@ func dbDumpTrie(ctx *cli.Context) error {
 
 func freezerInspect(ctx *cli.Context) error {
 	var (
-		start, end    int64
-		disableSnappy bool
-		err           error
+		start, end int64
+		err        error
 	)
-	if ctx.NArg() < 3 {
+	if ctx.NArg() < 4 {
 		return fmt.Errorf("required arguments: %v", ctx.Command.ArgsUsage)
 	}
-	kind := ctx.Args().Get(0)
-	if noSnap, ok := rawdb.FreezerNoSnappy[kind]; !ok {
-		var options []string
-		for opt := range rawdb.FreezerNoSnappy {
-			options = append(options, opt)
-		}
-		sort.Strings(options)
-		return fmt.Errorf("Could read freezer-type '%v'. Available options: %v", kind, options)
-	} else {
-		disableSnappy = noSnap
-	}
-	if start, err = strconv.ParseInt(ctx.Args().Get(1), 10, 64); err != nil {
+
+	var (
+		freezerType = ctx.Args().Get(0)
+		tableType   = ctx.Args().Get(1)
+	)
+
+	if start, err = strconv.ParseInt(ctx.Args().Get(2), 10, 64); err != nil {
 		log.Info("Could read start-param", "error", err)
 		return err
 	}
@@ -637,16 +630,20 @@ func freezerInspect(ctx *cli.Context) error {
 		log.Info("Could read count param", "error", err)
 		return err
 	}
+
 	stack, _ := makeConfigNode(ctx)
 	defer stack.Close()
-	path := filepath.Join(stack.ResolvePath("chaindata"), "ancient")
-	log.Info("Opening freezer", "location", path, "name", kind)
-	if f, err := rawdb.NewFreezerTable(path, kind, disableSnappy); err != nil {
-		return err
-	} else {
-		f.DumpIndex(start, end)
+	// Open the Freezer Database with mode read-only
+	db := utils.MakeChainDatabase(ctx, stack, true)
+	defer db.Close()
+
+	ancient, err := db.AncientDatadir()
+	if err != nil {
+		log.Info("Failed to retrive ancient root", "err", err)
 	}
-	return nil
+
+	return rawdb.InspectFreezerTable(ancient, freezerType, tableType, start, end)
+
 }
 
 // ParseHexOrString tries to hexdecode b, but if the prefix is missing, it instead just returns the raw bytes
