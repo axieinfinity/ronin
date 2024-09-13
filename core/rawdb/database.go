@@ -164,15 +164,17 @@ func resolveChainFreezerDir(ancient string) string {
 	// - it's legacy location, chain freezer is present in the root ancient folder
 
 	freezer := path.Join(ancient, chainFreezerName)
-	if !common.FileExist(ancient) {
-		// The entire ancient store is not initialized, still use the sub
-		// folder for initialization.
-	} else {
-		// Ancient root is already initialized, then we hold the assumption
-		// that chain freezer is also initialized and located in root folder.
-		// In this case fallback to legacy location.
-		freezer = ancient
-		log.Info("Found legacy ancient chain path", "location", ancient)
+	if !common.FileExist(freezer) {
+		if !common.FileExist(ancient) {
+			// The entire ancient store is not initialized, still use the sub
+			// folder for initialization.
+		} else {
+			// Ancient root is already initialized, then we hold the assumption
+			// that chain freezer is also initialized and located in root folder.
+			// In this case fallback to legacy location.
+			freezer = ancient
+			log.Info("Found legacy ancient chain path", "location", ancient)
+		}
 	}
 	return freezer
 }
