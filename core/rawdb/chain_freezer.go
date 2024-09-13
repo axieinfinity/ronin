@@ -270,19 +270,19 @@ func (f *chainFreezer) freezeRange(nfdb *nofreezedb, number, limit uint64) (hash
 			}
 
 			// Write to the batch.
-			if err := op.AppendRaw(freezerHashTable, number, hash[:]); err != nil {
+			if err := op.AppendRaw(chainFreezerHashTable, number, hash[:]); err != nil {
 				return fmt.Errorf("can't write hash to freezer: %v", err)
 			}
-			if err := op.AppendRaw(freezerHeaderTable, number, header); err != nil {
+			if err := op.AppendRaw(chainFreezerHeaderTable, number, header); err != nil {
 				return fmt.Errorf("can't write header to freezer: %v", err)
 			}
-			if err := op.AppendRaw(freezerBodiesTable, number, body); err != nil {
+			if err := op.AppendRaw(chainFreezerBodiesTable, number, body); err != nil {
 				return fmt.Errorf("can't write body to freezer: %v", err)
 			}
-			if err := op.AppendRaw(freezerReceiptTable, number, receipts); err != nil {
+			if err := op.AppendRaw(chainFreezerReceiptTable, number, receipts); err != nil {
 				return fmt.Errorf("can't write receipts to freezer: %v", err)
 			}
-			if err := op.AppendRaw(freezerDifficultyTable, number, td); err != nil {
+			if err := op.AppendRaw(chainFreezerDifficultyTable, number, td); err != nil {
 				return fmt.Errorf("can't write td to freezer: %v", err)
 			}
 
