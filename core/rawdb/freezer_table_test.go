@@ -732,7 +732,7 @@ func TestSequentialRead(t *testing.T) {
 		}
 		// Write 15 bytes 30 times
 		writeChunks(t, f, 30, 15)
-		f.DumpIndex(0, 30)
+		f.dumpIndexStdout(0, 30)
 		f.Close()
 	}
 	{ // Open it, iterate, verify iteration

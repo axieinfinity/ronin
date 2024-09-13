@@ -148,7 +148,6 @@ type Writer interface {
 type AncientStore interface {
 	AncientReader
 	AncientWriter
-	AncientStater
 	io.Closer
 }
 

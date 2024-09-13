@@ -602,7 +602,7 @@ func (n *Node) OpenDatabase(name string, cache, handles int, namespace string, r
 // also attaching a chain freezer to it that moves ancient chain data from the
 // database to immutable append-only files. If the node is an ephemeral one, a
 // memory database is returned.
-func (n *Node) OpenDatabaseWithFreezer(name string, cache, handles int, freezer, namespace string, readonly bool) (ethdb.Database, error) {
+func (n *Node) OpenDatabaseWithFreezer(name string, cache, handles int, ancient string, namespace string, readonly bool) (ethdb.Database, error) {
 	n.lock.Lock()
 	defer n.lock.Unlock()
 	if n.state == closedState {
@@ -613,17 +613,10 @@ func (n *Node) OpenDatabaseWithFreezer(name string, cache, handles int, freezer,
 	if n.config.DataDir == "" {
 		db = rawdb.NewMemoryDatabase()
 	} else {
-		root := n.ResolvePath(name)
-		switch {
-		case freezer == "":
-			freezer = filepath.Join(root, "ancient")
-		case !filepath.IsAbs(freezer):
-			freezer = n.ResolvePath(freezer)
-		}
 		db, err = rawdb.Open(rawdb.OpenOptions{
 			Type:              n.config.DBEngine,
 			Directory:         n.ResolvePath(name),
-			AncientsDirectory: freezer,
+			AncientsDirectory: n.ResolveAncient(name, ancient),
 			Namespace:         namespace,
 			Cache:             cache,
 			Handles:           handles,
@@ -635,6 +628,17 @@ func (n *Node) OpenDatabaseWithFreezer(name string, cache, handles int, freezer,
 		db = n.wrapDatabase(db)
 	}
 	return db, err
+}
+
+// ResolveAncient returns the absolute path of the root ancient directory.
+func (n *Node) ResolveAncient(name string, ancient string) string {
+	switch {
+	case ancient == "": // Use the default ancient directory
+		ancient = filepath.Join(n.ResolvePath(name), "ancient")
+	case !filepath.IsAbs(ancient): // ancient is relative path to the instance directory
+		ancient = n.ResolvePath(ancient)
+	}
+	return ancient
 }
 
 // ResolvePath returns the absolute path of a resource in the instance directory.
