@@ -137,6 +137,7 @@ func (batch *syncMemBatch) hasCode(hash common.Hash) bool {
 // unknown trie hashes to retrieve, accepts node data associated with said hashes
 // and reconstructs the trie step by step until all is done.
 type Sync struct {
+	scheme   NodeScheme                   // Node scheme descriptor used in database.
 	database ethdb.KeyValueReader         // Persistent database to check for existing entries
 	membatch *syncMemBatch                // Memory buffer to avoid frequent database writes
 	nodeReqs map[string]*nodeRequest      // Pending requests pertaining to a trie node path
@@ -146,8 +147,24 @@ type Sync struct {
 	bloom    *SyncBloom                   // Bloom filter for fast state existence checks
 }
 
+// LeafCallback is a callback type invoked when a trie operation reaches a leaf
+// node.
+//
+// The keys is a path tuple identifying a particular trie node either in a single
+// trie (account) or a layered trie (account -> storage). Each key in the tuple
+// is in the raw format(32 bytes).
+//
+// The path is a composite hexary path identifying the trie node. All the key
+// bytes are converted to the hexary nibbles and composited with the parent path
+// if the trie node is in a layered trie.
+//
+// It's used by state sync and commit to allow handling external references
+// between account and storage tries. And also it's used in the state healing
+// for extracting the raw states(leaf nodes) with corresponding paths.
+type LeafCallback func(keys [][]byte, path []byte, leaf []byte, parent common.Hash, parentPath []byte) error
+
 // NewSync creates a new trie data download scheduler.
-func NewSync(root common.Hash, database ethdb.KeyValueReader, callback LeafCallback, bloom *SyncBloom) *Sync {
+func NewSync(root common.Hash, database ethdb.KeyValueReader, callback LeafCallback, bloom *SyncBloom, scheme NodeScheme) *Sync {
 	ts := &Sync{
 		database: database,
 		membatch: newSyncMemBatch(),
