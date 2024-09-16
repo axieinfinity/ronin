@@ -95,12 +95,13 @@ func testVotePool(t *testing.T, isValidRules bool) {
 
 	// Create a database pre-initialize with a genesis block
 	db := rawdb.NewMemoryDatabase()
-	genesis := (&core.Genesis{
+	gspec := &core.Genesis{
 		Config:  params.TestChainConfig,
 		Alloc:   core.GenesisAlloc{testAddr: {Balance: big.NewInt(1000000)}},
 		BaseFee: big.NewInt(params.InitialBaseFee),
-	}).MustCommit(db)
-	chain, _ := core.NewBlockChain(db, nil, params.TestChainConfig, ethash.NewFullFaker(), vm.Config{}, nil, nil)
+	}
+	genesis := gspec.MustCommit(db)
+	chain, _ := core.NewBlockChain(db, nil, gspec, nil, ethash.NewFullFaker(), vm.Config{}, nil, nil)
 
 	mux := new(event.TypeMux)
 	mockEngine := &mockPOSA{}
@@ -390,12 +391,13 @@ func TestVotePoolDosProtection(t *testing.T) {
 
 	// Create a database pre-initialize with a genesis block
 	db := rawdb.NewMemoryDatabase()
-	genesis := (&core.Genesis{
+	gspec := &core.Genesis{
 		Config:  params.TestChainConfig,
 		Alloc:   core.GenesisAlloc{testAddr: {Balance: big.NewInt(1000000)}},
 		BaseFee: big.NewInt(params.InitialBaseFee),
-	}).MustCommit(db)
-	chain, _ := core.NewBlockChain(db, nil, params.TestChainConfig, ethash.NewFullFaker(), vm.Config{}, nil, nil)
+	}
+	genesis := gspec.MustCommit(db)
+	chain, _ := core.NewBlockChain(db, nil, gspec, nil, ethash.NewFullFaker(), vm.Config{}, nil, nil)
 
 	bs, _ := core.GenerateChain(params.TestChainConfig, genesis, ethash.NewFaker(), db, 25, nil, true)
 	if _, err := chain.InsertChain(bs[:1], nil); err != nil {
@@ -516,12 +518,13 @@ func TestVotePoolWrongTargetNumber(t *testing.T) {
 
 	// Create a database pre-initialize with a genesis block
 	db := rawdb.NewMemoryDatabase()
-	genesis := (&core.Genesis{
+	gspec := &core.Genesis{
 		Config:  params.TestChainConfig,
 		Alloc:   core.GenesisAlloc{testAddr: {Balance: big.NewInt(1000000)}},
 		BaseFee: big.NewInt(params.InitialBaseFee),
-	}).MustCommit(db)
-	chain, _ := core.NewBlockChain(db, nil, params.TestChainConfig, ethash.NewFullFaker(), vm.Config{}, nil, nil)
+	}
+	genesis := gspec.MustCommit(db)
+	chain, _ := core.NewBlockChain(db, nil, gspec, nil, ethash.NewFullFaker(), vm.Config{}, nil, nil)
 
 	bs, _ := core.GenerateChain(params.TestChainConfig, genesis, ethash.NewFaker(), db, 1, nil, true)
 	if _, err := chain.InsertChain(bs[:1], nil); err != nil {
