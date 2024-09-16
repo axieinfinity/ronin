@@ -331,6 +331,26 @@ func SetupGenesisBlockWithOverride(db ethdb.Database, genesis *Genesis, override
 	return newcfg, stored, nil
 }
 
+// LoadChainConfig loads the stored chain config if the chain config
+// is already present in database, otherwise, return the config in the
+// provided genesis specification.
+func LoadChainConfig(db ethdb.Database, genesis *Genesis) (*params.ChainConfig, error) {
+	if genesis != nil && genesis.Config == nil {
+		return params.AllEthashProtocolChanges, errGenesisNoConfig
+	}
+	stored := rawdb.ReadCanonicalHash(db, 0)
+	if (stored != common.Hash{}) {
+		storedcfg := rawdb.ReadChainConfig(db, stored)
+		if storedcfg != nil {
+			return storedcfg, nil
+		}
+	}
+	if genesis == nil {
+		genesis = DefaultGenesisBlock()
+	}
+	return genesis.Config, nil
+}
+
 func (g *Genesis) configOrDefault(ghash common.Hash) *params.ChainConfig {
 	switch {
 	case g != nil:
