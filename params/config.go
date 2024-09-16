@@ -484,6 +484,36 @@ var (
 		ConsortiumV2Contracts:         nil,
 		RoninTreasuryAddress:          &common.Address{},
 	}
+	NonActivatedConfig = &ChainConfig{
+		ChainID:                       nil,
+		HomesteadBlock:                nil,
+		DAOForkBlock:                  nil,
+		DAOForkSupport:                false,
+		EIP150Block:                   nil,
+		EIP150Hash:                    common.Hash{},
+		EIP155Block:                   nil,
+		EIP158Block:                   nil,
+		ByzantiumBlock:                nil,
+		ConstantinopleBlock:           nil,
+		PetersburgBlock:               nil,
+		IstanbulBlock:                 nil,
+		MuirGlacierBlock:              nil,
+		MikoBlock:                     nil,
+		BerlinBlock:                   nil,
+		LondonBlock:                   nil,
+		ArrowGlacierBlock:             nil,
+		OdysseusBlock:                 nil,
+		FenixBlock:                    nil,
+		ConsortiumV2Block:             nil,
+		PuffyBlock:                    nil,
+		BlacklistContractAddress:      nil,
+		FenixValidatorContractAddress: nil,
+		TerminalTotalDifficulty:       nil,
+		Ethash:                        new(EthashConfig),
+		Clique:                        nil,
+		Consortium:                    nil,
+		ConsortiumV2Contracts:         nil,
+	}
 	TestRules = TestChainConfig.Rules(new(big.Int))
 )
 
