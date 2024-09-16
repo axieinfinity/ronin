@@ -18,7 +18,7 @@ require (
 	github.com/crate-crypto/go-kzg-4844 v1.0.0
 	github.com/davecgh/go-spew v1.1.1
 	github.com/deckarep/golang-set v0.0.0-20180603214616-504e848d77ea
-	github.com/docker/docker v1.4.2-0.20180625184442-8e610b2b55bf
+	github.com/docker/docker v25.0.6+incompatible
 	github.com/dop251/goja v0.0.0-20230605162241-28ee0ee714f3
 	github.com/edsrzf/mmap-go v1.1.0
 	github.com/ethereum/c-kzg-4844 v1.0.0
@@ -66,7 +66,6 @@ require (
 	golang.org/x/time v0.0.0-20220922220347-f3bd1da661af
 	google.golang.org/protobuf v1.33.0 // indirect
 	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce
-	gotest.tools v2.2.0+incompatible // indirect
 )
 
 require (
@@ -76,6 +75,7 @@ require (
 	github.com/grafana/pyroscope-go v1.1.2
 	github.com/hashicorp/golang-lru/arc/v2 v2.0.7
 	github.com/hashicorp/golang-lru/v2 v2.0.7
+	github.com/holiman/billy v0.0.0-20240322075458-72a4e81ec6da
 	github.com/klauspost/compress v1.17.8
 	github.com/pkg/errors v0.9.1
 	github.com/supranational/blst v0.3.11
@@ -112,7 +112,6 @@ require (
 	github.com/google/pprof v0.0.0-20230405160723-4a4c7d95572b // indirect
 	github.com/grafana/pyroscope-go/godeltaprof v0.1.8 // indirect
 	github.com/herumi/bls-eth-go-binary v1.31.0 // indirect
-	github.com/holiman/billy v0.0.0-20240322075458-72a4e81ec6da // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/mattn/go-ieproxy v0.0.0-20190702010315-6dee0af9227d // indirect
@@ -138,5 +137,6 @@ require (
 	golang.org/x/term v0.18.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
+	gotest.tools/v3 v3.5.1 // indirect
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
