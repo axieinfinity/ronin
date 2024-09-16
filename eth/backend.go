@@ -140,11 +140,6 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 	if err != nil {
 		return nil, err
 	}
-	chainConfig, genesisHash, genesisErr := core.SetupGenesisBlockWithOverride(chainDb, config.Genesis, config.OverrideArrowGlacier, false)
-	if _, ok := genesisErr.(*params.ConfigCompatError); genesisErr != nil && !ok {
-		return nil, genesisErr
-	}
-	log.Info("Initialised chain configuration", "config", chainConfig)
 
 	if err := pruner.RecoverPruning(stack.ResolvePath(""), chainDb, stack.ResolvePath(config.TrieCleanCacheJournal)); err != nil {
 		log.Error("Failed to recover state", "error", err)
@@ -167,7 +162,11 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 		log.Info("Unprotected transactions allowed")
 	}
 	ethAPI := ethapi.NewPublicBlockChainAPI(eth.APIBackend)
-	eth.engine = ethconfig.CreateConsensusEngine(stack, chainConfig, &ethashConfig, config.Miner.Notify, config.Miner.Noverify,
+	loadedChainConfig, err := core.LoadChainConfig(chainDb, config.Genesis)
+	if err != nil {
+		return nil, err
+	}
+	eth.engine = ethconfig.CreateConsensusEngine(stack, loadedChainConfig, &ethashConfig, config.Miner.Notify, config.Miner.Noverify,
 		chainDb, ethAPI, config.SyncMode)
 
 	bcVersion := rawdb.ReadDatabaseVersion(chainDb)
@@ -205,7 +204,9 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 			NoPruningSideCar:    config.NoPruningSideCar,
 		}
 	)
-	eth.blockchain, err = core.NewBlockChain(chainDb, cacheConfig, chainConfig, eth.engine, vmConfig, eth.shouldPreserve, &config.TxLookupLimit)
+	eth.blockchain, err = core.NewBlockChain(chainDb, cacheConfig, config.Genesis, config.OverrideArrowGlacier, eth.engine, vmConfig, eth.shouldPreserve, &config.TxLookupLimit)
+	chainConfig := eth.blockchain.Config()
+	genesisHash := eth.blockchain.Genesis().Hash()
 	if err != nil {
 		return nil, err
 	}
@@ -220,13 +221,6 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 	}
 
 	StartENRFilter(eth.blockchain, eth.p2pServer)
-
-	// Rewind the chain in case of an incompatible config upgrade.
-	if compat, ok := genesisErr.(*params.ConfigCompatError); ok {
-		log.Warn("Rewinding chain to upgrade configuration", "err", compat)
-		eth.blockchain.SetHead(compat.RewindTo)
-		rawdb.WriteChainConfig(chainDb, genesisHash, chainConfig)
-	}
 	eth.bloomIndexer.Start(eth.blockchain)
 
 	if config.BlobPool.Datadir != "" {
