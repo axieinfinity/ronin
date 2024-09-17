@@ -165,7 +165,7 @@ func handleMessage(backend Backend, peer *Peer) error {
 			req.Bytes = softResponseLimit
 		}
 		// Retrieve the requested state and bail out if non existent
-		tr, err := trie.New(common.Hash{}, req.Root, backend.Chain().StateCache().TrieDB())
+		tr, err := trie.New(trie.StateTrieID(req.Root), backend.Chain().StateCache().TrieDB())
 		if err != nil {
 			return p2p.Send(peer.rw, AccountRangeMsg, &AccountRangePacket{ID: req.ID})
 		}
@@ -315,7 +315,7 @@ func handleMessage(backend Backend, peer *Peer) error {
 			if origin != (common.Hash{}) || abort {
 				// Request started at a non-zero hash or was capped prematurely, add
 				// the endpoint Merkle proofs
-				accTrie, err := trie.New(common.Hash{}, req.Root, backend.Chain().StateCache().TrieDB())
+				accTrie, err := trie.New(trie.StateTrieID(req.Root), backend.Chain().StateCache().TrieDB())
 				if err != nil {
 					return p2p.Send(peer.rw, StorageRangesMsg, &StorageRangesPacket{ID: req.ID})
 				}
@@ -323,7 +323,7 @@ func handleMessage(backend Backend, peer *Peer) error {
 				if err := rlp.DecodeBytes(accTrie.Get(account[:]), &acc); err != nil {
 					return p2p.Send(peer.rw, StorageRangesMsg, &StorageRangesPacket{ID: req.ID})
 				}
-				stTrie, err := trie.New(account, acc.Root, backend.Chain().StateCache().TrieDB())
+				stTrie, err := trie.New(trie.StorageTrieID(req.Root, account, acc.Root), backend.Chain().StateCache().TrieDB())
 				if err != nil {
 					return p2p.Send(peer.rw, StorageRangesMsg, &StorageRangesPacket{ID: req.ID})
 				}
@@ -430,7 +430,7 @@ func handleMessage(backend Backend, peer *Peer) error {
 		// Make sure we have the state associated with the request
 		triedb := backend.Chain().StateCache().TrieDB()
 
-		accTrie, err := trie.NewSecure(common.Hash{}, req.Root, triedb)
+		accTrie, err := trie.NewSecure(trie.StateTrieID(req.Root), triedb)
 		if err != nil {
 			// We don't have the requested state available, bail out
 			return p2p.Send(peer.rw, TrieNodesMsg, &TrieNodesPacket{ID: req.ID})
@@ -472,7 +472,7 @@ func handleMessage(backend Backend, peer *Peer) error {
 				if err != nil || account == nil {
 					break
 				}
-				stTrie, err := trie.NewSecure(common.BytesToHash(pathset[0]), common.BytesToHash(account.Root), triedb)
+				stTrie, err := trie.NewSecure(trie.StorageTrieID(req.Root, common.BytesToHash(pathset[0]), common.BytesToHash(account.Root)), triedb)
 				loads++ // always account database reads, even for failures
 				if err != nil {
 					break

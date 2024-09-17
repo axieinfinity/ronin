@@ -785,8 +785,8 @@ func (db *Database) Update(nodes *MergedNodeSet) error {
 	// can be linked with their parent correctly. The order of writing between
 	// different tries(account trie, storage tries) is not required.
 	for owner, subset := range nodes.sets {
-		for _, path := range subset.paths {
-			n, ok := subset.nodes[path]
+		for _, path := range subset.updates.order {
+			n, ok := subset.updates.nodes[path]
 			if !ok {
 				return fmt.Errorf("missing node %x %v", owner, path)
 			}
@@ -824,6 +824,34 @@ func (db *Database) Size() (common.StorageSize, common.StorageSize) {
 		preimageSize = db.preimages.size()
 	}
 	return db.dirtiesSize + db.childrenSize + metadataSize - metarootRefs, preimageSize
+}
+
+// GetReader retrieves a node reader belonging to the given state root.
+func (db *Database) GetReader(root common.Hash) Reader {
+	return newHashReader(db)
+}
+
+// hashReader is reader of hashDatabase which implements the Reader interface.
+type hashReader struct {
+	db *Database
+}
+
+// newHashReader initializes the hash reader.
+func newHashReader(db *Database) *hashReader {
+	return &hashReader{db: db}
+}
+
+// Node retrieves the trie node with the given node hash.
+// No error will be returned if the node is not found.
+func (reader *hashReader) Node(_ common.Hash, _ []byte, hash common.Hash) (node, error) {
+	return reader.db.node(hash), nil
+}
+
+// NodeBlob retrieves the RLP-encoded trie node blob with the given node hash.
+// No error will be returned if the node is not found.
+func (reader *hashReader) NodeBlob(_ common.Hash, _ []byte, hash common.Hash) ([]byte, error) {
+	blob, _ := reader.db.Node(hash)
+	return blob, nil
 }
 
 // saveCache saves clean state cache to given directory path

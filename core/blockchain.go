@@ -808,10 +808,10 @@ func (bc *BlockChain) FastSyncCommitHead(hash common.Hash) error {
 	if block == nil {
 		return fmt.Errorf("non existent block [%x..]", hash[:4])
 	}
-	if _, err := trie.NewSecure(common.Hash{}, block.Root(), bc.triedb); err != nil {
-		return err
+	root := block.Root()
+	if !bc.HasState(root) {
+		return fmt.Errorf("non existent state [%x..]", root[:4])
 	}
-
 	// If all checks out, manually set the head block.
 	if !bc.chainmu.TryLock() {
 		return errChainStopped
@@ -823,7 +823,7 @@ func (bc *BlockChain) FastSyncCommitHead(hash common.Hash) error {
 	// Destroy any existing state snapshot and regenerate it in the background,
 	// also resuming the normal maintenance of any previously paused snapshot.
 	if bc.snaps != nil {
-		bc.snaps.Rebuild(block.Root())
+		bc.snaps.Rebuild(root)
 	}
 	log.Info("Committed new head block", "number", block.Number(), "hash", hash)
 	return nil

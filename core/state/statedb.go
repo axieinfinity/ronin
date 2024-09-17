@@ -996,7 +996,9 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (common.Hash, error) {
 				if err := nodes.Merge(nodeSet); err != nil {
 					return common.Hash{}, err
 				}
-				storageTrieNodes += nodeSet.Len()
+				// TODO: separate counter for update and delete
+				tmp, _ := nodeSet.Size()
+				storageTrieNodes += tmp
 			}
 		}
 	}
@@ -1029,7 +1031,8 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (common.Hash, error) {
 		if err := nodes.Merge(nodeSet); err != nil {
 			return common.Hash{}, err
 		}
-		accountTrieNodes = nodeSet.Len()
+		// TODO: separate counter for update and delete
+		accountTrieNodes, _ = nodeSet.Size()
 	}
 	if metrics.EnabledExpensive {
 		s.AccountCommits += time.Since(start)
