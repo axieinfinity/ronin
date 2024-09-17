@@ -124,6 +124,7 @@ type StateDB struct {
 	SnapshotAccountReads time.Duration
 	SnapshotStorageReads time.Duration
 	SnapshotCommits      time.Duration
+	TrieDBCommits        time.Duration
 
 	AccountUpdated int
 	StorageUpdated int
@@ -973,9 +974,11 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (common.Hash, error) {
 
 	// Commit objects to the trie, measuring the elapsed time
 	var (
-		accountTrieNodes int
-		storageTrieNodes int
-		nodes            = trie.NewMergedNodeSet()
+		accountTrieNodesUpdated int
+		accountTrieNodesDeleted int
+		storageTrieNodesUpdated int
+		storageTrieNodesDeleted int
+		nodes                   = trie.NewMergedNodeSet()
 	)
 	codeWriter := s.db.TrieDB().DiskDB().NewBatch()
 	for addr := range s.stateObjectsDirty {
@@ -996,9 +999,9 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (common.Hash, error) {
 				if err := nodes.Merge(nodeSet); err != nil {
 					return common.Hash{}, err
 				}
-				// TODO: separate counter for update and delete
-				tmp, _ := nodeSet.Size()
-				storageTrieNodes += tmp
+				updated, deleted := nodeSet.Size()
+				storageTrieNodesUpdated += updated
+				storageTrieNodesDeleted += deleted
 			}
 		}
 	}
@@ -1031,8 +1034,7 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (common.Hash, error) {
 		if err := nodes.Merge(nodeSet); err != nil {
 			return common.Hash{}, err
 		}
-		// TODO: separate counter for update and delete
-		accountTrieNodes, _ = nodeSet.Size()
+		accountTrieNodesUpdated, accountTrieNodesDeleted = nodeSet.Size()
 	}
 	if metrics.EnabledExpensive {
 		s.AccountCommits += time.Since(start)
@@ -1041,16 +1043,16 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (common.Hash, error) {
 		storageUpdatedMeter.Mark(int64(s.StorageUpdated))
 		accountDeletedMeter.Mark(int64(s.AccountDeleted))
 		storageDeletedMeter.Mark(int64(s.StorageDeleted))
-		accountTrieCommittedMeter.Mark(int64(accountTrieNodes))
-		storageTriesCommittedMeter.Mark(int64(storageTrieNodes))
+		accountTrieUpdatedMeter.Mark(int64(accountTrieNodesUpdated))
+		accountTrieDeletedMeter.Mark(int64(accountTrieNodesDeleted))
+		storageTriesUpdatedMeter.Mark(int64(storageTrieNodesUpdated))
+		storageTriesDeletedMeter.Mark(int64(storageTrieNodesDeleted))
 		s.AccountUpdated, s.AccountDeleted = 0, 0
 		s.StorageUpdated, s.StorageDeleted = 0, 0
 	}
 	// If snapshotting is enabled, update the snapshot tree with this new version
 	if s.snap != nil {
-		if metrics.EnabledExpensive {
-			defer func(start time.Time) { s.SnapshotCommits += time.Since(start) }(time.Now())
-		}
+		start := time.Now()
 		// Only update if there's a state transition (skip empty Clique blocks)
 		if parent := s.snap.Root(); parent != root {
 			if err := s.snaps.Update(root, parent, s.snapDestructs, s.snapAccounts, s.snapStorage); err != nil {
@@ -1065,14 +1067,30 @@ func (s *StateDB) Commit(deleteEmptyObjects bool) (common.Hash, error) {
 			}
 		}
 		s.snap, s.snapDestructs, s.snapAccounts, s.snapStorage = nil, nil, nil, nil
+		if metrics.EnabledExpensive {
+			s.SnapshotCommits += time.Since(start)
+		}
 	}
 
 	// Update Trie MergeNodeSets.
-	if err := s.db.TrieDB().Update(nodes); err != nil {
-		return common.Hash{}, err
+	if root == (common.Hash{}) {
+		root = emptyRoot
 	}
-	s.originalRoot = root
-	return root, err
+	origin := s.originalRoot
+	if origin == (common.Hash{}) {
+		origin = emptyRoot
+	}
+	if root != origin {
+		start := time.Now()
+		if err := s.db.TrieDB().Update(nodes); err != nil {
+			return common.Hash{}, err
+		}
+		s.originalRoot = root
+		if metrics.EnabledExpensive {
+			s.TrieDBCommits += time.Since(start)
+		}
+	}
+	return root, nil
 }
 
 // ResetAccessList sets access list to empty
