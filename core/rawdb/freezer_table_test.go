@@ -387,7 +387,7 @@ func TestFreezerTruncate(t *testing.T) {
 			t.Fatal(err)
 		}
 		defer f.Close()
-		f.truncate(10) // 150 bytes
+		f.truncateHead(10) // 150 bytes
 		if f.items.Load() != 10 {
 			t.Fatalf("expected %d items, got %d", 10, f.items.Load())
 		}
@@ -504,7 +504,7 @@ func TestFreezerReadAndTruncate(t *testing.T) {
 		}
 
 		// Now, truncate back to zero
-		f.truncate(0)
+		f.truncateHead(0)
 
 		// Write the data again
 		batch := f.newBatch()
