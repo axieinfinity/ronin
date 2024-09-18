@@ -219,6 +219,12 @@ func (f *Freezer) AncientSize(kind string) (uint64, error) {
 	return 0, errUnknownTable
 }
 
+// Tail returns an error as we don't have a backing chain freezer.
+func (f *Freezer) Tail() (uint64, error) {
+	// return f.tail.Load(), nil, in the next implementing, right now just keep it zero
+	return 0, nil
+}
+
 // ReadAncients runs the given read operation while ensuring that no writes take place
 // on the underlying freezer.
 func (f *Freezer) ReadAncients(fn func(ethdb.AncientReaderOp) error) (err error) {
