@@ -68,6 +68,12 @@ func (t *table) AncientRange(kind string, start, count, maxBytes uint64) ([][]by
 	return t.db.AncientRange(kind, start, count, maxBytes)
 }
 
+// Tail is a noop passthrough that just forwards the request to the underlying
+// database.
+func (t *table) Tail() (uint64, error) {
+	return t.db.Tail()
+}
+
 // Ancients is a noop passthrough that just forwards the request to the underlying
 // database.
 func (t *table) Ancients() (uint64, error) {
