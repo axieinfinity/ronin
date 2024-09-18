@@ -87,6 +87,10 @@ type AncientReaderOp interface {
 	// Ancients returns the ancient item numbers in the ancient store.
 	Ancients() (uint64, error)
 
+	// Tail returns the number of first stored item in the ancient store.
+	// This number can also be interpreted as the total deleted items.
+	Tail() (uint64, error)
+
 	// AncientSize returns the ancient size of the specified category.
 	AncientSize(kind string) (uint64, error)
 }

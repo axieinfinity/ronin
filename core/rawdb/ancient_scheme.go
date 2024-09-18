@@ -16,8 +16,6 @@
 
 package rawdb
 
-import "fmt"
-
 // The list of table names of chain freezer. (headers, hashes, bodies, difficulties)
 
 const (
@@ -54,36 +52,3 @@ var (
 
 // freezers the collections of all builtin freezers.
 var freezers = []string{chainFreezerName}
-
-// InspectFreezerTable dumps out the index of a specific freezer table. The passed
-// ancient indicates the path of root ancient directory where the chain freezer can
-// be opened. Start and end specifiy the range for dumping out indexes.
-// Note this function can only used for debugging purpose.
-func InspectFreezerTable(ancient string, freezerName string, tableName string, start, end int64) error {
-	var (
-		path   string
-		tables map[string]bool
-	)
-
-	switch freezerName {
-	case chainFreezerName:
-		path, tables = resolveChainFreezerDir(ancient), chainFreezerNoSnappy
-	default:
-		return fmt.Errorf("unknown freezer, supported ones: %v", freezers)
-	}
-	noSnappy, exit := tables[tableName]
-	if !exit {
-		// If the tableName is not exit in the tables, return an error.
-		var names []string
-		for name := range tables {
-			names = append(names, name)
-		}
-		return fmt.Errorf("unknown table name, supported ones: %v", names)
-	}
-	table, err := newFreezerTable(path, tableName, noSnappy)
-	if err != nil {
-		return err
-	}
-	table.dumpIndexStdout(start, end)
-	return nil
-}

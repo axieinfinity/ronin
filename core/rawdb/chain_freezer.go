@@ -73,6 +73,11 @@ func (f *chainFreezer) Close() error {
 	return err
 }
 
+// Tail returns an error as we don't have a backing chain freezer.
+func (f *chainFreezer) Tail() (uint64, error) {
+	return 0, errNotSupported
+}
+
 // freeze is a background thread that periodically checks the blockchain for any
 // import progress and moves ancient data from the fast database into the freezer.
 //
