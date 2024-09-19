@@ -123,13 +123,18 @@ func (db *nofreezedb) ModifyAncients(func(ethdb.AncientWriteOp) error) (int64, e
 	return 0, errNotSupported
 }
 
-// TruncateAncients returns an error as we don't have a backing chain freezer.
-func (db *nofreezedb) TruncateAncients(items uint64) error {
+// Sync returns an error as we don't have a backing chain freezer.
+func (db *nofreezedb) Sync() error {
 	return errNotSupported
 }
 
-// Sync returns an error as we don't have a backing chain freezer.
-func (db *nofreezedb) Sync() error {
+// TruncateHead returns an error as we don't have a backing chain freezer.
+func (db *nofreezedb) TruncateHead(items uint64) error {
+	return errNotSupported
+}
+
+// TruncateTail returns an error as we don't have a backing chain freezer.
+func (db *nofreezedb) TruncateTail(items uint64) error {
 	return errNotSupported
 }
 
