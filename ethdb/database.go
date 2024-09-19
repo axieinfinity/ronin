@@ -87,12 +87,12 @@ type AncientReaderOp interface {
 	// Ancients returns the ancient item numbers in the ancient store.
 	Ancients() (uint64, error)
 
-	// Tail returns the number of first stored item in the ancient store.
-	// This number can also be interpreted as the total deleted items.
-	Tail() (uint64, error)
-
 	// AncientSize returns the ancient size of the specified category.
 	AncientSize(kind string) (uint64, error)
+
+	// Tail returns the number of first stored item in the freezer
+	// This number can also be interpreted as the total deleted item numbers (counting from 0)
+	Tail() (uint64, error)
 }
 
 // AncientReader is the extended ancient reader interface including 'batched' or 'atomic' reading.
@@ -111,8 +111,22 @@ type AncientWriter interface {
 	// The integer return value is the total size of the written data.
 	ModifyAncients(func(AncientWriteOp) error) (int64, error)
 
-	// TruncateAncients discards all but the first n ancient data from the ancient store.
-	TruncateAncients(n uint64) error
+	/*
+		Tail ------------> Head
+	*/
+
+	// TruncateHead discards all, but keep the first n ancient data from the ancient store.
+	// After the truncation, the latest item can be accessed it item_ n-1 (start from 0)
+	// Tail 0 -> (n-1)New-headxxxxOld-head
+	TruncateHead(n uint64) error
+
+	// TruncateTail discards the first n ancient data from the ancient store. The already
+	// deleted items are ignored. After the truncation, the earliest item can be accessed
+	// is item_n(start from 0). The deleted items may not be removed from the ancient store
+	// immediately, but only when the accumulated deleted data reach the threshold then
+	// will be removed all together.
+	// Old-tail(0)xxxxxxxNew-tail(n)->Head
+	TruncateTail(n uint64) error
 
 	// Sync flushes all in-memory ancient store data to disk.
 	Sync() error

@@ -52,11 +52,11 @@ var (
 
 const (
 
-	// freezerTableSize defines the maximum size of freezer data files.
+	// freezerTableSize defines the maximum size of freezer data files, max size of per file is 2GB.
 	freezerTableSize = 2 * 1000 * 1000 * 1000
 )
 
-// freezer is an memory mapped append-only database to store immutable chain data
+// freezer is a memory mapped append-only database to store immutable chain data
 // into flat files:
 //
 //   - The append only nature ensures that disk writes are minimized.
@@ -65,6 +65,7 @@ const (
 //     of Geth, and thus also GC overhead.
 type Freezer struct {
 	frozen    atomic.Uint64 // Number of items already frozen
+	tail      atomic.Uint64 // Number of the first stored item in the freezer
 	threshold atomic.Uint64 // Number of recent blocks not to freeze (params.FullImmutabilityThreshold apart from tests)
 
 	// This lock synchronizes writers and the truncate operation, as well as
@@ -116,6 +117,8 @@ func NewFreezer(datadir string, namespace string, readonly bool, maxTableSize ui
 		trigger:      make(chan chan struct{}),
 		quit:         make(chan struct{}),
 	}
+	// The number of blocks after which a chain segment is
+	// considered immutable (i.e. soft finality)
 	freezer.threshold.Store(params.FullImmutabilityThreshold)
 
 	// Create the tables.
@@ -131,7 +134,7 @@ func NewFreezer(datadir string, namespace string, readonly bool, maxTableSize ui
 		freezer.tables[name] = table
 	}
 
-	// Truncate all tables to common length.
+	// Truncate all tables to common length, then close
 	if err := freezer.repair(); err != nil {
 		for _, table := range freezer.tables {
 			table.Close()
@@ -219,10 +222,9 @@ func (f *Freezer) AncientSize(kind string) (uint64, error) {
 	return 0, errUnknownTable
 }
 
-// Tail returns an error as we don't have a backing chain freezer.
+// Tail returns the number of first stored item in the freezer.
 func (f *Freezer) Tail() (uint64, error) {
-	// return f.tail.Load(), nil, in the next implementing, right now just keep it zero
-	return 0, nil
+	return f.tail.Load(), nil
 }
 
 // ReadAncients runs the given read operation while ensuring that no writes take place
@@ -247,7 +249,7 @@ func (f *Freezer) ModifyAncients(fn func(ethdb.AncientWriteOp) error) (writeSize
 		if err != nil {
 			// The write operation has failed. Go back to the previous item position.
 			for name, table := range f.tables {
-				err := table.truncate(prevItem)
+				err := table.truncateHead(prevItem)
 				if err != nil {
 					log.Error("Freezer table roll-back failed", "table", name, "index", prevItem, "err", err)
 				}
@@ -267,23 +269,46 @@ func (f *Freezer) ModifyAncients(fn func(ethdb.AncientWriteOp) error) (writeSize
 	return writeSize, nil
 }
 
-// TruncateAncients discards any recent data above the provided threshold number.
-func (f *Freezer) TruncateAncients(items uint64) error {
+// TruncateHead discards any recent data above the provided threshold number, only keep the first items ancient data.
+func (f *Freezer) TruncateHead(items uint64) error {
 	if f.readonly {
 		return errReadOnly
 	}
 	f.writeLock.Lock()
 	defer f.writeLock.Unlock()
 
+	// If the current frozen number is less than the requested items for frozen, do nothing.
 	if f.frozen.Load() <= items {
 		return nil
 	}
 	for _, table := range f.tables {
-		if err := table.truncate(items); err != nil {
+		if err := table.truncateHead(items); err != nil {
 			return err
 		}
 	}
 	f.frozen.Store(items)
+	return nil
+}
+
+// TruncateTail discards any recent data below the provided threshold number, only keep the last items ancient data.
+func (f *Freezer) TruncateTail(tail uint64) error {
+	if f.readonly {
+		return errReadOnly
+	}
+	f.writeLock.Lock()
+	defer f.writeLock.Unlock()
+
+	// If the current tail number is greater than the requested tail, seem out of range for truncating, do nothing.
+	if f.tail.Load() >= tail {
+		return nil
+	}
+
+	for _, table := range f.tables {
+		if err := table.truncateTail(tail); err != nil {
+			return err
+		}
+	}
+	f.tail.Store(tail)
 	return nil
 }
 
@@ -303,18 +328,35 @@ func (f *Freezer) Sync() error {
 
 // repair truncates all data tables to the same length.
 func (f *Freezer) repair() error {
-	min := uint64(math.MaxUint64)
+	var (
+		head = uint64(math.MaxUint64)
+		tail = uint64(0)
+	)
+	// Looping through all tables to find the most common head and tail between tables
 	for _, table := range f.tables {
 		items := table.items.Load()
-		if min > items {
-			min = items
+
+		if head > items {
+			head = items
+		}
+		hidden := table.itemHidden.Load()
+		if hidden > tail {
+			tail = hidden
 		}
 	}
+
+	// Truncate all tables to the common head and tail.
 	for _, table := range f.tables {
-		if err := table.truncate(min); err != nil {
+		if err := table.truncateHead(head); err != nil {
+			return err
+		}
+
+		if err := table.truncateTail(tail); err != nil {
 			return err
 		}
 	}
-	f.frozen.Store(min)
+	// Update frozen and tail counters.
+	f.frozen.Store(head)
+	f.tail.Store(tail)
 	return nil
 }
