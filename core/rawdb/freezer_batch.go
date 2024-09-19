@@ -165,6 +165,7 @@ func (batch *freezerTableBatch) appendItem(data []byte) error {
 	batch.totalBytes += itemSize
 
 	// Put index entry to buffer.
+	// The index file contains a list of index entries.
 	entry := indexEntry{filenum: batch.t.headId, offset: uint32(itemOffset + itemSize)}
 	batch.indexBuffer = entry.append(batch.indexBuffer)
 	batch.curItem++
