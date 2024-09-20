@@ -420,6 +420,48 @@ func (randTest) Generate(r *rand.Rand, size int) reflect.Value {
 	return reflect.ValueOf(steps)
 }
 
+func verifyAccessList(old *Trie, new *Trie, set *NodeSet) error {
+	deletes, inserts, updates := diffTries(old, new)
+
+	// Check insertion set
+	for path := range inserts {
+		n, ok := set.nodes[path]
+		if !ok || n.isDeleted() {
+			return errors.New("expect new node")
+		}
+		if len(n.prev) > 0 {
+			return errors.New("unexpected origin value")
+		}
+	}
+	// Check deletion set
+	for path, blob := range deletes {
+		n, ok := set.nodes[path]
+		if !ok || !n.isDeleted() {
+			return errors.New("expect deleted node")
+		}
+		if len(n.prev) == 0 {
+			return errors.New("expect origin value")
+		}
+		if !bytes.Equal(n.prev, blob) {
+			return errors.New("invalid origin value")
+		}
+	}
+	// Check update set
+	for path, blob := range updates {
+		n, ok := set.nodes[path]
+		if !ok || n.isDeleted() {
+			return errors.New("expect updated node")
+		}
+		if len(n.prev) == 0 {
+			return errors.New("expect origin value")
+		}
+		if !bytes.Equal(n.prev, blob) {
+			return errors.New("invalid origin value")
+		}
+	}
+	return nil
+}
+
 func runRandTest(rt randTest) bool {
 	var (
 		triedb   = NewDatabase(rawdb.NewMemoryDatabase())
@@ -468,24 +510,6 @@ func runRandTest(rt randTest) bool {
 				rt[i].err = err
 				return false
 			}
-			// Validity the returned nodeset
-			if nodes != nil {
-				for path, node := range nodes.updates.nodes {
-					blob, _, _ := origTrie.TryGetNode(hexToCompact([]byte(path)))
-					got := node.prev
-					if !bytes.Equal(blob, got) {
-						rt[i].err = fmt.Errorf("prevalue mismatch for 0x%x, got 0x%x want 0x%x", path, got, blob)
-						panic(rt[i].err)
-					}
-				}
-				for path, prev := range nodes.deletes {
-					blob, _, _ := origTrie.TryGetNode(hexToCompact([]byte(path)))
-					if !bytes.Equal(blob, prev) {
-						rt[i].err = fmt.Errorf("prevalue mismatch for 0x%x, got 0x%x want 0x%x", path, prev, blob)
-						return false
-					}
-				}
-			}
 			if nodes != nil {
 				triedb.Update(NewWithNodeSet(nodes))
 			}
@@ -494,8 +518,13 @@ func runRandTest(rt randTest) bool {
 				rt[i].err = err
 				return false
 			}
+			if nodes != nil {
+				if err := verifyAccessList(origTrie, newtr, nodes); err != nil {
+					rt[i].err = err
+					return false
+				}
+			}
 			tr = newtr
-
 			// Enable node tracing. Resolve the root node again explicitly
 			// since it's not captured at the beginning.
 			tr.tracer = newTracer()
