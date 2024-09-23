@@ -456,6 +456,10 @@ func (w *worker) newWorkLoop(recommit time.Duration) {
 			commit(false, commitInterruptNewHead)
 
 		case <-timer.C:
+			if w.chainConfig.Consortium != nil {
+				continue
+			}
+
 			// If mining is running resubmit a new work cycle periodically to pull in
 			// higher priced transactions. Disable this overhead for pending blocks.
 			if w.isRunning() && (w.chainConfig.Clique == nil || w.chainConfig.Clique.Period > 0) {
@@ -521,6 +525,10 @@ func (w *worker) mainLoop() {
 			w.commitNewWork(req.interrupt, req.noempty, req.timestamp)
 
 		case ev := <-w.chainSideCh:
+			// Don't handle uncle logic in Consortium
+			if w.chainConfig.Consortium != nil {
+				continue
+			}
 			// Short circuit for duplicate side blocks
 			if _, exist := w.localUncles[ev.Block.Hash()]; exist {
 				continue
