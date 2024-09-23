@@ -259,6 +259,7 @@ func (api *PrivateAdminAPI) ImportChain(file string) (bool, error) {
 
 		if hasAllBlocks(api.eth.BlockChain(), blocks) {
 			blocks = blocks[:0]
+			sidecars = sidecars[:0]
 			continue
 		}
 
@@ -274,6 +275,7 @@ func (api *PrivateAdminAPI) ImportChain(file string) (bool, error) {
 			return false, fmt.Errorf("batch %d: failed to insert: %v", batch, err)
 		}
 		blocks = blocks[:0]
+		sidecars = sidecars[:0]
 	}
 	return true, nil
 }
