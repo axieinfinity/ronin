@@ -539,3 +539,14 @@ func (s *Sync) commitCodeRequest(req *codeRequest) error {
 	}
 	return nil
 }
+
+// ResolvePath resolves the provided composite node path by separating the
+// path in account trie if it's existent.
+func ResolvePath(path []byte) (common.Hash, []byte) {
+	var owner common.Hash
+	if len(path) >= 2*common.HashLength {
+		owner = common.BytesToHash(hexToKeybytes(path[:2*common.HashLength]))
+		path = path[2*common.HashLength:]
+	}
+	return owner, path
+}

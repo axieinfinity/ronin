@@ -175,6 +175,7 @@ type BlockChain struct {
 	snaps  *snapshot.Tree // Snapshot tree for fast trie leaf access
 	triegc *prque.Prque   // Priority queue mapping block numbers to tries to gc
 	gcproc time.Duration  // Accumulates canonical block processing for trie dumping
+	triedb *trie.Database // The database handler for maintaining trie nodes.
 
 	// txLookupLimit is the maximum number of blocks from head whose tx indices
 	// are reserved:
@@ -257,7 +258,19 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, genesis *Genesis
 	internalTxsCache, _ := lru.New[common.Hash, []*types.InternalTransaction](internalTxsCacheLimit)
 
 	blobSidecarsCache, _ := lru.New[common.Hash, types.BlobSidecars](blobSidecarsCacheLimit)
-	chainConfig, genesisHash, genesisErr := SetupGenesisBlockWithOverride(db, genesis, overrideArrowGlacier, false)
+
+	// Open trie database with provided config
+	triedb := trie.NewDatabaseWithConfig(
+		db,
+		&trie.Config{
+			Cache:     cacheConfig.TrieCleanLimit,
+			Journal:   cacheConfig.TrieCleanJournal,
+			Preimages: cacheConfig.Preimages,
+		})
+	// Setup the genesis block, commit the provided genesis specification
+	// to database if the genesis block is not present yet, or load the
+	// stored one from database.
+	chainConfig, genesisHash, genesisErr := SetupGenesisBlockWithOverride(db, triedb, genesis, overrideArrowGlacier, false)
 	if _, ok := genesisErr.(*params.ConfigCompatError); genesisErr != nil && !ok {
 		return nil, genesisErr
 	}
@@ -267,6 +280,7 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, genesis *Genesis
 		chainConfig: chainConfig,
 		cacheConfig: cacheConfig,
 		db:          db,
+		triedb:      triedb,
 		triegc:      prque.New(nil),
 		stateCache: state.NewDatabaseWithConfig(db, &trie.Config{
 			Cache:     cacheConfig.TrieCleanLimit,
@@ -290,6 +304,7 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, genesis *Genesis
 
 		blobSidecarsCache: blobSidecarsCache,
 	}
+	bc.stateCache = state.NewDatabaseWithNodeDB(bc.db, bc.triedb)
 	bc.validator = NewBlockValidator(chainConfig, bc, engine)
 	bc.prefetcher = newStatePrefetcher(chainConfig, bc, engine)
 	bc.processor = NewStateProcessor(chainConfig, bc, engine)
@@ -326,7 +341,7 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, genesis *Genesis
 
 	// Make sure the state associated with the block is available
 	head := bc.CurrentBlock()
-	if _, err := state.New(head.Root(), bc.stateCache, bc.snaps); err != nil {
+	if !bc.HasState(head.Root()) {
 		// Head state is missing, before the state recovery, find out the
 		// disk layer point of snapshot(if it's enabled). Make sure the
 		// rewound point is lower than disk layer.
@@ -410,7 +425,8 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, genesis *Genesis
 		var recover bool
 
 		head := bc.CurrentBlock()
-		if layer := rawdb.ReadSnapshotRecoveryNumber(bc.db); layer != nil && *layer > head.NumberU64() {
+		// If we rewind the chain state to disk layer, then in this case recovery mode should be enabled.
+		if layer := rawdb.ReadSnapshotRecoveryNumber(bc.db); layer != nil && *layer >= head.NumberU64() {
 			log.Warn("Enabling snapshot recovery", "chainhead", head.NumberU64(), "diskbase", *layer)
 			recover = true
 		}
@@ -692,7 +708,7 @@ func (bc *BlockChain) setHeadBeyondRoot(head uint64, root common.Hash, repair bo
 							// if the historical chain pruning is enabled. In that case the logic
 							// needs to be improved here.
 							if !bc.HasState(bc.genesisBlock.Root()) {
-								if err := CommitGenesisState(bc.db, bc.genesisBlock.Hash()); err != nil {
+								if err := CommitGenesisState(bc.db, bc.triedb, bc.genesisBlock.Hash()); err != nil {
 									log.Crit("Failed to commit genesis state", "err", err)
 								}
 								log.Debug("Recommitted genesis state to disk")
@@ -980,7 +996,7 @@ func (bc *BlockChain) Stop() {
 	//  - HEAD-1:   So we don't do large reorgs if our HEAD becomes an uncle
 	//  - HEAD-127: So we have a hard limit on the number of blocks reexecuted
 	if !bc.cacheConfig.TrieDirtyDisabled {
-		triedb := bc.stateCache.TrieDB()
+		triedb := bc.triedb
 
 		for _, offset := range []uint64{0, 1, uint64(bc.cacheConfig.TriesInMemory) - 1} {
 			if number := bc.CurrentBlock().NumberU64(); number > offset {
@@ -1008,8 +1024,7 @@ func (bc *BlockChain) Stop() {
 	// Ensure all live cached entries be saved into disk, so that we can skip
 	// cache warmup when node restarts.
 	if bc.cacheConfig.TrieCleanJournal != "" {
-		triedb := bc.stateCache.TrieDB()
-		triedb.SaveCache(bc.cacheConfig.TrieCleanJournal)
+		bc.triedb.SaveCache(bc.cacheConfig.TrieCleanJournal)
 	}
 	log.Info("Blockchain stopped")
 }
@@ -1549,27 +1564,26 @@ func (bc *BlockChain) writeBlockWithState(
 	if err != nil {
 		return NonStatTy, err
 	}
-	triedb := bc.stateCache.TrieDB()
 
 	// If we're running an archive node, always flush
 	if bc.cacheConfig.TrieDirtyDisabled {
-		if err := triedb.Commit(root, false, nil); err != nil {
+		if err := bc.triedb.Commit(root, false, nil); err != nil {
 			return NonStatTy, err
 		}
 	} else {
 		// Full but not archive node, do proper garbage collection
-		triedb.Reference(root, common.Hash{}) // metadata reference to keep trie alive
+		bc.triedb.Reference(root, common.Hash{}) // metadata reference to keep trie alive
 		bc.triegc.Push(root, -int64(block.NumberU64()))
 
 		triesInMemory := uint64(bc.cacheConfig.TriesInMemory)
 		if current := block.NumberU64(); current > triesInMemory {
 			// If we exceeded our memory allowance, flush matured singleton nodes to disk
 			var (
-				nodes, imgs = triedb.Size()
+				nodes, imgs = bc.triedb.Size()
 				limit       = common.StorageSize(bc.cacheConfig.TrieDirtyLimit) * 1024 * 1024
 			)
 			if nodes > limit || imgs > 4*1024*1024 {
-				triedb.Cap(limit - ethdb.IdealBatchSize)
+				bc.triedb.Cap(limit - ethdb.IdealBatchSize)
 			}
 			// Find the next state trie we need to commit
 			chosen := current - triesInMemory
@@ -1593,7 +1607,7 @@ func (bc *BlockChain) writeBlockWithState(
 						)
 					}
 					// Flush an entire trie and restart the counters
-					triedb.Commit(header.Root, true, nil)
+					bc.triedb.Commit(header.Root, true, nil)
 					lastWrite = chosen
 					bc.gcproc = 0
 				}
@@ -1605,7 +1619,7 @@ func (bc *BlockChain) writeBlockWithState(
 					bc.triegc.Push(root, number)
 					break
 				}
-				triedb.Dereference(root.(common.Hash))
+				bc.triedb.Dereference(root.(common.Hash))
 			}
 		}
 	}
