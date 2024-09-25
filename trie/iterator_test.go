@@ -326,7 +326,7 @@ func TestIteratorContinueAfterErrorDisk(t *testing.T)    { testIteratorContinueA
 func TestIteratorContinueAfterErrorMemonly(t *testing.T) { testIteratorContinueAfterError(t, true) }
 
 func testIteratorContinueAfterError(t *testing.T, memonly bool) {
-	diskdb := memorydb.New()
+	diskdb := rawdb.NewMemoryDatabase()
 	triedb := NewDatabase(diskdb)
 
 	tr := NewEmpty(triedb)
@@ -418,7 +418,7 @@ func TestIteratorContinueAfterSeekErrorMemonly(t *testing.T) {
 
 func testIteratorContinueAfterSeekError(t *testing.T, memonly bool) {
 	// Commit test trie to db, then remove the node containing "bars".
-	diskdb := memorydb.New()
+	diskdb := rawdb.NewMemoryDatabase()
 	triedb := NewDatabase(diskdb)
 
 	ctr := NewEmpty(triedb)
@@ -531,7 +531,7 @@ func (l *loggingDb) Close() error {
 func makeLargeTestTrie() (*Database, *SecureTrie, *loggingDb) {
 	// Create an empty trie
 	logDb := &loggingDb{0, memorydb.New()}
-	triedb := NewDatabase(logDb)
+	triedb := NewDatabase(rawdb.NewDatabase(logDb))
 	trie, _ := NewSecure(common.Hash{}, common.Hash{}, triedb)
 
 	// Fill it with some arbitrary data
