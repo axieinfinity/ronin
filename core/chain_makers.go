@@ -367,10 +367,7 @@ func generateChain(
 // then generate chain on top.
 func GenerateChainWithGenesis(genesis *Genesis, engine consensus.Engine, n int, gen func(int, *BlockGen)) (ethdb.Database, []*types.Block, []types.Receipts) {
 	db := rawdb.NewMemoryDatabase()
-	_, err := genesis.Commit(db)
-	if err != nil {
-		panic(err)
-	}
+	genesis.MustCommit(db)
 	blocks, receipts := GenerateChain(genesis.Config, genesis.ToBlock(), engine, db, n, gen, true)
 	return db, blocks, receipts
 }
