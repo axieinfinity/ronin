@@ -195,8 +195,7 @@ func (s *Sync) AddSubTrie(root common.Hash, path []byte, parent common.Hash, par
 		// If database says yes, then at least the trie node is present
 		// and we hold the assumption that it's NOT legacy contract code.
 		owner, inner := ResolvePath(path)
-		blob := rawdb.ReadTrieNode(s.database, owner, inner, root, s.scheme)
-		if len(blob) > 0 {
+		if rawdb.HasTrieNode(s.database, owner, inner, root, s.scheme) {
 			return
 		}
 		// False positive, bump fault meter
