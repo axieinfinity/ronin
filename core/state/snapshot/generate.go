@@ -247,7 +247,7 @@ func (result *proofResult) forEach(callback func(key []byte, val []byte) error) 
 //
 // The proof result will be returned if the range proving is finished, otherwise
 // the error will be returned to abort the entire procedure.
-func (dl *diskLayer) proveRange(stats *generatorStats, owner common.Hash, root common.Hash, prefix []byte, kind string, origin []byte, max int, valueConvertFn func([]byte) ([]byte, error)) (*proofResult, error) {
+func (dl *diskLayer) proveRange(stats *generatorStats, trieID *trie.ID, prefix []byte, kind string, origin []byte, max int, valueConvertFn func([]byte) ([]byte, error)) (*proofResult, error) {
 	var (
 		keys     [][]byte
 		vals     [][]byte
@@ -304,8 +304,9 @@ func (dl *diskLayer) proveRange(stats *generatorStats, owner common.Hash, root c
 	}(time.Now())
 
 	// The snap state is exhausted, pass the entire key/val set for verification
+	root := trieID.Root
 	if origin == nil && !diskMore {
-		stackTr := trie.NewStackTrieWithOwner(nil, owner)
+		stackTr := trie.NewStackTrie(nil)
 		for i, key := range keys {
 			stackTr.TryUpdate(key, vals[i])
 		}
@@ -319,7 +320,7 @@ func (dl *diskLayer) proveRange(stats *generatorStats, owner common.Hash, root c
 		return &proofResult{keys: keys, vals: vals}, nil
 	}
 	// Snap state is chunked, generate edge proofs for verification.
-	tr, err := trie.New(owner, root, dl.triedb)
+	tr, err := trie.New(trieID, dl.triedb)
 	if err != nil {
 		stats.Log("Trie missing, state snapshotting paused", dl.root, dl.genMarker)
 		return nil, errMissingTrie
@@ -380,9 +381,9 @@ type onStateCallback func(key []byte, val []byte, write bool, delete bool) error
 // generateRange generates the state segment with particular prefix. Generation can
 // either verify the correctness of existing state through rangeproof and skip
 // generation, or iterate trie to regenerate state on demand.
-func (dl *diskLayer) generateRange(owner common.Hash, root common.Hash, prefix []byte, kind string, origin []byte, max int, stats *generatorStats, onState onStateCallback, valueConvertFn func([]byte) ([]byte, error)) (bool, []byte, error) {
+func (dl *diskLayer) generateRange(trieID *trie.ID, prefix []byte, kind string, origin []byte, max int, stats *generatorStats, onState onStateCallback, valueConvertFn func([]byte) ([]byte, error)) (bool, []byte, error) {
 	// Use range prover to check the validity of the flat state in the range
-	result, err := dl.proveRange(stats, owner, root, prefix, kind, origin, max, valueConvertFn)
+	result, err := dl.proveRange(stats, trieID, prefix, kind, origin, max, valueConvertFn)
 	if err != nil {
 		return false, nil, err
 	}
@@ -431,7 +432,7 @@ func (dl *diskLayer) generateRange(owner common.Hash, root common.Hash, prefix [
 	if len(result.keys) > 0 {
 		snapNodeCache = rawdb.NewMemoryDatabase()
 		snapTrieDb := trie.NewDatabase(snapNodeCache)
-		snapTrie, _ := trie.New(owner, common.Hash{}, snapTrieDb)
+		snapTrie := trie.NewEmpty(snapTrieDb)
 		for i, key := range result.keys {
 			snapTrie.Update(key, result.vals[i])
 		}
@@ -443,7 +444,7 @@ func (dl *diskLayer) generateRange(owner common.Hash, root common.Hash, prefix [
 	}
 	tr := result.tr
 	if tr == nil {
-		tr, err = trie.New(owner, root, dl.triedb)
+		tr, err = trie.New(trieID, dl.triedb)
 		if err != nil {
 			stats.Log("Trie missing, state snapshotting paused", dl.root, dl.genMarker)
 			return false, nil, errMissingTrie
@@ -526,7 +527,7 @@ func (dl *diskLayer) generateRange(owner common.Hash, root common.Hash, prefix [
 	} else {
 		snapAccountTrieReadCounter.Inc((time.Since(start) - internal).Nanoseconds())
 	}
-	logger.Debug("Regenerated state range", "root", root, "last", hexutil.Encode(last),
+	logger.Debug("Regenerated state range", "root", trieID.Root, "last", hexutil.Encode(last),
 		"count", count, "created", created, "updated", updated, "untouched", untouched, "deleted", deleted)
 
 	// If there are either more trie items, or there are more snap items
@@ -700,7 +701,7 @@ func (dl *diskLayer) generate(stats *generatorStats) {
 			}
 			var storeOrigin = common.CopyBytes(storeMarker)
 			for {
-				exhausted, last, err := dl.generateRange(common.Hash{}, acc.Root, append(rawdb.SnapshotStoragePrefix, accountHash.Bytes()...), "storage", storeOrigin, storageCheckRange, stats, onStorage, nil)
+				exhausted, last, err := dl.generateRange(trie.StateTrieID(acc.Root), append(rawdb.SnapshotStoragePrefix, accountHash.Bytes()...), "storage", storeOrigin, storageCheckRange, stats, onStorage, nil)
 				if err != nil {
 					return err
 				}
@@ -719,7 +720,7 @@ func (dl *diskLayer) generate(stats *generatorStats) {
 
 	// Global loop for regerating the entire state trie + all layered storage tries.
 	for {
-		exhausted, last, err := dl.generateRange(common.Hash{}, dl.root, rawdb.SnapshotAccountPrefix, "account", accOrigin, accountRange, stats, onAccount, FullAccountRLP)
+		exhausted, last, err := dl.generateRange(trie.StateTrieID(dl.root), rawdb.SnapshotAccountPrefix, "account", accOrigin, accountRange, stats, onAccount, FullAccountRLP)
 		// The procedure it aborted, either by external signal or internal error
 		if err != nil {
 			if abort == nil { // aborted by internal error, wait the signal
