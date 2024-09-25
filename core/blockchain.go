@@ -430,7 +430,7 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, genesis *Genesis
 			log.Warn("Enabling snapshot recovery", "chainhead", head.NumberU64(), "diskbase", *layer)
 			recover = true
 		}
-		bc.snaps, _ = snapshot.New(bc.db, bc.stateCache.TrieDB(), bc.cacheConfig.SnapshotLimit, head.Root(), !bc.cacheConfig.SnapshotWait, true, recover)
+		bc.snaps, _ = snapshot.New(bc.db, bc.triedb, bc.cacheConfig.SnapshotLimit, head.Root(), !bc.cacheConfig.SnapshotWait, true, recover)
 	}
 
 	// Start future block processor.
@@ -451,11 +451,10 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, genesis *Genesis
 			log.Warn("Sanitizing invalid trie cache journal time", "provided", bc.cacheConfig.TrieCleanRejournal, "updated", time.Minute)
 			bc.cacheConfig.TrieCleanRejournal = time.Minute
 		}
-		triedb := bc.stateCache.TrieDB()
 		bc.wg.Add(1)
 		go func() {
 			defer bc.wg.Done()
-			triedb.SaveCachePeriodically(bc.cacheConfig.TrieCleanJournal, bc.cacheConfig.TrieCleanRejournal, bc.quit)
+			bc.triedb.SaveCachePeriodically(bc.cacheConfig.TrieCleanJournal, bc.cacheConfig.TrieCleanRejournal, bc.quit)
 		}()
 	}
 
@@ -809,7 +808,7 @@ func (bc *BlockChain) FastSyncCommitHead(hash common.Hash) error {
 	if block == nil {
 		return fmt.Errorf("non existent block [%x..]", hash[:4])
 	}
-	if _, err := trie.NewSecure(common.Hash{}, block.Root(), bc.stateCache.TrieDB()); err != nil {
+	if _, err := trie.NewSecure(common.Hash{}, block.Root(), bc.triedb); err != nil {
 		return err
 	}
 
@@ -2055,7 +2054,7 @@ func (bc *BlockChain) insertChain(chain types.Blocks, verifySeals bool, sidecars
 		stats.processed++
 		stats.usedGas += usedGas
 
-		dirty, _ := bc.stateCache.TrieDB().Size()
+		dirty, _ := bc.triedb.Size()
 		stats.report(chain, it.index, dirty)
 	}
 

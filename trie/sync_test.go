@@ -110,7 +110,7 @@ func TestEmptySync(t *testing.T) {
 	emptyB, _ := New(common.Hash{}, emptyRoot, dbB)
 
 	for i, trie := range []*Trie{emptyA, emptyB} {
-		sync := NewSync(trie.Hash(), rawdb.NewMemoryDatabase(), nil, NewSyncBloom(1, memorydb.New()), []*Database{dbA, dbB}[i].Scheme())
+		sync := NewSync(trie.Hash(), memorydb.New(), nil, NewSyncBloom(1, memorydb.New()), []*Database{dbA, dbB}[i].Scheme())
 		if nodes, paths, codes := sync.Missing(1); len(nodes) != 0 || len(paths) != 0 || len(codes) != 0 {
 			t.Errorf("test %d: content requested for empty trie: %v, %v, %v", i, nodes, paths, codes)
 		}

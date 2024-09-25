@@ -166,6 +166,7 @@ type LeafCallback func(keys [][]byte, path []byte, leaf []byte, parent common.Ha
 // NewSync creates a new trie data download scheduler.
 func NewSync(root common.Hash, database ethdb.KeyValueReader, callback LeafCallback, bloom *SyncBloom, scheme NodeScheme) *Sync {
 	ts := &Sync{
+		scheme:   scheme,
 		database: database,
 		membatch: newSyncMemBatch(),
 		nodeReqs: make(map[string]*nodeRequest),
@@ -360,8 +361,9 @@ func (s *Sync) ProcessNode(result NodeSyncResult) error {
 func (s *Sync) Commit(dbw ethdb.Batch) error {
 	// Dump the membatch into a database dbw
 	for path, value := range s.membatch.nodes {
+		owner, inner := ResolvePath([]byte(path))
+		s.scheme.WriteTrieNode(dbw, owner, inner, s.membatch.hashes[path], value)
 		hash := s.membatch.hashes[path]
-		rawdb.WriteTrieNode(dbw, hash, value)
 		if s.bloom != nil {
 			s.bloom.Add(hash[:])
 		}
@@ -478,9 +480,11 @@ func (s *Sync) children(req *nodeRequest, object node) ([]*nodeRequest, error) {
 				// Bloom filter says this might be a duplicate, double check.
 				// If database says yes, then at least the trie node is present
 				// and we hold the assumption that it's NOT legacy contract code.
-				if blob := rawdb.ReadTrieNode(s.database, chash); len(blob) > 0 {
+				owner, inner := ResolvePath(child.path)
+				if s.scheme.HasTrieNode(s.database, owner, inner, chash) {
 					continue
 				}
+
 				// False positive, bump fault meter
 				bloomFaultMeter.Mark(1)
 			}
