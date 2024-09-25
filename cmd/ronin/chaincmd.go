@@ -38,6 +38,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/node"
+	"github.com/ethereum/go-ethereum/trie"
 	"github.com/urfave/cli/v2"
 )
 
@@ -225,7 +226,11 @@ func initGenesis(ctx *cli.Context) error {
 		if err != nil {
 			utils.Fatalf("Failed to open database: %v", err)
 		}
-		_, hash, err := core.SetupGenesisBlock(chaindb, genesis, overrideChainConfig)
+		// Create triedb firstly
+		triedb := trie.NewDatabaseWithConfig(chaindb, &trie.Config{
+			Preimages: ctx.Bool(utils.CachePreimagesFlag.Name),
+		})
+		_, hash, err := core.SetupGenesisBlock(chaindb, triedb, genesis, overrideChainConfig)
 		if err != nil {
 			utils.Fatalf("Failed to write genesis block: %v", err)
 		}
@@ -467,7 +472,10 @@ func dump(ctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	state, err := state.New(root, state.NewDatabase(db), nil)
+	config := &trie.Config{
+		Preimages: true, // always enable preimage lookup
+	}
+	state, err := state.New(root, state.NewDatabaseWithConfig(db, config), nil)
 	if err != nil {
 		return err
 	}

@@ -31,7 +31,6 @@ import (
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb"
-	"github.com/ethereum/go-ethereum/ethdb/memorydb"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -428,9 +427,9 @@ func (dl *diskLayer) generateRange(owner common.Hash, root common.Hash, prefix [
 
 	// We use the snap data to build up a cache which can be used by the
 	// main account trie as a primary lookup when resolving hashes
-	var snapNodeCache ethdb.KeyValueStore
+	var snapNodeCache ethdb.Database
 	if len(result.keys) > 0 {
-		snapNodeCache = memorydb.New()
+		snapNodeCache = rawdb.NewMemoryDatabase()
 		snapTrieDb := trie.NewDatabase(snapNodeCache)
 		snapTrie, _ := trie.New(owner, common.Hash{}, snapTrieDb)
 		for i, key := range result.keys {

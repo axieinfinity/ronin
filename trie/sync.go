@@ -137,6 +137,7 @@ func (batch *syncMemBatch) hasCode(hash common.Hash) bool {
 // unknown trie hashes to retrieve, accepts node data associated with said hashes
 // and reconstructs the trie step by step until all is done.
 type Sync struct {
+	scheme   NodeScheme                   // Node scheme descriptor used in database.
 	database ethdb.KeyValueReader         // Persistent database to check for existing entries
 	membatch *syncMemBatch                // Memory buffer to avoid frequent database writes
 	nodeReqs map[string]*nodeRequest      // Pending requests pertaining to a trie node path
@@ -146,9 +147,26 @@ type Sync struct {
 	bloom    *SyncBloom                   // Bloom filter for fast state existence checks
 }
 
+// LeafCallback is a callback type invoked when a trie operation reaches a leaf
+// node.
+//
+// The keys is a path tuple identifying a particular trie node either in a single
+// trie (account) or a layered trie (account -> storage). Each key in the tuple
+// is in the raw format(32 bytes).
+//
+// The path is a composite hexary path identifying the trie node. All the key
+// bytes are converted to the hexary nibbles and composited with the parent path
+// if the trie node is in a layered trie.
+//
+// It's used by state sync and commit to allow handling external references
+// between account and storage tries. And also it's used in the state healing
+// for extracting the raw states(leaf nodes) with corresponding paths.
+type LeafCallback func(keys [][]byte, path []byte, leaf []byte, parent common.Hash, parentPath []byte) error
+
 // NewSync creates a new trie data download scheduler.
-func NewSync(root common.Hash, database ethdb.KeyValueReader, callback LeafCallback, bloom *SyncBloom) *Sync {
+func NewSync(root common.Hash, database ethdb.KeyValueReader, callback LeafCallback, bloom *SyncBloom, scheme NodeScheme) *Sync {
 	ts := &Sync{
+		scheme:   scheme,
 		database: database,
 		membatch: newSyncMemBatch(),
 		nodeReqs: make(map[string]*nodeRequest),
@@ -343,8 +361,9 @@ func (s *Sync) ProcessNode(result NodeSyncResult) error {
 func (s *Sync) Commit(dbw ethdb.Batch) error {
 	// Dump the membatch into a database dbw
 	for path, value := range s.membatch.nodes {
+		owner, inner := ResolvePath([]byte(path))
+		s.scheme.WriteTrieNode(dbw, owner, inner, s.membatch.hashes[path], value)
 		hash := s.membatch.hashes[path]
-		rawdb.WriteTrieNode(dbw, hash, value)
 		if s.bloom != nil {
 			s.bloom.Add(hash[:])
 		}
@@ -461,9 +480,11 @@ func (s *Sync) children(req *nodeRequest, object node) ([]*nodeRequest, error) {
 				// Bloom filter says this might be a duplicate, double check.
 				// If database says yes, then at least the trie node is present
 				// and we hold the assumption that it's NOT legacy contract code.
-				if blob := rawdb.ReadTrieNode(s.database, chash); len(blob) > 0 {
+				owner, inner := ResolvePath(child.path)
+				if s.scheme.HasTrieNode(s.database, owner, inner, chash) {
 					continue
 				}
+
 				// False positive, bump fault meter
 				bloomFaultMeter.Mark(1)
 			}
@@ -521,4 +542,15 @@ func (s *Sync) commitCodeRequest(req *codeRequest) error {
 		}
 	}
 	return nil
+}
+
+// ResolvePath resolves the provided composite node path by separating the
+// path in account trie if it's existent.
+func ResolvePath(path []byte) (common.Hash, []byte) {
+	var owner common.Hash
+	if len(path) >= 2*common.HashLength {
+		owner = common.BytesToHash(hexToKeybytes(path[:2*common.HashLength]))
+		path = path[2*common.HashLength:]
+	}
+	return owner, path
 }

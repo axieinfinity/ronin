@@ -61,6 +61,12 @@ func WriteCode(db ethdb.KeyValueWriter, hash common.Hash, code []byte) {
 	}
 }
 
+// HasTrieNode checks if the trie node with the provided hash is present in db.
+func HasTrieNode(db ethdb.KeyValueReader, hash common.Hash) bool {
+	ok, _ := db.Has(hash.Bytes())
+	return ok
+}
+
 // DeleteCode deletes the specified contract code from the database.
 func DeleteCode(db ethdb.KeyValueWriter, hash common.Hash) {
 	if err := db.Delete(codeKey(hash)); err != nil {
