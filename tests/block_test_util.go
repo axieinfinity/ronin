@@ -106,10 +106,7 @@ func (t *BlockTest) Run(snapshotter bool) error {
 
 	// import pre accounts & construct test genesis block & state root
 	db := rawdb.NewMemoryDatabase()
-	gblock, err := t.genesis(config).Commit(db)
-	if err != nil {
-		return err
-	}
+	gblock := t.genesis(config).MustCommit(db)
 	if gblock.Hash() != t.json.Genesis.Hash {
 		return fmt.Errorf("genesis block hash doesn't match test: computed=%x, test=%x", gblock.Hash().Bytes()[:6], t.json.Genesis.Hash[:6])
 	}
