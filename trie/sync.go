@@ -137,7 +137,7 @@ func (batch *syncMemBatch) hasCode(hash common.Hash) bool {
 // unknown trie hashes to retrieve, accepts node data associated with said hashes
 // and reconstructs the trie step by step until all is done.
 type Sync struct {
-	scheme   NodeScheme                   // Node scheme descriptor used in database.
+	scheme   string                       // Node scheme descriptor used in database.
 	database ethdb.KeyValueReader         // Persistent database to check for existing entries
 	membatch *syncMemBatch                // Memory buffer to avoid frequent database writes
 	nodeReqs map[string]*nodeRequest      // Pending requests pertaining to a trie node path
@@ -164,7 +164,7 @@ type Sync struct {
 type LeafCallback func(keys [][]byte, path []byte, leaf []byte, parent common.Hash, parentPath []byte) error
 
 // NewSync creates a new trie data download scheduler.
-func NewSync(root common.Hash, database ethdb.KeyValueReader, callback LeafCallback, bloom *SyncBloom, scheme NodeScheme) *Sync {
+func NewSync(root common.Hash, database ethdb.KeyValueReader, callback LeafCallback, bloom *SyncBloom, scheme string) *Sync {
 	ts := &Sync{
 		scheme:   scheme,
 		database: database,
@@ -194,8 +194,8 @@ func (s *Sync) AddSubTrie(root common.Hash, path []byte, parent common.Hash, par
 		// Bloom filter says this might be a duplicate, double check.
 		// If database says yes, then at least the trie node is present
 		// and we hold the assumption that it's NOT legacy contract code.
-		blob := rawdb.ReadTrieNode(s.database, root)
-		if len(blob) > 0 {
+		owner, inner := ResolvePath(path)
+		if rawdb.HasTrieNode(s.database, owner, inner, root, s.scheme) {
 			return
 		}
 		// False positive, bump fault meter
@@ -362,7 +362,7 @@ func (s *Sync) Commit(dbw ethdb.Batch) error {
 	// Dump the membatch into a database dbw
 	for path, value := range s.membatch.nodes {
 		owner, inner := ResolvePath([]byte(path))
-		s.scheme.WriteTrieNode(dbw, owner, inner, s.membatch.hashes[path], value)
+		rawdb.WriteTrieNode(dbw, owner, inner, s.membatch.hashes[path], value, s.scheme)
 		hash := s.membatch.hashes[path]
 		if s.bloom != nil {
 			s.bloom.Add(hash[:])
@@ -481,7 +481,7 @@ func (s *Sync) children(req *nodeRequest, object node) ([]*nodeRequest, error) {
 				// If database says yes, then at least the trie node is present
 				// and we hold the assumption that it's NOT legacy contract code.
 				owner, inner := ResolvePath(child.path)
-				if s.scheme.HasTrieNode(s.database, owner, inner, chash) {
+				if rawdb.HasTrieNode(s.database, owner, inner, chash, s.scheme) {
 					continue
 				}
 
