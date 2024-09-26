@@ -326,6 +326,7 @@ func forHashedNodes(tr *Trie) map[string][]byte {
 	return nodes
 }
 
+// diffTries return the diff and shared nodes between 2 tries
 func diffTries(trieA, trieB *Trie) (map[string][]byte, map[string][]byte, map[string][]byte) {
 	var (
 		nodesA = forHashedNodes(trieA)

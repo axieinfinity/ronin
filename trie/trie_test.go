@@ -420,6 +420,7 @@ func (randTest) Generate(r *rand.Rand, size int) reflect.Value {
 	return reflect.ValueOf(steps)
 }
 
+// verifyAccessList verifies the access list of the new trie against the old trie.
 func verifyAccessList(old *Trie, new *Trie, set *NodeSet) error {
 	deletes, inserts, updates := diffTries(old, new)
 

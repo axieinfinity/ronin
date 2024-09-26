@@ -175,7 +175,7 @@ func (c *committer) store(path []byte, n node) node {
 		// deleted only if the node was existent in database before.
 		prev, ok := c.tracer.accessList[string(path)]
 		if ok {
-			c.nodes.addNode([]byte(path), &nodeWithPrev{&memoryNode{}, prev})
+			c.nodes.addNode(path, &nodeWithPrev{&memoryNode{}, prev})
 		}
 		return n
 	}
