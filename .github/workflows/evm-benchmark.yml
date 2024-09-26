@@ -44,9 +44,9 @@ jobs:
           go install golang.org/x/perf/cmd/benchstat@v0.0.0-20240604174448-3b48cf0e0164
           cd core/vm
           if [[ ${{ github.event_name }} = "pull_request" ]]; then
-            ../../script/benchstat.sh -c "go test -test.v -run=^$ -bench=BenchmarkEvm -count=10" \
-              -o $(git rev-parse --short origin/master) -n ${{ github.sha }}
+            ../../script/benchstat.sh -c "-test.v -test.run=^$ -test.bench=BenchmarkEvm" \
+              -o $(git rev-parse --short origin/master) -n ${{ github.sha }} -c 10 -i
           else
-            ../../script/benchstat.sh -c "go test -test.v -run=^$ -bench=BenchmarkEvm -count=10" \
-              -o "$OLD_COMMIT" -n "$NEW_COMMIT"
+            ../../script/benchstat.sh -c "-test.v -test.run=^$ -test.bench=BenchmarkEvm" \
+              -o "$OLD_COMMIT" -n "$NEW_COMMIT" -c 10 -i
           fi
