@@ -27,6 +27,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/trie"
 	"golang.org/x/crypto/sha3"
@@ -213,47 +214,47 @@ func (f *fuzzer) fuzz() int {
 	}
 	// Ensure all the nodes are persisted correctly
 	// Need tracked deleted nodes.
-	// var (
-	// 	nodeset = make(map[string][]byte) // path -> blob
-	// 	trieC   = trie.NewStackTrie(func(owner common.Hash, path []byte, hash common.Hash, blob []byte) {
-	// 		if crypto.Keccak256Hash(blob) != hash {
-	// 			panic("invalid node blob")
-	// 		}
-	// 		if owner != (common.Hash{}) {
-	// 			panic("invalid node owner")
-	// 		}
-	// 		nodeset[string(path)] = common.CopyBytes(blob)
-	// 	})
-	// 	checked int
-	// )
-	// for _, kv := range vals {
-	// 	trieC.Update(kv.k, kv.v)
-	// }
-	// rootC, _ := trieC.Commit()
-	// if rootA != rootC {
-	// 	panic(fmt.Sprintf("roots differ: (trie) %x != %x (stacktrie)", rootA, rootC))
-	// }
-	// trieA, _ = trie.New(trie.TrieID(rootA), dbA)
-	// iterA := trieA.NodeIterator(nil)
-	// for iterA.Next(true) {
-	// 	if iterA.Hash() == (common.Hash{}) {
-	// 		if _, present := nodeset[string(iterA.Path())]; present {
-	// 			panic("unexpected tiny node")
-	// 		}
-	// 		continue
-	// 	}
-	// 	nodeBlob, present := nodeset[string(iterA.Path())]
-	// 	if !present {
-	// 		panic("missing node")
-	// 	}
-	// 	if !bytes.Equal(nodeBlob, iterA.NodeBlob()) {
-	// 		panic("node blob is not matched")
-	// 	}
-	// 	checked += 1
-	// }
-	// if checked != len(nodeset) {
-	// 	panic("node number is not matched")
-	// }
+	var (
+		nodeset = make(map[string][]byte) // path -> blob
+		trieC   = trie.NewStackTrie(func(owner common.Hash, path []byte, hash common.Hash, blob []byte) {
+			if crypto.Keccak256Hash(blob) != hash {
+				panic("invalid node blob")
+			}
+			if owner != (common.Hash{}) {
+				panic("invalid node owner")
+			}
+			nodeset[string(path)] = common.CopyBytes(blob)
+		})
+		checked int
+	)
+	for _, kv := range vals {
+		trieC.Update(kv.k, kv.v)
+	}
+	rootC, _ := trieC.Commit()
+	if rootA != rootC {
+		panic(fmt.Sprintf("roots differ: (trie) %x != %x (stacktrie)", rootA, rootC))
+	}
+	trieA, _ = trie.New(trie.TrieID(rootA), dbA)
+	iterA := trieA.NodeIterator(nil)
+	for iterA.Next(true) {
+		if iterA.Hash() == (common.Hash{}) {
+			if _, present := nodeset[string(iterA.Path())]; present {
+				panic("unexpected tiny node")
+			}
+			continue
+		}
+		nodeBlob, present := nodeset[string(iterA.Path())]
+		if !present {
+			panic("missing node")
+		}
+		if !bytes.Equal(nodeBlob, iterA.NodeBlob()) {
+			panic("node blob is not matched")
+		}
+		checked += 1
+	}
+	if checked != len(nodeset) {
+		panic("node number is not matched")
+	}
 
 	return 1
 }
