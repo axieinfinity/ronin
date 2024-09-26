@@ -782,17 +782,31 @@ func (db *Database) Update(nodes *MergedNodeSet) error {
 	defer db.lock.Unlock()
 	// Insert dirty nodes into the database. In the same tree, it must be
 	// ensured that children are inserted first, then parent so that children
-	// can be linked with their parent correctly. The order of writing between
-	// different tries(account trie, storage tries) is not required.
-	for owner, subset := range nodes.sets {
-		for _, path := range subset.updates.order {
-			n, ok := subset.updates.nodes[path]
-			if !ok {
-				return fmt.Errorf("missing node %x %v", owner, path)
+	// can be linked with their parent correctly.
+	//
+	// Note, the storage tries must be flushed before the account trie to
+	// retain the invariant that children go into the dirty cache first.
+	var order []common.Hash
+	for owner := range nodes.sets {
+		if owner == (common.Hash{}) {
+			continue
+		}
+		order = append(order, owner)
+	}
+	if _, ok := nodes.sets[common.Hash{}]; ok {
+		order = append(order, common.Hash{})
+	}
+	for _, owner := range order {
+		subset := nodes.sets[owner]
+		subset.forEachWithOrder(func(path string, n *memoryNode) {
+			if n.isDeleted() {
+				return // ignore deletion
 			}
 			db.insert(n.hash, int(n.size), n.node)
-		}
+		})
 	}
+	// Link up the account trie and storage trie if the node points
+	// to an account trie leaf.
 	if set, present := nodes.sets[common.Hash{}]; present {
 		for _, leaf := range set.leaves {
 			// Looping node leaf, then reference the leaf node to the root node
