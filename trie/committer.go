@@ -60,9 +60,9 @@ var committerPool = sync.Pool{
 }
 
 // newCommitter creates a new committer or picks one from the pool.
-func newCommitter(owner common.Hash, tracer *tracer, collectLeaf bool) *committer {
+func newCommitter(nodes *NodeSet, tracer *tracer, collectLeaf bool) *committer {
 	return &committer{
-		nodes:       NewNodeSet(owner),
+		nodes:       nodes,
 		tracer:      tracer,
 		collectLeaf: collectLeaf,
 	}
@@ -73,20 +73,6 @@ func (c *committer) Commit(n node) (hashNode, *NodeSet, error) {
 	h, err := c.commit(nil, n)
 	if err != nil {
 		return nil, nil, err
-	}
-	// Some nodes can be deleted from trie which can't be captured by committer
-	// itself. Iterate all deleted nodes tracked by tracer and marked them as
-	// deleted only if they are present in database previously.
-	for _, path := range c.tracer.deleteList() {
-		// There are a few possibilities for this scenario(the node is deleted
-		// but not present in database previously), for example the node was
-		// embedded in the parent and now deleted from the trie. In this case
-		// it's noop from database's perspective.
-		val := c.tracer.getPrev(path)
-		if len(val) == 0 {
-			continue
-		}
-		c.nodes.markDeleted(path, val)
 	}
 	return h.(hashNode), c.nodes, nil
 }
@@ -119,12 +105,6 @@ func (c *committer) commit(path []byte, n node) (node, error) {
 		if hn, ok := hashedNode.(hashNode); ok {
 			return hn, nil
 		}
-		// The short node now is embedded in its parent. Mark the node as
-		// deleted if it's present in database previously. It's equivalent
-		// as deletion from database's perspective.
-		if prev := c.tracer.getPrev(path); len(prev) != 0 {
-			c.nodes.markDeleted(path, prev)
-		}
 		return collapsed, nil
 	case *fullNode:
 		hashedKids, err := c.commitChildren(path, cn)
@@ -137,12 +117,6 @@ func (c *committer) commit(path []byte, n node) (node, error) {
 		hashedNode := c.store(path, collapsed)
 		if hn, ok := hashedNode.(hashNode); ok {
 			return hn, nil
-		}
-		// The short node now is embedded in its parent. Mark the node as
-		// deleted if it's present in database previously. It's equivalent
-		// as deletion from database's perspective.
-		if prev := c.tracer.getPrev(path); len(prev) != 0 {
-			c.nodes.markDeleted(path, prev)
 		}
 		return collapsed, nil
 	case hashNode:
@@ -196,6 +170,13 @@ func (c *committer) store(path []byte, n node) node {
 	// usually is leaf node). But small value(less than 32bytes) is not
 	// our target(leaves in account trie only).
 	if hash == nil {
+		// The node is embedded in its parent, in other words, this node
+		// will not be stored in the database independently, mark it as
+		// deleted only if the node was existent in database before.
+		prev, ok := c.tracer.accessList[string(path)]
+		if ok {
+			c.nodes.addNode(path, &nodeWithPrev{&memoryNode{}, prev})
+		}
 		return n
 	}
 	// We have the hash already, estimate the RLP encoding-size of the node.
@@ -203,15 +184,18 @@ func (c *committer) store(path []byte, n node) node {
 	var (
 		size  = estimateSize(n)
 		nhash = common.BytesToHash(hash)
-		mnode = &memoryNode{
-			hash: nhash,
-			node: simplifyNode(n),
-			size: uint16(size),
+		node  = &nodeWithPrev{
+			&memoryNode{
+				nhash,
+				uint16(size),
+				simplifyNode(n),
+			},
+			c.tracer.accessList[string(path)],
 		}
 	)
 
 	// Collect the dirty node to nodeset for return.
-	c.nodes.markUpdated(path, mnode, c.tracer.getPrev(path))
+	c.nodes.addNode(path, node)
 	// Collect the corresponding leaf node if it's required. We don't check
 	// full node since it's impossible to store value in fullNode. The key
 	// length of leaves should be exactly same.
