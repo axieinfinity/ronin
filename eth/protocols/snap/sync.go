@@ -415,7 +415,7 @@ type SyncPeer interface {
 //   - The peer delivers a refusal to serve the requested state
 type Syncer struct {
 	db     ethdb.KeyValueStore // Database to store the trie nodes into (and dedup)
-	scheme trie.NodeScheme     // Node scheme used in node database
+	scheme string              // Node scheme used in node database
 
 	root    common.Hash    // Current state trie root being synced
 	tasks   []*accountTask // Current account task set being synced
@@ -481,7 +481,7 @@ type Syncer struct {
 
 // NewSyncer creates a new snapshot syncer to download the Ethereum state over the
 // snap protocol.
-func NewSyncer(db ethdb.KeyValueStore, scheme trie.NodeScheme) *Syncer {
+func NewSyncer(db ethdb.KeyValueStore, scheme string) *Syncer {
 	return &Syncer{
 		db:       db,
 		scheme:   scheme,
@@ -721,7 +721,7 @@ func (s *Syncer) loadSyncStatus() {
 					},
 				}
 				task.genTrie = trie.NewStackTrie(func(owner common.Hash, path []byte, hash common.Hash, val []byte) {
-					s.scheme.WriteTrieNode(task.genBatch, owner, path, hash, val)
+					rawdb.WriteTrieNode(task.genBatch, owner, path, hash, val, s.scheme)
 				})
 
 				for accountHash, subtasks := range task.SubTasks {
@@ -733,7 +733,7 @@ func (s *Syncer) loadSyncStatus() {
 							},
 						}
 						subtask.genTrie = trie.NewStackTrieWithOwner(func(owner common.Hash, path []byte, hash common.Hash, val []byte) {
-							s.scheme.WriteTrieNode(subtask.genBatch, owner, path, hash, val)
+							rawdb.WriteTrieNode(subtask.genBatch, owner, path, hash, val, s.scheme)
 						}, accountHash)
 					}
 				}
@@ -789,7 +789,7 @@ func (s *Syncer) loadSyncStatus() {
 			SubTasks: make(map[common.Hash][]*storageTask),
 			genBatch: batch,
 			genTrie: trie.NewStackTrie(func(owner common.Hash, path []byte, hash common.Hash, val []byte) {
-				s.scheme.WriteTrieNode(batch, owner, path, hash, val)
+				rawdb.WriteTrieNode(batch, owner, path, hash, val, s.scheme)
 			}),
 		})
 		log.Debug("Created account sync task", "from", next, "last", last)
@@ -1803,7 +1803,7 @@ func (s *Syncer) processAccountResponse(res *accountResponse) {
 		}
 		// Check if the account is a contract with an unknown storage trie
 		if account.Root != emptyRoot {
-			if !s.scheme.HasTrieNode(s.db, res.hashes[i], nil, account.Root) {
+			if !rawdb.HasTrieNode(s.db, res.hashes[i], nil, account.Root, s.scheme) {
 				// If there was a previous large state retrieval in progress,
 				// don't restart it from scratch. This happens if a sync cycle
 				// is interrupted and resumed later. However, *do* update the
@@ -1976,7 +1976,7 @@ func (s *Syncer) processStorageResponse(res *storageResponse) {
 						root:     acc.Root,
 						genBatch: batch,
 						genTrie: trie.NewStackTrieWithOwner(func(owner common.Hash, path []byte, hash common.Hash, val []byte) {
-							s.scheme.WriteTrieNode(batch, owner, path, hash, val)
+							rawdb.WriteTrieNode(batch, owner, path, hash, val, s.scheme)
 						}, account),
 					})
 					for r.Next() {
@@ -1992,7 +1992,7 @@ func (s *Syncer) processStorageResponse(res *storageResponse) {
 							root:     acc.Root,
 							genBatch: batch,
 							genTrie: trie.NewStackTrieWithOwner(func(owner common.Hash, path []byte, hash common.Hash, val []byte) {
-								s.scheme.WriteTrieNode(batch, owner, path, hash, val)
+								rawdb.WriteTrieNode(batch, owner, path, hash, val, s.scheme)
 							}, account),
 						})
 					}
@@ -2039,7 +2039,7 @@ func (s *Syncer) processStorageResponse(res *storageResponse) {
 
 		if i < len(res.hashes)-1 || res.subTask == nil {
 			tr := trie.NewStackTrieWithOwner(func(owner common.Hash, path []byte, hash common.Hash, val []byte) {
-				s.scheme.WriteTrieNode(batch, owner, path, hash, val)
+				rawdb.WriteTrieNode(batch, owner, path, hash, val, s.scheme)
 			}, account)
 			for j := 0; j < len(res.hashes[i]); j++ {
 				tr.Update(res.hashes[i][j][:], res.slots[i][j])
