@@ -173,10 +173,7 @@ func TestTrieTracePrevValue(t *testing.T) {
 		if iter.Hash() == (common.Hash{}) {
 			continue
 		}
-		blob, err := trie.reader.nodeBlob(iter.Path(), iter.Hash())
-		if err != nil {
-			t.Fatal(err)
-		}
+		blob := iter.NodeBlob()
 		seen[string(iter.Path())] = common.CopyBytes(blob)
 	}
 
