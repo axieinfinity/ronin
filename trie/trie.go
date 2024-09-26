@@ -77,7 +77,7 @@ func New(id *ID, db NodeReader) (*Trie, error) {
 	trie := &Trie{
 		owner:  id.Owner,
 		reader: reader,
-		//tracer: newTracer(),
+		tracer: newTracer(),
 	}
 	if id.Root != (common.Hash{}) && id.Root != emptyRoot {
 		rootnode, err := trie.resolveAndTrack(id.Root[:], nil)
@@ -571,7 +571,7 @@ func (t *Trie) resolveAndTrack(n hashNode, prefix []byte) (node, error) {
 // Hash returns the root hash of the trie. It does not write to the
 // database and can be used even if the trie doesn't have one.
 func (t *Trie) Hash() common.Hash {
-	hash, cached, _ := t.hashRoot()
+	hash, cached := t.hashRoot()
 	t.root = cached
 	return common.BytesToHash(hash.(hashNode))
 }
@@ -584,9 +584,11 @@ func (t *Trie) Hash() common.Hash {
 // be created with new root and updated trie database for following usage
 func (t *Trie) Commit(collectLeaf bool) (common.Hash, *NodeSet, error) {
 	defer t.tracer.reset()
+	nodes := NewNodeSet(t.owner)
+	t.tracer.markDeletions(nodes)
 
 	if t.root == nil {
-		return emptyRoot, nil, nil
+		return emptyRoot, nodes, nil
 	}
 	// Derive the hash for all dirty nodes first. We hold the assumption
 	// in the following procedure that all nodes are hashed.
@@ -601,7 +603,7 @@ func (t *Trie) Commit(collectLeaf bool) (common.Hash, *NodeSet, error) {
 		t.root = hashedNode
 		return rootHash, nil, nil
 	}
-	h := newCommitter(t.owner, t.tracer, collectLeaf)
+	h := newCommitter(nodes, t.tracer, collectLeaf)
 	newRoot, nodes, err := h.Commit(t.root)
 	if err != nil {
 		return common.Hash{}, nil, err
@@ -612,16 +614,16 @@ func (t *Trie) Commit(collectLeaf bool) (common.Hash, *NodeSet, error) {
 }
 
 // hashRoot calculates the root hash of the given trie
-func (t *Trie) hashRoot() (node, node, error) {
+func (t *Trie) hashRoot() (node, node) {
 	if t.root == nil {
-		return hashNode(emptyRoot.Bytes()), nil, nil
+		return hashNode(emptyRoot.Bytes()), nil
 	}
 	// If the number of changes is below 100, we let one thread handle it
 	h := newHasher(t.unhashed >= 100)
 	defer returnHasherToPool(h)
 	hashed, cached := h.hash(t.root, true)
 	t.unhashed = 0
-	return hashed, cached, nil
+	return hashed, cached
 }
 
 // Reset drops the referenced root node and cleans all internal state.
