@@ -1004,14 +1004,14 @@ func (bc *BlockChain) Stop() {
 				recent := bc.GetBlockByNumber(number - offset)
 
 				log.Info("Writing cached state to disk", "block", recent.Number(), "hash", recent.Hash(), "root", recent.Root())
-				if err := triedb.Commit(recent.Root(), true, nil); err != nil {
+				if err := triedb.Commit(recent.Root(), true); err != nil {
 					log.Error("Failed to commit recent state trie", "err", err)
 				}
 			}
 		}
 		if snapBase != (common.Hash{}) {
 			log.Info("Writing snapshot state to disk", "root", snapBase)
-			if err := triedb.Commit(snapBase, true, nil); err != nil {
+			if err := triedb.Commit(snapBase, true); err != nil {
 				log.Error("Failed to commit recent state trie", "err", err)
 			}
 		}
@@ -1568,7 +1568,7 @@ func (bc *BlockChain) writeBlockWithState(
 
 	// If we're running an archive node, always flush
 	if bc.cacheConfig.TrieDirtyDisabled {
-		if err := bc.triedb.Commit(root, false, nil); err != nil {
+		if err := bc.triedb.Commit(root, false); err != nil {
 			return NonStatTy, err
 		}
 	} else {
@@ -1608,7 +1608,7 @@ func (bc *BlockChain) writeBlockWithState(
 						)
 					}
 					// Flush an entire trie and restart the counters
-					bc.triedb.Commit(header.Root, true, nil)
+					bc.triedb.Commit(header.Root, true)
 					lastWrite = chosen
 					bc.gcproc = 0
 				}

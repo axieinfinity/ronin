@@ -65,7 +65,7 @@ type backend interface {
 
 	// Commit writes all relevant trie nodes belonging to the specified state
 	// to disk. Report specifies whether logs will be displayed in info level.
-	Commit(root common.Hash, report bool, callback func(common.Hash)) error
+	Commit(root common.Hash, report bool) error
 
 	// Close closes the trie database backend and releases all held resources.
 	Close() error
@@ -144,7 +144,7 @@ func (db *Database) Commit(root common.Hash, report bool) error {
 	if db.preimages != nil {
 		db.preimages.commit(true)
 	}
-	return db.backend.Commit(root, report, nil)
+	return db.backend.Commit(root, report)
 }
 
 // Size returns the storage size of dirty trie nodes in front of the persistent
