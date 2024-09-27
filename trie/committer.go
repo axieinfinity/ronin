@@ -23,19 +23,13 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/ethereum/go-ethereum/trie/trienode"
 	"golang.org/x/crypto/sha3"
 )
 
 // leafChanSize is the size of the leafCh. It's a pretty arbitrary number, to allow
 // some parallelism but not incur too much memory overhead.
 const leafChanSize = 200
-
-// leaf represents a trie leaf value
-type leaf struct {
-	blob   []byte      // raw blob of leaf
-	parent common.Hash // the hash of parent node
-	path   []byte      // the path from the root node
-}
 
 // committer is a type used for the trie Commit operation. The committer will
 // capture all dirty nodes during the commit process and keep them cached in
@@ -45,7 +39,7 @@ type committer struct {
 	sha crypto.KeccakState
 
 	owner       common.Hash // TODO: same as nodes.owner, consider removing
-	nodes       *NodeSet
+	nodes       *trienode.NodeSet
 	tracer      *tracer
 	collectLeaf bool
 }
@@ -61,7 +55,7 @@ var committerPool = sync.Pool{
 }
 
 // newCommitter creates a new committer or picks one from the pool.
-func newCommitter(nodes *NodeSet, tracer *tracer, collectLeaf bool) *committer {
+func newCommitter(nodes *trienode.NodeSet, tracer *tracer, collectLeaf bool) *committer {
 	return &committer{
 		nodes:       nodes,
 		tracer:      tracer,
@@ -70,7 +64,7 @@ func newCommitter(nodes *NodeSet, tracer *tracer, collectLeaf bool) *committer {
 }
 
 // Commit collapses a node down into a hash node and inserts it into the database
-func (c *committer) Commit(n node) (hashNode, *NodeSet, error) {
+func (c *committer) Commit(n node) (hashNode, *trienode.NodeSet, error) {
 	h, err := c.commit(nil, n)
 	if err != nil {
 		return nil, nil, err
@@ -176,7 +170,7 @@ func (c *committer) store(path []byte, n node) node {
 		// deleted only if the node was existent in database before.
 		prev, ok := c.tracer.accessList[string(path)]
 		if ok {
-			c.nodes.addNode(path, &nodeWithPrev{&memoryNode{}, prev})
+			c.nodes.AddNode(path, trienode.NewWithPrev(common.Hash{}, nil, prev))
 		}
 		return n
 	}
@@ -185,24 +179,22 @@ func (c *committer) store(path []byte, n node) node {
 	var (
 		nhash   = common.BytesToHash(hash)
 		blob, _ = rlp.EncodeToBytes(n)
-		node    = &nodeWithPrev{
-			&memoryNode{
-				nhash,
-				blob,
-			},
+		node    = trienode.NewWithPrev(
+			nhash,
+			blob,
 			c.tracer.accessList[string(path)],
-		}
+		)
 	)
 
 	// Collect the dirty node to nodeset for return.
-	c.nodes.addNode(path, node)
+	c.nodes.AddNode(path, node)
 	// Collect the corresponding leaf node if it's required. We don't check
 	// full node since it's impossible to store value in fullNode. The key
 	// length of leaves should be exactly same.
 	if c.collectLeaf {
 		if sn, ok := n.(*shortNode); ok {
 			if val, ok := sn.Val.(valueNode); ok {
-				c.nodes.addLeaf(&leaf{blob: val, parent: nhash})
+				c.nodes.AddLeaf(nhash, val)
 			}
 		}
 	}
@@ -214,7 +206,7 @@ type mptResolver struct{}
 
 // ForEach implements childResolver, decodes the provided node and
 // traverses the children inside.
-func (resolver mptResolver) forEach(node []byte, onChild func(common.Hash)) {
+func (resolver mptResolver) ForEach(node []byte, onChild func(common.Hash)) {
 	forGatherChildren(mustDecodeNode(nil, node), onChild)
 }
 
