@@ -28,7 +28,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/rlp"
-	"github.com/ethereum/go-ethereum/trie"
+	"github.com/ethereum/go-ethereum/trie/trienode"
 )
 
 var emptyCodeHash = crypto.Keccak256(nil)
@@ -394,7 +394,7 @@ func (s *stateObject) updateRoot(db Database) {
 
 // commitTrie submits the storage changes into the storage trie and re-computes
 // the root. Besides, all trie changes will be collected in a nodeset and returned.
-func (s *stateObject) commitTrie(db Database) (*trie.NodeSet, error) {
+func (s *stateObject) commitTrie(db Database) (*trienode.NodeSet, error) {
 	// If nothing changed, don't bother with hashing anything
 	if s.updateTrie(db) == nil {
 		return nil, nil

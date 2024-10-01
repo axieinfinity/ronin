@@ -36,6 +36,7 @@ import (
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/trie"
+	"github.com/ethereum/go-ethereum/trie/trienode"
 )
 
 // IndexerConfig includes a set of configs for chain indexers.
@@ -138,6 +139,7 @@ type ChtIndexerBackend struct {
 	section, sectionSize uint64
 	lastHash             common.Hash
 	trie                 *trie.Trie
+	originRoot           common.Hash
 }
 
 // NewChtIndexer creates a Cht chain indexer
@@ -196,6 +198,7 @@ func (c *ChtIndexerBackend) Reset(ctx context.Context, section uint64, lastSecti
 		}
 	}
 	c.section = section
+	c.originRoot = root
 	return err
 }
 
@@ -223,7 +226,7 @@ func (c *ChtIndexerBackend) Commit() error {
 	}
 	// Commite trie changes into trie database in case it's not nil.
 	if nodes != nil {
-		if err := c.triedb.Update(trie.NewWithNodeSet(nodes)); err != nil {
+		if err := c.triedb.Update(root, c.originRoot, trienode.NewWithNodeSet(nodes)); err != nil {
 			return err
 		}
 	}
@@ -236,7 +239,7 @@ func (c *ChtIndexerBackend) Commit() error {
 	if !c.disablePruning {
 		// Flush the triedb and track the latest trie nodes.
 		c.trieset.Clear()
-		c.triedb.Commit(root, false, func(hash common.Hash) { c.trieset.Add(hash) })
+		c.triedb.Commit(root, false)
 
 		it := c.trieTable.NewIterator(nil, nil)
 		defer it.Release()
@@ -257,7 +260,7 @@ func (c *ChtIndexerBackend) Commit() error {
 		}
 		log.Debug("Prune historical CHT trie nodes", "deleted", deleted, "remaining", remaining, "elapsed", common.PrettyDuration(time.Since(t)))
 	} else {
-		c.triedb.Commit(root, false, nil)
+		c.triedb.Commit(root, false)
 	}
 	log.Info("Storing CHT", "section", c.section, "head", fmt.Sprintf("%064x", c.lastHash), "root", fmt.Sprintf("%064x", root))
 	StoreChtRoot(c.diskdb, c.section, c.lastHash, root)
@@ -341,6 +344,7 @@ type BloomTrieIndexerBackend struct {
 	bloomTrieRatio    uint64
 	trie              *trie.Trie
 	sectionHeads      []common.Hash
+	originRoot        common.Hash
 }
 
 // NewBloomTrieIndexer creates a BloomTrie chain indexer
@@ -470,7 +474,7 @@ func (b *BloomTrieIndexerBackend) Commit() error {
 	}
 
 	if nodes != nil {
-		if err := b.triedb.Update(trie.NewWithNodeSet(nodes)); err != nil {
+		if err := b.triedb.Update(root, b.originRoot, trienode.NewWithNodeSet(nodes)); err != nil {
 			return err
 		}
 	}
@@ -484,7 +488,7 @@ func (b *BloomTrieIndexerBackend) Commit() error {
 	if !b.disablePruning {
 		// Flush the triedb and track the latest trie nodes.
 		b.trieset.Clear()
-		b.triedb.Commit(root, false, func(hash common.Hash) { b.trieset.Add(hash) })
+		b.triedb.Commit(root, false)
 
 		it := b.trieTable.NewIterator(nil, nil)
 		defer it.Release()
@@ -505,7 +509,7 @@ func (b *BloomTrieIndexerBackend) Commit() error {
 		}
 		log.Debug("Prune historical bloom trie nodes", "deleted", deleted, "remaining", remaining, "elapsed", common.PrettyDuration(time.Since(t)))
 	} else {
-		b.triedb.Commit(root, false, nil)
+		b.triedb.Commit(root, false)
 	}
 	sectionHead := b.sectionHeads[b.bloomTrieRatio-1]
 	StoreBloomTrieRoot(b.diskdb, b.section, sectionHead, root)
