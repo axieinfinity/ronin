@@ -25,10 +25,12 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/trie"
+	"github.com/ethereum/go-ethereum/trie/trienode"
 	"golang.org/x/crypto/sha3"
 )
 
@@ -138,7 +140,7 @@ type testHelper struct {
 	diskdb  ethdb.Database
 	triedb  *trie.Database
 	accTrie *trie.SecureTrie
-	nodes   *trie.MergedNodeSet
+	nodes   *trienode.MergedNodeSet
 }
 
 func newHelper() *testHelper {
@@ -149,7 +151,7 @@ func newHelper() *testHelper {
 		diskdb:  diskdb,
 		triedb:  triedb,
 		accTrie: accTrie,
-		nodes:   trie.NewMergedNodeSet(),
+		nodes:   trienode.NewMergedNodeSet(),
 	}
 }
 
@@ -196,8 +198,8 @@ func (t *testHelper) Commit() common.Hash {
 	if nodes != nil {
 		t.nodes.Merge(nodes)
 	}
-	t.triedb.Update(t.nodes)
-	t.triedb.Commit(root, false, nil)
+	t.triedb.Update(root, types.EmptyRootHash, t.nodes)
+	t.triedb.Commit(root, false)
 	return root
 }
 
@@ -385,7 +387,7 @@ func TestGenerateCorruptAccountTrie(t *testing.T) {
 	root := helper.Commit() // Root: 0xa04693ea110a31037fb5ee814308a6f1d76bdab0b11676bdf4541d2de55ba978
 
 	// Delete an account trie leaf and ensure the generator chokes
-	helper.triedb.Commit(root, false, nil)
+	helper.triedb.Commit(root, false)
 	helper.diskdb.Delete(common.HexToHash("0x65145f923027566669a1ae5ccac66f945b55ff6eaeb17d2ea8e048b7d381f2d7").Bytes())
 
 	snap := generateSnapshot(helper.diskdb, helper.triedb, 16, root)
