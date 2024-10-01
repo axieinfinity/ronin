@@ -328,7 +328,7 @@ func generateChain(
 				panic(fmt.Sprintf("state write error: %v", err))
 			}
 			if flushDisk {
-				if err := statedb.Database().TrieDB().Commit(root, false, nil); err != nil {
+				if err := statedb.Database().TrieDB().Commit(root, false); err != nil {
 					panic(fmt.Sprintf("trie write error: %v", err))
 				}
 			}
