@@ -27,6 +27,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/ethereum/go-ethereum/trie/trienode"
 )
 
 var (
@@ -582,9 +583,9 @@ func (t *Trie) Hash() common.Hash {
 // The returned nodeset can be nil if the trie is clean(nothing to commit).
 // Once the trie is committed, it's not usable anymore. A new trie must
 // be created with new root and updated trie database for following usage
-func (t *Trie) Commit(collectLeaf bool) (common.Hash, *NodeSet, error) {
+func (t *Trie) Commit(collectLeaf bool) (common.Hash, *trienode.NodeSet, error) {
 	defer t.tracer.reset()
-	nodes := NewNodeSet(t.owner)
+	nodes := trienode.NewNodeSet(t.owner)
 	t.tracer.markDeletions(nodes)
 
 	if t.root == nil {

@@ -26,6 +26,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/trie"
+	"github.com/ethereum/go-ethereum/trie/trienode"
 	lru "github.com/hashicorp/golang-lru/v2"
 )
 
@@ -92,7 +93,7 @@ type Trie interface {
 	// corresponding node hash. All collected nodes(including dirty leaves if
 	// collectLeaf is true) will be encapsulated into a nodeset for return.
 	// The returned nodeset can be nil if the trie is clean(nothing to commit).
-	Commit(collectLeaf bool) (common.Hash, *trie.NodeSet, error)
+	Commit(collectLeaf bool) (common.Hash, *trienode.NodeSet, error)
 
 	// NodeIterator returns an iterator that returns nodes of the trie. Iteration
 	// starts at the key after the given start key.
