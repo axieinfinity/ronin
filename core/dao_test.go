@@ -94,7 +94,7 @@ func TestDAOForkRangeExtradata(t *testing.T) {
 		if _, err := bc.InsertChain(blocks, nil); err != nil {
 			t.Fatalf("failed to import contra-fork chain for expansion: %v", err)
 		}
-		if err := bc.stateCache.TrieDB().Commit(bc.CurrentHeader().Root, true, nil); err != nil {
+		if err := bc.stateCache.TrieDB().Commit(bc.CurrentHeader().Root, true); err != nil {
 			t.Fatalf("failed to commit contra-fork head for expansion: %v", err)
 		}
 		blocks, _ = GenerateChain(&proConf, conBc.CurrentBlock(), ethash.NewFaker(), db, 1, func(i int, gen *BlockGen) {}, true)
@@ -119,7 +119,7 @@ func TestDAOForkRangeExtradata(t *testing.T) {
 		if _, err := bc.InsertChain(blocks, nil); err != nil {
 			t.Fatalf("failed to import pro-fork chain for expansion: %v", err)
 		}
-		if err := bc.stateCache.TrieDB().Commit(bc.CurrentHeader().Root, true, nil); err != nil {
+		if err := bc.stateCache.TrieDB().Commit(bc.CurrentHeader().Root, true); err != nil {
 			t.Fatalf("failed to commit pro-fork head for expansion: %v", err)
 		}
 		blocks, _ = GenerateChain(&conConf, proBc.CurrentBlock(), ethash.NewFaker(), db, 1, func(i int, gen *BlockGen) {}, true)
@@ -145,7 +145,7 @@ func TestDAOForkRangeExtradata(t *testing.T) {
 	if _, err := bc.InsertChain(blocks, nil); err != nil {
 		t.Fatalf("failed to import contra-fork chain for expansion: %v", err)
 	}
-	if err := bc.stateCache.TrieDB().Commit(bc.CurrentHeader().Root, true, nil); err != nil {
+	if err := bc.stateCache.TrieDB().Commit(bc.CurrentHeader().Root, true); err != nil {
 		t.Fatalf("failed to commit contra-fork head for expansion: %v", err)
 	}
 	blocks, _ = GenerateChain(&proConf, conBc.CurrentBlock(), ethash.NewFaker(), db, 1, func(i int, gen *BlockGen) {}, true)
@@ -165,7 +165,7 @@ func TestDAOForkRangeExtradata(t *testing.T) {
 	if _, err := bc.InsertChain(blocks, nil); err != nil {
 		t.Fatalf("failed to import pro-fork chain for expansion: %v", err)
 	}
-	if err := bc.stateCache.TrieDB().Commit(bc.CurrentHeader().Root, true, nil); err != nil {
+	if err := bc.stateCache.TrieDB().Commit(bc.CurrentHeader().Root, true); err != nil {
 		t.Fatalf("failed to commit pro-fork head for expansion: %v", err)
 	}
 	blocks, _ = GenerateChain(&conConf, proBc.CurrentBlock(), ethash.NewFaker(), db, 1, func(i int, gen *BlockGen) {}, true)
