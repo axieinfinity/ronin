@@ -42,20 +42,20 @@ func (n *Node) IsDeleted() bool {
 	return n.Hash == (common.Hash{})
 }
 
-// WithPrev wraps the Node with the previous node value attached.
-type WithPrev struct {
+// NodeWithPrev wraps the Node with the previous node value attached.
+type NodeWithPrev struct {
 	*Node
 	Prev []byte // Encoded original value, nil means it's non-existent
 }
 
 // Unwrap returns the internal Node object.
-func (n *WithPrev) Unwrap() *Node {
+func (n *NodeWithPrev) Unwrap() *Node {
 	return n.Node
 }
 
 // Size returns the total memory size used by this node. It overloads
 // the function in Node by counting the size of previous value as well.
-func (n *WithPrev) Size() int {
+func (n *NodeWithPrev) Size() int {
 	return n.Node.Size() + len(n.Prev)
 }
 
@@ -64,9 +64,9 @@ func New(hash common.Hash, blob []byte) *Node {
 	return &Node{Hash: hash, Blob: blob}
 }
 
-// NewWithPrev constructs a node with provided node information.
-func NewWithPrev(hash common.Hash, blob []byte, prev []byte) *WithPrev {
-	return &WithPrev{
+// NewNodeWithPrev constructs a node with provided node information.
+func NewNodeWithPrev(hash common.Hash, blob []byte, prev []byte) *NodeWithPrev {
+	return &NodeWithPrev{
 		Node: New(hash, blob),
 		Prev: prev,
 	}
@@ -83,7 +83,7 @@ type leaf struct {
 type NodeSet struct {
 	Owner   common.Hash
 	Leaves  []*leaf
-	Nodes   map[string]*WithPrev
+	Nodes   map[string]*NodeWithPrev
 	updates int // the count of updated and inserted nodes
 	deletes int // the count of deleted nodes
 }
@@ -93,7 +93,7 @@ type NodeSet struct {
 func NewNodeSet(owner common.Hash) *NodeSet {
 	return &NodeSet{
 		Owner: owner,
-		Nodes: make(map[string]*WithPrev),
+		Nodes: make(map[string]*NodeWithPrev),
 	}
 }
 
@@ -112,7 +112,7 @@ func (set *NodeSet) ForEachWithOrder(callback func(path string, n *Node)) {
 }
 
 // AddNode adds the provided node into set.
-func (set *NodeSet) AddNode(path []byte, n *WithPrev) {
+func (set *NodeSet) AddNode(path []byte, n *NodeWithPrev) {
 	if n.IsDeleted() {
 		set.deletes += 1
 	} else {

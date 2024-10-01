@@ -170,7 +170,7 @@ func (c *committer) store(path []byte, n node) node {
 		// deleted only if the node was existent in database before.
 		prev, ok := c.tracer.accessList[string(path)]
 		if ok {
-			c.nodes.AddNode(path, trienode.NewWithPrev(common.Hash{}, nil, prev))
+			c.nodes.AddNode(path, trienode.NewNodeWithPrev(common.Hash{}, nil, prev))
 		}
 		return n
 	}
@@ -179,7 +179,7 @@ func (c *committer) store(path []byte, n node) node {
 	var (
 		nhash   = common.BytesToHash(hash)
 		blob, _ = rlp.EncodeToBytes(n)
-		node    = trienode.NewWithPrev(
+		node    = trienode.NewNodeWithPrev(
 			nhash,
 			blob,
 			c.tracer.accessList[string(path)],
