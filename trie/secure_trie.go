@@ -23,6 +23,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/ethereum/go-ethereum/trie/trienode"
 )
 
 // SecureTrie wraps a trie with key hashing. In a secure trie, all
@@ -166,7 +167,7 @@ func (t *SecureTrie) GetKey(shaKey []byte) []byte {
 // collectLeaf is true) will be encapsulated into a nodeset for return.
 // The returned nodeset can be nil if the trie is clean(nothing to commit).
 // All cached preimages will be also flushed if preimages recording is enabled.
-func (t *SecureTrie) Commit(collectLeaf bool) (common.Hash, *NodeSet, error) {
+func (t *SecureTrie) Commit(collectLeaf bool) (common.Hash, *trienode.NodeSet, error) {
 	// Write all the pre-images to the actual disk database
 	if len(t.getSecKeyCache()) > 0 {
 		if t.preimages != nil { // Ugly direct check but avoids the below write lock
