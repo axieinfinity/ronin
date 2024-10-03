@@ -90,8 +90,18 @@ type (
 		account *common.Address
 	}
 	resetObjectChange struct {
+		account      *common.Address
 		prev         *stateObject
 		prevdestruct bool
+
+		// tracking previous states of accounts and storages in snapshot, before each transaction
+		prevAccount []byte
+		prevStorage map[common.Hash][]byte
+
+		// tracking previous states of accounts and storages in trie, before each commit
+		prevAccountOriginExist bool
+		prevAccountOrigin      []byte
+		prevStorageOrigin      map[common.Hash][]byte
 	}
 	selfDestructChange struct {
 		account     *common.Address
@@ -157,12 +167,21 @@ func (ch createObjectChange) dirtied() *common.Address {
 func (ch resetObjectChange) revert(s *StateDB) {
 	s.setStateObject(ch.prev)
 	if !ch.prevdestruct && s.snap != nil {
-		delete(s.snapDestructs, ch.prev.addrHash)
+		delete(s.stateObjectsDestruct, ch.prev.address)
+	}
+	if ch.prevAccountOriginExist {
+		s.accountsOrigin[ch.prev.addrHash] = ch.prevAccountOrigin
+	}
+	if ch.prevAccount != nil {
+		s.accounts[ch.prev.addrHash] = ch.prevAccount
+	}
+	if ch.prevStorage != nil {
+		s.storages[ch.prev.addrHash] = ch.prevStorage
 	}
 }
 
 func (ch resetObjectChange) dirtied() *common.Address {
-	return nil
+	return ch.account
 }
 
 func (ch selfDestructChange) revert(s *StateDB) {
