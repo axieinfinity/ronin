@@ -20,7 +20,10 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
 )
+
+var emptyCodeHash = crypto.Keccak256(nil)
 
 // StateAccount is the Ethereum consensus representation of accounts.
 // These objects are stored in the main account trie.
@@ -29,6 +32,29 @@ type StateAccount struct {
 	Balance  *big.Int
 	Root     common.Hash // merkle root of the storage trie
 	CodeHash []byte
+}
+
+// NewEmptyStateAccount constructs an empty state account.
+func NewEmptyStateAccount() *StateAccount {
+	return &StateAccount{
+		Balance:  new(big.Int),
+		Root:     EmptyRootHash,
+		CodeHash: emptyCodeHash,
+	}
+}
+
+// Copy returns a deep-copied state account object.
+func (acct *StateAccount) Copy() *StateAccount {
+	var balance *big.Int
+	if acct.Balance != nil {
+		balance = new(big.Int).Set(acct.Balance)
+	}
+	return &StateAccount{
+		Nonce:    acct.Nonce,
+		Balance:  balance,
+		Root:     acct.Root,
+		CodeHash: common.CopyBytes(acct.CodeHash),
+	}
 }
 
 type DirtyStateAccount struct {
