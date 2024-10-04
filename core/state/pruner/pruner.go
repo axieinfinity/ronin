@@ -75,16 +75,15 @@ var (
 // periodically in order to release the disk usage and improve the
 // disk read performance to some extent.
 type Pruner struct {
-	db            ethdb.Database
-	stateBloom    *stateBloom
-	datadir       string
-	trieCachePath string
-	headHeader    *types.Header
-	snaptree      *snapshot.Tree
+	db         ethdb.Database
+	stateBloom *stateBloom
+	datadir    string
+	headHeader *types.Header
+	snaptree   *snapshot.Tree
 }
 
 // NewPruner creates the pruner instance.
-func NewPruner(db ethdb.Database, datadir, trieCachePath string, bloomSize uint64) (*Pruner, error) {
+func NewPruner(db ethdb.Database, datadir string, bloomSize uint64) (*Pruner, error) {
 	headBlock := rawdb.ReadHeadBlock(db)
 	if headBlock == nil {
 		return nil, errors.New("Failed to load head block")
@@ -103,12 +102,11 @@ func NewPruner(db ethdb.Database, datadir, trieCachePath string, bloomSize uint6
 		return nil, err
 	}
 	return &Pruner{
-		db:            db,
-		stateBloom:    stateBloom,
-		datadir:       datadir,
-		trieCachePath: trieCachePath,
-		headHeader:    headBlock.Header(),
-		snaptree:      snaptree,
+		db:         db,
+		stateBloom: stateBloom,
+		datadir:    datadir,
+		headHeader: headBlock.Header(),
+		snaptree:   snaptree,
 	}, nil
 }
 
@@ -241,7 +239,7 @@ func (p *Pruner) Prune(root common.Hash) error {
 		return err
 	}
 	if stateBloomRoot != (common.Hash{}) {
-		return RecoverPruning(p.datadir, p.db, p.trieCachePath)
+		return RecoverPruning(p.datadir, p.db)
 	}
 	// If the target state root is not specified, use the HEAD-127 as the
 	// target. The reason for picking it is:
@@ -299,11 +297,6 @@ func (p *Pruner) Prune(root common.Hash) error {
 			log.Info("Selecting user-specified state as the pruning target", "root", root)
 		}
 	}
-	// Before start the pruning, delete the clean trie cache first.
-	// It's necessary otherwise in the next restart we will hit the
-	// deleted state root in the "clean cache" so that the incomplete
-	// state is picked for usage.
-	deleteCleanTrieCache(p.trieCachePath)
 
 	// All the state roots of the middle layer should be forcibly pruned,
 	// otherwise the dangling state will be left.
@@ -342,7 +335,7 @@ func (p *Pruner) Prune(root common.Hash) error {
 // pruning can be resumed. What's more if the bloom filter is constructed, the
 // pruning **has to be resumed**. Otherwise a lot of dangling nodes may be left
 // in the disk.
-func RecoverPruning(datadir string, db ethdb.Database, trieCachePath string) error {
+func RecoverPruning(datadir string, db ethdb.Database) error {
 	stateBloomPath, stateBloomRoot, err := findBloomFilter(datadir)
 	if err != nil {
 		return err
@@ -371,12 +364,6 @@ func RecoverPruning(datadir string, db ethdb.Database, trieCachePath string) err
 		return err
 	}
 	log.Info("Loaded state bloom filter", "path", stateBloomPath)
-
-	// Before start the pruning, delete the clean trie cache first.
-	// It's necessary otherwise in the next restart we will hit the
-	// deleted state root in the "clean cache" so that the incomplete
-	// state is picked for usage.
-	deleteCleanTrieCache(trieCachePath)
 
 	// All the state roots of the middle layers should be forcibly pruned,
 	// otherwise the dangling state will be left.

@@ -18,7 +18,6 @@ package trie
 
 import (
 	"errors"
-	"runtime"
 	"time"
 
 	"github.com/VictoriaMetrics/fastcache"
@@ -91,11 +90,7 @@ type Database struct {
 func prepare(diskdb ethdb.Database, config *Config) *Database {
 	var cleans *fastcache.Cache
 	if config != nil && config.Cache > 0 {
-		if config.Journal == "" {
-			cleans = fastcache.New(config.Cache * 1024 * 1024)
-		} else {
-			cleans = fastcache.LoadFromFileOrNew(config.Journal, config.Cache*1024*1024)
-		}
+		cleans = fastcache.New(config.Cache * 1024 * 1024)
 	}
 	var preimages *preimageStore
 	if config != nil && config.Preimages {
@@ -217,28 +212,6 @@ func (db *Database) saveCache(dir string, threads int) error {
 	}
 	log.Info("Persisted the clean trie cache", "path", dir, "elapsed", common.PrettyDuration(time.Since(start)))
 	return nil
-}
-
-// SaveCache atomically saves fast cache data to the given dir using all
-// available CPU cores.
-func (db *Database) SaveCache(dir string) error {
-	return db.saveCache(dir, runtime.GOMAXPROCS(0))
-}
-
-// SaveCachePeriodically atomically saves fast cache data to the given dir with
-// the specified interval. All dump operation will only use a single CPU core.
-func (db *Database) SaveCachePeriodically(dir string, interval time.Duration, stopCh <-chan struct{}) {
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ticker.C:
-			db.saveCache(dir, 1)
-		case <-stopCh:
-			return
-		}
-	}
 }
 
 // Cap iteratively flushes old but still referenced trie nodes until the total
