@@ -64,6 +64,12 @@ func NewSecure(root common.Hash, db *Database) (*SecureTrie, error) {
 	return &SecureTrie{trie: *trie}, nil
 }
 
+// UnshareTrie marks this trie as unshared, the trie exclusively
+// owns all of its nodes.
+func (t *SecureTrie) UnshareTrie() {
+	t.trie.shared = false
+}
+
 // Get returns the value for key stored in the trie.
 // The value bytes must not be modified by the caller.
 func (t *SecureTrie) Get(key []byte) []byte {
@@ -185,6 +191,8 @@ func (t *SecureTrie) Hash() common.Hash {
 
 // Copy returns a copy of SecureTrie.
 func (t *SecureTrie) Copy() *SecureTrie {
+	// Mark both trie as shared
+	t.trie.shared = true
 	cpy := *t
 	return &cpy
 }
