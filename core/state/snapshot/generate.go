@@ -440,7 +440,7 @@ func (dl *diskLayer) generateRange(trieID *trie.ID, prefix []byte, kind string, 
 		}
 		root, nodes, _ := snapTrie.Commit(false)
 		if nodes != nil {
-			snapTrieDb.Update(root, types.EmptyRootHash, trienode.NewWithNodeSet(nodes), nil)
+			snapTrieDb.Update(root, types.EmptyRootHash, 0, trienode.NewWithNodeSet(nodes), nil)
 		}
 		snapTrieDb.Commit(root, false)
 	}
