@@ -66,7 +66,6 @@ var (
 					utils.SepoliaFlag,
 					utils.RinkebyFlag,
 					utils.GoerliFlag,
-					utils.CacheTrieJournalFlag,
 					utils.BloomFilterSizeFlag,
 				},
 				Description: `
@@ -187,11 +186,12 @@ block is used.
 )
 
 func pruneState(ctx *cli.Context) error {
-	stack, config := makeConfigNode(ctx)
+	stack, _ := makeConfigNode(ctx)
 	defer stack.Close()
 
 	chaindb := utils.MakeChainDatabase(ctx, stack, false)
-	pruner, err := pruner.NewPruner(chaindb, stack.ResolvePath(""), stack.ResolvePath(config.Eth.TrieCleanCacheJournal), ctx.Uint64(utils.BloomFilterSizeFlag.Name))
+	pruner, err := pruner.NewPruner(chaindb, stack.ResolvePath(""),
+		ctx.Uint64(utils.BloomFilterSizeFlag.Name))
 	if err != nil {
 		log.Error("Failed to open snapshot tree", "err", err)
 		return err
