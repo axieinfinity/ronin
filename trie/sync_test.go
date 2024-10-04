@@ -61,7 +61,7 @@ func makeTestTrie(scheme string) (ethdb.Database, *Database, *SecureTrie, map[st
 	if err != nil {
 		panic(fmt.Errorf("failed to commit trie: %v", err))
 	}
-	if err := triedb.Update(root, types.EmptyRootHash, trienode.NewWithNodeSet(nodes), nil); err != nil {
+	if err := triedb.Update(root, types.EmptyRootHash, 0, trienode.NewWithNodeSet(nodes), nil); err != nil {
 		panic(fmt.Errorf("failed to commit db %v", err))
 	}
 	if err := triedb.Commit(root, false); err != nil {
@@ -713,7 +713,7 @@ func testSyncMovingTarget(t *testing.T, scheme string) {
 		diff[string(key)] = val
 	}
 	root, nodes, _ := srcTrie.Commit(false)
-	if err := srcDb.Update(root, preRoot, trienode.NewWithNodeSet(nodes), nil); err != nil {
+	if err := srcDb.Update(root, preRoot, 0, trienode.NewWithNodeSet(nodes), nil); err != nil {
 		panic(err)
 	}
 	if err := srcDb.Commit(root, false); err != nil {
@@ -738,7 +738,7 @@ func testSyncMovingTarget(t *testing.T, scheme string) {
 		reverted[k] = val
 	}
 	root, nodes, _ = srcTrie.Commit(false)
-	if err := srcDb.Update(root, preRoot, trienode.NewWithNodeSet(nodes), nil); err != nil {
+	if err := srcDb.Update(root, preRoot, 0, trienode.NewWithNodeSet(nodes), nil); err != nil {
 		panic(err)
 	}
 	if err := srcDb.Commit(root, false); err != nil {
