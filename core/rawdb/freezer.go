@@ -270,46 +270,49 @@ func (f *Freezer) ModifyAncients(fn func(ethdb.AncientWriteOp) error) (writeSize
 }
 
 // TruncateHead discards any recent data above the provided threshold number, only keep the first items ancient data.
-func (f *Freezer) TruncateHead(items uint64) error {
+func (f *Freezer) TruncateHead(items uint64) (uint64, error) {
 	if f.readonly {
-		return errReadOnly
+		return 0, errReadOnly
 	}
 	f.writeLock.Lock()
 	defer f.writeLock.Unlock()
 
 	// If the current frozen number is less than the requested items for frozen, do nothing.
-	if f.frozen.Load() <= items {
-		return nil
+	previousItems := f.frozen.Load()
+	if previousItems <= items {
+		return previousItems, nil
 	}
 	for _, table := range f.tables {
 		if err := table.truncateHead(items); err != nil {
-			return err
+			return 0, err
 		}
 	}
 	f.frozen.Store(items)
-	return nil
+	return previousItems, nil
 }
 
-// TruncateTail discards any recent data below the provided threshold number, only keep the last items ancient data.
-func (f *Freezer) TruncateTail(tail uint64) error {
+// TruncateTail discards any recent data below the provided threshold number, only keep the last items ancient data, return the old tail number.
+func (f *Freezer) TruncateTail(tail uint64) (uint64, error) {
 	if f.readonly {
-		return errReadOnly
+		return 0, errReadOnly
 	}
 	f.writeLock.Lock()
 	defer f.writeLock.Unlock()
 
 	// If the current tail number is greater than the requested tail, seem out of range for truncating, do nothing.
-	if f.tail.Load() >= tail {
-		return nil
+	old := f.tail.Load()
+
+	if old >= tail {
+		return old, nil
 	}
 
 	for _, table := range f.tables {
 		if err := table.truncateTail(tail); err != nil {
-			return err
+			return 0, err
 		}
 	}
 	f.tail.Store(tail)
-	return nil
+	return old, nil
 }
 
 // Sync flushes all data tables to disk.
@@ -345,7 +348,7 @@ func (f *Freezer) repair() error {
 		}
 	}
 
-	// Truncate all tables to the common head and tail.
+	// Truncate all tables to the common head and tail. Returns the previous head number.
 	for _, table := range f.tables {
 		if err := table.truncateHead(head); err != nil {
 			return err

@@ -180,7 +180,7 @@ func (f *ResettableFreezer) ModifyAncients(fn func(ethdb.AncientWriteOp) error) 
 }
 
 // TruncateHead discards any recent data above the provided threshold number.
-func (f *ResettableFreezer) TruncateHead(items uint64) error {
+func (f *ResettableFreezer) TruncateHead(items uint64) (uint64, error) {
 	f.lock.RLock()
 	defer f.lock.RUnlock()
 
@@ -188,7 +188,7 @@ func (f *ResettableFreezer) TruncateHead(items uint64) error {
 }
 
 // TruncateTail discards any recent data below the provided threshold number.
-func (f *ResettableFreezer) TruncateTail(tail uint64) error {
+func (f *ResettableFreezer) TruncateTail(tail uint64) (uint64, error) {
 	f.lock.RLock()
 	defer f.lock.RUnlock()
 

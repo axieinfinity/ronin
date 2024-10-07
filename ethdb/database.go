@@ -118,7 +118,7 @@ type AncientWriter interface {
 	// TruncateHead discards all, but keep the first n ancient data from the ancient store.
 	// After the truncation, the latest item can be accessed it item_ n-1 (start from 0)
 	// Tail 0 -> (n-1)New-headxxxxOld-head
-	TruncateHead(n uint64) error
+	TruncateHead(n uint64) (uint64, error)
 
 	// TruncateTail discards the first n ancient data from the ancient store. The already
 	// deleted items are ignored. After the truncation, the earliest item can be accessed
@@ -126,7 +126,7 @@ type AncientWriter interface {
 	// immediately, but only when the accumulated deleted data reach the threshold then
 	// will be removed all together.
 	// Old-tail(0)xxxxxxxNew-tail(n)->Head
-	TruncateTail(n uint64) error
+	TruncateTail(n uint64) (uint64, error)
 
 	// Sync flushes all in-memory ancient store data to disk.
 	Sync() error
