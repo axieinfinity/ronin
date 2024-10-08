@@ -15,3 +15,21 @@
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
 package pathdb
+
+import (
+	"math/big"
+
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/internal/testrand"
+	"golang.org/x/exp/rand"
+)
+
+func generateAccount(storageRoot common.Hash) types.StateAccount {
+	return types.StateAccount{
+		Nonce:    uint64(rand.Intn(100)),
+		Balance:  new(big.Int).SetUint64(rand.Uint64()),
+		CodeHash: testrand.Bytes(32),
+		Root:     storageRoot,
+	}
+}
