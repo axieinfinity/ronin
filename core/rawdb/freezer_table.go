@@ -422,6 +422,7 @@ func (t *freezerTable) truncateTail(items uint64) error {
 	defer t.lock.Unlock()
 
 	// The truncateTarget is below the current tail, return nil, no need to truncate
+
 	if t.itemHidden.Load() >= items {
 		return nil
 	}

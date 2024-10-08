@@ -16,6 +16,8 @@
 
 package rawdb
 
+import "path/filepath"
+
 // The list of table names of chain freezer. (headers, hashes, bodies, difficulties)
 
 const (
@@ -35,6 +37,30 @@ const (
 	chainFreezerDifficultyTable = "diffs"
 )
 
+const (
+	// stateHistoryTableSize defines the maximum size of freezer data files.
+	stateHistoryTableSize = 2 * 1000 * 1000 * 1000 // 2GB
+
+	// stateHistoryAccountIndex indicates the name of the freezer state history table (Account + Storage).
+	stateHistoryMeta         = "history.meta"
+	stateHistoryAccountIndex = "account.index"
+	stateHistoryStorageIndex = "storage.index"
+	stateHistoryAccountData  = "account.data"
+	stateHistoryStorageData  = "storage.data"
+
+	namespace = "eth/db/state"
+)
+
+// stateHistoryFreezerNoSnappy configures whether compression is disabled for the stateHistory.
+// https://github.com/golang/snappy, Reason for splititng files for looking up in archive mode easily.
+var stateHistoryFreezerNoSnappy = map[string]bool{
+	stateHistoryMeta:         true,
+	stateHistoryAccountIndex: false,
+	stateHistoryStorageIndex: false,
+	stateHistoryAccountData:  false,
+	stateHistoryStorageData:  false,
+}
+
 // chainFreezerNoSnappy configures whether compression is disabled for the ancient-tables.
 // Hashes and difficulties don't compress well.
 var chainFreezerNoSnappy = map[string]bool{
@@ -48,7 +74,15 @@ var chainFreezerNoSnappy = map[string]bool{
 // The list of identifiers of ancient stores. It can split more in the futures.
 var (
 	chainFreezerName = "chain" // the folder name of chain segment ancient store.
+	stateFreezerName = "state" // the folder name of reverse diff ancient store.
 )
 
 // freezers the collections of all builtin freezers.
 var freezers = []string{chainFreezerName}
+
+// NewStateHistoryFreezer initializes the freezer for state history.
+func NewStateHistoryFreezer(ancientDir string, readOnly bool) (*ResettableFreezer, error) {
+	return NewResettableFreezer(
+		filepath.Join(ancientDir, stateFreezerName), namespace, readOnly,
+		stateHistoryTableSize, stateHistoryFreezerNoSnappy)
+}
