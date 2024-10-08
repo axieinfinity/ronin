@@ -533,7 +533,7 @@ func (s *StateDB) updateStateObject(obj *stateObject) {
 	// to the deletion, because whereas it is enough to track account updates
 	// at commit time, deletions need tracking at transaction boundary level to
 	// ensure we capture state clearing.
-	s.accounts[obj.addrHash] = snapshot.SlimAccountRLP(obj.data.Nonce, obj.data.Balance, obj.data.Root, obj.data.CodeHash)
+	s.accounts[obj.addrHash] = types.SlimAccountRLP(obj.data)
 	// Track the original value of mutated account, nil means it was not present.
 	// Skip if it has been tracked (because updateStateObject may be called
 	// multiple times in a block).
@@ -541,7 +541,7 @@ func (s *StateDB) updateStateObject(obj *stateObject) {
 		if obj.origin == nil {
 			s.accountsOrigin[obj.address] = nil
 		} else {
-			s.accountsOrigin[obj.address] = snapshot.SlimAccountRLP(obj.origin.Nonce, obj.origin.Balance, obj.origin.Root, obj.origin.CodeHash)
+			s.accountsOrigin[obj.address] = types.SlimAccountRLP(*obj.origin)
 		}
 	}
 }
@@ -587,7 +587,7 @@ func (s *StateDB) getDeletedStateObject(addr common.Address) *stateObject {
 		if metrics.EnabledExpensive {
 			defer func(start time.Time) { s.SnapshotAccountReads += time.Since(start) }(time.Now())
 		}
-		var acc *snapshot.Account
+		var acc *types.SlimAccount
 		if acc, err = s.snap.Account(crypto.HashData(s.hasher, addr.Bytes())); err == nil {
 			if acc == nil {
 				return nil
@@ -1081,7 +1081,7 @@ func (s *StateDB) handleDestruction(nodes *trienode.MergedNodeSet) (map[common.A
 			continue
 		}
 		// It can overwrite the data in s.accountsOrigin set by 'updateStateObject'.
-		s.accountsOrigin[addr] = snapshot.SlimAccountRLP(prev.Nonce, prev.Balance, prev.Root, prev.CodeHash) // case (c) or (d)
+		s.accountsOrigin[addr] = types.SlimAccountRLP(*prev) // case (c) or (d)
 
 		// Short circuit if the storage was empty.
 		if prev.Root == types.EmptyRootHash {
