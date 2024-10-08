@@ -17,6 +17,7 @@
 package core
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -4310,5 +4311,91 @@ func TestSidecarsPruning(t *testing.T) {
 		if sidecars != nil {
 			t.Fatalf("Sidecars should be pruned at block %d", curBlockNumber-params.BlobPrunePeriod)
 		}
+	}
+}
+
+func TestBlockChain_2000StorageUpdate(t *testing.T) {
+	var (
+		numTxs          = 2000
+		signer          = types.HomesteadSigner{}
+		testBankKey, _  = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
+		testBankAddress = crypto.PubkeyToAddress(testBankKey.PublicKey)
+		bankFunds       = big.NewInt(100000000000000000)
+		contractAddress = common.HexToAddress("0x1234")
+		gspec           = Genesis{
+			Config: params.TestChainConfig,
+			Alloc: GenesisAlloc{
+				testBankAddress: {Balance: bankFunds},
+				contractAddress: {
+					Nonce:   1,
+					Balance: common.Big0,
+					// Store 1 into slot passed by calldata
+					Code: []byte{
+						byte(vm.PUSH0),
+						byte(vm.CALLDATALOAD),
+						byte(vm.PUSH1),
+						byte(0x1),
+						byte(vm.SWAP1),
+						byte(vm.SSTORE),
+						byte(vm.STOP),
+					},
+					Storage: make(map[common.Hash]common.Hash),
+				},
+			},
+			GasLimit: 100e6, // 100 M
+		}
+	)
+
+	for i := 0; i < 1000; i++ {
+		gspec.Alloc[contractAddress].Storage[common.BigToHash(big.NewInt(int64(i)))] = common.BigToHash(big.NewInt(0x100))
+	}
+
+	// Generate the original common chain segment and the two competing forks
+	engine := ethash.NewFaker()
+	db := rawdb.NewMemoryDatabase()
+	genesis := gspec.MustCommit(db)
+
+	blockGenerator := func(i int, block *BlockGen) {
+		block.SetCoinbase(common.Address{1})
+		for txi := 0; txi < numTxs; txi++ {
+			var calldata [32]byte
+			binary.BigEndian.PutUint64(calldata[:], uint64(txi))
+			tx, err := types.SignTx(
+				types.NewTransaction(uint64(txi), contractAddress, common.Big0, 100_000,
+					block.header.BaseFee, calldata[:]),
+				signer,
+				testBankKey)
+			if err != nil {
+				t.Error(err)
+			}
+			block.AddTx(tx)
+		}
+	}
+
+	shared, _ := GenerateChain(params.TestChainConfig, genesis, engine, db, 1, blockGenerator, true)
+	err := os.Mkdir("./pebble", 0775)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll("./pebble")
+	// Import the shared chain and the original canonical one
+	diskdb, err := rawdb.NewPebbleDBDatabase("./pebble", 1024, 500000, "", false, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer diskdb.Close()
+	gspec.MustCommit(diskdb)
+
+	chain, err := NewBlockChain(diskdb, nil, params.TestChainConfig, engine, vm.Config{}, nil, nil)
+	if err != nil {
+		t.Fatalf("failed to create tester chain: %v", err)
+	}
+	if _, err := chain.InsertChain(shared, nil); err != nil {
+		t.Fatalf("failed to insert shared chain: %v", err)
+	}
+
+	blockHash := chain.CurrentBlock().Hash()
+	if blockHash != (common.HexToHash("0x684f656efba5a77f0e8b4c768a2b3479b28250fd7b81dbb9a888abf6180b01bd")) {
+		t.Fatalf("Block hash mismatches, exp %s got %s", common.Hash{}, blockHash)
 	}
 }
