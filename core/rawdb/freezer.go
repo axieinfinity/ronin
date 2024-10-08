@@ -270,6 +270,7 @@ func (f *Freezer) ModifyAncients(fn func(ethdb.AncientWriteOp) error) (writeSize
 }
 
 // TruncateHead discards any recent data above the provided threshold number, only keep the first items ancient data.
+// Return the old head number.
 func (f *Freezer) TruncateHead(items uint64) (uint64, error) {
 	if f.readonly {
 		return 0, errReadOnly
