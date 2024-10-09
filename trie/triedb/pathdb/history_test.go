@@ -31,6 +31,10 @@ import (
 	"github.com/ethereum/go-ethereum/trie/triestate"
 )
 
+const (
+	SeedingHistory = 10
+)
+
 // randomStateSet generates a random state change set.
 func randomStateSet(n int) *triestate.Set {
 	var (
@@ -127,7 +131,7 @@ func checkHistoriesInRange(t *testing.T, db ethdb.KeyValueReader, freezer *rawdb
 func TestTruncateHeadHistory(t *testing.T) {
 	var (
 		roots      []common.Hash
-		hs         = makeHistories(10)
+		hs         = makeHistories(SeedingHistory)
 		db         = rawdb.NewMemoryDatabase()
 		freezer, _ = openFreezer(t.TempDir(), false)
 	)
@@ -147,43 +151,54 @@ func TestTruncateHeadHistory(t *testing.T) {
 		if pruned != 1 {
 			t.Error("Unexpected pruned items", "want", 1, "got", pruned)
 		}
-		checkHistoriesInRange(t, db, freezer, uint64(size), uint64(10), roots[size-1:], false)
+		checkHistoriesInRange(t, db, freezer, uint64(size), uint64(SeedingHistory), roots[size-1:], false)
 		checkHistoriesInRange(t, db, freezer, uint64(1), uint64(size-1), roots[:size-1], true)
 	}
 }
 
+/*
+Create n histories, write them to the freezer, and start truncate from the tail one by one.
+*/
 func TestTruncateTailHistory(t *testing.T) {
 	var (
-		roots      []common.Hash
-		hs         = makeHistories(10)
-		db         = rawdb.NewMemoryDatabase()
-		freezer, _ = openFreezer(t.TempDir(), false)
+		roots        []common.Hash
+		hs           = makeHistories(SeedingHistory)
+		db           = rawdb.NewMemoryDatabase()
+		freezer, err = openFreezer(t.TempDir(), false)
 	)
+	if err != nil {
+		t.Fatalf("Failed to open freezer %v", err)
+	}
 	defer freezer.Close()
 
 	for i := 0; i < len(hs); i++ {
 		accountData, storageData, accountIndex, storageIndex := hs[i].encode()
+		// append i-th history to the freezer.
 		rawdb.WriteStateHistory(freezer, uint64(i+1), hs[i].meta.encode(), accountIndex, storageIndex, accountData, storageData)
+		// Update the root->ID mapping in KeyValue database.
 		rawdb.WriteStateID(db, hs[i].meta.root, uint64(i+1))
 		roots = append(roots, hs[i].meta.root)
 	}
+	// truncate from the tail one by one, 1, 2, 3, ..., n-1.
 	for newTail := 1; newTail < len(hs); newTail++ {
 		pruned, _ := truncateFromTail(db, freezer, uint64(newTail))
 		if pruned != 1 {
 			t.Error("Unexpected pruned items", "want", 1, "got", pruned)
 		}
+		// Check this range should not be existed from 1 to newTail.
 		checkHistoriesInRange(t, db, freezer, uint64(1), uint64(newTail), roots[:newTail], false)
-		checkHistoriesInRange(t, db, freezer, uint64(newTail+1), uint64(10), roots[newTail:], true)
+		// Check this range should be existed from newTail+1 to SeedingHistory.
+		checkHistoriesInRange(t, db, freezer, uint64(newTail+1), uint64(SeedingHistory), roots[newTail:], true)
 	}
 }
 
 func TestTruncateTailHistories(t *testing.T) {
 	var cases = []struct {
-		limit       uint64
-		expPruned   int
-		maxPruned   uint64
-		minUnpruned uint64
-		empty       bool
+		limit             uint64
+		expectedPruned    int
+		maxPruned         uint64
+		minUnprunedOffset uint64
+		empty             bool
 	}{
 		{
 			1, 9, 9, 10, false,
@@ -195,31 +210,38 @@ func TestTruncateTailHistories(t *testing.T) {
 			10, 0, 0, 1, false,
 		},
 	}
+
 	for i, c := range cases {
 		var (
-			roots      []common.Hash
-			hs         = makeHistories(10)
-			db         = rawdb.NewMemoryDatabase()
-			freezer, _ = openFreezer(t.TempDir()+fmt.Sprintf("%d", i), false)
+			roots        []common.Hash
+			hs           = makeHistories(SeedingHistory)
+			db           = rawdb.NewMemoryDatabase()
+			freezer, err = openFreezer(t.TempDir()+fmt.Sprintf("%d", i), false)
 		)
+		if err != nil {
+			t.Fatalf("Failed to open freezer %v", err)
+		}
 		defer freezer.Close()
 
+		// Write SeedingHistory histories to the freezer.
 		for i := 0; i < len(hs); i++ {
 			accountData, storageData, accountIndex, storageIndex := hs[i].encode()
 			rawdb.WriteStateHistory(freezer, uint64(i+1), hs[i].meta.encode(), accountIndex, storageIndex, accountData, storageData)
 			rawdb.WriteStateID(db, hs[i].meta.root, uint64(i+1))
 			roots = append(roots, hs[i].meta.root)
 		}
-		pruned, _ := truncateFromTail(db, freezer, uint64(10)-c.limit)
-		if pruned != c.expPruned {
-			t.Error("Unexpected pruned items", "want", c.expPruned, "got", pruned)
+		// Truncate from the tail, In this case, we truncate a range of histories.
+		tail := SeedingHistory - int(c.limit)
+		pruned, _ := truncateFromTail(db, freezer, uint64(tail))
+		if pruned != c.expectedPruned {
+			t.Error("Unexpected pruned items", "want", c.expectedPruned, "got", pruned)
 		}
+		// In case of empty, jus make sure the range is truncated.
 		if c.empty {
-			checkHistoriesInRange(t, db, freezer, uint64(1), uint64(10), roots, false)
+			checkHistoriesInRange(t, db, freezer, uint64(1), uint64(SeedingHistory), roots, false)
 		} else {
-			tail := 10 - int(c.limit)
 			checkHistoriesInRange(t, db, freezer, uint64(1), c.maxPruned, roots[:tail], false)
-			checkHistoriesInRange(t, db, freezer, c.minUnpruned, uint64(10), roots[tail:], true)
+			checkHistoriesInRange(t, db, freezer, c.minUnprunedOffset, uint64(SeedingHistory), roots[tail:], true)
 		}
 	}
 }

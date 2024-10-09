@@ -206,8 +206,9 @@ func (f *ResettableFreezer) Sync() error {
 func cleanup(pathToDelete string) error {
 	parentDir := filepath.Dir(pathToDelete)
 
-	if _, err := os.Lstat(parentDir); err != nil {
-		return err
+	// In case Parent directory does not exist, return nil, no need to cleanup.
+	if _, err := os.Lstat(parentDir); os.IsNotExist(err) {
+		return nil
 	}
 	dir, err := os.Open(parentDir)
 	if err != nil {

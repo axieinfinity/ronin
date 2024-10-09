@@ -264,7 +264,7 @@ type history struct {
 func newHistory(root common.Hash, parent common.Hash, block uint64, states *triestate.Set) *history {
 	var (
 		accountList []common.Address
-		storageList map[common.Address][]common.Hash
+		storageList = make(map[common.Address][]common.Hash)
 		incomplete  []common.Address
 	)
 	for addr := range states.Accounts {
@@ -393,8 +393,10 @@ func (r *decoder) readAccount(pos int) (accountIndex, []byte, error) {
 	// - account is sorted in order in byte stream
 	// - account data is strictly encoded with no gap inside
 	// - account data is not out-of-slice
-	if bytes.Compare(r.lastAccount.Bytes(), index.address.Bytes()) >= 0 {
-		return accountIndex{}, nil, errors.New("account is not in order")
+	if r.lastAccount != nil {
+		if bytes.Compare(r.lastAccount.Bytes(), index.address.Bytes()) >= 0 {
+			return accountIndex{}, nil, errors.New("account is not in order")
+		}
 	}
 	if index.offset != r.lastAccountRead {
 		return accountIndex{}, nil, errors.New("account data buffer is gaped")
@@ -542,6 +544,7 @@ func writeHistory(db ethdb.KeyValueStore, freezer *rawdb.ResettableFreezer, dl *
 		start = time.Now()
 		h     = newHistory(dl.rootHash(), dl.parentLayer().rootHash(), dl.block, dl.states)
 	)
+	// Return byte streams of account and storage infor in current state.
 	accountData, storageData, accountIndex, storageIndex := h.encode()
 	dataSize := common.StorageSize(len(accountData) + len(storageData))
 	indexSize := common.StorageSize(len(accountIndex) + len(storageIndex))
@@ -644,6 +647,7 @@ func truncateFromTail(db ethdb.Batcher, freezer *rawdb.ResettableFreezer, ntail 
 		if err := m.decode(blob); err != nil {
 			return 0, err
 		}
+		// Delete the state root from the state ID table
 		rawdb.DeleteStateID(batch, m.root)
 	}
 	if err := batch.Write(); err != nil {
