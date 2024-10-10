@@ -692,7 +692,7 @@ func isTrieNode(scheme string, key, val []byte) (bool, []byte, common.Hash) {
 		}
 		hash = common.BytesToHash(key)
 	} else {
-		ok, remain := rawdb.IsAccountTrieNode(key)
+		ok, remain := rawdb.ResolveAccountTrieNodeKey(key)
 		if !ok {
 			return false, nil, common.Hash{}
 		}
