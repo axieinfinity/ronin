@@ -73,7 +73,7 @@ func DeleteCode(db ethdb.KeyValueWriter, hash common.Hash) {
 /* Function below support Path base state trie scheme */
 
 // ReadStateId retrieves the state id with the provided state root. (Return pointer can detect that Statid is valid or not, nil is invalid)
-func ReadStateId(db ethdb.KeyValueReader, root common.Hash) *uint64 {
+func ReadStateID(db ethdb.KeyValueReader, root common.Hash) *uint64 {
 	data, err := db.Get(stateIDKey(root))
 	if err != nil || len(data) == 0 {
 		return nil

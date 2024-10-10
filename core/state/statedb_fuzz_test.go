@@ -31,7 +31,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
-	"github.com/ethereum/go-ethereum/core/state/snapshot"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -290,7 +289,7 @@ func (test *stateTest) verifyAccountUpdate(next common.Hash, db *trie.Database, 
 	if len(oBlob) == 0 {
 		return fmt.Errorf("missing account in old trie, %x", addrHash)
 	}
-	full, err := snapshot.FullAccountRLP(origin)
+	full, err := types.FullAccountRLP(origin)
 	if err != nil {
 		return err
 	}
