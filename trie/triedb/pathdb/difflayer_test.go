@@ -15,7 +15,8 @@
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
 package pathdb
-port (
+
+import (
 	"bytes"
 	"testing"
 
@@ -159,7 +160,6 @@ func BenchmarkJournal(b *testing.B) {
 	var layer layer
 	layer = emptyLayer()
 	for i := 0; i < 128; i++ {
-
 
 		layer = fill(layer)
 	}

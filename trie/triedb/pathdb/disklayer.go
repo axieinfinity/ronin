@@ -38,8 +38,9 @@ type diskLayer struct {
 	db     *Database        // Path-based trie database
 	cleans *fastcache.Cache // GC friendly memory cache of clean node RLPs
 	buffer *nodebuffer      // Node buffer to aggregate writes
-	stale  bool             // Signals that the layer became stale (state progressed)
-	lock   sync.RWMutex     // Lock used to protect stale flag
+	// A stale state means that the data or information is outdated compared to a newer version or a more recent state.
+	stale bool         // Signals that the layer became stale (state progressed)
+	lock  sync.RWMutex // Lock used to protect stale flag
 }
 
 // newDiskLayer creates a new disk layer based on the passing arguments.

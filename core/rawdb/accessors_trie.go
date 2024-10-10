@@ -65,7 +65,7 @@ func (h *hasher) release() {
 }
 
 // ReadAccountTrieNode retrieves the account trie node and the associated node
-// hash with the specified node path.
+// hash with the specified node path. If it's empty, return empty hash.
 func ReadAccountTrieNode(db ethdb.KeyValueReader, path []byte) ([]byte, common.Hash) {
 	data, err := db.Get(accountTrieNodeKey(path))
 	if err != nil {
