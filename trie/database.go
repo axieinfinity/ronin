@@ -21,16 +21,19 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethdb"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/trie/triedb/hashdb"
+	"github.com/ethereum/go-ethereum/trie/triedb/pathdb"
 	"github.com/ethereum/go-ethereum/trie/trienode"
 	"github.com/ethereum/go-ethereum/trie/triestate"
 )
 
 // Config defines all necessary options for database.
 type Config struct {
-	Cache     int    // Memory allowance (MB) to use for caching trie nodes in memory
-	Journal   string // Journal of clean cache to survive node restarts
-	Preimages bool   // Flag whether the preimage of trie key is recorded
+	Preimages bool // Flag whether the preimage of trie key is recorded
+
+	HashDB *hashdb.Config // Configs for hash-based scheme
+	PathDB *pathdb.Config // Configs for experimental path-based scheme
 
 	// Testing hooks
 	OnCommit func(states *triestate.Set) // Hook invoked when commit is performed
@@ -56,11 +59,6 @@ type backend interface {
 	// The passed in maps(nodes, states) will be retained to avoid copying
 	// everything. Therefore, these maps must not be changed afterwards.
 	Update(root common.Hash, parent common.Hash, block uint64, nodes *trienode.MergedNodeSet, states *triestate.Set) error
-
-	// Nodes retrieves the hashes of all the nodes cached within the memory database.
-	// This method is extremely expensive and should only be used to validate internal
-	// states in test code.
-	Nodes() []common.Hash
 
 	// DiskDB retrieves the persistent storage backing the trie database.
 	DiskDB() ethdb.KeyValueStore
@@ -97,23 +95,38 @@ func prepare(diskdb ethdb.Database, config *Config) *Database {
 	}
 }
 
-// NewDatabase initializes the trie database with default settings, namely
-// the legacy hash-based scheme is used by default.
-func NewDatabase(diskdb ethdb.Database) *Database {
-	return NewDatabaseWithConfig(diskdb, nil)
+// HashDefaults represents a config for using hash-based scheme with
+// default settings.
+var HashDefaults = &Config{
+	Preimages: false,
+	HashDB:    hashdb.Defaults,
 }
 
-// NewDatabaseWithConfig initializes the trie database with provided configs.
-// The path-based scheme is not activated yet, always initialized with legacy
-// hash-based scheme by default.
-func NewDatabaseWithConfig(diskdb ethdb.Database, config *Config) *Database {
-	var cleans int
-
-	if config != nil && config.Cache != 0 {
-		cleans = config.Cache * 1024 * 1024
+// NewDatabase initializes the trie database with default settings, namely
+// the legacy hash-based scheme is used by default.
+func NewDatabase(diskdb ethdb.Database, config *Config) *Database {
+	if config == nil {
+		config = HashDefaults
 	}
-	db := prepare(diskdb, config)
-	db.backend = hashdb.New(diskdb, cleans, mptResolver{})
+	var preimages *preimageStore
+	if config.Preimages {
+		preimages = newPreimageStore(diskdb)
+	}
+	db := &Database{
+		config:    config,
+		diskdb:    diskdb,
+		preimages: preimages,
+	}
+	if config.HashDB != nil && config.PathDB != nil {
+		log.Crit("Both 'hash' and 'path' mode are configured")
+	}
+	if config.HashDB != nil {
+		db.backend = hashdb.New(diskdb, config.HashDB, mptResolver{})
+	} else if config.PathDB != nil {
+		db.backend = pathdb.New(diskdb, config.PathDB)
+	} else {
+		log.Crit("No trie mode is configured")
+	}
 	return db
 }
 
@@ -177,13 +190,6 @@ func (db *Database) DiskDB() ethdb.KeyValueStore {
 	return db.backend.DiskDB()
 }
 
-// Nodes retrieves the hashes of all the nodes cached within the memory database.
-// This method is extremely expensive and should only be used to validate internal
-// states in test code.
-func (db *Database) Nodes() []common.Hash {
-	return db.backend.Nodes()
-}
-
 // Close flushes the dangling preimages to disk and closes the trie database.
 // It is meant to be called when closing the blockchain object, so that all
 // resources held can be released correctly.
@@ -244,4 +250,62 @@ func (db *Database) Node(hash common.Hash) ([]byte, error) {
 		return nil, errors.New("not supported")
 	}
 	return hdb.Node(hash)
+}
+
+// Recover rollbacks the database to a specified historical point. The state is
+// supported as the rollback destination only if it's canonical state and the
+// corresponding trie histories are existent. It's only supported by path-based
+
+// database and will return an error for others.
+func (db *Database) Recover(target common.Hash) error {
+	pdb, ok := db.backend.(*pathdb.Database)
+	if !ok {
+		return errors.New("not supported")
+	}
+	return pdb.Recover(target, &trieLoader{db: db})
+}
+
+// Recoverable returns the indicator if the specified state is enabled to be
+// recovered. It's only supported by path-based database and will return an
+// error for others.
+func (db *Database) Recoverable(root common.Hash) (bool, error) {
+	pdb, ok := db.backend.(*pathdb.Database)
+	if !ok {
+		return false, errors.New("not supported")
+	}
+	return pdb.Recoverable(root), nil
+}
+
+// Reset wipes all available journal from the persistent database and discard
+// all caches and diff layers. Using the given root to create a new disk layer.
+// It's only supported by path-based database and will return an error for others.
+func (db *Database) Reset(root common.Hash) error {
+	pdb, ok := db.backend.(*pathdb.Database)
+	if !ok {
+		return errors.New("not supported")
+	}
+	return pdb.Reset(root)
+}
+
+// Journal commits an entire diff hierarchy to disk into a single journal entry.
+// This is meant to be used during shutdown to persist the snapshot without
+// flattening everything down (bad for reorgs). It's only supported by path-based
+// database and will return an error for others.
+func (db *Database) Journal(root common.Hash) error {
+	pdb, ok := db.backend.(*pathdb.Database)
+	if !ok {
+		return errors.New("not supported")
+	}
+	return pdb.Journal(root)
+}
+
+// SetBufferSize sets the node buffer size to the provided value(in bytes).
+// It's only supported by path-based database and will return an error for
+// others.
+func (db *Database) SetBufferSize(size int) error {
+	pdb, ok := db.backend.(*pathdb.Database)
+	if !ok {
+		return errors.New("not supported")
+	}
+	return pdb.SetBufferSize(size)
 }

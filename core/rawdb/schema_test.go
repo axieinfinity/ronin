@@ -78,7 +78,7 @@ func TestIsLegacyTrieNode(t *testing.T) {
 	}
 }
 
-func TestIsAccountTrieNode(t *testing.T) {
+func TestResolveAccountTrieNodeKey(t *testing.T) {
 	tests := []struct {
 		name          string
 		inputKey      []byte
@@ -137,14 +137,14 @@ func TestIsAccountTrieNode(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if check, key := IsAccountTrieNode(test.inputKey); check != test.expectedCheck || !bytes.Equal(key, test.expectedKey) {
+			if check, key := ResolveAccountTrieNodeKey(test.inputKey); check != test.expectedCheck || !bytes.Equal(key, test.expectedKey) {
 				t.Errorf("expected %v, %v, got %v, %v", test.expectedCheck, test.expectedKey, check, key)
 			}
 		})
 	}
 }
 
-func TestIsStorageTrieNode(t *testing.T) {
+func TestResolveStorageTrieNode(t *testing.T) {
 	tests := []struct {
 		name          string
 		inputKey      []byte
@@ -219,7 +219,7 @@ func TestIsStorageTrieNode(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if check, hash, key := IsStorageTrieNode(test.inputKey); check != test.expectedCheck || !bytes.Equal(key, test.expectedKey) || hash != test.expectedHash {
+			if check, hash, key := ResolveStorageTrieNode(test.inputKey); check != test.expectedCheck || !bytes.Equal(key, test.expectedKey) || hash != test.expectedHash {
 				t.Errorf("expected %v, %v, %v, got %v, %v, %v", test.expectedCheck, test.expectedHash, test.expectedKey, check, hash, key)
 			}
 		})
