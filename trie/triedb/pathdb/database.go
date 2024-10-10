@@ -17,11 +17,16 @@
 package pathdb
 
 import (
+	"errors"
+	"fmt"
 	"sync"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethdb"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/trie/trienode"
 	"github.com/ethereum/go-ethereum/trie/triestate"
@@ -103,4 +108,288 @@ type Database struct {
 	tree       *layerTree               // The group for all known layers
 	freezer    *rawdb.ResettableFreezer // Freezer for storing trie histories, nil possible in tests
 	lock       sync.RWMutex             // Lock to prevent mutations from happening at the same time
+}
+
+// New attempts to load an already existing layer from a persistent key-value
+// store (with a number of memory layers from a journal). If the journal is not
+// matched with the base persistent layer, all the recorded diff layers are discarded.
+func New(diskdb ethdb.Database, config *Config) *Database {
+	if config == nil {
+		config = Defaults
+	}
+	db := &Database{
+		readOnly:   config.ReadOnly,
+		bufferSize: config.DirtySize,
+		config:     config,
+		diskdb:     diskdb,
+	}
+	// Construct the layer tree by resolving the in-disk singleton state
+	// and in-memory layer journal.
+	db.tree = newLayerTree(db.loadLayers())
+
+	// Open the freezer for state history if the passed database contains an
+	// ancient store. Otherwise, all the relevant functionalities are disabled.
+	//
+	// Because the freezer can only be opened once at the same time, this
+	// mechanism also ensures that at most one **non-readOnly** database
+	// is opened at the same time to prevent accidental mutation.
+	if ancient, err := diskdb.AncientDatadir(); err == nil && ancient != "" && !db.readOnly {
+		db.freezer, err = rawdb.NewStateHistoryFreezer(ancient, false)
+		if err != nil {
+			log.Crit("Failed to open state history freezer", "err", err)
+		}
+
+		// Truncate the extra state histories above the current diskLayer
+		// in freezer in case it's not aligned with the disk layer.
+		pruned, err := truncateFromHead(db.diskdb, db.freezer, db.tree.bottom().stateID())
+		if err != nil {
+			log.Crit("Failed to truncate state history freezer", "err", err)
+		}
+		if pruned > 0 {
+			log.Warn("Truncated extra state histories from freezer", "count", pruned)
+		}
+	}
+	log.Warn("Path-based state scheme is an experimental feature")
+	return db
+}
+
+// Reader retrieves a layer belonging to the given state root.
+func (db *Database) Reader(root common.Hash) (layer, error) {
+	l := db.tree.get(root)
+	if l == nil {
+		return nil, fmt.Errorf("state %#x is not available", root)
+	}
+	return l, nil
+}
+
+// Update adds a new layer into the tree, if that can be linked to an existing
+// old parent. It is disallowed to insert a disk layer (the origin of all). Apart
+// from that this function will flatten the extra diff layers at bottom into disk
+// to only keep 128 diff layers in memory by default.
+//
+// The passed in maps(nodes, states) will be retained to avoid copying everything.
+// Therefore, these maps must not be changed afterwards.
+func (db *Database) Update(root common.Hash, parentRoot common.Hash, block uint64, nodes *trienode.MergedNodeSet, states *triestate.Set) error {
+	// Hold the lock to prevent concurrent mutations.
+	db.lock.Lock()
+	defer db.lock.Unlock()
+
+	// Short circuit if the database is in read only mode.
+	if db.readOnly {
+		return errSnapshotReadOnly
+	}
+	if err := db.tree.add(root, parentRoot, block, nodes, states); err != nil {
+		return err
+	}
+
+	// Keep 128 diff layers in the memory, persistent layer is 129th.
+	// - head layer is paired with HEAD state
+	// - head-1 layer is paired with HEAD-1 state
+	// - ...
+	// - head-127 layer(bottom-most diff layer) is paired with HEAD-127 state
+	// - head-128 layer(disk layer) is paired with HEAD-128 state
+
+	// If the number of diff layers exceeds 128, all the excess diff layers will flattened down
+	return db.tree.cap(root, maxDiffLayers)
+}
+
+// Commit traverses downwards the layer tree from a specified layer with the
+// provided state root and all the layers below are flattened downwards.
+// It can be used alone and mostly for test purposes.
+func (db *Database) Commit(root common.Hash, report bool) error {
+	// Hold the lock to prevent concurrent mutations.
+	db.lock.Lock()
+	defer db.lock.Unlock()
+
+	// Short circuit if the database is in read only mode.
+	if db.readOnly {
+		return errSnapshotReadOnly
+	}
+	return db.tree.cap(root, 0)
+}
+
+// Reset rebuilds the database with the specified state as the base.
+//
+//   - if target state is empty, clear the stored state and all layers on top
+//   - if target state is non-empty, ensure the stored state matches with it
+//     and clear all other layers on top.
+func (db *Database) Reset(root common.Hash) error {
+	db.lock.Lock()
+	defer db.lock.Unlock()
+
+	// Short circuit if the database is in read only mode.
+	if db.readOnly {
+		return errSnapshotReadOnly
+	}
+	batch := db.diskdb.NewBatch()
+	root = types.TrieRootHash(root)
+	if root == types.EmptyRootHash {
+		// Empty state is requested as the target, nuke out
+		// the root node and leave all others as dangling.
+		rawdb.DeleteAccountTrieNode(batch, nil)
+	} else {
+		// Ensure the requested state is existent before any
+		// action is applied.
+		_, hash := rawdb.ReadAccountTrieNode(db.diskdb, nil)
+		if hash != root {
+			return fmt.Errorf("state is mismatched, local: %x, target: %x", hash, root)
+		}
+	}
+	// Mark the disk layer as stale before applying any mutation.
+	db.tree.bottom().markStale()
+
+	// Drop the stale state journal in persistent database and
+	// reset the persistent state id back to zero.
+	rawdb.DeleteTrieJournal(batch)
+	rawdb.WritePersistentStateID(batch, 0)
+	if err := batch.Write(); err != nil {
+		return err
+	}
+
+	// Clean up all state histories in freezer. Theoretically
+	// all root->id mappings should be removed as well. Since
+	// mappings can be huge and might take a while to clear
+	// them, just leave them in disk and wait for overwriting.
+	if db.freezer != nil {
+		if err := db.freezer.Reset(); err != nil {
+			return err
+		}
+	}
+
+	// Re-construct a new disk layer backed by persistent state
+	// with **empty clean cache and node buffer**.
+	dl := newDiskLayer(root, 0, db, nil, newNodeBuffer(db.bufferSize, nil, 0))
+	db.tree.reset(dl)
+	log.Info("Rebuilt trie database", "root", root)
+	return nil
+}
+
+// Recover rollbacks the database to a specified historical point.
+// The state is supported as the rollback destination only if it's
+// canonical state and the corresponding trie histories are existent.
+func (db *Database) Recover(root common.Hash, loader triestate.TrieLoader) error {
+	db.lock.Lock()
+	defer db.lock.Unlock()
+
+	// Short circuit if rollback operation is not supported.
+	if db.readOnly || db.freezer == nil {
+		return errors.New("state rollback is not supported")
+	}
+
+	// Short circuit if the target state is not recoverable.
+	root = types.TrieRootHash(root)
+	if !db.Recoverable(root) {
+		return errStateUnrecoverable
+	}
+
+	// Apply the state histories upon the disk layer in order.
+	var (
+		start = time.Now()
+		dl    = db.tree.bottom()
+	)
+	for dl.rootHash() != root {
+		h, err := readHistory(db.freezer, dl.stateID())
+		if err != nil {
+			return err
+		}
+		dl, err = dl.revert(h, loader)
+		if err != nil {
+			return err
+		}
+		// reset layer with newly created disk layer. It must be
+		// done after each revert operation, otherwise the new
+		// disk layer won't be accessible from outside.
+		db.tree.reset(dl)
+	}
+	rawdb.DeleteTrieJournal(db.diskdb)
+	_, err := truncateFromHead(db.diskdb, db.freezer, dl.stateID())
+	if err != nil {
+		return err
+	}
+	log.Debug("Recovered state", "root", root, "elapsed", common.PrettyDuration(time.Since(start)))
+	return nil
+}
+
+// Recoverable returns the indicator if the specified state is recoverable.
+func (db *Database) Recoverable(root common.Hash) bool {
+	// Ensure the requested state is a known state.
+	root = types.TrieRootHash(root)
+	id := rawdb.ReadStateID(db.diskdb, root)
+	if id == nil {
+		return false
+	}
+
+	// Recoverable state must below the disk layer. The recoverable
+	// state only refers the state that is currently not available,
+	// but can be restored by applying state history.
+	dl := db.tree.bottom()
+	if *id >= dl.stateID() {
+		return false
+	}
+
+	// Ensure the requested state is a canonical state and all state
+	// histories in range [id+1, disklayer.ID] are present and complete.
+	parent := root
+	return checkHistories(db.freezer, *id+1, dl.stateID()-*id, func(m *meta) error {
+		if m.parent != parent {
+			return errors.New("unexpected state history")
+		}
+		if len(m.incomplete) > 0 {
+			return errors.New("incomplete state history")
+		}
+		parent = m.root
+		return nil
+	}) == nil
+}
+
+// Initialized returns an indicator if the state data is already
+// initialized in path-based scheme.
+func (db *Database) Initialized(genesisRoot common.Hash) bool {
+	var inited bool
+	db.tree.forEach(func(layer layer) {
+		if layer.rootHash() != types.EmptyRootHash {
+			inited = true
+		}
+	})
+	return inited
+}
+
+// Size returns the current storage size of the memory cache in front of the
+// persistent database layer.
+func (db *Database) Size() (size common.StorageSize) {
+	db.tree.forEach(func(layer layer) {
+		if diff, ok := layer.(*diffLayer); ok {
+			size += common.StorageSize(diff.memory)
+		}
+		if disk, ok := layer.(*diskLayer); ok {
+			size += disk.size()
+		}
+	})
+	return size
+}
+
+// SetBufferSize sets the node buffer size to the provided value(in bytes).
+func (db *Database) SetBufferSize(size int) error {
+	db.lock.Lock()
+	defer db.lock.Unlock()
+
+	db.bufferSize = size
+	return db.tree.bottom().setBufferSize(db.bufferSize)
+}
+
+// Scheme returns the node scheme used in the database.
+func (db *Database) Scheme() string {
+	return rawdb.PathScheme
+}
+
+// Close closes the trie database and the held freezer.
+func (db *Database) Close() error {
+	db.lock.Lock()
+	defer db.lock.Unlock()
+
+	db.readOnly = true
+	if db.freezer == nil {
+		return nil
+	}
+	return db.freezer.Close()
 }
