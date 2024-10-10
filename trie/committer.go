@@ -168,9 +168,9 @@ func (c *committer) store(path []byte, n node) node {
 		// The node is embedded in its parent, in other words, this node
 		// will not be stored in the database independently, mark it as
 		// deleted only if the node was existent in database before.
-		prev, ok := c.tracer.accessList[string(path)]
+		_, ok := c.tracer.accessList[string(path)]
 		if ok {
-			c.nodes.AddNode(path, trienode.NewNodeWithPrev(common.Hash{}, nil, prev))
+			c.nodes.AddNode(path, trienode.NewDeleted())
 		}
 		return n
 	}
@@ -179,10 +179,9 @@ func (c *committer) store(path []byte, n node) node {
 	var (
 		nhash   = common.BytesToHash(hash)
 		blob, _ = rlp.EncodeToBytes(n)
-		node    = trienode.NewNodeWithPrev(
+		node    = trienode.New(
 			nhash,
 			blob,
-			c.tracer.accessList[string(path)],
 		)
 	)
 
