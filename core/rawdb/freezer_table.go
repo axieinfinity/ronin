@@ -697,8 +697,10 @@ func (t *freezerTable) RetrieveItems(start, count, maxBytes uint64) ([][]byte, e
 }
 
 // retrieveItems reads up to 'count' items from the table. It reads at least
-// one item, but otherwise avoids reading more than maxBytes bytes.
-// It returns the (potentially compressed) data, and the sizes.
+// one item, but otherwise avoids reading more than maxBytes bytes. Freezer
+// will ignore the size limitation and continuously allocate memory to store
+// data if maxBytes is 0. It returns the (potentially compressed) data, and
+// the sizes.
 func (t *freezerTable) retrieveItems(start, count, maxBytes uint64) ([]byte, []int, error) {
 	t.lock.RLock()
 	defer t.lock.RUnlock()
