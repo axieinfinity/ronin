@@ -1,4 +1,4 @@
-// Copyright 2019 The go-ethereum Authors
+// Copyright 2023 The go-ethereum Authors
 // This file is part of the go-ethereum library.
 //
 // The go-ethereum library is free software: you can redistribute it and/or modify
@@ -14,23 +14,19 @@
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
 
-package trie
+package types
 
 import (
-	"github.com/ethereum/go-ethereum/core/rawdb"
-	"github.com/ethereum/go-ethereum/ethdb"
-	"github.com/ethereum/go-ethereum/trie/triedb/hashdb"
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/log"
 )
 
-// newTestDatabase initializes the trie database with specified scheme.
-
-func newTestDatabase(diskdb ethdb.Database, scheme string) *Database {
-	db := prepare(diskdb, nil)
-	if scheme == rawdb.HashScheme {
-		db.backend = hashdb.New(diskdb, 0, mptResolver{})
+// TrieRootHash returns the hash itself if it's non-empty or the predefined
+// emptyHash one instead.
+func TrieRootHash(hash common.Hash) common.Hash {
+	if hash == (common.Hash{}) {
+		log.Error("Zero trie root hash!")
+		return EmptyRootHash
 	}
-	// //} else {
-	// //	db.backend = snap.New(diskdb, db.cleans, nil)
-	// //}
-	return db
+	return hash
 }
