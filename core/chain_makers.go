@@ -318,12 +318,12 @@ func generateChain(
 			}
 
 			// Write state changes to db
-			root, err := statedb.Commit(config.IsEIP158(b.header.Number))
+			root, err := statedb.Commit(b.header.Number.Uint64(), config.IsEIP158(b.header.Number))
 			if err != nil {
 				panic(fmt.Sprintf("state write error: %v", err))
 			}
 			if flushDisk {
-				if err := statedb.Database().TrieDB().Commit(root, false, nil); err != nil {
+				if err := statedb.Database().TrieDB().Commit(root, false); err != nil {
 					panic(fmt.Sprintf("trie write error: %v", err))
 				}
 			}
@@ -362,11 +362,8 @@ func generateChain(
 // then generate chain on top.
 func GenerateChainWithGenesis(genesis *Genesis, engine consensus.Engine, n int, gen func(int, *BlockGen)) (ethdb.Database, []*types.Block, []types.Receipts) {
 	db := rawdb.NewMemoryDatabase()
-	_, err := genesis.Commit(db)
-	if err != nil {
-		panic(err)
-	}
-	blocks, receipts := GenerateChain(genesis.Config, genesis.ToBlock(db), engine, db, n, gen, true)
+	genesis.MustCommit(db)
+	blocks, receipts := GenerateChain(genesis.Config, genesis.ToBlock(), engine, db, n, gen, true)
 	return db, blocks, receipts
 }
 

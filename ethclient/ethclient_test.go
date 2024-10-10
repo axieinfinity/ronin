@@ -287,7 +287,7 @@ func generateTestChain() ([]*types.Block, [][]*types.BlobTxSidecar, [][]common.H
 			blobTxHashes = append(blobTxHashes, []common.Hash{})
 		}
 	}
-	gblock := genesis.ToBlock(db)
+	gblock := genesis.MustCommit(db)
 	engine := ethash.NewFaker()
 	blocks, _ := core.GenerateChain(genesis.Config, gblock, engine, db, 2, generate, true)
 	// add genesis blob/sidecars/txhash to the begining of the list

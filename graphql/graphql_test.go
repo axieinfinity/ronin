@@ -245,13 +245,11 @@ func createGQLService(t *testing.T, stack *node.Node) {
 		Ethash: ethash.Config{
 			PowMode: ethash.ModeFake,
 		},
-		NetworkId:               1337,
-		TrieCleanCache:          5,
-		TrieCleanCacheJournal:   "triecache",
-		TrieCleanCacheRejournal: 60 * time.Minute,
-		TrieDirtyCache:          5,
-		TrieTimeout:             60 * time.Minute,
-		SnapshotCache:           5,
+		NetworkId:      1337,
+		TrieCleanCache: 5,
+		TrieDirtyCache: 5,
+		TrieTimeout:    60 * time.Minute,
+		SnapshotCache:  5,
 	}
 	ethBackend, err := eth.New(stack, ethConf)
 	if err != nil {
