@@ -170,7 +170,10 @@ func (ch resetObjectChange) revert(s *StateDB) {
 		delete(s.stateObjectsDestruct, ch.prev.address)
 	}
 	if ch.prevAccountOriginExist {
-		s.accountsOrigin[ch.prev.addrHash] = ch.prevAccountOrigin
+		s.accountsOrigin[ch.prev.address] = ch.prevAccountOrigin
+	}
+	if ch.prevStorageOrigin != nil {
+		s.storagesOrigin[ch.prev.address] = ch.prevStorageOrigin
 	}
 	if ch.prevAccount != nil {
 		s.accounts[ch.prev.addrHash] = ch.prevAccount

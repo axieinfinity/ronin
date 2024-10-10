@@ -18,12 +18,9 @@ package trie
 
 import (
 	"errors"
-	"time"
 
-	"github.com/VictoriaMetrics/fastcache"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethdb"
-	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/trie/triedb/hashdb"
 	"github.com/ethereum/go-ethereum/trie/trienode"
 	"github.com/ethereum/go-ethereum/trie/triestate"
@@ -56,7 +53,9 @@ type backend interface {
 	// Update performs a state transition by committing dirty nodes contained
 	// in the given set in order to update state from the specified parent to
 	// the specified root.
-	Update(root common.Hash, parent common.Hash, nodes *trienode.MergedNodeSet) error
+	// The passed in maps(nodes, states) will be retained to avoid copying
+	// everything. Therefore, these maps must not be changed afterwards.
+	Update(root common.Hash, parent common.Hash, block uint64, nodes *trienode.MergedNodeSet, states *triestate.Set) error
 
 	// Nodes retrieves the hashes of all the nodes cached within the memory database.
 	// This method is extremely expensive and should only be used to validate internal
@@ -78,20 +77,15 @@ type backend interface {
 // types of node backend as an entrypoint. It's responsible for all interactions
 // relevant with trie nodes and node preimages.
 type Database struct {
-	config    *Config          // Configuration for trie database
-	diskdb    ethdb.Database   // Persistent database to store the snapshot
-	cleans    *fastcache.Cache // Megabytes permitted using for read caches
-	preimages *preimageStore   // The store for caching preimages
-	backend   backend          // The backend for managing trie nodes
+	config    *Config        // Configuration for trie database
+	diskdb    ethdb.Database // Persistent database to store the snapshot
+	preimages *preimageStore // The store for caching preimages
+	backend   backend        // The backend for managing trie nodes
 }
 
 // prepare initializes the database with provided configs, but the
 // database backend is still left as nil.
 func prepare(diskdb ethdb.Database, config *Config) *Database {
-	var cleans *fastcache.Cache
-	if config != nil && config.Cache > 0 {
-		cleans = fastcache.New(config.Cache * 1024 * 1024)
-	}
 	var preimages *preimageStore
 	if config != nil && config.Preimages {
 		preimages = newPreimageStore(diskdb)
@@ -99,7 +93,6 @@ func prepare(diskdb ethdb.Database, config *Config) *Database {
 	return &Database{
 		config:    config,
 		diskdb:    diskdb,
-		cleans:    cleans,
 		preimages: preimages,
 	}
 }
@@ -114,8 +107,13 @@ func NewDatabase(diskdb ethdb.Database) *Database {
 // The path-based scheme is not activated yet, always initialized with legacy
 // hash-based scheme by default.
 func NewDatabaseWithConfig(diskdb ethdb.Database, config *Config) *Database {
+	var cleans int
+
+	if config != nil && config.Cache != 0 {
+		cleans = config.Cache * 1024 * 1024
+	}
 	db := prepare(diskdb, config)
-	db.backend = hashdb.New(diskdb, db.cleans, mptResolver{})
+	db.backend = hashdb.New(diskdb, cleans, mptResolver{})
 	return db
 }
 
@@ -136,7 +134,7 @@ func (db *Database) Update(root common.Hash, parent common.Hash, block uint64, n
 	if db.preimages != nil {
 		db.preimages.commit(false)
 	}
-	return db.backend.Update(root, parent, nodes)
+	return db.backend.Update(root, parent, block, nodes, states)
 }
 
 // Commit iterates over all the children of a particular node, writes them out
@@ -194,24 +192,6 @@ func (db *Database) Close() error {
 		db.preimages.commit(true)
 	}
 	return db.backend.Close()
-}
-
-// saveCache saves clean state cache to given directory path
-// using specified CPU cores.
-func (db *Database) saveCache(dir string, threads int) error {
-	if db.cleans == nil {
-		return nil
-	}
-	log.Info("Writing clean trie cache to disk", "path", dir, "threads", threads)
-
-	start := time.Now()
-	err := db.cleans.SaveToFileConcurrent(dir, threads)
-	if err != nil {
-		log.Error("Failed to persist clean trie cache", "error", err)
-		return err
-	}
-	log.Info("Persisted the clean trie cache", "path", dir, "elapsed", common.PrettyDuration(time.Since(start)))
-	return nil
 }
 
 // Cap iteratively flushes old but still referenced trie nodes until the total
