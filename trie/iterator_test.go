@@ -33,7 +33,7 @@ import (
 )
 
 func TestEmptyIterator(t *testing.T) {
-	trie := NewEmpty(NewDatabase(rawdb.NewMemoryDatabase()))
+	trie := NewEmpty(NewDatabase(rawdb.NewMemoryDatabase(), nil))
 	iter := trie.NodeIterator(nil)
 
 	seen := make(map[string]struct{})
@@ -46,7 +46,7 @@ func TestEmptyIterator(t *testing.T) {
 }
 
 func TestIterator(t *testing.T) {
-	db := NewDatabase(rawdb.NewMemoryDatabase())
+	db := NewDatabase(rawdb.NewMemoryDatabase(), nil)
 	trie := NewEmpty(db)
 	vals := []struct{ k, v string }{
 		{"do", "verb"},
@@ -87,7 +87,7 @@ type kv struct {
 }
 
 func TestIteratorLargeData(t *testing.T) {
-	trie := NewEmpty(NewDatabase(rawdb.NewMemoryDatabase()))
+	trie := NewEmpty(NewDatabase(rawdb.NewMemoryDatabase(), nil))
 	vals := make(map[string]*kv)
 
 	for i := byte(0); i < 255; i++ {
@@ -128,7 +128,7 @@ type iterationElement struct {
 func TestNodeIteratorCoverage(t *testing.T) {
 
 	testNodeIteratorCoverage(t, rawdb.HashScheme)
-	//testNodeIteratorCoverage(t, rawdb.PathScheme)
+	testNodeIteratorCoverage(t, rawdb.PathScheme)
 }
 
 func testNodeIteratorCoverage(t *testing.T, scheme string) {
@@ -202,7 +202,7 @@ var testdata2 = []kvs{
 }
 
 func TestIteratorSeek(t *testing.T) {
-	trie := NewEmpty(NewDatabase(rawdb.NewMemoryDatabase()))
+	trie := NewEmpty(NewDatabase(rawdb.NewMemoryDatabase(), nil))
 	for _, val := range testdata1 {
 		trie.Update([]byte(val.k), []byte(val.v))
 	}
@@ -243,7 +243,7 @@ func checkIteratorOrder(want []kvs, it *Iterator) error {
 }
 
 func TestDifferenceIterator(t *testing.T) {
-	dba := NewDatabase(rawdb.NewMemoryDatabase())
+	dba := NewDatabase(rawdb.NewMemoryDatabase(), nil)
 	triea := NewEmpty(dba)
 	for _, val := range testdata1 {
 		triea.Update([]byte(val.k), []byte(val.v))
@@ -252,7 +252,7 @@ func TestDifferenceIterator(t *testing.T) {
 	dba.Update(rootA, types.EmptyRootHash, 0, trienode.NewWithNodeSet(nodesA), nil)
 	triea, _ = New(TrieID(rootA), dba)
 
-	dbb := NewDatabase(rawdb.NewMemoryDatabase())
+	dbb := NewDatabase(rawdb.NewMemoryDatabase(), nil)
 	trieb := NewEmpty(dbb)
 	for _, val := range testdata2 {
 		trieb.Update([]byte(val.k), []byte(val.v))
@@ -285,7 +285,7 @@ func TestDifferenceIterator(t *testing.T) {
 }
 
 func TestUnionIterator(t *testing.T) {
-	dba := NewDatabase(rawdb.NewMemoryDatabase())
+	dba := NewDatabase(rawdb.NewMemoryDatabase(), nil)
 	triea := NewEmpty(dba)
 	for _, val := range testdata1 {
 		triea.Update([]byte(val.k), []byte(val.v))
@@ -294,7 +294,7 @@ func TestUnionIterator(t *testing.T) {
 	dba.Update(rootA, types.EmptyRootHash, 0, trienode.NewWithNodeSet(nodesA), nil)
 	triea, _ = New(TrieID(rootA), dba)
 
-	dbb := NewDatabase(rawdb.NewMemoryDatabase())
+	dbb := NewDatabase(rawdb.NewMemoryDatabase(), nil)
 	trieb := NewEmpty(dbb)
 	for _, val := range testdata2 {
 		trieb.Update([]byte(val.k), []byte(val.v))
@@ -338,7 +338,7 @@ func TestUnionIterator(t *testing.T) {
 }
 
 func TestIteratorNoDups(t *testing.T) {
-	tr := NewEmpty(NewDatabase(rawdb.NewMemoryDatabase()))
+	tr := NewEmpty(NewDatabase(rawdb.NewMemoryDatabase(), nil))
 	for _, val := range testdata1 {
 		tr.Update([]byte(val.k), []byte(val.v))
 	}
@@ -349,8 +349,8 @@ func TestIteratorNoDups(t *testing.T) {
 func TestIteratorContinueAfterError(t *testing.T) {
 	testIteratorContinueAfterError(t, false, rawdb.HashScheme)
 	testIteratorContinueAfterError(t, true, rawdb.HashScheme)
-	// testIteratorContinueAfterError(t, false, rawdb.PathScheme)
-	// testIteratorContinueAfterError(t, true, rawdb.PathScheme)
+	testIteratorContinueAfterError(t, false, rawdb.PathScheme)
+	testIteratorContinueAfterError(t, true, rawdb.PathScheme)
 }
 
 func testIteratorContinueAfterError(t *testing.T, memonly bool, scheme string) {
@@ -455,8 +455,8 @@ func testIteratorContinueAfterError(t *testing.T, memonly bool, scheme string) {
 func TestIteratorContinueAfterSeekError(t *testing.T) {
 	testIteratorContinueAfterSeekError(t, false, rawdb.HashScheme)
 	testIteratorContinueAfterSeekError(t, true, rawdb.HashScheme)
-	// testIteratorContinueAfterSeekError(t, false, rawdb.PathScheme)
-	// testIteratorContinueAfterSeekError(t, true, rawdb.PathScheme)
+	testIteratorContinueAfterSeekError(t, false, rawdb.PathScheme)
+	testIteratorContinueAfterSeekError(t, true, rawdb.PathScheme)
 }
 
 func testIteratorContinueAfterSeekError(t *testing.T, memonly bool, scheme string) {
@@ -528,7 +528,7 @@ func checkIteratorNoDups(t *testing.T, it NodeIterator, seen map[string]bool) in
 
 func TestIteratorNodeBlob(t *testing.T) {
 	testIteratorNodeBlob(t, rawdb.HashScheme)
-	//testIteratorNodeBlob(t, rawdb.PathScheme)
+	testIteratorNodeBlob(t, rawdb.PathScheme)
 }
 
 type loggingDb struct {
@@ -585,7 +585,7 @@ func (l *loggingDb) Close() error {
 func makeLargeTestTrie() (*Database, *SecureTrie, *loggingDb) {
 	// Create an empty trie
 	logDb := &loggingDb{0, memorydb.New()}
-	triedb := NewDatabase(rawdb.NewDatabase(logDb))
+	triedb := NewDatabase(rawdb.NewDatabase(logDb), nil)
 	trie, _ := NewSecure(TrieID(common.Hash{}), triedb)
 
 	// Fill it with some arbitrary data

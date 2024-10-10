@@ -51,12 +51,13 @@ func updateTrie(addrHash common.Hash, root common.Hash, dirties, cleans map[comm
 	}
 	for key, val := range dirties {
 		if len(val) == 0 {
-			h.Delete(key.Bytes())
+			h.TryDelete(key.Bytes())
 		} else {
-			h.Update(key.Bytes(), val)
+			h.TryUpdate(key.Bytes(), val)
 		}
 	}
-	return h.Commit(false)
+	root, nodes, _ := h.Commit(false)
+	return root, nodes
 }
 
 const (
@@ -99,7 +100,7 @@ type tester struct {
 func newTester(t *testing.T) *tester {
 	var (
 		disk, _ = rawdb.NewDatabaseWithFreezer(rawdb.NewMemoryDatabase(), t.TempDir(), "", false)
-		db      = New(disk, &Config{CleanSize: 256 * 1024, DirtySize: 256 * 1024})
+		db      = New(disk, &Config{CleanCacheSize: 256 * 1024, DirtyCacheSize: 256 * 1024})
 		obj     = &tester{
 			db:           db,
 			preimages:    make(map[common.Hash]common.Address),
