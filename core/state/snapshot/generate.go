@@ -21,7 +21,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"math/big"
 	"time"
 
 	"github.com/VictoriaMetrics/fastcache"
@@ -616,12 +615,7 @@ func (dl *diskLayer) generate(stats *generatorStats) {
 			return nil
 		}
 		// Retrieve the current account and flatten it into the internal format
-		var acc struct {
-			Nonce    uint64
-			Balance  *big.Int
-			Root     common.Hash
-			CodeHash []byte
-		}
+		var acc types.StateAccount
 		if err := rlp.DecodeBytes(val, &acc); err != nil {
 			log.Crit("Invalid account encountered during snapshot creation", "err", err)
 		}
@@ -637,7 +631,7 @@ func (dl *diskLayer) generate(stats *generatorStats) {
 				}
 				snapRecoveredAccountMeter.Mark(1)
 			} else {
-				data := SlimAccountRLP(acc.Nonce, acc.Balance, acc.Root, acc.CodeHash)
+				data := types.SlimAccountRLP(acc)
 				dataLen = len(data)
 				rawdb.WriteAccountSnapshot(batch, accountHash, data)
 				snapGeneratedAccountMeter.Mark(1)
@@ -722,7 +716,7 @@ func (dl *diskLayer) generate(stats *generatorStats) {
 
 	// Global loop for regerating the entire state trie + all layered storage tries.
 	for {
-		exhausted, last, err := dl.generateRange(trie.StateTrieID(dl.root), rawdb.SnapshotAccountPrefix, "account", accOrigin, accountRange, stats, onAccount, FullAccountRLP)
+		exhausted, last, err := dl.generateRange(trie.StateTrieID(dl.root), rawdb.SnapshotAccountPrefix, "account", accOrigin, accountRange, stats, onAccount, types.FullAccountRLP)
 		// The procedure it aborted, either by external signal or internal error
 		if err != nil {
 			if abort == nil { // aborted by internal error, wait the signal
