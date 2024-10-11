@@ -221,20 +221,6 @@ func (db *Database) Node(hash common.Hash) ([]byte, error) {
 	return nil, errors.New("not found")
 }
 
-// Nodes retrieves the hashes of all the nodes cached within the memory database.
-// This method is extremely expensive and should only be used to validate internal
-// states in test code.
-func (db *Database) Nodes() []common.Hash {
-	db.lock.RLock()
-	defer db.lock.RUnlock()
-
-	var hashes = make([]common.Hash, 0, len(db.dirties))
-	for hash := range db.dirties {
-		hashes = append(hashes, hash)
-	}
-	return hashes
-}
-
 // Reference adds a new reference from a parent node to a child node.
 // This function is used to add reference between internal trie node
 // and external node(e.g. storage trie root), all internal trie nodes
