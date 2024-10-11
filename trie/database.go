@@ -262,7 +262,6 @@ func (db *Database) Node(hash common.Hash) ([]byte, error) {
 // Recover rollbacks the database to a specified historical point. The state is
 // supported as the rollback destination only if it's canonical state and the
 // corresponding trie histories are existent. It's only supported by path-based
-
 // database and will return an error for others.
 func (db *Database) Recover(target common.Hash) error {
 	pdb, ok := db.backend.(*pathdb.Database)

@@ -106,7 +106,7 @@ func TestStateProcessorErrors(t *testing.T) {
 					},
 				},
 			}
-			genesis       = gspec.MustCommit(db)
+			genesis       = gspec.MustCommit(db, trie.NewDatabase(db, newDbConfig(rawdb.HashScheme)))
 			blockchain, _ = NewBlockChain(db, nil, gspec, nil, ethash.NewFaker(), vm.Config{}, nil, nil)
 		)
 		defer blockchain.Stop()
@@ -241,7 +241,7 @@ func TestStateProcessorErrors(t *testing.T) {
 					},
 				},
 			}
-			genesis       = gspec.MustCommit(db)
+			genesis       = gspec.MustCommit(db, trie.NewDatabase(db, newDbConfig(rawdb.HashScheme)))
 			blockchain, _ = NewBlockChain(db, nil, gspec, nil, ethash.NewFaker(), vm.Config{}, nil, nil)
 		)
 		defer blockchain.Stop()
@@ -281,7 +281,7 @@ func TestStateProcessorErrors(t *testing.T) {
 					},
 				},
 			}
-			genesis       = gspec.MustCommit(db)
+			genesis       = gspec.MustCommit(db, trie.NewDatabase(db, newDbConfig(rawdb.HashScheme)))
 			blockchain, _ = NewBlockChain(db, nil, gspec, nil, ethash.NewFaker(), vm.Config{}, nil, nil)
 		)
 		defer blockchain.Stop()
@@ -335,7 +335,7 @@ func TestStateProcessorErrors(t *testing.T) {
 					},
 				},
 			}
-			genesis        = gspec.MustCommit(db)
+			genesis        = gspec.MustCommit(db, trie.NewDatabase(db, newDbConfig(rawdb.HashScheme)))
 			blockchain, _  = NewBlockChain(db, nil, gspec, nil, ethash.NewFaker(), vm.Config{}, nil, nil)
 			tooBigInitCode = [params.MaxInitCodeSize + 1]byte{}
 			smallInitCode  = [320]byte{}
@@ -398,7 +398,7 @@ func TestStateProcessorErrors(t *testing.T) {
 					},
 				},
 			}
-			genesis       = gspec.MustCommit(db)
+			genesis       = gspec.MustCommit(db, trie.NewDatabase(db, newDbConfig(rawdb.HashScheme)))
 			blockchain, _ = NewBlockChain(db, nil, gspec, nil, ethash.NewFaker(), vm.Config{}, nil, nil)
 		)
 		defer blockchain.Stop()
@@ -496,7 +496,7 @@ func TestBlobTxStateTransition(t *testing.T) {
 				Alloc:   GenesisAlloc{addr: {Balance: funds}},
 				BaseFee: big.NewInt(params.InitialBaseFee),
 			}
-			genesis = gspec.MustCommit(gendb)
+			genesis = gspec.MustCommit(gendb, trie.NewDatabase(gendb, newDbConfig(rawdb.HashScheme)))
 			signer  = types.LatestSigner(gspec.Config)
 		)
 		gspec.Config.ConsortiumV2Block = common.Big0
@@ -574,7 +574,7 @@ func TestBaseFee(t *testing.T) {
 			Alloc:   GenesisAlloc{addr: {Balance: big.NewInt(int64(initialFund))}},
 			BaseFee: big.NewInt(params.InitialBaseFee),
 		}
-		genesis = gspec.MustCommit(gendb)
+		genesis = gspec.MustCommit(gendb, trie.NewDatabase(gendb, newDbConfig(rawdb.HashScheme)))
 		signer  = types.LatestSigner(gspec.Config)
 	)
 	gspec.Config.ConsortiumV2Block = common.Big0
