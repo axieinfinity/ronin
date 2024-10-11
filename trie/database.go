@@ -22,6 +22,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/trie/triedb/hashdb"
+	"github.com/ethereum/go-ethereum/trie/triedb/pathdb"
 	"github.com/ethereum/go-ethereum/trie/trienode"
 	"github.com/ethereum/go-ethereum/trie/triestate"
 )
@@ -56,11 +57,6 @@ type backend interface {
 	// The passed in maps(nodes, states) will be retained to avoid copying
 	// everything. Therefore, these maps must not be changed afterwards.
 	Update(root common.Hash, parent common.Hash, block uint64, nodes *trienode.MergedNodeSet, states *triestate.Set) error
-
-	// Nodes retrieves the hashes of all the nodes cached within the memory database.
-	// This method is extremely expensive and should only be used to validate internal
-	// states in test code.
-	Nodes() []common.Hash
 
 	// DiskDB retrieves the persistent storage backing the trie database.
 	DiskDB() ethdb.KeyValueStore
@@ -120,7 +116,15 @@ func NewDatabaseWithConfig(diskdb ethdb.Database, config *Config) *Database {
 // Reader returns a reader for accessing all trie nodes with provided state root.
 // Nil is returned in case the state is not available.
 func (db *Database) Reader(blockRoot common.Hash) Reader {
-	return db.backend.(*hashdb.Database).Reader(blockRoot)
+	switch b := db.backend.(type) {
+	case *hashdb.Database:
+		return b.Reader(blockRoot)
+	case *pathdb.Database:
+		reader, _ := b.Reader(blockRoot)
+		return reader
+	}
+	return nil
+
 }
 
 // Update performs a state transition by committing dirty nodes contained in the
@@ -175,13 +179,6 @@ func (db *Database) Scheme() string {
 // DiskDB retrieves the persistent storage backing the trie database.
 func (db *Database) DiskDB() ethdb.KeyValueStore {
 	return db.backend.DiskDB()
-}
-
-// Nodes retrieves the hashes of all the nodes cached within the memory database.
-// This method is extremely expensive and should only be used to validate internal
-// states in test code.
-func (db *Database) Nodes() []common.Hash {
-	return db.backend.Nodes()
 }
 
 // Close flushes the dangling preimages to disk and closes the trie database.
