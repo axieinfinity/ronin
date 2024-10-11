@@ -383,6 +383,11 @@ func (db *Database) SetBufferSize(size int) error {
 	return db.tree.bottom().setBufferSize(db.bufferSize)
 }
 
+// DiskDB retrieves the persistent storage backing the trie database.
+func (db *Database) DiskDB() ethdb.KeyValueStore {
+	return db.diskdb
+}
+
 // Scheme returns the node scheme used in the database.
 func (db *Database) Scheme() string {
 	return rawdb.PathScheme
