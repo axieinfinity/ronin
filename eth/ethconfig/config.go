@@ -33,6 +33,7 @@ import (
 	"github.com/ethereum/go-ethereum/consensus/clique"
 	"github.com/ethereum/go-ethereum/consensus/ethash"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/txpool/blobpool"
 	"github.com/ethereum/go-ethereum/core/txpool/legacypool"
 	"github.com/ethereum/go-ethereum/eth/downloader"
@@ -78,6 +79,9 @@ var Defaults = Config{
 	},
 	NetworkId:          1,
 	TxLookupLimit:      2350000,
+	TransactionHistory: 2350000,
+	StateHistory:       params.FullImmutabilityThreshold,
+	StateScheme:        rawdb.HashScheme,
 	LightPeers:         100,
 	UltraLightFraction: 75,
 	DatabaseCache:      512,
@@ -141,7 +145,12 @@ type Config struct {
 	NoPruning  bool // Whether to disable pruning and flush everything to disk
 	NoPrefetch bool // Whether to disable prefetching and only load state on demand
 
+	// Deprecated, use 'TransactionHistory' instead.
 	TxLookupLimit uint64 `toml:",omitempty"` // The maximum number of blocks from head whose tx indices are reserved.
+
+	TransactionHistory uint64 `toml:",omitempty"` // The maximum number of blocks from head whose tx indices are reserved.
+	StateHistory       uint64 `toml:",omitempty"` // The maximum number of blocks from head whose state histories are reserved.
+	StateScheme        string `toml:",omitempty"` // State scheme used to store ethereum state and merkle trie nodes on top
 
 	// Whitelist of required block number -> hash values to accept
 	Whitelist map[uint64]common.Hash `toml:"-"`
