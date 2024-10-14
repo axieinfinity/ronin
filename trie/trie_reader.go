@@ -17,9 +17,9 @@
 package trie
 
 import (
-	"fmt"
-
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/trie/triestate"
 )
 
@@ -38,7 +38,7 @@ type Reader interface {
 type NodeReader interface {
 	// Reader returns a reader for accessing all trie nodes with provided
 	// state root. Nil is returned in case the state is not available.
-	Reader(root common.Hash) Reader
+	Reader(root common.Hash) (Reader, error)
 }
 
 // trieReader is a wrapper of the underlying node reader. It's not safe
@@ -51,9 +51,16 @@ type trieReader struct {
 
 // newTrieReader initializes the trie reader with the given node reader.
 func newTrieReader(stateRoot, owner common.Hash, db NodeReader) (*trieReader, error) {
-	reader := db.Reader(stateRoot)
-	if reader == nil {
-		return nil, fmt.Errorf("state not found #%x", stateRoot)
+	if stateRoot == (common.Hash{}) || stateRoot == types.EmptyRootHash {
+		if stateRoot == (common.Hash{}) {
+			log.Error("zero state root")
+		}
+		return &trieReader{owner: owner}, nil
+	}
+
+	reader, err := db.Reader(stateRoot)
+	if err != nil {
+		return nil, &MissingNodeError{Owner: owner, NodeHash: stateRoot, err: err}
 	}
 	return &trieReader{owner: owner, reader: reader}, nil
 }

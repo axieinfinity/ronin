@@ -192,7 +192,7 @@ func (db *Database) Reader(root common.Hash) (layer, error) {
 // Update adds a new layer into the tree, if that can be linked to an existing
 // old parent. It is disallowed to insert a disk layer (the origin of all). Apart
 // from that this function will flatten the extra diff layers at bottom into disk
-// to only keep 128 diff layers in memory by default.
+// to only keep 128 diff layerReaders in memory by default.
 //
 // The passed in maps(nodes, states) will be retained to avoid copying everything.
 // Therefore, these maps must not be changed afterwards.

@@ -131,16 +131,14 @@ func NewDatabase(diskdb ethdb.Database, config *Config) *Database {
 
 // Reader returns a reader for accessing all trie nodes with provided state root.
 // Nil is returned in case the state is not available.
-func (db *Database) Reader(blockRoot common.Hash) Reader {
+func (db *Database) Reader(blockRoot common.Hash) (Reader, error) {
 	switch b := db.backend.(type) {
 	case *hashdb.Database:
 		return b.Reader(blockRoot)
 	case *pathdb.Database:
-		reader, _ := b.Reader(blockRoot)
-		return reader
+		return b.Reader(blockRoot)
 	}
-	return nil
-
+	return nil, errors.New("unsupported")
 }
 
 // Update performs a state transition by committing dirty nodes contained in the
