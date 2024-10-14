@@ -38,6 +38,7 @@ import (
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/ethereum/go-ethereum/trie"
 )
 
 var (
@@ -164,7 +165,7 @@ func TestFinalizedBlockSubscription(t *testing.T) {
 		db          = rawdb.NewMemoryDatabase()
 		backend     = &testBackend{db: db}
 		api         = NewPublicFilterAPI(backend, false, deadline)
-		genesis     = (&core.Genesis{BaseFee: big.NewInt(params.InitialBaseFee)}).MustCommit(db)
+		genesis     = (&core.Genesis{BaseFee: big.NewInt(params.InitialBaseFee)}).MustCommit(db, trie.NewDatabase(db, nil))
 		chain, _    = core.GenerateChain(params.TestChainConfig, genesis, ethash.NewFaker(), db, 10, func(i int, gen *core.BlockGen) {}, true)
 		chainEvents = []core.ChainEvent{}
 	)
@@ -225,7 +226,7 @@ func TestBlockSubscription(t *testing.T) {
 		db          = rawdb.NewMemoryDatabase()
 		backend     = &testBackend{db: db}
 		api         = NewPublicFilterAPI(backend, false, deadline)
-		genesis     = (&core.Genesis{BaseFee: big.NewInt(params.InitialBaseFee)}).MustCommit(db)
+		genesis     = (&core.Genesis{BaseFee: big.NewInt(params.InitialBaseFee)}).MustCommit(db, trie.NewDatabase(db, nil))
 		chain, _    = core.GenerateChain(params.TestChainConfig, genesis, ethash.NewFaker(), db, 10, func(i int, gen *core.BlockGen) {}, true)
 		chainEvents = []core.ChainEvent{}
 	)

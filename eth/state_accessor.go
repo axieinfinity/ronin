@@ -27,6 +27,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus/consortium"
 	"github.com/ethereum/go-ethereum/core"
+	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
@@ -38,38 +39,24 @@ import (
 // for releasing state.
 var noopReleaser = tracers.StateReleaseFunc(func() {})
 
-// StateAtBlock retrieves the state database associated with a certain block.
-// If no state is locally available for the given block, a number of blocks
-// are attempted to be reexecuted to generate the desired state. The optional
-// base layer statedb can be passed then it's regarded as the statedb of the
-// parent block.
-// Parameters:
-//   - block: The block for which we want the state (== state at the stateRoot of the parent)
-//   - reexec: The maximum number of blocks to reprocess trying to obtain the desired state
-//   - base: If the caller is tracing multiple blocks, the caller can provide the parent state
-//     continuously from the callsite.
-//   - checklive: if true, then the live 'blockchain' state database is used. If the caller want to
-//     perform Commit or other 'save-to-disk' changes, this should be set to false to avoid
-//     storing trash persistently
-//   - preferDisk: this arg can be used by the caller to signal that even though the 'base' is provided,
-//     it would be preferrable to start from a fresh state, if we have it on disk.
-func (eth *Ethereum) StateAtBlock(ctx context.Context, block *types.Block, reexec uint64, base *state.StateDB, checkLive bool, preferDisk bool) (statedb *state.StateDB, release tracers.StateReleaseFunc, err error) {
+func (eth *Ethereum) hashState(ctx context.Context, block *types.Block, reexec uint64, base *state.StateDB, readOnly bool, preferDisk bool) (statedb *state.StateDB, release tracers.StateReleaseFunc, err error) {
 	var (
 		current  *types.Block
 		database state.Database
+		triedb   *trie.Database
 		report   = true
 		origin   = block.NumberU64()
 	)
 	// The state is only for reading purposes, check the state presence in
 	// live database.
-	if checkLive {
+	if readOnly {
 		// The state is available in live database, create a reference
 		// on top to prevent garbage collection and return a release
 		// function to deref it.
-		statedb, err = eth.blockchain.StateAt(block.Root())
-		if err == nil {
+		if statedb, err = eth.blockchain.StateAt(block.Root()); err == nil {
+			eth.blockchain.TrieDB().Reference(block.Root(), common.Hash{})
 			return statedb, func() {
-				statedb.Database().TrieDB().Dereference(block.Root())
+				eth.blockchain.TrieDB().Dereference(block.Root())
 			}, nil
 		}
 	}
@@ -80,27 +67,32 @@ func (eth *Ethereum) StateAtBlock(ctx context.Context, block *types.Block, reexe
 		if preferDisk {
 			// Create an ephemeral trie.Database for isolating the live one. Otherwise
 			// the internal junks created by tracing will be persisted into the disk.
-			database = state.NewDatabaseWithConfig(eth.chainDb, &trie.Config{Cache: 16})
+			// TODO(rjl493456442), clean cache is disabled to prevent memory leak,
+			// please re-enable it for better performance.
+			database = state.NewDatabaseWithConfig(eth.chainDb, trie.HashDefaults)
 			if statedb, err = state.New(block.Root(), database, nil); err == nil {
 				log.Info("Found disk backend for state trie", "root", block.Root(), "number", block.Number())
 				return statedb, noopReleaser, nil
 			}
 		}
 		// The optional base statedb is given, mark the start point as parent block
-		statedb, database, report = base, base.Database(), false
+		statedb, database, triedb, report = base, base.Database(), base.Database().TrieDB(), false
 		current = eth.blockchain.GetBlock(block.ParentHash(), block.NumberU64()-1)
 	} else {
-		// Otherwise try to reexec blocks until we find a state or reach our limit
+		// Otherwise, try to reexec blocks until we find a state or reach our limit
 		current = block
 
 		// Create an ephemeral trie.Database for isolating the live one. Otherwise
 		// the internal junks created by tracing will be persisted into the disk.
-		database = state.NewDatabaseWithConfig(eth.chainDb, &trie.Config{Cache: 16})
+		// TODO(rjl493456442), clean cache is disabled to prevent memory leak,
+		// please re-enable it for better performance.
+		triedb = trie.NewDatabase(eth.chainDb, trie.HashDefaults)
+		database = state.NewDatabaseWithNodeDB(eth.chainDb, triedb)
 
 		// If we didn't check the live database, do check state over ephemeral database,
 		// otherwise we would rewind past a persisted block (specific corner case is
 		// chain tracing from the genesis).
-		if !checkLive {
+		if !readOnly {
 			statedb, err = state.New(current.Root(), database, nil)
 			if err == nil {
 				return statedb, noopReleaser, nil
@@ -108,6 +100,9 @@ func (eth *Ethereum) StateAtBlock(ctx context.Context, block *types.Block, reexe
 		}
 		// Database does not have the state for the given block, try to regenerate
 		for i := uint64(0); i < reexec; i++ {
+			if err := ctx.Err(); err != nil {
+				return nil, nil, err
+			}
 			if current.NumberU64() == 0 {
 				return nil, nil, errors.New("genesis state is missing")
 			}
@@ -168,17 +163,58 @@ func (eth *Ethereum) StateAtBlock(ctx context.Context, block *types.Block, reexe
 		}
 		// Hold the state reference and also drop the parent state
 		// to prevent accumulating too many nodes in memory.
-		database.TrieDB().Reference(root, common.Hash{})
+		triedb.Reference(root, common.Hash{})
 		if parent != (common.Hash{}) {
-			database.TrieDB().Dereference(parent)
+			triedb.Dereference(parent)
 		}
 		parent = root
 	}
 	if report {
-		nodes, imgs := database.TrieDB().Size()
+		nodes, imgs := triedb.Size()
 		log.Info("Historical state regenerated", "block", current.NumberU64(), "elapsed", time.Since(start), "nodes", nodes, "preimages", imgs)
 	}
-	return statedb, func() { database.TrieDB().Dereference(block.Root()) }, nil
+	return statedb, func() { triedb.Dereference(block.Root()) }, nil
+}
+
+func (eth *Ethereum) pathState(block *types.Block) (*state.StateDB, func(), error) {
+	// Check if the requested state is available in the live chain.
+	statedb, err := eth.blockchain.StateAt(block.Root())
+	if err == nil {
+		return statedb, noopReleaser, nil
+	}
+	// TODO historic state is not supported in path-based scheme.
+	// Fully archive node in pbss will be implemented by relying
+	// on state history, but needs more work on top.
+	return nil, nil, errors.New("historical state not available in path scheme yet")
+}
+
+// stateAtBlock retrieves the state database associated with a certain block.
+// If no state is locally available for the given block, a number of blocks
+// are attempted to be reexecuted to generate the desired state. The optional
+// base layer statedb can be provided which is regarded as the statedb of the
+// parent block.
+//
+// An additional release function will be returned if the requested state is
+// available. Release is expected to be invoked when the returned state is no
+// longer needed. Its purpose is to prevent resource leaking. Though it can be
+// noop in some cases.
+//
+// Parameters:
+//   - block:      The block for which we want the state(state = block.Root)
+//   - reexec:     The maximum number of blocks to reprocess trying to obtain the desired state
+//   - base:       If the caller is tracing multiple blocks, the caller can provide the parent
+//     state continuously from the callsite.
+//   - readOnly:   If true, then the live 'blockchain' state database is used. No mutation should
+//     be made from caller, e.g. perform Commit or other 'save-to-disk' changes.
+//     Otherwise, the trash generated by caller may be persisted permanently.
+//   - preferDisk: This arg can be used by the caller to signal that even though the 'base' is
+//     provided, it would be preferable to start from a fresh state, if we have it
+//     on disk.
+func (eth *Ethereum) stateAtBlock(ctx context.Context, block *types.Block, reexec uint64, base *state.StateDB, readOnly bool, preferDisk bool) (statedb *state.StateDB, release tracers.StateReleaseFunc, err error) {
+	if eth.blockchain.TrieDB().Scheme() == rawdb.HashScheme {
+		return eth.hashState(ctx, block, reexec, base, readOnly, preferDisk)
+	}
+	return eth.pathState(block)
 }
 
 // stateAtTransaction returns the execution environment of a certain transaction.
@@ -194,7 +230,7 @@ func (eth *Ethereum) stateAtTransaction(ctx context.Context, block *types.Block,
 	}
 	// Lookup the statedb of parent block from the live database,
 	// otherwise regenerate it on the flight.
-	statedb, release, err := eth.StateAtBlock(ctx, parent, reexec, nil, true, false)
+	statedb, release, err := eth.stateAtBlock(ctx, parent, reexec, nil, true, false)
 	if err != nil {
 		return nil, vm.BlockContext{}, nil, nil, err
 	}
