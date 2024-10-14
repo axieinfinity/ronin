@@ -591,7 +591,7 @@ func makeLargeTestTrie() (*Database, *SecureTrie, *loggingDb) {
 	// Create an empty trie
 	logDb := &loggingDb{0, memorydb.New()}
 	triedb := NewDatabase(rawdb.NewDatabase(logDb), nil)
-	trie, _ := NewSecure(TrieID(common.Hash{}), triedb)
+	trie, _ := NewSecure(TrieID(types.EmptyRootHash), triedb)
 
 	// Fill it with some arbitrary data
 	for i := 0; i < 10000; i++ {
@@ -605,7 +605,10 @@ func makeLargeTestTrie() (*Database, *SecureTrie, *loggingDb) {
 	}
 	root, nodes, _ := trie.Commit(false)
 	triedb.Update(root, types.EmptyRootHash, 0, trienode.NewWithNodeSet(nodes), nil)
+	triedb.Commit(root, false)
 	// Return the generated trie
+	trie, _ = NewSecure(TrieID(root), triedb)
+
 	return triedb, trie, logDb
 }
 
@@ -617,8 +620,8 @@ func TestNodeIteratorLargeTrie(t *testing.T) {
 	// Do a seek operation
 	trie.NodeIterator(common.FromHex("0x77667766776677766778855885885885"))
 	// master: 24 get operations
-	// this pr: 5 get operations
-	if have, want := logDb.getCount, uint64(5); have != want {
+	// this pr: 6 get operations
+	if have, want := logDb.getCount, uint64(6); have != want {
 		t.Fatalf("Too many lookups during seek, have %d want %d", have, want)
 	}
 }
