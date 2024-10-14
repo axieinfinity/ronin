@@ -52,6 +52,7 @@ import (
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/trie"
 )
 
 var (
@@ -203,7 +204,7 @@ func newTestClientHandler(backend *backends.SimulatedBackend, odr *LesOdr, index
 		}
 		oracle *checkpointoracle.CheckpointOracle
 	)
-	genesis := gspec.MustCommit(db)
+	genesis := gspec.MustCommit(db, nil)
 	chain, _ := light.NewLightChain(odr, gspec.Config, engine, nil)
 	if indexers != nil {
 		checkpointConfig := &params.CheckpointOracleConfig{
@@ -263,7 +264,7 @@ func newTestServerHandler(blocks int, indexers []*core.ChainIndexer, db ethdb.Da
 		}
 		oracle *checkpointoracle.CheckpointOracle
 	)
-	genesis := gspec.MustCommit(db)
+	genesis := gspec.MustCommit(db, trie.NewDatabase(db, nil))
 
 	// create a simulation backend and pre-commit several customized block to the database.
 	simulation := backends.NewSimulatedBackendWithDatabase(db, gspec.Alloc, 100000000)

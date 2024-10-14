@@ -42,9 +42,9 @@ func TestNodeIterator(t *testing.T) {
 			Alloc:   core.GenesisAlloc{testBankAddress: {Balance: testBankFunds}},
 			BaseFee: big.NewInt(params.InitialBaseFee),
 		}
-		genesis = gspec.MustCommit(fulldb)
+		genesis = gspec.MustCommit(fulldb, trie.NewDatabase(fulldb, nil))
 	)
-	gspec.MustCommit(lightdb)
+	gspec.MustCommit(lightdb, trie.NewDatabase(lightdb, nil))
 	blockchain, _ := core.NewBlockChain(fulldb, nil, &gspec, nil, ethash.NewFullFaker(), vm.Config{}, nil, nil)
 	gchain, _ := core.GenerateChain(params.TestChainConfig, genesis, ethash.NewFaker(), fulldb, 4, testChainGen, true)
 	if _, err := blockchain.InsertChain(gchain, nil); err != nil {

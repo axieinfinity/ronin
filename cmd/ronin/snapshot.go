@@ -403,7 +403,7 @@ func traverseRawState(ctx *cli.Context) error {
 	)
 	accIter := t.NodeIterator(nil)
 	// using reader.
-	reader, err := triedb.Reader(root)
+	//reader, err := triedb.Reader(root)
 	if err != nil {
 		log.Error("State is non-existent", "root", root)
 		return nil
@@ -496,7 +496,9 @@ func dumpState(ctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	snaptree, err := snapshot.New(db, trie.NewDatabase(db), 256, root, false, false, false)
+	triedb := utils.MakeTrieDatabase(ctx, db, false, true)
+	defer triedb.Close()
+	snaptree, err := snapshot.New(db, triedb, 256, root, false, false, false)
 	if err != nil {
 		return err
 	}
