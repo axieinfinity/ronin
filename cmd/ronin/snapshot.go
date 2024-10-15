@@ -185,6 +185,8 @@ block is used.
 	}
 )
 
+// Deprecation: this command should be deprecated once the hash-based
+// scheme is deprecated.
 func pruneState(ctx *cli.Context) error {
 	stack, _ := makeConfigNode(ctx)
 	defer stack.Close()
@@ -392,7 +394,7 @@ func traverseRawState(ctx *cli.Context) error {
 		node := accIter.Hash()
 
 		if node != (common.Hash{}) {
-			// Check the present for non-empty hash node(embedded node doesn't
+			// Check the presence for non-empty hash node(embedded node doesn't
 			// have their own hash).
 			if !rawdb.HasLegacyTrieNode(chaindb, node) {
 				log.Error("Missing trie node(account)", "hash", node)
