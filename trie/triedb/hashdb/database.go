@@ -136,6 +136,9 @@ func (n *cachedNode) forChildren(resolver ChildResolver, onChild func(hash commo
 
 // New initializes the hash-based node database.
 func New(diskdb ethdb.Database, config *Config, resolver ChildResolver) *Database {
+	if config == nil {
+		config = Defaults
+	}
 	// Initialize the clean cache if the specified cache allowance
 	// is non-zero. Note, the size is in bytes.
 	var cleans *fastcache.Cache

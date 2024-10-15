@@ -227,7 +227,10 @@ func testIterativeStateSync(t *testing.T, count int, commit bool, bypath bool, s
 	for i := 0; i < len(codes); i++ {
 		codeElements = append(codeElements, stateElement{code: codes[i]})
 	}
-	reader := ndb.Reader(srcRoot)
+	reader, err := ndb.Reader(srcRoot)
+	if err != nil {
+		t.Fatalf("failed to create reader for root %x: %v", srcRoot, err)
+	}
 	for len(nodeElements)+len(codeElements) > 0 {
 		var (
 			nodeResults = make([]trie.NodeSyncResult, len(nodeElements))
@@ -339,7 +342,10 @@ func testIterativeDelayedStateSync(t *testing.T, scheme string) {
 	for i := 0; i < len(codes); i++ {
 		codeElements = append(codeElements, stateElement{code: codes[i]})
 	}
-	reader := ndb.Reader(srcRoot)
+	reader, err := ndb.Reader(srcRoot)
+	if err != nil {
+		t.Fatalf("failed to create reader for root %x: %v", srcRoot, err)
+	}
 
 	for len(nodeElements)+len(codeElements) > 0 {
 		// Sync only half of the scheduled nodes
@@ -438,7 +444,10 @@ func testIterativeRandomStateSync(t *testing.T, count int, scheme string) {
 	for _, hash := range codes {
 		codeQueue[hash] = struct{}{}
 	}
-	reader := ndb.Reader(srcRoot)
+	reader, err := ndb.Reader(srcRoot)
+	if err != nil {
+		t.Fatalf("failed to create reader for root %x: %v", srcRoot, err)
+	}
 	for len(nodeQueue)+len(codeQueue) > 0 {
 		// Fetch all the queued nodes in a random order
 		if len(codeQueue) > 0 {
@@ -525,7 +534,10 @@ func testIterativeRandomDelayedStateSync(t *testing.T, scheme string) {
 	for _, hash := range codes {
 		codeQueue[hash] = struct{}{}
 	}
-	reader := ndb.Reader(srcRoot)
+	reader, err := ndb.Reader(srcRoot)
+	if err != nil {
+		t.Fatalf("failed to create reader for root %x: %v", srcRoot, err)
+	}
 	for len(nodeQueue)+len(codeQueue) > 0 {
 		// Sync only half of the scheduled nodes, even those in random order
 		if len(codeQueue) > 0 {
@@ -637,7 +649,10 @@ func testIncompleteStateSync(t *testing.T, scheme string) {
 	for _, hash := range codes {
 		codeQueue[hash] = struct{}{}
 	}
-	reader := ndb.Reader(srcRoot)
+	reader, err := ndb.Reader(srcRoot)
+	if err != nil {
+		t.Fatalf("failed to create reader for root %x: %v", srcRoot, err)
+	}
 	for len(nodeQueue)+len(codeQueue) > 0 {
 		// Fetch a batch of state nodes
 		if len(codeQueue) > 0 {

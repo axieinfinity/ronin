@@ -929,7 +929,8 @@ func testMultiSyncManyUnresponsive(t *testing.T, scheme string) {
 		return source
 	}
 
-	syncer := setupSyncer(nodeScheme,
+	syncer := setupSyncer(
+		nodeScheme,
 		mkSource("full", true, true, true),
 		mkSource("noAccounts", false, true, true),
 		mkSource("noStorage", true, false, true),

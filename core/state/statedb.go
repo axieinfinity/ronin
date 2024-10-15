@@ -1151,8 +1151,9 @@ func (s *StateDB) Commit(block uint64, deleteEmptyObjects bool) (common.Hash, er
 		storageTrieNodesUpdated int
 		storageTrieNodesDeleted int
 		nodes                   = trienode.NewMergedNodeSet()
+		codeWriter              = s.db.TrieDB().DiskDB().NewBatch()
 	)
-	codeWriter := s.db.TrieDB().DiskDB().NewBatch()
+
 	// Handle all state deletions first
 	incomplete, err := s.handleDestruction(nodes)
 	if err != nil {
