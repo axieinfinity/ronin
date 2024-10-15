@@ -307,7 +307,12 @@ func traverseState(ctx *cli.Context) error {
 		lastReport time.Time
 		start      = time.Now()
 	)
-	accIter := trie.NewIterator(t.NodeIterator(nil))
+	acctIt, err := t.NodeIterator(nil)
+	if err != nil {
+		log.Error("Failed to open iterator", "root", root, "err", err)
+		return err
+	}
+	accIter := trie.NewIterator(acctIt)
 	for accIter.Next() {
 		accounts += 1
 		var acc types.StateAccount
@@ -321,7 +326,12 @@ func traverseState(ctx *cli.Context) error {
 				log.Error("Failed to open storage trie", "root", acc.Root, "err", err)
 				return err
 			}
-			storageIter := trie.NewIterator(storageTrie.NodeIterator(nil))
+			storageIt, err := storageTrie.NodeIterator(nil)
+			if err != nil {
+				log.Error("Failed to open storage iterator", "root", acc.Root, "err", err)
+				return err
+			}
+			storageIter := trie.NewIterator(storageIt)
 			for storageIter.Next() {
 				slots += 1
 			}
@@ -401,7 +411,11 @@ func traverseRawState(ctx *cli.Context) error {
 		lastReport time.Time
 		start      = time.Now()
 	)
-	accIter := t.NodeIterator(nil)
+	accIter, err := t.NodeIterator(nil)
+	if err != nil {
+		log.Error("Failed to open iterator", "root", root, "err", err)
+		return err
+	}
 	// using reader.
 	//reader, err := triedb.Reader(root)
 	if err != nil {
@@ -435,7 +449,11 @@ func traverseRawState(ctx *cli.Context) error {
 					log.Error("Failed to open storage trie", "root", acc.Root, "err", err)
 					return errors.New("missing storage trie")
 				}
-				storageIter := storageTrie.NodeIterator(nil)
+				storageIter, err := storageTrie.NodeIterator(nil)
+				if err != nil {
+					log.Error("Failed to open storage iterator", "root", acc.Root, "err", err)
+					return err
+				}
 				for storageIter.Next(true) {
 					nodes += 1
 					node := storageIter.Hash()

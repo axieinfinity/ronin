@@ -460,7 +460,7 @@ func (dl *diskLayer) generateRange(trieID *trie.ID, prefix []byte, kind string, 
 
 	var (
 		trieMore       bool
-		nodeIt         = tr.NodeIterator(origin)
+		nodeIt         = tr.MustNodeIterator(origin)
 		iter           = trie.NewIterator(nodeIt)
 		kvkeys, kvvals = result.keys, result.vals
 

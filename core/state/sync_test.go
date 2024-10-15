@@ -123,7 +123,7 @@ func checkTrieConsistency(db ethdb.Database, scheme string, root common.Hash) er
 	if err != nil {
 		return err
 	}
-	it := trie.NodeIterator(nil)
+	it := trie.MustNodeIterator(nil)
 	for it.Next(true) {
 	}
 	return it.Error()
@@ -636,6 +636,10 @@ func testIncompleteStateSync(t *testing.T, scheme string) {
 		addedPaths  []string
 		addedHashes []common.Hash
 	)
+	reader, err := srcDb.TrieDB().Reader(srcRoot)
+	if err != nil {
+		t.Fatalf("state is not available %x", srcRoot)
+	}
 	nodeQueue := make(map[string]stateElement)
 	codeQueue := make(map[common.Hash]struct{})
 	paths, nodes, codes := sched.Missing(1)
@@ -649,7 +653,6 @@ func testIncompleteStateSync(t *testing.T, scheme string) {
 	for _, hash := range codes {
 		codeQueue[hash] = struct{}{}
 	}
-	reader, err := ndb.Reader(srcRoot)
 	if err != nil {
 		t.Fatalf("failed to create reader for root %x: %v", srcRoot, err)
 	}

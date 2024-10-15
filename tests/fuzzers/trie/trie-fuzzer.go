@@ -185,7 +185,7 @@ func runRandTest(rt randTest) error {
 			origin = hash
 		case opItercheckhash:
 			checktr := trie.NewEmpty(triedb)
-			it := trie.NewIterator(tr.NodeIterator(nil))
+			it := trie.NewIterator(tr.MustNodeIterator(nil))
 			for it.Next() {
 				checktr.Update(it.Key, it.Value)
 			}

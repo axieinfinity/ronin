@@ -556,7 +556,7 @@ func runRandTest(rt randTest) bool {
 
 		case opItercheckhash:
 			checktr := NewEmpty(triedb)
-			it := NewIterator(tr.NodeIterator(nil))
+			it := NewIterator(tr.MustNodeIterator(nil))
 			for it.Next() {
 				checktr.Update(it.Key, it.Value)
 			}
@@ -699,7 +699,7 @@ func TestTinyTrie(t *testing.T) {
 		t.Errorf("3: got %x, exp %x", root, exp)
 	}
 	checktr := NewEmpty(NewDatabase(rawdb.NewMemoryDatabase(), nil))
-	it := NewIterator(trie.NodeIterator(nil))
+	it := NewIterator(trie.MustNodeIterator(nil))
 	for it.Next() {
 		checktr.Update(it.Key, it.Value)
 	}

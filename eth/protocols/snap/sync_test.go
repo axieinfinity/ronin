@@ -1737,7 +1737,7 @@ func verifyTrie(scheme string, db ethdb.KeyValueStore, root common.Hash, t *test
 		t.Fatal(err)
 	}
 	accounts, slots := 0, 0
-	accIt := trie.NewIterator(accTrie.NodeIterator(nil))
+	accIt := trie.NewIterator(accTrie.MustNodeIterator(nil))
 	for accIt.Next() {
 		var acc struct {
 			Nonce    uint64
@@ -1754,7 +1754,11 @@ func verifyTrie(scheme string, db ethdb.KeyValueStore, root common.Hash, t *test
 			if err != nil {
 				t.Fatal(err)
 			}
-			storeIt := trie.NewIterator(storeTrie.NodeIterator(nil))
+			trieIt, err := storeTrie.NodeIterator(nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			storeIt := trie.NewIterator(trieIt)
 			for storeIt.Next() {
 				slots++
 			}
