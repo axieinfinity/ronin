@@ -22,9 +22,15 @@ import (
 	"errors"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/rlp"
 )
+
+// NodeResolver is used for looking up trie nodes before reaching into the real
+// persistent layer. This is not mandatory, rather is an optimization for cases
+// where trie nodes can be recovered from some external mechanism without reading
+// from disk. In those cases, this resolver allows short circuiting accesses and
+// returning them from memory. (It should be supported for multiple schemes in iterator)
+type NodeResolver func(owner common.Hash, path []byte, hash common.Hash) []byte
 
 // Iterator is a key-value trie iterator that traverses a Trie.
 type Iterator struct {
@@ -108,8 +114,8 @@ type NodeIterator interface {
 	// to the value after calling Next.
 	LeafProof() [][]byte
 
-	// AddResolver sets an intermediate database to use for looking up trie nodes
-	// before reaching into the real persistent layer.
+	// AddResolver sets a node resolver to use for looking up trie nodes before
+	// reaching into the real persistent layer.
 	//
 	// This is not required for normal operation, rather is an optimization for
 	// cases where trie nodes can be recovered from some external mechanism without
@@ -119,7 +125,7 @@ type NodeIterator interface {
 	// Before adding a similar mechanism to any other place in Geth, consider
 	// making trie.Database an interface and wrapping at that level. It's a huge
 	// refactor, but it could be worth it if another occurrence arises.
-	AddResolver(ethdb.KeyValueStore)
+	AddResolver(NodeResolver)
 }
 
 // nodeIteratorState represents the iteration state at one particular node of the
@@ -138,7 +144,7 @@ type nodeIterator struct {
 	path  []byte               // Path to the current node
 	err   error                // Failure set in case of an internal error in the iterator
 
-	resolver ethdb.KeyValueStore // Optional intermediate resolver above the disk layer
+	resolver NodeResolver // optional node resolver for avoiding disk hits
 }
 
 // errIteratorEnd is stored in nodeIterator.err when iteration is done.
@@ -166,7 +172,7 @@ func newNodeIterator(trie *Trie, start []byte) NodeIterator {
 	return it
 }
 
-func (it *nodeIterator) AddResolver(resolver ethdb.KeyValueStore) {
+func (it *nodeIterator) AddResolver(resolver NodeResolver) {
 	it.resolver = resolver
 }
 
@@ -371,12 +377,15 @@ func (it *nodeIterator) peekSeek(seekKey []byte) (*nodeIteratorState, *int, []by
 
 func (it *nodeIterator) resolveHash(hash hashNode, path []byte) (node, error) {
 	if it.resolver != nil {
-		if blob, err := it.resolver.Get(hash); err == nil && len(blob) > 0 {
+		// Support hash/path from memory.
+		if blob := it.resolver(it.trie.owner, path, common.BytesToHash(hash)); len(blob) > 0 {
 			if resolved, err := decodeNode(hash, blob); err == nil {
 				return resolved, nil
 			}
 		}
 	}
+
+	// Retrieve the specified node from the underlying node reader.
 	blob, err := it.trie.reader.node(path, common.BytesToHash(hash))
 	if err != nil {
 		return nil, err
@@ -389,7 +398,7 @@ func (it *nodeIterator) resolveHash(hash hashNode, path []byte) (node, error) {
 
 func (it *nodeIterator) resolveBlob(hash hashNode, path []byte) ([]byte, error) {
 	if it.resolver != nil {
-		if blob, err := it.resolver.Get(hash); err == nil && len(blob) > 0 {
+		if blob := it.resolver(it.trie.owner, path, common.BytesToHash(hash)); len(blob) > 0 {
 			return blob, nil
 		}
 	}
@@ -593,7 +602,7 @@ func (it *differenceIterator) NodeBlob() []byte {
 	return it.b.NodeBlob()
 }
 
-func (it *differenceIterator) AddResolver(resolver ethdb.KeyValueStore) {
+func (it *differenceIterator) AddResolver(resolver NodeResolver) {
 	panic("not implemented")
 }
 
@@ -708,7 +717,7 @@ func (it *unionIterator) NodeBlob() []byte {
 	return (*it.items)[0].NodeBlob()
 }
 
-func (it *unionIterator) AddResolver(resolver ethdb.KeyValueStore) {
+func (it *unionIterator) AddResolver(resolver NodeResolver) {
 	panic("not implemented")
 }
 
