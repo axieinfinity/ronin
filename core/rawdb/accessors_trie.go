@@ -208,8 +208,11 @@ func ReadTrieNode(db ethdb.KeyValueReader, owner common.Hash, path []byte, hash 
 		} else {
 			blob, nHash = ReadStorageTrieNode(db, owner, path)
 		}
-		if nHash != hash {
+		if len(blob) == 0 {
 			return nil
+		}
+		if nHash != hash {
+			return nil // Exists but not match
 		}
 		return blob
 	default:

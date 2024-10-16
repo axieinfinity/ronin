@@ -762,6 +762,7 @@ func testSyncWithStorage(t *testing.T, scheme string) {
 			})
 		}
 	)
+	// Create 3 accounts with 3000 storage slots each, code is true, and boundary is false.
 	nodeScheme, sourceAccountTrie, elems, storageTries, storageElems := makeAccountTrieWithStorage(scheme, 3, 3000, true, false)
 
 	mkSource := func(name string) *testPeer {
@@ -1660,7 +1661,7 @@ func makeAccountTrieWithStorage(scheme string, accounts, slots int, code, bounda
 // not-yet-committed trie and the sorted entries. The seeds can be used to ensure
 // that tries are unique.
 func makeStorageTrieWithSeed(owner common.Hash, n, seed uint64, db *trie.Database) (common.Hash, *trienode.NodeSet, entrySlice) {
-	trie, _ := trie.New(trie.StorageTrieID(common.Hash{}, owner, common.Hash{}), db)
+	trie, _ := trie.New(trie.StorageTrieID(types.EmptyRootHash, owner, types.EmptyRootHash), db)
 	var entries entrySlice
 	for i := uint64(1); i <= n; i++ {
 		// store 'x' at slot 'x'
@@ -1686,7 +1687,7 @@ func makeBoundaryStorageTrie(owner common.Hash, n int, db *trie.Database) (commo
 	var (
 		entries    entrySlice
 		boundaries []common.Hash
-		trie, _    = trie.New(trie.StorageTrieID(common.Hash{}, owner, common.Hash{}), db)
+		trie, _    = trie.New(trie.StorageTrieID(types.EmptyRootHash, owner, types.EmptyRootHash), db)
 	)
 	// Initialize boundaries
 	var next common.Hash
