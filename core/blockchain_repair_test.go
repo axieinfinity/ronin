@@ -1753,7 +1753,7 @@ func testLongReorgedFastSyncingDeepRepair(t *testing.T, snapshots bool) {
 }
 
 func testRepair(t *testing.T, tt *rewindTest, snapshots bool) {
-	//testRepairWithScheme(t, tt, snapshots, rawdb.PathScheme)
+	testRepairWithScheme(t, tt, snapshots, rawdb.PathScheme)
 	testRepairWithScheme(t, tt, snapshots, rawdb.HashScheme)
 }
 

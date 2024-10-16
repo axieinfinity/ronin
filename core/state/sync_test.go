@@ -135,10 +135,10 @@ func checkStateConsistency(db ethdb.Database, scheme string, root common.Hash) e
 	if scheme == rawdb.PathScheme {
 		config.PathDB = pathdb.Defaults
 	}
-	// Create and iterate a state trie rooted in a sub-node
-	if _, err := db.Get(root.Bytes()); err != nil {
-		return nil // Consider a non existent state consistent.
-	}
+	// // Create and iterate a state trie rooted in a sub-node
+	// if _, err := db.Get(root.Bytes()); err != nil {
+	// 	return err // Consider a non existent state consistent.
+	// }
 	state, err := New(root, NewDatabaseWithConfig(db, config), nil)
 	if err != nil {
 		return err
@@ -321,7 +321,7 @@ func TestIterativeDelayedStateSync(t *testing.T) {
 
 func testIterativeDelayedStateSync(t *testing.T, scheme string) {
 	// Create a random state to copy
-	_, _, ndb, srcRoot, srcAccounts := makeTestState(scheme)
+	_, srcDb, ndb, srcRoot, srcAccounts := makeTestState(scheme)
 
 	// Create a destination state and sync with the scheduler
 	dstDb := rawdb.NewMemoryDatabase()
@@ -354,8 +354,7 @@ func testIterativeDelayedStateSync(t *testing.T, scheme string) {
 		if len(codeElements) > 0 {
 			codeResults := make([]trie.CodeSyncResult, len(codeElements)/2+1)
 			for i, element := range codeElements[:len(codeResults)] {
-				owner, inner := trie.ResolvePath([]byte(element.path))
-				data, err := reader.Node(owner, inner, element.hash)
+				data, err := srcDb.ContractCode(common.Hash{}, element.code)
 				if err != nil {
 					t.Fatalf("failed to retrieve contract bytecode for %x", element.code)
 				}
@@ -636,7 +635,7 @@ func testIncompleteStateSync(t *testing.T, scheme string) {
 		addedPaths  []string
 		addedHashes []common.Hash
 	)
-	reader, err := srcDb.TrieDB().Reader(srcRoot)
+	reader, err := ndb.Reader(srcRoot)
 	if err != nil {
 		t.Fatalf("state is not available %x", srcRoot)
 	}
@@ -736,6 +735,7 @@ func testIncompleteStateSync(t *testing.T, scheme string) {
 		}
 		rawdb.WriteCode(dstDb, node, val)
 	}
+
 	for i, path := range addedPaths {
 		owner, inner := trie.ResolvePath([]byte(path))
 		hash := addedHashes[i]
@@ -744,8 +744,10 @@ func testIncompleteStateSync(t *testing.T, scheme string) {
 			t.Error("missing trie node")
 		}
 		rawdb.DeleteTrieNode(dstDb, owner, inner, hash, scheme)
+
 		if err := checkStateConsistency(dstDb, ndb.Scheme(), srcRoot); err == nil {
 			t.Errorf("trie inconsistency not caught, missing: %v", path)
+
 		}
 		rawdb.WriteTrieNode(dstDb, owner, inner, hash, val, scheme)
 	}
