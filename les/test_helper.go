@@ -204,7 +204,7 @@ func newTestClientHandler(backend *backends.SimulatedBackend, odr *LesOdr, index
 		}
 		oracle *checkpointoracle.CheckpointOracle
 	)
-	genesis := gspec.MustCommit(db, nil)
+	genesis := gspec.MustCommit(db, trie.NewDatabase(db, trie.HashDefaults))
 	chain, _ := light.NewLightChain(odr, gspec.Config, engine, nil)
 	if indexers != nil {
 		checkpointConfig := &params.CheckpointOracleConfig{

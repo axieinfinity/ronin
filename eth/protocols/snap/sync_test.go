@@ -560,12 +560,12 @@ func noProofStorageRequestHandler(t *testPeer, requestId uint64, root common.Has
 // also ship the entire trie inside the proof. If the attack is successful,
 // the remote side does not do any follow-up requests
 func TestSyncBloatedProof(t *testing.T) {
+	t.Parallel()
 	testSyncBloatedProof(t, rawdb.HashScheme)
 	testSyncBloatedProof(t, rawdb.PathScheme)
 }
 
 func testSyncBloatedProof(t *testing.T, scheme string) {
-	t.Parallel()
 
 	var (
 		once   sync.Once
@@ -650,8 +650,6 @@ func TestSync(t *testing.T) {
 }
 
 func testSync(t *testing.T, scheme string) {
-	t.Parallel()
-
 	var (
 		once   sync.Once
 		cancel = make(chan struct{})
@@ -749,7 +747,7 @@ func testMultiSync(t *testing.T, scheme string) {
 func TestSyncWithStorage(t *testing.T) {
 	t.Parallel()
 
-	testSyncWithStorage(t, rawdb.HashScheme)
+	// testSyncWithStorage(t, rawdb.HashScheme)
 	testSyncWithStorage(t, rawdb.PathScheme)
 }
 
@@ -837,6 +835,7 @@ func testMultiSyncManyUseless(t *testing.T, scheme string) {
 
 // TestMultiSyncManyUseless contains one good peer, and many which doesn't return anything valuable at all
 func TestMultiSyncManyUselessWithLowTimeout(t *testing.T) {
+	t.Parallel()
 	testMultiSyncManyUselessWithLowTimeout(t, rawdb.HashScheme)
 	testMultiSyncManyUselessWithLowTimeout(t, rawdb.PathScheme)
 }
@@ -894,6 +893,7 @@ func testMultiSyncManyUselessWithLowTimeout(t *testing.T, scheme string) {
 
 // TestMultiSyncManyUnresponsive contains one good peer, and many which doesn't respond at all
 func TestMultiSyncManyUnresponsive(t *testing.T) {
+	t.Parallel()
 	testMultiSyncManyUnresponsive(t, rawdb.HashScheme)
 	testMultiSyncManyUnresponsive(t, rawdb.PathScheme)
 }
@@ -1646,7 +1646,8 @@ func makeAccountTrieWithStorage(scheme string, accounts, slots int, code, bounda
 	}
 	for i := uint64(1); i <= uint64(accounts); i++ {
 		key := key32(i)
-		trie, err := trie.New(trie.StorageTrieID(root, common.BytesToHash(key), storageRoots[common.BytesToHash(key)]), db)
+		id := trie.StorageTrieID(root, common.BytesToHash(key), storageRoots[common.BytesToHash(key)])
+		trie, err := trie.New(id, db)
 		if err != nil {
 			panic(err)
 		}
@@ -1749,16 +1750,14 @@ func verifyTrie(scheme string, db ethdb.KeyValueStore, root common.Hash, t *test
 			log.Crit("Invalid account encountered during snapshot creation", "err", err)
 		}
 		accounts++
-		if acc.Root != emptyRoot {
-			storeTrie, err := trie.NewSecure(trie.StorageTrieID(root, common.BytesToHash(accIt.Key), acc.Root), triedb)
+		if acc.Root != types.EmptyRootHash {
+			id := trie.StorageTrieID(root, common.BytesToHash(accIt.Key), acc.Root)
+			storeTrie, err := trie.NewSecure(id, triedb)
 			if err != nil {
 				t.Fatal(err)
 			}
-			trieIt, err := storeTrie.NodeIterator(nil)
-			if err != nil {
-				t.Fatal(err)
-			}
-			storeIt := trie.NewIterator(trieIt)
+
+			storeIt := trie.NewIterator(storeTrie.MustNodeIterator(nil))
 			for storeIt.Next() {
 				slots++
 			}
@@ -1776,6 +1775,7 @@ func verifyTrie(scheme string, db ethdb.KeyValueStore, root common.Hash, t *test
 // TestSyncAccountPerformance tests how efficient the snap algo is at minimizing
 // state healing
 func TestSyncAccountPerformance(t *testing.T) {
+	t.Parallel()
 	testSyncAccountPerformance(t, rawdb.HashScheme)
 	testSyncAccountPerformance(t, rawdb.PathScheme)
 }

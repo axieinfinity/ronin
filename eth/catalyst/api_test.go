@@ -29,6 +29,7 @@ import (
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
 	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/trie"
 )
 
 var (
@@ -57,7 +58,7 @@ func generateTestChain() (*core.Genesis, []*types.Block) {
 	}
 	gblock := genesis.ToBlock()
 	engine := ethash.NewFaker()
-	genesis.MustCommit(db, nil)
+	genesis.MustCommit(db, trie.NewDatabase(db, trie.HashDefaults))
 	blocks, _ := core.GenerateChain(config, gblock, engine, db, 10, generate, true)
 	blocks = append([]*types.Block{gblock}, blocks...)
 	return genesis, blocks
