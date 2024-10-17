@@ -240,21 +240,21 @@ func createMiner(t *testing.T) (*Miner, *event.TypeMux) {
 	memdb := memorydb.New()
 	chainDB := rawdb.NewDatabase(memdb)
 	genesis := core.DeveloperGenesisBlock(15, 11_500_000, common.HexToAddress("12345"))
-	chainConfig, _, err := core.SetupGenesisBlock(chainDB, genesis, false)
+	loadedChainConfig, err := core.LoadChainConfig(chainDB, genesis)
 	if err != nil {
-		t.Fatalf("can't create new chain config: %v", err)
+		t.Fatalf("can't load chain config: %v", err)
 	}
 	// Create consensus engine
-	engine := clique.New(chainConfig.Clique, chainDB)
+	engine := clique.New(loadedChainConfig.Clique, chainDB)
 	// Create Ethereum backend
-	bc, err := core.NewBlockChain(chainDB, nil, chainConfig, engine, vm.Config{}, nil, nil)
+	bc, err := core.NewBlockChain(chainDB, nil, genesis, nil, engine, vm.Config{}, nil, nil)
 	if err != nil {
 		t.Fatalf("can't create new chain %v", err)
 	}
 	statedb, _ := state.New(common.Hash{}, state.NewDatabase(chainDB), nil)
 	blockchain := &testBlockChain{statedb, 10000000, new(event.Feed)}
 
-	legacyPool := legacypool.New(testTxPoolConfig, chainConfig, blockchain)
+	legacyPool := legacypool.New(testTxPoolConfig, bc.Config(), blockchain)
 	txPool, err := txpool.New(testTxPoolConfig.PriceLimit, blockchain, []txpool.SubPool{legacyPool})
 	if err != nil {
 		t.Fatal(err)
@@ -263,5 +263,5 @@ func createMiner(t *testing.T) (*Miner, *event.TypeMux) {
 	// Create event Mux
 	mux := new(event.TypeMux)
 	// Create Miner
-	return New(backend, &config, chainConfig, mux, engine, nil), mux
+	return New(backend, &config, bc.Config(), mux, engine, nil), mux
 }

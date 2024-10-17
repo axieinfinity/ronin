@@ -21,9 +21,10 @@ import (
 	"encoding/binary"
 	"fmt"
 
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/ethdb/memorydb"
+	"github.com/ethereum/go-ethereum/core/rawdb"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/trie"
+	"github.com/ethereum/go-ethereum/trie/trienode"
 )
 
 // randTest performs random trie operations.
@@ -124,8 +125,10 @@ func Generate(input []byte) randTest {
 
 // The function must return
 // 1 if the fuzzer should increase priority of the
-//    given input during subsequent fuzzing (for example, the input is lexically
-//    correct and was parsed successfully);
+//
+//	given input during subsequent fuzzing (for example, the input is lexically
+//	correct and was parsed successfully);
+//
 // -1 if the input must not be added to corpus even if gives new coverage; and
 // 0  otherwise
 // other values are reserved for future use.
@@ -141,11 +144,12 @@ func Fuzz(input []byte) int {
 }
 
 func runRandTest(rt randTest) error {
-
-	triedb := trie.NewDatabase(memorydb.New())
-
-	tr, _ := trie.New(common.Hash{}, triedb)
-	values := make(map[string]string) // tracks content of the trie
+	var (
+		triedb = trie.NewDatabase(rawdb.NewMemoryDatabase())
+		tr     = trie.NewEmpty(triedb)
+		origin = types.EmptyRootHash
+		values = make(map[string]string) // tracks content of the trie
+	)
 
 	for i, step := range rt {
 		switch step.op {
@@ -161,22 +165,26 @@ func runRandTest(rt randTest) error {
 			if string(v) != want {
 				rt[i].err = fmt.Errorf("mismatch for key 0x%x, got 0x%x want 0x%x", step.key, v, want)
 			}
-		case opCommit:
-			_, _, rt[i].err = tr.Commit(nil)
 		case opHash:
 			tr.Hash()
-		case opReset:
-			hash, _, err := tr.Commit(nil)
+		case opCommit:
+			hash, nodes, err := tr.Commit(false)
 			if err != nil {
 				return err
 			}
-			newtr, err := trie.New(hash, triedb)
+			if nodes != nil {
+				if err := triedb.Update(hash, origin, 0, trienode.NewWithNodeSet(nodes), nil); err != nil {
+					return err
+				}
+			}
+			newtr, err := trie.New(trie.TrieID(hash), triedb)
 			if err != nil {
 				return err
 			}
 			tr = newtr
+			origin = hash
 		case opItercheckhash:
-			checktr, _ := trie.New(common.Hash{}, triedb)
+			checktr := trie.NewEmpty(triedb)
 			it := trie.NewIterator(tr.NodeIterator(nil))
 			for it.Next() {
 				checktr.Update(it.Key, it.Value)

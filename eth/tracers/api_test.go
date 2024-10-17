@@ -46,6 +46,7 @@ import (
 	"github.com/ethereum/go-ethereum/internal/ethapi"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/ethereum/go-ethereum/trie"
 )
 
 var (
@@ -84,13 +85,13 @@ func newTestBackend(t *testing.T, n int, gspec *core.Genesis, generator func(i i
 		TrieDirtyDisabled: true, // Archive mode
 	}
 
-	_, _, genesisErr := core.SetupGenesisBlockWithOverride(backend.chaindb, gspec, nil, true)
+	_, _, genesisErr := core.SetupGenesisBlockWithOverride(backend.chaindb, trie.NewDatabase(backend.chaindb), gspec, nil, true)
 	if _, ok := genesisErr.(*params.ConfigCompatError); genesisErr != nil && !ok {
 		t.Fatal(genesisErr.Error())
 	}
 
 	//chainDb, cacheConfig, chainConfig, eth.engine, vmConfig, eth.shouldPreserve, &config.TxLookupLimit
-	chain, err := core.NewBlockChain(backend.chaindb, cacheConfig, gspec.Config, backend.engine, vm.Config{}, nil, nil)
+	chain, err := core.NewBlockChain(backend.chaindb, cacheConfig, gspec, nil, backend.engine, vm.Config{}, nil, nil)
 	if err != nil {
 		t.Fatalf("failed to create tester chain: %v", err)
 	}

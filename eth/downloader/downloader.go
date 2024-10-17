@@ -202,6 +202,10 @@ type BlockChain interface {
 
 	// Snapshots returns the blockchain snapshot tree to paused it during sync.
 	Snapshots() *snapshot.Tree
+
+	// TrieDB retrieves the low level trie database used for interacting
+	// with the trie nodes.
+	TrieDB() *trie.Database
 }
 
 // New creates a new downloader to fetch hashes and blocks from remote peers.
@@ -230,7 +234,7 @@ func New(checkpoint uint64, stateDb ethdb.Database, stateBloom *trie.SyncBloom, 
 		headerProcCh:     make(chan []*types.Header, 1),
 		quitCh:           make(chan struct{}),
 		stateCh:          make(chan dataPack),
-		SnapSyncer:       snap.NewSyncer(stateDb),
+		SnapSyncer:       snap.NewSyncer(stateDb, chain.TrieDB().Scheme()),
 		stateSyncStart:   make(chan *stateSync),
 		syncStatsState: stateSyncStats{
 			processed: rawdb.ReadFastTrieProgress(stateDb),

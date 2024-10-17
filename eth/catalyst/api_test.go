@@ -55,8 +55,9 @@ func generateTestChain() (*core.Genesis, []*types.Block) {
 		g.OffsetTime(5)
 		g.SetExtra([]byte("test"))
 	}
-	gblock := genesis.ToBlock(db)
+	gblock := genesis.ToBlock()
 	engine := ethash.NewFaker()
+	genesis.MustCommit(db)
 	blocks, _ := core.GenerateChain(config, gblock, engine, db, 10, generate, true)
 	blocks = append([]*types.Block{gblock}, blocks...)
 	return genesis, blocks
@@ -100,7 +101,7 @@ func generateTestChainWithFork(n int, fork int) (*core.Genesis, []*types.Block, 
 		g.OffsetTime(5)
 		g.SetExtra([]byte("testF"))
 	}
-	gblock := genesis.ToBlock(db)
+	gblock := genesis.MustCommit(db)
 	engine := ethash.NewFaker()
 	blocks, _ := core.GenerateChain(config, gblock, engine, db, n, generate)
 	blocks = append([]*types.Block{gblock}, blocks...)
