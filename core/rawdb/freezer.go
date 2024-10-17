@@ -29,7 +29,7 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/params"
-	"github.com/prometheus/tsdb/fileutil"
+	"github.com/gofrs/flock"
 )
 
 var (
@@ -75,7 +75,7 @@ type Freezer struct {
 
 	readonly     bool
 	tables       map[string]*freezerTable // Data tables for storing everything
-	instanceLock fileutil.Releaser        // File-system lock to prevent double opens
+	instanceLock *flock.Flock             // File-system lock to prevent double opens
 
 	trigger chan chan struct{} // Manual blocking freeze trigger, test determinism
 
@@ -103,11 +103,17 @@ func NewFreezer(datadir string, namespace string, readonly bool, maxTableSize ui
 			return nil, errSymlinkDatadir
 		}
 	}
+	flockFile := filepath.Join(datadir, "FLOCK")
+	if err := os.MkdirAll(filepath.Dir(flockFile), 0755); err != nil {
+		return nil, err
+	}
 	// Leveldb uses LOCK as the filelock filename. To prevent the
 	// name collision, we use FLOCK as the lock name.
-	lock, _, err := fileutil.Flock(filepath.Join(datadir, "FLOCK"))
-	if err != nil {
+	lock := flock.New(flockFile)
+	if locked, err := lock.TryLock(); err != nil {
 		return nil, err
+	} else if !locked {
+		return nil, errors.New("locking failed")
 	}
 	// Open all the supported data tables
 	freezer := &Freezer{
@@ -128,18 +134,25 @@ func NewFreezer(datadir string, namespace string, readonly bool, maxTableSize ui
 			for _, table := range freezer.tables {
 				table.Close()
 			}
-			lock.Release()
+			lock.Unlock()
 			return nil, err
 		}
 		freezer.tables[name] = table
 	}
-
-	// Truncate all tables to common length, then close
-	if err := freezer.repair(); err != nil {
+	var err error
+	if freezer.readonly {
+		// In readonly mode only validate, don't truncate.
+		// validate also sets `freezer.frozen`.
+		err = freezer.validate()
+	} else {
+		// Truncate all tables to common length.
+		err = freezer.repair()
+	}
+	if err != nil {
 		for _, table := range freezer.tables {
 			table.Close()
 		}
-		lock.Release()
+		lock.Unlock()
 		return nil, err
 	}
 
@@ -165,7 +178,7 @@ func (f *Freezer) Close() error {
 				errs = append(errs, err)
 			}
 		}
-		if err := f.instanceLock.Release(); err != nil {
+		if err := f.instanceLock.Unlock(); err != nil {
 			errs = append(errs, err)
 		}
 	})
@@ -198,7 +211,7 @@ func (f *Freezer) Ancient(kind string, number uint64) ([]byte, error) {
 //   - if maxBytes is specified: at least 1 item (even if exceeding the maxByteSize),
 //     but will otherwise return as many items as fit into maxByteSize.
 //   - if maxBytes is not specified, 'count' items will be returned if they are present.Retru
-//   - if maxBytes is not specified, 'count' items will be returned if they are present.Retru 
+//   - if maxBytes is not specified, 'count' items will be returned if they are present.Retru
 func (f *Freezer) AncientRange(kind string, start, count, maxBytes uint64) ([][]byte, error) {
 	if table := f.tables[kind]; table != nil {
 		return table.RetrieveItems(start, count, maxBytes)
@@ -362,6 +375,38 @@ func (f *Freezer) repair() error {
 		}
 	}
 	// Update frozen and tail counters.
+	f.frozen.Store(head)
+	f.tail.Store(tail)
+	return nil
+}
+
+// validate checks that every table has the same boundary.
+// Used instead of `repair` in readonly mode.
+func (f *Freezer) validate() error {
+	if len(f.tables) == 0 {
+		return nil
+	}
+	var (
+		head uint64
+		tail uint64
+		name string
+	)
+	// Hack to get boundary of any table
+	for kind, table := range f.tables {
+		head = table.items.Load()
+		tail = table.itemHidden.Load()
+		name = kind
+		break
+	}
+	// Now check every table against those boundaries.
+	for kind, table := range f.tables {
+		if head != table.items.Load() {
+			return fmt.Errorf("freezer tables %s and %s have differing head: %d != %d", kind, name, table.items.Load(), head)
+		}
+		if tail != table.itemHidden.Load() {
+			return fmt.Errorf("freezer tables %s and %s have differing tail: %d != %d", kind, name, table.itemHidden.Load(), tail)
+		}
+	}
 	f.frozen.Store(head)
 	f.tail.Store(tail)
 	return nil

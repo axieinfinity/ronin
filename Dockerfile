@@ -1,5 +1,5 @@
 # Build Geth in a stock Go builder container
-FROM golang:1.20.10-alpine3.18@sha256:0d6e012ec44ed21993ee2ccf05839844f13347165ce7599a8e8442b02f836b45 as builder
+FROM golang:1.22.8-alpine3.19@sha256:fe5bea2e1ab3ffebe0267393fea88fcb197e2dbbb1e2dbabeec6dd9ccb0e1871 as builder
 
 RUN apk add --no-cache make gcc musl-dev linux-headers git libstdc++-dev
 
@@ -7,7 +7,7 @@ COPY . /opt
 RUN cd /opt && make ronin
 
 # Pull Geth into a second stage deploy alpine container
-FROM alpine:3.18@sha256:5292533eb4efd4b5cf35e93b5a2b7d0e07ea193224c49446c7802c19ee4f2da5
+FROM alpine:3.19@sha256:ae65dbf8749a7d4527648ccee1fa3deb6bfcae34cbc30fc67aa45c44dcaa90ee
 
 RUN apk add --no-cache ca-certificates
 WORKDIR "/opt"
