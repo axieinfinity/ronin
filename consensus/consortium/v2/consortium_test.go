@@ -1447,7 +1447,6 @@ func testVeiryVote(t *testing.T, scheme string) {
 		BaseFee: big.NewInt(params.InitialBaseFee),
 	}
 	genesis := gspec.MustCommit(db, trie.NewDatabase(db, nil))
-	triedb.Close()
 	chain, _ := core.NewBlockChain(db, core.DefaultCacheConfigWithScheme(scheme), gspec, nil, ethash.NewFullFaker(), vm.Config{}, nil, nil)
 
 	bs, _ := core.GenerateChain(params.TestChainConfig, genesis, ethash.NewFaker(), db, 1, nil, true)
@@ -1584,7 +1583,6 @@ func testKnowBlockReorg(t *testing.T, scheme string) {
 		Config: &chainConfig,
 	}
 	genesis := gspec.MustCommit(db, trie.NewDatabase(db, nil))
-	triedb.Close()
 
 	mock := &mockContract{
 		validators: make(map[common.Address]blsCommon.PublicKey),
@@ -1842,7 +1840,6 @@ func testUpgradeRoninTrustedOrg(t *testing.T, scheme string) {
 		},
 	}
 	genesis := gspec.MustCommit(db, trie.NewDatabase(db, nil))
-	triedb.Close()
 
 	mock := &mockContract{
 		validators: map[common.Address]blsCommon.PublicKey{
@@ -1990,7 +1987,6 @@ func testUpgradeAxieProxyCode(t *testing.T, scheme string) {
 		Config: chainConfig,
 	}
 	genesis := gspec.MustCommit(db, trie.NewDatabase(db, nil))
-	triedb.Close()
 	mock := &mockTrippContract{
 		checkpointValidators: []validatorWithBlsWeight{
 			validatorWithBlsWeight{
@@ -2123,7 +2119,6 @@ func testSystemTransactionOrder(t *testing.T, scheme string) {
 		},
 	}
 	genesis := gspec.MustCommit(db, trie.NewDatabase(db, nil))
-	triedb.Close()
 
 	mock := &mockContract{
 		validators: map[common.Address]blsCommon.PublicKey{
@@ -2251,7 +2246,6 @@ func testIsPeriodBlock(t *testing.T, scheme string) {
 		Timestamp: midnight, // genesis at day 1
 	}
 	genesis := gspec.MustCommit(db, trie.NewDatabase(db, nil))
-	triedb.Close()
 	chain, _ := core.NewBlockChain(db, core.DefaultCacheConfigWithScheme(scheme), gspec, nil, ethash.NewFullFaker(), vm.Config{}, nil, nil)
 	// create chain of up to 399 blocks, all of them are not period block
 	bs, _ := core.GenerateChain(&chainConfig, genesis, ethash.NewFaker(), db, 399, nil, true) // create chain of up to 399 blocks
@@ -2354,7 +2348,6 @@ func testIsTrippEffective(t *testing.T, scheme string) {
 		Timestamp: midnight, // genesis at day 1
 	}
 	genesis := gspec.MustCommit(db, trie.NewDatabase(db, nil))
-	triedb.Close()
 	chain, _ := core.NewBlockChain(db, core.DefaultCacheConfigWithScheme(scheme), gspec, nil, ethash.NewFullFaker(), vm.Config{}, nil, nil)
 	// create chain of up to 399 blocks, all of them are not Tripp effective
 	bs, _ := core.GenerateChain(&chainConfig, genesis, ethash.NewFaker(), db, 399, nil, true)
