@@ -747,7 +747,7 @@ func testMultiSync(t *testing.T, scheme string) {
 func TestSyncWithStorage(t *testing.T) {
 	t.Parallel()
 
-	// testSyncWithStorage(t, rawdb.HashScheme)
+	testSyncWithStorage(t, rawdb.HashScheme)
 	testSyncWithStorage(t, rawdb.PathScheme)
 }
 

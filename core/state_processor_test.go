@@ -496,7 +496,8 @@ func TestBlobTxStateTransition(t *testing.T) {
 				Alloc:   GenesisAlloc{addr: {Balance: funds}},
 				BaseFee: big.NewInt(params.InitialBaseFee),
 			}
-			genesis = gspec.MustCommit(gendb, trie.NewDatabase(gendb, newDbConfig(rawdb.HashScheme)))
+			triedb  = trie.NewDatabase(gendb, nil)
+			genesis = gspec.MustCommit(gendb, triedb)
 			signer  = types.LatestSigner(gspec.Config)
 		)
 		gspec.Config.ConsortiumV2Block = common.Big0
@@ -574,7 +575,8 @@ func TestBaseFee(t *testing.T) {
 			Alloc:   GenesisAlloc{addr: {Balance: big.NewInt(int64(initialFund))}},
 			BaseFee: big.NewInt(params.InitialBaseFee),
 		}
-		genesis = gspec.MustCommit(gendb, trie.NewDatabase(gendb, newDbConfig(rawdb.HashScheme)))
+		triedb  = trie.NewDatabase(gendb, nil)
+		genesis = gspec.MustCommit(gendb, triedb)
 		signer  = types.LatestSigner(gspec.Config)
 	)
 	gspec.Config.ConsortiumV2Block = common.Big0
