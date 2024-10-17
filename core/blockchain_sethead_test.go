@@ -1985,7 +1985,8 @@ func testSetHeadWithScheme(t *testing.T, tt *rewindTest, snapshots bool, scheme 
 	// Initialize a fresh chain
 	var (
 		gspec   = &Genesis{Config: params.TestChainConfig, BaseFee: big.NewInt(params.InitialBaseFee)}
-		genesis = gspec.MustCommit(db, trie.NewDatabase(db, newDbConfig(scheme)))
+		triedb  = trie.NewDatabase(db, newDbConfig(scheme))
+		genesis = gspec.MustCommit(db, triedb)
 		engine  = ethash.NewFullFaker()
 		config  = &CacheConfig{
 			TrieCleanLimit: 256,
@@ -1995,6 +1996,7 @@ func testSetHeadWithScheme(t *testing.T, tt *rewindTest, snapshots bool, scheme 
 			StateScheme:    scheme,
 		}
 	)
+	triedb.Close()
 	if snapshots {
 		config.SnapshotLimit = 256
 		config.SnapshotWait = true
