@@ -21,6 +21,7 @@ import (
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/core/rawdb"
+	"github.com/ethereum/go-ethereum/trie"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/consensus"
@@ -264,7 +265,7 @@ func generateChain(
 	}
 	blocks, receipts := make(types.Blocks, n), make([]types.Receipts, n)
 	chainreader := newFakeChainReader(config, db)
-	genblock := func(i int, parent *types.Block, statedb *state.StateDB) (*types.Block, types.Receipts) {
+	genblock := func(i int, parent *types.Block, triedb *trie.Database, statedb *state.StateDB) (*types.Block, types.Receipts) {
 		b := &BlockGen{i: i, chain: blocks, parent: parent, statedb: statedb, config: config, engine: engine}
 		b.header = makeHeader(chainreader, parent, statedb, b.engine)
 
@@ -323,7 +324,7 @@ func generateChain(
 				panic(fmt.Sprintf("state write error: %v", err))
 			}
 			if flushDisk {
-				if err := statedb.Database().TrieDB().Commit(root, false); err != nil {
+				if err := triedb.Commit(root, false); err != nil {
 					panic(fmt.Sprintf("trie write error: %v", err))
 				}
 			}
@@ -331,14 +332,16 @@ func generateChain(
 		}
 		return nil, nil
 	}
-	// Create an ephemeral database
-	database := state.NewDatabase(db)
+	// Forcibly use hash-based state scheme for retaining all nodes in disk.
+	triedb := trie.NewDatabase(db, trie.HashDefaults)
+	defer triedb.Close()
+
 	for i := 0; i < n; i++ {
-		statedb, err := state.New(parent.Root(), database, nil)
+		statedb, err := state.New(parent.Root(), state.NewDatabaseWithNodeDB(db, triedb), nil)
 		if err != nil {
 			panic(err)
 		}
-		block, receipt := genblock(i, parent, statedb)
+		block, receipt := genblock(i, parent, triedb, statedb)
 
 		// Prepare Blob receipt
 		var blobGasPrice *big.Int
@@ -362,7 +365,10 @@ func generateChain(
 // then generate chain on top.
 func GenerateChainWithGenesis(genesis *Genesis, engine consensus.Engine, n int, gen func(int, *BlockGen)) (ethdb.Database, []*types.Block, []types.Receipts) {
 	db := rawdb.NewMemoryDatabase()
-	genesis.MustCommit(db)
+	triedb := trie.NewDatabase(db, trie.HashDefaults)
+
+	defer triedb.Close()
+	genesis.MustCommit(db, triedb)
 	blocks, receipts := GenerateChain(genesis.Config, genesis.ToBlock(), engine, db, n, gen, true)
 	return db, blocks, receipts
 }

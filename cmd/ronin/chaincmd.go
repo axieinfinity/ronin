@@ -38,7 +38,6 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/node"
-	"github.com/ethereum/go-ethereum/trie"
 	"github.com/urfave/cli/v2"
 )
 
@@ -52,6 +51,8 @@ var (
 			utils.DataDirFlag,
 			utils.DBEngineFlag,
 			utils.ForceOverrideChainConfigFlag,
+			utils.CachePreimagesFlag,
+			utils.StateSchemeFlag,
 		},
 		Category: "BLOCKCHAIN COMMANDS",
 		Description: `
@@ -106,6 +107,9 @@ The dumpgenesis command dumps the genesis block configuration in JSON format to 
 			utils.MetricsInfluxDBBucketFlag,
 			utils.MetricsInfluxDBOrganizationFlag,
 			utils.TxLookupLimitFlag,
+			utils.TransactionHistoryFlag,
+			utils.StateSchemeFlag,
+			utils.StateHistoryFlag,
 		},
 		Category: "BLOCKCHAIN COMMANDS",
 		Description: `
@@ -125,6 +129,7 @@ processing will proceed even if an individual RLP-file import failure occurs.`,
 			utils.DBEngineFlag,
 			utils.CacheFlag,
 			utils.SyncModeFlag,
+			utils.StateSchemeFlag,
 		},
 		Category: "BLOCKCHAIN COMMANDS",
 		Description: `
@@ -226,14 +231,13 @@ func initGenesis(ctx *cli.Context) error {
 			utils.Fatalf("Failed to open database: %v", err)
 		}
 		// Create triedb firstly
-		triedb := trie.NewDatabaseWithConfig(chaindb, &trie.Config{
-			Preimages: ctx.Bool(utils.CachePreimagesFlag.Name),
-		})
+
+		triedb := utils.MakeTrieDatabase(ctx, chaindb, ctx.Bool(utils.CachePreimagesFlag.Name), false)
+		defer chaindb.Close()
 		_, hash, err := core.SetupGenesisBlock(chaindb, triedb, genesis, overrideChainConfig)
 		if err != nil {
 			utils.Fatalf("Failed to write genesis block: %v", err)
 		}
-		chaindb.Close()
 		log.Info("Successfully wrote genesis state", "database", name, "hash", hash)
 	}
 	return nil
@@ -471,10 +475,10 @@ func dump(ctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	config := &trie.Config{
-		Preimages: true, // always enable preimage lookup
-	}
-	state, err := state.New(root, state.NewDatabaseWithConfig(db, config), nil)
+	triedb := utils.MakeTrieDatabase(ctx, db, true, false) // always enable preimage lookup
+	defer triedb.Close()
+	state, err := state.New(root, state.NewDatabaseWithNodeDB(db, triedb), nil)
+
 	if err != nil {
 		return err
 	}

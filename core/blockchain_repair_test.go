@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 	"math/big"
 	"os"
+	"path"
 	"testing"
 	"time"
 
@@ -33,6 +34,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/trie"
 )
 
 // Tests a recovery for a short canonical chain where a recent block was already
@@ -1751,12 +1753,18 @@ func testLongReorgedFastSyncingDeepRepair(t *testing.T, snapshots bool) {
 }
 
 func testRepair(t *testing.T, tt *rewindTest, snapshots bool) {
+	testRepairWithScheme(t, tt, snapshots, rawdb.PathScheme)
+	testRepairWithScheme(t, tt, snapshots, rawdb.HashScheme)
+}
+
+func testRepairWithScheme(t *testing.T, tt *rewindTest, snapshots bool, scheme string) {
 	// It's hard to follow the test case, visualize the input
 	//log.Root().SetHandler(log.LvlFilterHandler(log.LvlTrace, log.StreamHandler(os.Stderr, log.TerminalFormat(true))))
 	// fmt.Println(tt.dump(true))
 
 	// Create a temporary persistent database
 	datadir, err := ioutil.TempDir("", "")
+	ancient := path.Join(datadir, "ancient")
 	if err != nil {
 		t.Fatalf("Failed to create temporary datadir: %v", err)
 	}
@@ -1764,7 +1772,7 @@ func testRepair(t *testing.T, tt *rewindTest, snapshots bool) {
 
 	db, err := rawdb.Open(rawdb.OpenOptions{
 		Directory:         datadir,
-		AncientsDirectory: datadir,
+		AncientsDirectory: ancient,
 		Ephemeral:         true,
 	})
 	if err != nil {
@@ -1775,15 +1783,18 @@ func testRepair(t *testing.T, tt *rewindTest, snapshots bool) {
 	// Initialize a fresh chain
 	var (
 		gspec   = &Genesis{Config: params.TestChainConfig, BaseFee: big.NewInt(params.InitialBaseFee)}
-		genesis = gspec.MustCommit(db)
+		triedb  = trie.NewDatabase(db, nil)
+		genesis = gspec.MustCommit(db, triedb)
 		engine  = ethash.NewFullFaker()
 		config  = &CacheConfig{
 			TrieCleanLimit: 256,
 			TrieDirtyLimit: 256,
 			TrieTimeLimit:  5 * time.Minute,
 			SnapshotLimit:  0, // Disable snapshot by default
+			StateScheme:    scheme,
 		}
 	)
+	triedb.Close()
 	if snapshots {
 		config.SnapshotLimit = 256
 		config.SnapshotWait = true
@@ -1810,7 +1821,7 @@ func testRepair(t *testing.T, tt *rewindTest, snapshots bool) {
 		t.Fatalf("Failed to import canonical chain start: %v", err)
 	}
 	if tt.commitBlock > 0 {
-		chain.stateCache.TrieDB().Commit(canonblocks[tt.commitBlock-1].Root(), true)
+		chain.triedb.Commit(canonblocks[tt.commitBlock-1].Root(), true)
 		if snapshots {
 			if err := chain.snaps.Cap(canonblocks[tt.commitBlock-1].Root(), 0); err != nil {
 				t.Fatalf("Failed to flatten snapshots: %v", err)
@@ -1833,11 +1844,12 @@ func testRepair(t *testing.T, tt *rewindTest, snapshots bool) {
 	}
 	// Pull the plug on the database, simulating a hard crash
 	db.Close()
+	chain.triedb.Close()
 
 	// Start a new blockchain back up and see where the repair leads us
 	db, err = rawdb.Open(rawdb.OpenOptions{
 		Directory:         datadir,
-		AncientsDirectory: datadir,
+		AncientsDirectory: ancient,
 		Ephemeral:         true,
 	})
 
@@ -1846,7 +1858,7 @@ func testRepair(t *testing.T, tt *rewindTest, snapshots bool) {
 	}
 	defer db.Close()
 
-	chain, err = NewBlockChain(db, nil, gspec, nil, engine, vm.Config{}, nil, nil)
+	chain, err = NewBlockChain(db, config, gspec, nil, engine, vm.Config{}, nil, nil)
 	if err != nil {
 		t.Fatalf("Failed to recreate chain: %v", err)
 	}
@@ -1889,11 +1901,17 @@ func testRepair(t *testing.T, tt *rewindTest, snapshots bool) {
 // In this case the snapshot layer of B3 is not created because of existent
 // state.
 func TestIssue23496(t *testing.T) {
+	//testIssue23496(t, rawdb.HashScheme)
+	testIssue23496(t, rawdb.PathScheme)
+}
+
+func testIssue23496(t *testing.T, scheme string) {
 	// It's hard to follow the test case, visualize the input
 	//log.Root().SetHandler(log.LvlFilterHandler(log.LvlTrace, log.StreamHandler(os.Stderr, log.TerminalFormat(true))))
 
 	// Create a temporary persistent database
 	datadir, err := ioutil.TempDir("", "")
+	ancient := path.Join(datadir, "ancient")
 	if err != nil {
 		t.Fatalf("Failed to create temporary datadir: %v", err)
 	}
@@ -1901,7 +1919,7 @@ func TestIssue23496(t *testing.T) {
 
 	db, err := rawdb.Open(rawdb.OpenOptions{
 		Directory:         datadir,
-		AncientsDirectory: datadir,
+		AncientsDirectory: ancient,
 	})
 
 	if err != nil {
@@ -1912,7 +1930,8 @@ func TestIssue23496(t *testing.T) {
 	// Initialize a fresh chain
 	var (
 		gspec   = &Genesis{Config: params.TestChainConfig, BaseFee: big.NewInt(params.InitialBaseFee)}
-		genesis = gspec.MustCommit(db)
+		triedb  = trie.NewDatabase(db, nil)
+		genesis = gspec.MustCommit(db, triedb)
 		engine  = ethash.NewFullFaker()
 		config  = &CacheConfig{
 			TrieCleanLimit: 256,
@@ -1920,8 +1939,10 @@ func TestIssue23496(t *testing.T) {
 			TrieTimeLimit:  5 * time.Minute,
 			SnapshotLimit:  256,
 			SnapshotWait:   true,
+			StateScheme:    scheme,
 		}
 	)
+	triedb.Close()
 	chain, err := NewBlockChain(db, config, gspec, nil, engine, vm.Config{}, nil, nil)
 	if err != nil {
 		t.Fatalf("Failed to create chain: %v", err)
@@ -1935,7 +1956,7 @@ func TestIssue23496(t *testing.T) {
 	if _, err := chain.InsertChain(blocks[:1], nil); err != nil {
 		t.Fatalf("Failed to import canonical chain start: %v", err)
 	}
-	chain.stateCache.TrieDB().Commit(blocks[0].Root(), true)
+	chain.triedb.Commit(blocks[0].Root(), true)
 
 	// Insert block B2 and commit the snapshot into disk
 	if _, err := chain.InsertChain(blocks[1:2], nil); err != nil {
@@ -1949,20 +1970,20 @@ func TestIssue23496(t *testing.T) {
 	if _, err := chain.InsertChain(blocks[2:3], nil); err != nil {
 		t.Fatalf("Failed to import canonical chain start: %v", err)
 	}
-	chain.stateCache.TrieDB().Commit(blocks[2].Root(), true)
+	chain.triedb.Commit(blocks[2].Root(), true)
 
 	// Insert the remaining blocks
 	if _, err := chain.InsertChain(blocks[3:], nil); err != nil {
 		t.Fatalf("Failed to import canonical chain tail: %v", err)
 	}
-
 	// Pull the plug on the database, simulating a hard crash
 	db.Close()
+	chain.triedb.Close()
 
 	// Start a new blockchain back up and see where the repair leads us
 	db, err = rawdb.Open(rawdb.OpenOptions{
 		Directory:         datadir,
-		AncientsDirectory: datadir,
+		AncientsDirectory: ancient,
 		Ephemeral:         true,
 	})
 	if err != nil {
@@ -1970,7 +1991,7 @@ func TestIssue23496(t *testing.T) {
 	}
 	defer db.Close()
 
-	chain, err = NewBlockChain(db, nil, gspec, nil, engine, vm.Config{}, nil, nil)
+	chain, err = NewBlockChain(db, config, gspec, nil, engine, vm.Config{}, nil, nil)
 	if err != nil {
 		t.Fatalf("Failed to recreate chain: %v", err)
 	}
@@ -1982,8 +2003,12 @@ func TestIssue23496(t *testing.T) {
 	if head := chain.CurrentFastBlock(); head.NumberU64() != uint64(4) {
 		t.Errorf("Head fast block mismatch: have %d, want %d", head.NumberU64(), uint64(4))
 	}
-	if head := chain.CurrentBlock(); head.NumberU64() != uint64(1) {
-		t.Errorf("Head block mismatch: have %d, want %d", head.NumberU64(), uint64(1))
+	expHead := uint64(1)
+	if scheme == rawdb.PathScheme {
+		expHead = uint64(2)
+	}
+	if head := chain.CurrentBlock(); head.NumberU64() != expHead {
+		t.Errorf("Head block mismatch: have %d, want %d", head.NumberU64(), expHead)
 	}
 
 	// Reinsert B2-B4

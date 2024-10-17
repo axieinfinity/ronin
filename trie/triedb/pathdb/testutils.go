@@ -57,7 +57,7 @@ func newTestHasher(owner common.Hash, root common.Hash, cleans map[common.Hash][
 }
 
 // Get returns the value for key stored in the trie.
-func (h *testHasher) Get(key []byte) ([]byte, error) {
+func (h *testHasher) TryGet(key []byte) ([]byte, error) {
 	hash := common.BytesToHash(key)
 	val, ok := h.dirties[hash]
 	if ok {
@@ -67,20 +67,20 @@ func (h *testHasher) Get(key []byte) ([]byte, error) {
 }
 
 // Update associates key with value in the trie.
-func (h *testHasher) Update(key, value []byte) error {
+func (h *testHasher) TryUpdate(key, value []byte) error {
 	h.dirties[common.BytesToHash(key)] = common.CopyBytes(value)
 	return nil
 }
 
 // Delete removes any existing value for key from the trie.
-func (h *testHasher) Delete(key []byte) error {
+func (h *testHasher) TryDelete(key []byte) error {
 	h.dirties[common.BytesToHash(key)] = nil
 	return nil
 }
 
 // Commit computes the new hash of the states and returns the set with all
 // state changes.
-func (h *testHasher) Commit(collectLeaf bool) (common.Hash, *trienode.NodeSet) {
+func (h *testHasher) Commit(collectLeaf bool) (common.Hash, *trienode.NodeSet, error) {
 	var (
 		nodes = make(map[common.Hash][]byte)
 		set   = trienode.NewNodeSet(h.owner)
@@ -108,7 +108,7 @@ func (h *testHasher) Commit(collectLeaf bool) (common.Hash, *trienode.NodeSet) {
 	if root == types.EmptyRootHash && h.root != types.EmptyRootHash {
 		set.AddNode(nil, trienode.NewDeleted())
 	}
-	return root, set
+	return root, set, nil
 }
 
 // hash performs the hash computation upon the provided states.

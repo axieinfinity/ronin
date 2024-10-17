@@ -97,7 +97,7 @@ type Trie interface {
 
 	// NodeIterator returns an iterator that returns nodes of the trie. Iteration
 	// starts at the key after the given start key.
-	NodeIterator(startKey []byte) trie.NodeIterator
+	NodeIterator(startKey []byte) (trie.NodeIterator, error)
 
 	// Prove constructs a Merkle proof for key. The result contains all encoded nodes
 	// on the path to the value at key. The value itself is also included in the last
@@ -122,7 +122,7 @@ func NewDatabase(db ethdb.Database) Database {
 func NewDatabaseWithConfig(db ethdb.Database, config *trie.Config) Database {
 	csc, _ := lru.New[common.Hash, int](codeSizeCacheSize)
 	return &cachingDB{
-		triedb:        trie.NewDatabaseWithConfig(db, config),
+		triedb:        trie.NewDatabase(db, config),
 		codeSizeCache: csc,
 		codeCache:     fastcache.New(codeCacheSize),
 	}

@@ -298,7 +298,7 @@ type codeTask struct {
 func newStateSync(d *Downloader, root common.Hash) *stateSync {
 	// Hack the node scheme here. It's a dead code is not used
 	// by light client at all. Just aim for passing tests.
-	scheme := trie.NewDatabase(rawdb.NewMemoryDatabase()).Scheme()
+	scheme := trie.NewDatabase(rawdb.NewMemoryDatabase(), nil).Scheme()
 	return &stateSync{
 		d:         d,
 		root:      root,

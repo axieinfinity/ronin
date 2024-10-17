@@ -34,17 +34,17 @@ import (
 // tree or Verkle tree.
 type Trie interface {
 	// Get returns the value for key stored in the trie.
-	Get(key []byte) ([]byte, error)
+	TryGet(key []byte) ([]byte, error)
 
 	// Update associates key with value in the trie.
-	Update(key, value []byte) error
+	TryUpdate(key, value []byte) error
 
 	// Delete removes any existing value for key from the trie.
-	Delete(key []byte) error
+	TryDelete(key []byte) error
 
 	// Commit the trie and returns a set of dirty nodes generated along with
 	// the new root hash.
-	Commit(collectLeaf bool) (common.Hash, *trienode.NodeSet)
+	Commit(collectLeaf bool) (common.Hash, *trienode.NodeSet, error)
 }
 
 // TrieLoader wraps functions to load tries.
@@ -131,7 +131,10 @@ func Apply(prevRoot common.Hash, postRoot common.Hash, accounts map[common.Addre
 			return nil, fmt.Errorf("failed to revert state, err: %w", err)
 		}
 	}
-	root, result := tr.Commit(false)
+	root, result, err := tr.Commit(false)
+	if err != nil {
+		return nil, err
+	}
 	if root != prevRoot {
 		return nil, fmt.Errorf("failed to revert state, want %#x, got %#x", prevRoot, root)
 	}
@@ -157,7 +160,7 @@ func updateAccount(ctx *context, loader TrieLoader, addr common.Address) error {
 	}
 	// The account may or may not existent in post-state, try to
 	// load it and decode if it's found.
-	blob, err := ctx.accountTrie.Get(addrHash.Bytes())
+	blob, err := ctx.accountTrie.TryGet(addrHash.Bytes())
 	if err != nil {
 		return err
 	}
@@ -175,15 +178,18 @@ func updateAccount(ctx *context, loader TrieLoader, addr common.Address) error {
 	for key, val := range ctx.storages[addr] {
 		var err error
 		if len(val) == 0 {
-			err = st.Delete(key.Bytes())
+			err = st.TryDelete(key.Bytes())
 		} else {
-			err = st.Update(key.Bytes(), val)
+			err = st.TryUpdate(key.Bytes(), val)
 		}
 		if err != nil {
 			return err
 		}
 	}
-	root, result := st.Commit(false)
+	root, result, err := st.Commit(false)
+	if err != nil {
+		return err
+	}
 	if root != prev.Root {
 		return errors.New("failed to reset storage trie")
 	}
@@ -199,7 +205,7 @@ func updateAccount(ctx *context, loader TrieLoader, addr common.Address) error {
 	if err != nil {
 		return err
 	}
-	return ctx.accountTrie.Update(addrHash.Bytes(), full)
+	return ctx.accountTrie.TryUpdate(addrHash.Bytes(), full)
 }
 
 // deleteAccount the account was not present in prev-state, and is expected
@@ -211,7 +217,7 @@ func deleteAccount(ctx *context, loader TrieLoader, addr common.Address) error {
 	defer h.release()
 
 	addrHash := h.hash(addr.Bytes())
-	blob, err := ctx.accountTrie.Get(addrHash.Bytes())
+	blob, err := ctx.accountTrie.TryGet(addrHash.Bytes())
 	if err != nil {
 		return err
 	}
@@ -230,11 +236,14 @@ func deleteAccount(ctx *context, loader TrieLoader, addr common.Address) error {
 		if len(val) != 0 {
 			return errors.New("expect storage deletion")
 		}
-		if err := st.Delete(key.Bytes()); err != nil {
+		if err := st.TryDelete(key.Bytes()); err != nil {
 			return err
 		}
 	}
-	root, result := st.Commit(false)
+	root, result, err := st.Commit(false)
+	if err != nil {
+		return err
+	}
 	if root != types.EmptyRootHash {
 		return errors.New("failed to clear storage trie")
 	}
@@ -246,7 +255,7 @@ func deleteAccount(ctx *context, loader TrieLoader, addr common.Address) error {
 		}
 	}
 	// Delete the post-state account from the main trie.
-	return ctx.accountTrie.Delete(addrHash.Bytes())
+	return ctx.accountTrie.TryDelete(addrHash.Bytes())
 }
 
 // hasher is used to compute the sha256 hash of the provided data.

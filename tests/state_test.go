@@ -25,6 +25,9 @@ import (
 
 	"github.com/ethereum/go-ethereum/eth/tracers/logger"
 
+	"github.com/ethereum/go-ethereum/core/rawdb"
+	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/core/state/snapshot"
 	"github.com/ethereum/go-ethereum/core/vm"
 )
 
@@ -68,29 +71,52 @@ func TestState(t *testing.T) {
 				subtest := subtest
 				key := fmt.Sprintf("%s/%d", subtest.Fork, subtest.Index)
 
-				t.Run(key+"/trie", func(t *testing.T) {
+				t.Run(key+"/hash/trie", func(t *testing.T) {
 					withTrace(t, test.gasLimit(subtest), func(vmconfig vm.Config) error {
-						_, _, err := test.Run(subtest, vmconfig, false)
-						if err != nil && len(test.json.Post[subtest.Fork][subtest.Index].ExpectException) > 0 {
-							// Ignore expected errors (TODO MariusVanDerWijden check error string)
-							return nil
-						}
-						return st.checkFailure(t, err)
+						var result error
+						test.Run(subtest, vmconfig, false, rawdb.HashScheme, func(err error, snaps *snapshot.Tree, state *state.StateDB) {
+							result = st.checkFailure(t, err)
+						})
+						return result
 					})
 				})
-				t.Run(key+"/snap", func(t *testing.T) {
+				t.Run(key+"/hash/snap", func(t *testing.T) {
 					withTrace(t, test.gasLimit(subtest), func(vmconfig vm.Config) error {
-						snaps, statedb, err := test.Run(subtest, vmconfig, true)
-						if snaps != nil && statedb != nil {
-							if _, err := snaps.Journal(statedb.IntermediateRoot(false)); err != nil {
-								return err
+						var result error
+						test.Run(subtest, vmconfig, true, rawdb.HashScheme, func(err error, snaps *snapshot.Tree, state *state.StateDB) {
+							if snaps != nil && state != nil {
+								if _, err := snaps.Journal(state.IntermediateRoot(false)); err != nil {
+									result = err
+									return
+								}
 							}
-						}
-						if err != nil && len(test.json.Post[subtest.Fork][subtest.Index].ExpectException) > 0 {
-							// Ignore expected errors (TODO MariusVanDerWijden check error string)
-							return nil
-						}
-						return st.checkFailure(t, err)
+							result = st.checkFailure(t, err)
+						})
+						return result
+					})
+				})
+				t.Run(key+"/path/trie", func(t *testing.T) {
+					withTrace(t, test.gasLimit(subtest), func(vmconfig vm.Config) error {
+						var result error
+						test.Run(subtest, vmconfig, false, rawdb.PathScheme, func(err error, snaps *snapshot.Tree, state *state.StateDB) {
+							result = st.checkFailure(t, err)
+						})
+						return result
+					})
+				})
+				t.Run(key+"/path/snap", func(t *testing.T) {
+					withTrace(t, test.gasLimit(subtest), func(vmconfig vm.Config) error {
+						var result error
+						test.Run(subtest, vmconfig, true, rawdb.PathScheme, func(err error, snaps *snapshot.Tree, state *state.StateDB) {
+							if snaps != nil && state != nil {
+								if _, err := snaps.Journal(state.IntermediateRoot(false)); err != nil {
+									result = err
+									return
+								}
+							}
+							result = st.checkFailure(t, err)
+						})
+						return result
 					})
 				})
 			}

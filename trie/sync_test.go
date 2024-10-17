@@ -36,7 +36,7 @@ func makeTestTrie(scheme string) (ethdb.Database, *Database, *SecureTrie, map[st
 	db := rawdb.NewMemoryDatabase()
 
 	triedb := newTestDatabase(db, scheme)
-	trie, _ := NewSecure(TrieID(common.Hash{}), triedb)
+	trie, _ := NewSecure(TrieID(types.EmptyRootHash), triedb)
 
 	// Fill it with some arbitrary data
 	content := make(map[string][]byte)
@@ -68,7 +68,9 @@ func makeTestTrie(scheme string) (ethdb.Database, *Database, *SecureTrie, map[st
 		panic(err)
 	}
 
-	// Return the generated trie
+	// Re-create the trie based on the new state
+	trie, _ = NewSecure(TrieID(root), triedb)
+
 	return db, triedb, trie, content
 }
 
@@ -98,7 +100,7 @@ func checkTrieConsistency(db ethdb.Database, scheme string, root common.Hash) er
 	if err != nil {
 		return nil // Consider a non existent state consistent
 	}
-	it := trie.NodeIterator(nil)
+	it := trie.MustNodeIterator(nil)
 	for it.Next(true) {
 	}
 	return it.Error()
@@ -113,18 +115,18 @@ type trieElement struct {
 
 // Tests that an empty trie is not scheduled for syncing.
 func TestEmptySync(t *testing.T) {
-	dbA := NewDatabase(rawdb.NewMemoryDatabase())
-	dbB := NewDatabase(rawdb.NewMemoryDatabase())
-	//dbC := newTestDatabase(rawdb.NewMemoryDatabase(), rawdb.PathScheme)
-	//dbD := newTestDatabase(rawdb.NewMemoryDatabase(), rawdb.PathScheme)
+	dbA := newTestDatabase(rawdb.NewMemoryDatabase(), rawdb.HashScheme)
+	dbB := newTestDatabase(rawdb.NewMemoryDatabase(), rawdb.HashScheme)
+	dbC := newTestDatabase(rawdb.NewMemoryDatabase(), rawdb.PathScheme)
+	dbD := newTestDatabase(rawdb.NewMemoryDatabase(), rawdb.PathScheme)
 
 	emptyA := NewEmpty(dbA)
 	emptyB, _ := New(TrieID(emptyRoot), dbB)
-	//emptyC := NewEmpty(dbC)
-	//emptyD, _ := New(TrieID(types.EmptyRootHash), dbD)
+	emptyC := NewEmpty(dbC)
+	emptyD, _ := New(TrieID(types.EmptyRootHash), dbD)
 
-	for i, trie := range []*Trie{emptyA, emptyB /*emptyC, emptyD*/} {
-		sync := NewSync(trie.Hash(), memorydb.New(), nil, NewSyncBloom(1, memorydb.New()), []*Database{dbA, dbB /*dbC, dbD*/}[i].Scheme())
+	for i, trie := range []*Trie{emptyA, emptyB, emptyC, emptyD} {
+		sync := NewSync(trie.Hash(), memorydb.New(), nil, NewSyncBloom(1, memorydb.New()), []*Database{dbA, dbB, dbC, dbD}[i].Scheme())
 		if nodes, paths, codes := sync.Missing(1); len(nodes) != 0 || len(paths) != 0 || len(codes) != 0 {
 			t.Errorf("test %d: content requested for empty trie: %v, %v, %v", i, nodes, paths, codes)
 		}
@@ -138,10 +140,10 @@ func TestIterativeSync(t *testing.T) {
 	testIterativeSync(t, 100, false, rawdb.HashScheme)
 	testIterativeSync(t, 1, true, rawdb.HashScheme)
 	testIterativeSync(t, 100, true, rawdb.HashScheme)
-	// testIterativeSync(t, 1, false, rawdb.PathScheme)
-	// testIterativeSync(t, 100, false, rawdb.PathScheme)
-	// testIterativeSync(t, 1, true, rawdb.PathScheme)
-	// testIterativeSync(t, 100, true, rawdb.PathScheme)
+	testIterativeSync(t, 1, false, rawdb.PathScheme)
+	testIterativeSync(t, 100, false, rawdb.PathScheme)
+	testIterativeSync(t, 1, true, rawdb.PathScheme)
+	testIterativeSync(t, 100, true, rawdb.PathScheme)
 }
 
 func testIterativeSync(t *testing.T, count int, bypath bool, scheme string) {
@@ -168,7 +170,11 @@ func testIterativeSync(t *testing.T, count int, bypath bool, scheme string) {
 		if !bypath {
 			for i, element := range elements {
 				owner, inner := ResolvePath([]byte(element.path))
-				data, err := srcDb.Reader(srcTrie.Hash()).Node(owner, inner, element.hash)
+				reader, err := srcDb.Reader(srcTrie.Hash())
+				if err != nil {
+					t.Fatalf("failed to create reader for trie %x: %v", srcTrie.Hash(), err)
+				}
+				data, err := reader.Node(owner, inner, element.hash)
 				if err != nil {
 					t.Fatalf("failed to retrieve node data for hash %x: %v", element.hash, err)
 				}
@@ -212,7 +218,7 @@ func testIterativeSync(t *testing.T, count int, bypath bool, scheme string) {
 // partial results are returned, and the others sent only later.
 func TestIterativeDelayedSync(t *testing.T) {
 	testIterativeDelayedSync(t, rawdb.HashScheme)
-	//testIterativeDelayedSync(t, rawdb.PathScheme)
+	testIterativeDelayedSync(t, rawdb.PathScheme)
 }
 
 func testIterativeDelayedSync(t *testing.T, scheme string) {
@@ -238,7 +244,11 @@ func testIterativeDelayedSync(t *testing.T, scheme string) {
 		results := make([]NodeSyncResult, len(elements)/2+1)
 		for i, element := range elements[:len(results)] {
 			owner, inner := ResolvePath([]byte(element.path))
-			data, err := srcDb.Reader(srcTrie.Hash()).Node(owner, inner, element.hash)
+			reader, err := srcDb.Reader(srcTrie.Hash())
+			if err != nil {
+				t.Fatalf("failed to create reader for trie %x: %v", srcTrie.Hash(), err)
+			}
+			data, err := reader.Node(owner, inner, element.hash)
 			if err != nil {
 				t.Fatalf("failed to retrieve node data for %x: %v", element.hash, err)
 			}
@@ -275,8 +285,8 @@ func testIterativeDelayedSync(t *testing.T, scheme string) {
 func TestIterativeRandomSyncIndividual(t *testing.T) {
 	testIterativeRandomSync(t, 1, rawdb.HashScheme)
 	testIterativeRandomSync(t, 100, rawdb.HashScheme)
-	// testIterativeRandomSync(t, 1, rawdb.PathScheme)
-	// testIterativeRandomSync(t, 100, rawdb.PathScheme)
+	testIterativeRandomSync(t, 1, rawdb.PathScheme)
+	testIterativeRandomSync(t, 100, rawdb.PathScheme)
 }
 
 func testIterativeRandomSync(t *testing.T, count int, scheme string) {
@@ -303,7 +313,11 @@ func testIterativeRandomSync(t *testing.T, count int, scheme string) {
 		results := make([]NodeSyncResult, 0, len(queue))
 		for path, element := range queue {
 			owner, inner := ResolvePath([]byte(element.path))
-			data, err := srcDb.Reader(srcTrie.Hash()).Node(owner, inner, element.hash)
+			reader, err := srcDb.Reader(srcTrie.Hash())
+			if err != nil {
+				t.Fatalf("failed to create reader for trie %x: %v", srcTrie.Hash(), err)
+			}
+			data, err := reader.Node(owner, inner, element.hash)
 			if err != nil {
 				t.Fatalf("failed to retrieve node data for %x: %v", element.hash, err)
 			}
@@ -339,7 +353,7 @@ func testIterativeRandomSync(t *testing.T, count int, scheme string) {
 // partial results are returned (Even those randomly), others sent only later.
 func TestIterativeRandomDelayedSync(t *testing.T) {
 	testIterativeRandomDelayedSync(t, rawdb.HashScheme)
-	// testIterativeRandomDelayedSync(t, rawdb.PathScheme)
+	testIterativeRandomDelayedSync(t, rawdb.PathScheme)
 }
 
 func testIterativeRandomDelayedSync(t *testing.T, scheme string) {
@@ -366,7 +380,11 @@ func testIterativeRandomDelayedSync(t *testing.T, scheme string) {
 		results := make([]NodeSyncResult, 0, len(queue)/2+1)
 		for path, element := range queue {
 			owner, inner := ResolvePath([]byte(element.path))
-			data, err := srcDb.Reader(srcTrie.Hash()).Node(owner, inner, element.hash)
+			reader, err := srcDb.Reader(srcTrie.Hash())
+			if err != nil {
+				t.Fatalf("failed to create reader for trie %x: %v", srcTrie.Hash(), err)
+			}
+			data, err := reader.Node(owner, inner, element.hash)
 			if err != nil {
 				t.Fatalf("failed to retrieve node data for %x: %v", element.hash, err)
 			}
@@ -407,7 +425,7 @@ func testIterativeRandomDelayedSync(t *testing.T, scheme string) {
 // have such references.
 func TestDuplicateAvoidanceSync(t *testing.T) {
 	testDuplicateAvoidanceSync(t, rawdb.HashScheme)
-	// testDuplicateAvoidanceSync(t, rawdb.PathScheme)
+	testDuplicateAvoidanceSync(t, rawdb.PathScheme)
 }
 
 func testDuplicateAvoidanceSync(t *testing.T, scheme string) {
@@ -435,7 +453,12 @@ func testDuplicateAvoidanceSync(t *testing.T, scheme string) {
 		results := make([]NodeSyncResult, len(elements))
 		for i, element := range elements {
 			owner, inner := ResolvePath([]byte(element.path))
-			data, err := srcDb.Reader(srcTrie.Hash()).Node(owner, inner, element.hash)
+			reader, err := srcDb.Reader(srcTrie.Hash())
+			if err != nil {
+				t.Fatalf("failed to create reader for trie %x: %v", srcTrie.Hash(), err)
+			}
+
+			data, err := reader.Node(owner, inner, element.hash)
 			if err != nil {
 				t.Fatalf("failed to retrieve node data for %x: %v", element.hash, err)
 			}
@@ -475,11 +498,10 @@ func testDuplicateAvoidanceSync(t *testing.T, scheme string) {
 // the database.
 func TestIncompleteSyncHash(t *testing.T) {
 	testIncompleteSync(t, rawdb.HashScheme)
-	// testIncompleteSync(t, rawdb.PathScheme)
+	testIncompleteSync(t, rawdb.PathScheme)
 }
 
 func testIncompleteSync(t *testing.T, scheme string) {
-	t.Parallel()
 
 	// Create a random trie to copy
 	_, srcDb, srcTrie, _ := makeTestTrie(scheme)
@@ -509,7 +531,11 @@ func testIncompleteSync(t *testing.T, scheme string) {
 		results := make([]NodeSyncResult, len(elements))
 		for i, element := range elements {
 			owner, inner := ResolvePath([]byte(element.path))
-			data, err := srcDb.Reader(srcTrie.Hash()).Node(owner, inner, element.hash)
+			reader, err := srcDb.Reader(srcTrie.Hash())
+			if err != nil {
+				t.Fatalf("failed to create reader for trie %x: %v", srcTrie.Hash(), err)
+			}
+			data, err := reader.Node(owner, inner, element.hash)
 			if err != nil {
 				t.Fatalf("failed to retrieve node data for %x: %v", element.hash, err)
 			}
@@ -562,7 +588,7 @@ func testIncompleteSync(t *testing.T, scheme string) {
 // depth.
 func TestSyncOrdering(t *testing.T) {
 	testSyncOrdering(t, rawdb.HashScheme)
-	// testSyncOrdering(t, rawdb.PathScheme)
+	testSyncOrdering(t, rawdb.PathScheme)
 }
 
 func testSyncOrdering(t *testing.T, scheme string) {
@@ -593,7 +619,12 @@ func testSyncOrdering(t *testing.T, scheme string) {
 		results := make([]NodeSyncResult, len(elements))
 		for i, element := range elements {
 			owner, inner := ResolvePath([]byte(element.path))
-			data, err := srcDb.Reader(srcTrie.Hash()).Node(owner, inner, element.hash)
+			reader, err := srcDb.Reader(srcTrie.Hash())
+			if err != nil {
+				t.Fatalf("failed to create reader for trie %x: %v", srcTrie.Hash(), err)
+			}
+
+			data, err := reader.Node(owner, inner, element.hash)
 			if err != nil {
 				t.Fatalf("failed to retrieve node data for %x: %v", element.hash, err)
 			}
@@ -656,7 +687,11 @@ func syncWith(t *testing.T, root common.Hash, db ethdb.Database, srcDb *Database
 		results := make([]NodeSyncResult, len(elements))
 		for i, element := range elements {
 			owner, inner := ResolvePath([]byte(element.path))
-			data, err := srcDb.Reader(root).Node(owner, inner, element.hash)
+			reader, err := srcDb.Reader(root)
+			if err != nil {
+				t.Fatalf("failed to create reader for trie %x: %v", root, err)
+			}
+			data, err := reader.Node(owner, inner, element.hash)
 			if err != nil {
 				t.Fatalf("failed to retrieve node data for hash %x: %v", element.hash, err)
 			}

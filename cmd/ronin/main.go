@@ -101,7 +101,10 @@ var (
 		utils.ExitWhenSyncedFlag,
 		utils.GCModeFlag,
 		utils.SnapshotFlag,
-		utils.TxLookupLimitFlag,
+		utils.TxLookupLimitFlag, // deprecated
+		utils.TransactionHistoryFlag,
+		utils.StateSchemeFlag,
+		utils.StateHistoryFlag,
 		utils.TriesInMemoryFlag,
 		utils.LightServeFlag,
 		utils.LightIngressFlag,

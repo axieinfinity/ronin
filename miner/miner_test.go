@@ -251,7 +251,7 @@ func createMiner(t *testing.T) (*Miner, *event.TypeMux) {
 	if err != nil {
 		t.Fatalf("can't create new chain %v", err)
 	}
-	statedb, _ := state.New(common.Hash{}, state.NewDatabase(chainDB), nil)
+	statedb, _ := state.New(bc.Genesis().Root(), bc.StateCache(), nil)
 	blockchain := &testBlockChain{statedb, 10000000, new(event.Feed)}
 
 	legacyPool := legacypool.New(testTxPoolConfig, bc.Config(), blockchain)

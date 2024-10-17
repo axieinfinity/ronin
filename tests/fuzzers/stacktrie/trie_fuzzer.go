@@ -149,10 +149,10 @@ func (f *fuzzer) fuzz() int {
 	// This spongeDb is used to check the sequence of disk-db-writes
 	var (
 		spongeA = &spongeDb{sponge: sha3.NewLegacyKeccak256()}
-		dbA     = trie.NewDatabase(rawdb.NewDatabase(spongeA))
+		dbA     = trie.NewDatabase(rawdb.NewDatabase(spongeA), nil)
 		trieA   = trie.NewEmpty(dbA)
 		spongeB = &spongeDb{sponge: sha3.NewLegacyKeccak256()}
-		dbB     = trie.NewDatabase(rawdb.NewDatabase(spongeB))
+		dbB     = trie.NewDatabase(rawdb.NewDatabase(spongeB), nil)
 		trieB   = trie.NewStackTrie(func(owner common.Hash, path []byte, hash common.Hash, blob []byte) {
 			rawdb.WriteTrieNode(spongeB, owner, path, hash, blob, dbB.Scheme())
 		})
@@ -237,7 +237,7 @@ func (f *fuzzer) fuzz() int {
 		panic(fmt.Sprintf("roots differ: (trie) %x != %x (stacktrie)", rootA, rootC))
 	}
 	trieA, _ = trie.New(trie.TrieID(rootA), dbA)
-	iterA := trieA.NodeIterator(nil)
+	iterA := trieA.MustNodeIterator(nil)
 	for iterA.Next(true) {
 		if iterA.Hash() == (common.Hash{}) {
 			if _, present := nodeset[string(iterA.Path())]; present {

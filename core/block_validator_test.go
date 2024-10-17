@@ -26,15 +26,20 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/trie"
 )
 
-// Tests that simple header verification works, for both good and bad blocks.
 func TestHeaderVerification(t *testing.T) {
+	testHeaderVerification(t, rawdb.HashScheme)
+	testHeaderVerification(t, rawdb.PathScheme)
+}
+
+func testHeaderVerification(t *testing.T, scheme string) {
 	// Create a simple chain to verify
 	var (
 		testdb    = rawdb.NewMemoryDatabase()
 		gspec     = &Genesis{Config: params.TestChainConfig}
-		genesis   = gspec.MustCommit(testdb)
+		genesis   = gspec.MustCommit(testdb, trie.NewDatabase(testdb, newDbConfig(scheme)))
 		blocks, _ = GenerateChain(params.TestChainConfig, genesis, ethash.NewFaker(), testdb, 8, nil, true)
 	)
 	headers := make([]*types.Header, len(blocks))
@@ -42,7 +47,7 @@ func TestHeaderVerification(t *testing.T) {
 		headers[i] = block.Header()
 	}
 	// Run the header checker for blocks one-by-one, checking for both valid and invalid nonces
-	chain, _ := NewBlockChain(testdb, nil, gspec, nil, ethash.NewFaker(), vm.Config{}, nil, nil)
+	chain, _ := NewBlockChain(testdb, DefaultCacheConfigWithScheme(scheme), gspec, nil, ethash.NewFaker(), vm.Config{}, nil, nil)
 	defer chain.Stop()
 
 	for i := 0; i < len(blocks); i++ {
@@ -86,7 +91,7 @@ func testHeaderConcurrentVerification(t *testing.T, threads int) {
 	var (
 		testdb    = rawdb.NewMemoryDatabase()
 		gspec     = &Genesis{Config: params.TestChainConfig}
-		genesis   = gspec.MustCommit(testdb)
+		genesis   = gspec.MustCommit(testdb, trie.NewDatabase(testdb, trie.HashDefaults))
 		blocks, _ = GenerateChain(params.TestChainConfig, genesis, ethash.NewFaker(), testdb, 8, nil, true)
 	)
 	headers := make([]*types.Header, len(blocks))
@@ -158,7 +163,7 @@ func testHeaderConcurrentAbortion(t *testing.T, threads int) {
 	var (
 		testdb    = rawdb.NewMemoryDatabase()
 		gspec     = &Genesis{Config: params.TestChainConfig}
-		genesis   = gspec.MustCommit(testdb)
+		genesis   = gspec.MustCommit(testdb, trie.NewDatabase(testdb, trie.HashDefaults))
 		blocks, _ = GenerateChain(params.TestChainConfig, genesis, ethash.NewFaker(), testdb, 1024, nil, true)
 	)
 	headers := make([]*types.Header, len(blocks))

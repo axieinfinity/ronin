@@ -40,6 +40,7 @@ import (
 	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/ethereum/go-ethereum/trie"
 	"github.com/holiman/uint256"
 )
 
@@ -287,7 +288,7 @@ func generateTestChain() ([]*types.Block, [][]*types.BlobTxSidecar, [][]common.H
 			blobTxHashes = append(blobTxHashes, []common.Hash{})
 		}
 	}
-	gblock := genesis.MustCommit(db)
+	gblock := genesis.MustCommit(db, trie.NewDatabase(db, trie.HashDefaults))
 	engine := ethash.NewFaker()
 	blocks, _ := core.GenerateChain(genesis.Config, gblock, engine, db, 2, generate, true)
 	// add genesis blob/sidecars/txhash to the begining of the list
@@ -724,7 +725,7 @@ func testGetBlobSidecars(t *testing.T, chain []*types.Block, blobSidecars [][]*t
 		wantErr error
 	}{
 		"first_block_blob_notfound_by_number": {
-			blkNum:  chain[1].Number(),
+			blkNum: chain[1].Number(),
 		},
 		"first_block_blob_notfound_by_hash": {
 			blkHash: chain[1].Hash(),

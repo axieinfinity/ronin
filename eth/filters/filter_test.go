@@ -30,6 +30,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/trie"
 )
 
 func makeReceipt(addr common.Address) *types.Receipt {
@@ -65,7 +66,7 @@ func BenchmarkFilters(b *testing.B) {
 	)
 	defer db.Close()
 
-	gspec.MustCommit(db)
+	gspec.MustCommit(db, trie.NewDatabase(db, nil))
 
 	chain, receipts := core.GenerateChain(params.TestChainConfig, genesis, ethash.NewFaker(), db, 100010, func(i int, gen *core.BlockGen) {
 		switch i {
@@ -132,7 +133,7 @@ func TestFilters(t *testing.T) {
 	)
 	defer db.Close()
 
-	gspec.MustCommit(db)
+	gspec.MustCommit(db, trie.NewDatabase(db, nil))
 
 	chain, receipts := core.GenerateChain(params.TestChainConfig, genesis, ethash.NewFaker(), db, 1000, func(i int, gen *core.BlockGen) {
 		switch i {

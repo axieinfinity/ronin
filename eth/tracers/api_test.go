@@ -85,7 +85,7 @@ func newTestBackend(t *testing.T, n int, gspec *core.Genesis, generator func(i i
 		TrieDirtyDisabled: true, // Archive mode
 	}
 
-	_, _, genesisErr := core.SetupGenesisBlockWithOverride(backend.chaindb, trie.NewDatabase(backend.chaindb), gspec, nil, true)
+	_, _, genesisErr := core.SetupGenesisBlockWithOverride(backend.chaindb, trie.NewDatabase(backend.chaindb, nil), gspec, nil, true)
 	if _, ok := genesisErr.(*params.ConfigCompatError); genesisErr != nil && !ok {
 		t.Fatal(genesisErr.Error())
 	}

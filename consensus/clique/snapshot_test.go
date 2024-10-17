@@ -30,6 +30,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/trie"
 )
 
 // testerAccountPool is a pool to maintain currently active tester accounts,
@@ -403,7 +404,7 @@ func TestClique(t *testing.T) {
 		}
 		// Create a pristine blockchain with the genesis injected
 		db := rawdb.NewMemoryDatabase()
-		genesisBlock := genesis.MustCommit(db)
+		genesisBlock := genesis.MustCommit(db, trie.NewDatabase(db, trie.HashDefaults))
 
 		// Assemble a chain of headers from the cast votes
 		config := *params.TestChainConfig

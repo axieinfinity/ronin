@@ -37,6 +37,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/trie"
 	"github.com/holiman/uint256"
 )
 
@@ -147,7 +148,7 @@ func newTestHandlerWithBlocks(blocks int) *testHandler {
 		Config: params.TestChainConfig,
 		Alloc:  core.GenesisAlloc{testAddr: {Balance: big.NewInt(1000000)}},
 	}
-	gspec.MustCommit(db)
+	gspec.MustCommit(db, trie.NewDatabase(db, nil))
 
 	chain, _ := core.NewBlockChain(db, nil, gspec, nil, ethash.NewFaker(), vm.Config{}, nil, nil)
 
@@ -222,7 +223,7 @@ func newTestHandlerWithBlocks100(blocks int) (*testHandler, []*types.BlobTxSidec
 			},
 		},
 	}
-	gspec.MustCommit(db)
+	gspec.MustCommit(db, trie.NewDatabase(db, nil))
 	chain, err := core.NewBlockChain(db, nil, gspec, nil, engine, vm.Config{}, nil, nil)
 	if err != nil {
 		panic(err)

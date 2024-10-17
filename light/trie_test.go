@@ -42,9 +42,9 @@ func TestNodeIterator(t *testing.T) {
 			Alloc:   core.GenesisAlloc{testBankAddress: {Balance: testBankFunds}},
 			BaseFee: big.NewInt(params.InitialBaseFee),
 		}
-		genesis = gspec.MustCommit(fulldb)
+		genesis = gspec.MustCommit(fulldb, trie.NewDatabase(fulldb, nil))
 	)
-	gspec.MustCommit(lightdb)
+	gspec.MustCommit(lightdb, trie.NewDatabase(lightdb, nil))
 	blockchain, _ := core.NewBlockChain(fulldb, nil, &gspec, nil, ethash.NewFullFaker(), vm.Config{}, nil, nil)
 	gchain, _ := core.GenerateChain(params.TestChainConfig, genesis, ethash.NewFaker(), fulldb, 4, testChainGen, true)
 	if _, err := blockchain.InsertChain(gchain, nil); err != nil {
@@ -62,8 +62,16 @@ func TestNodeIterator(t *testing.T) {
 }
 
 func diffTries(t1, t2 state.Trie) error {
-	i1 := trie.NewIterator(t1.NodeIterator(nil))
-	i2 := trie.NewIterator(t2.NodeIterator(nil))
+	trieIt1, err := t1.NodeIterator(nil)
+	if err != nil {
+		return err
+	}
+	trieIt2, err := t2.NodeIterator(nil)
+	if err != nil {
+		return err
+	}
+	i1 := trie.NewIterator(trieIt1)
+	i2 := trie.NewIterator(trieIt2)
 	for i1.Next() && i2.Next() {
 		if !bytes.Equal(i1.Key, i2.Key) {
 			spew.Dump(i2)

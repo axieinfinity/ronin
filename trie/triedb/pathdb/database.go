@@ -33,8 +33,27 @@ import (
 	"github.com/ethereum/go-ethereum/trie/triestate"
 )
 
-// maxDiffLayers is the maximum diff layers allowed in the layer tree.
-const maxDiffLayers = 128
+const (
+	// maxDiffLayers is the maximum diff layers allowed in the layer tree.
+
+	maxDiffLayers = 128
+
+	// defaultCleanSize is the default memory allowance of clean cache.
+	defaultCleanSize = 16 * 1024 * 1024
+
+	// maxBufferSize is the maximum memory allowance of node buffer.
+	// Too large nodebuffer will cause the system to pause for a long
+	// time when write happens. Also, the largest batch that pebble can
+	// support is 4GB, node will panic if batch size exceeds this limit.
+	maxBufferSize = 256 * 1024 * 1024
+
+	// DefaultBufferSize is the default memory allowance of node buffer
+	// that aggregates the writes from above until it's flushed into the
+	// disk. It's meant to be used once the initial sync is finished.
+	// Do not increase the buffer size arbitrarily, otherwise the system
+	// pause time will increase when the database writes happen.
+	DefaultBufferSize = 64 * 1024 * 1024
+)
 
 // layer is the interface implemented by all state layers which includes some
 // public methods and some additional methods for internal usage.
@@ -68,28 +87,29 @@ type layer interface {
 
 // Config contains the settings for database.
 type Config struct {
-	StateLimit uint64 // Number of recent blocks to maintain state history for
-	CleanSize  int    // Maximum memory allowance (in bytes) for caching clean nodes
-	DirtySize  int    // Maximum memory allowance (in bytes) for caching dirty nodes
-	ReadOnly   bool   // Flag whether the database is opened in read only mode.
+	StateHistory   uint64 // Number of recent blocks to maintain state history for
+	CleanCacheSize int    // Maximum memory allowance (in bytes) for caching clean nodes
+	DirtyCacheSize int    // Maximum memory allowance (in bytes) for caching dirty nodes
+	ReadOnly       bool   // Flag whether the database is opened in read only mode.
 }
-
-var (
-	// defaultCleanSize is the default memory allowance of clean cache.
-	defaultCleanSize = 16 * 1024 * 1024
-
-	// defaultBufferSize is the default memory allowance of node buffer
-	// that aggregates the writes from above until it's flushed into the
-	// disk. Do not increase the buffer size arbitrarily, otherwise the
-	// system pause time will increase when the database writes happen.
-	defaultBufferSize = 128 * 1024 * 1024
-)
 
 // Defaults contains default settings for Ethereum mainnet.
 var Defaults = &Config{
-	StateLimit: params.FullImmutabilityThreshold,
-	CleanSize:  defaultCleanSize,
-	DirtySize:  defaultBufferSize,
+	StateHistory:   params.FullImmutabilityThreshold,
+	CleanCacheSize: defaultCleanSize,
+	DirtyCacheSize: DefaultBufferSize,
+}
+
+// ReadOnly is the config in order to open database in read only mode.
+var ReadOnly = &Config{ReadOnly: true}
+
+// sanitize checks the provided user configurations and changes anything that's
+// unreasonable or unworkable.
+func (c *Config) sanitize() {
+	if c.DirtyCacheSize > maxBufferSize {
+		log.Warn("Sanitizing invalid node buffer size", "provided", common.StorageSize(c.DirtyCacheSize), "updated", common.StorageSize(maxBufferSize))
+		c.DirtyCacheSize = maxBufferSize
+	}
 }
 
 // Database is a multiple-layered structure for maintaining in-memory trie nodes.
@@ -123,9 +143,10 @@ func New(diskdb ethdb.Database, config *Config) *Database {
 	if config == nil {
 		config = Defaults
 	}
+	config.sanitize()
 	db := &Database{
 		readOnly:   config.ReadOnly,
-		bufferSize: config.DirtySize,
+		bufferSize: config.DirtyCacheSize,
 		config:     config,
 		diskdb:     diskdb,
 	}
@@ -140,7 +161,7 @@ func New(diskdb ethdb.Database, config *Config) *Database {
 	// mechanism also ensures that at most one **non-readOnly** database
 	// is opened at the same time to prevent accidental mutation.
 	if ancient, err := diskdb.AncientDatadir(); err == nil && ancient != "" && !db.readOnly {
-		db.freezer, err = rawdb.NewStateHistoryFreezer(ancient, false)
+		db.freezer, err = rawdb.NewStateFreezer(ancient, false)
 		if err != nil {
 			log.Crit("Failed to open state history freezer", "err", err)
 		}
@@ -171,7 +192,7 @@ func (db *Database) Reader(root common.Hash) (layer, error) {
 // Update adds a new layer into the tree, if that can be linked to an existing
 // old parent. It is disallowed to insert a disk layer (the origin of all). Apart
 // from that this function will flatten the extra diff layers at bottom into disk
-// to only keep 128 diff layers in memory by default.
+// to only keep 128 diff layerReaders in memory by default.
 //
 // The passed in maps(nodes, states) will be retained to avoid copying everything.
 // Therefore, these maps must not be changed afterwards.
@@ -379,7 +400,12 @@ func (db *Database) SetBufferSize(size int) error {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 
+	if size > maxBufferSize {
+		log.Info("Capped node buffer size", "provided", common.StorageSize(size), "adjusted", common.StorageSize(maxBufferSize))
+		size = maxBufferSize
+	}
 	db.bufferSize = size
+
 	return db.tree.bottom().setBufferSize(db.bufferSize)
 }
 
@@ -398,7 +424,15 @@ func (db *Database) Close() error {
 	db.lock.Lock()
 	defer db.lock.Unlock()
 
+	// Set the database to read-only mode to prevent all
+	// following mutations.
+
 	db.readOnly = true
+
+	// Release the memory held by clean cache.
+	db.tree.bottom().resetCache()
+
+	// Close the attached state history freezer.
 	if db.freezer == nil {
 		return nil
 	}

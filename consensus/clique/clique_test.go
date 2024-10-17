@@ -27,6 +27,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/trie"
 )
 
 // This test case is a repro of an annoying bug that took us forever to catch.
@@ -53,7 +54,7 @@ func TestReimportMirroredState(t *testing.T) {
 		BaseFee: big.NewInt(params.InitialBaseFee),
 	}
 	copy(genspec.ExtraData[extraVanity:], addr[:])
-	genesis := genspec.MustCommit(db)
+	genesis := genspec.MustCommit(db, trie.NewDatabase(db, trie.HashDefaults))
 
 	// Generate a batch of blocks, each properly signed
 	chain, _ := core.NewBlockChain(db, nil, genspec, nil, engine, vm.Config{}, nil, nil)
@@ -88,7 +89,7 @@ func TestReimportMirroredState(t *testing.T) {
 	}
 	// Insert the first two blocks and make sure the chain is valid
 	db = rawdb.NewMemoryDatabase()
-	genspec.MustCommit(db)
+	genspec.MustCommit(db, trie.NewDatabase(db, trie.HashDefaults))
 
 	chain, _ = core.NewBlockChain(db, nil, genspec, nil, engine, vm.Config{}, nil, nil)
 	defer chain.Stop()
