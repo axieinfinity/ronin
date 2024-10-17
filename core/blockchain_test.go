@@ -2998,9 +2998,7 @@ func testDeleteRecreateAccount(t *testing.T, scheme string) {
 			},
 		},
 	}
-	triedb := trie.NewDatabase(db, newDbConfig(scheme))
-	genesis := gspec.MustCommit(db, triedb)
-	triedb.Close()
+	genesis := gspec.MustCommit(db, trie.NewDatabase(db, nil))
 
 	blocks, _ := GenerateChain(&chainConfig, genesis, engine, db, 1, func(i int, b *BlockGen) {
 		b.SetCoinbase(common.Address{1})
@@ -3647,9 +3645,7 @@ func testSponsoredTxTransitionBeforeMiko(t *testing.T, scheme string) {
 	gspec := &Genesis{
 		Config: &chainConfig,
 	}
-	triedb := trie.NewDatabase(db, newDbConfig(scheme))
-	genesis := gspec.MustCommit(db, triedb)
-	triedb.Close()
+	genesis := gspec.MustCommit(db, trie.NewDatabase(db, nil))
 	chain, err := NewBlockChain(db, DefaultCacheConfigWithScheme(scheme), gspec, nil, engine, vm.Config{}, nil, nil)
 	if err != nil {
 		t.Fatalf("Failed to create blockchain, err %s", err)
@@ -3732,9 +3728,7 @@ func testSponsoredTxTransition(t *testing.T, scheme string) {
 			adminAddr: {Balance: math.BigPow(10, 18)},
 		},
 	}
-	triedb := trie.NewDatabase(db, newDbConfig(scheme))
-	genesis := gspec.MustCommit(db, triedb)
-	triedb.Close()
+	genesis := gspec.MustCommit(db, trie.NewDatabase(db, nil))
 	chain, err := NewBlockChain(db, DefaultCacheConfigWithScheme(scheme), gspec, nil, engine, vm.Config{}, nil, nil)
 	if err != nil {
 		t.Fatalf("Failed to create blockchain, err %s", err)
@@ -4555,9 +4549,7 @@ func testSidecarsPruning(t *testing.T, scheme string) {
 			},
 		},
 	}
-	triedb := trie.NewDatabase(db, newDbConfig(scheme))
-	genesis := gspec.MustCommit(db, triedb)
-	triedb.Close()
+	genesis := gspec.MustCommit(db, trie.NewDatabase(db, nil))
 	chain, err := NewBlockChain(db, DefaultCacheConfigWithScheme(scheme), gspec, nil, engine, vm.Config{}, nil, nil)
 	if err != nil {
 		t.Fatalf("Failed to create blockchain, err %s", err)

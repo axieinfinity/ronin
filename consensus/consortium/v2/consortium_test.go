@@ -1446,8 +1446,7 @@ func testVeiryVote(t *testing.T, scheme string) {
 		Config:  params.TestChainConfig,
 		BaseFee: big.NewInt(params.InitialBaseFee),
 	}
-	triedb := trie.NewDatabase(db, newDbConfig(scheme))
-	genesis := gspec.MustCommit(db, triedb)
+	genesis := gspec.MustCommit(db, trie.NewDatabase(db, nil))
 	triedb.Close()
 	chain, _ := core.NewBlockChain(db, core.DefaultCacheConfigWithScheme(scheme), gspec, nil, ethash.NewFullFaker(), vm.Config{}, nil, nil)
 
@@ -1584,8 +1583,7 @@ func testKnowBlockReorg(t *testing.T, scheme string) {
 	gspec := &core.Genesis{
 		Config: &chainConfig,
 	}
-	triedb := trie.NewDatabase(db, newDbConfig(scheme))
-	genesis := gspec.MustCommit(db, triedb)
+	genesis := gspec.MustCommit(db, trie.NewDatabase(db, nil))
 	triedb.Close()
 
 	mock := &mockContract{
@@ -1843,8 +1841,7 @@ func testUpgradeRoninTrustedOrg(t *testing.T, scheme string) {
 			common.Address{0x10}: core.GenesisAccount{Balance: common.Big1},
 		},
 	}
-	triedb := trie.NewDatabase(db, newDbConfig(scheme))
-	genesis := gspec.MustCommit(db, triedb)
+	genesis := gspec.MustCommit(db, trie.NewDatabase(db, nil))
 	triedb.Close()
 
 	mock := &mockContract{
@@ -1992,8 +1989,7 @@ func testUpgradeAxieProxyCode(t *testing.T, scheme string) {
 	gspec := &core.Genesis{
 		Config: chainConfig,
 	}
-	triedb := trie.NewDatabase(db, newDbConfig(scheme))
-	genesis := gspec.MustCommit(db, triedb)
+	genesis := gspec.MustCommit(db, trie.NewDatabase(db, nil))
 	triedb.Close()
 	mock := &mockTrippContract{
 		checkpointValidators: []validatorWithBlsWeight{
@@ -2126,8 +2122,7 @@ func testSystemTransactionOrder(t *testing.T, scheme string) {
 			common.Address{0x10}: core.GenesisAccount{Balance: common.Big1},
 		},
 	}
-	triedb := trie.NewDatabase(db, newDbConfig(scheme))
-	genesis := gspec.MustCommit(db, triedb)
+	genesis := gspec.MustCommit(db, trie.NewDatabase(db, nil))
 	triedb.Close()
 
 	mock := &mockContract{
@@ -2255,8 +2250,7 @@ func testIsPeriodBlock(t *testing.T, scheme string) {
 		BaseFee:   big.NewInt(params.InitialBaseFee),
 		Timestamp: midnight, // genesis at day 1
 	}
-	triedb := trie.NewDatabase(db, newDbConfig(scheme))
-	genesis := gspec.MustCommit(db, triedb)
+	genesis := gspec.MustCommit(db, trie.NewDatabase(db, nil))
 	triedb.Close()
 	chain, _ := core.NewBlockChain(db, core.DefaultCacheConfigWithScheme(scheme), gspec, nil, ethash.NewFullFaker(), vm.Config{}, nil, nil)
 	// create chain of up to 399 blocks, all of them are not period block
@@ -2359,8 +2353,7 @@ func testIsTrippEffective(t *testing.T, scheme string) {
 		BaseFee:   big.NewInt(params.InitialBaseFee),
 		Timestamp: midnight, // genesis at day 1
 	}
-	triedb := trie.NewDatabase(db, newDbConfig(scheme))
-	genesis := gspec.MustCommit(db, triedb)
+	genesis := gspec.MustCommit(db, trie.NewDatabase(db, nil))
 	triedb.Close()
 	chain, _ := core.NewBlockChain(db, core.DefaultCacheConfigWithScheme(scheme), gspec, nil, ethash.NewFullFaker(), vm.Config{}, nil, nil)
 	// create chain of up to 399 blocks, all of them are not Tripp effective
