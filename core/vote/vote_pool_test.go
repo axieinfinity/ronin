@@ -15,6 +15,7 @@ import (
 
 	wallet "github.com/ethereum/go-ethereum/accounts/bls"
 	"github.com/ethereum/go-ethereum/crypto/bls"
+	"github.com/ethereum/go-ethereum/trie"
 	"github.com/google/uuid"
 	keystorev4 "github.com/wealdtech/go-eth2-wallet-encryptor-keystorev4"
 
@@ -100,7 +101,7 @@ func testVotePool(t *testing.T, isValidRules bool) {
 		Alloc:   core.GenesisAlloc{testAddr: {Balance: big.NewInt(1000000)}},
 		BaseFee: big.NewInt(params.InitialBaseFee),
 	}
-	genesis := gspec.MustCommit(db)
+	genesis := gspec.MustCommit(db, trie.NewDatabase(db, trie.HashDefaults))
 	chain, _ := core.NewBlockChain(db, nil, gspec, nil, ethash.NewFullFaker(), vm.Config{}, nil, nil)
 
 	mux := new(event.TypeMux)
@@ -396,7 +397,7 @@ func TestVotePoolDosProtection(t *testing.T) {
 		Alloc:   core.GenesisAlloc{testAddr: {Balance: big.NewInt(1000000)}},
 		BaseFee: big.NewInt(params.InitialBaseFee),
 	}
-	genesis := gspec.MustCommit(db)
+	genesis := gspec.MustCommit(db, trie.NewDatabase(db, trie.HashDefaults))
 	chain, _ := core.NewBlockChain(db, nil, gspec, nil, ethash.NewFullFaker(), vm.Config{}, nil, nil)
 
 	bs, _ := core.GenerateChain(params.TestChainConfig, genesis, ethash.NewFaker(), db, 25, nil, true)
@@ -481,15 +482,22 @@ func TestVotePoolDosProtection(t *testing.T) {
 	}
 }
 
-func TestVotePoolPruneFutureVoteCounter(t *testing.T) {
+func TestVotePoolPruneFutureVote(t *testing.T) {
+	testVotePoolPruneFutureVoteCounter(t, rawdb.HashScheme)
+	testVotePoolPruneFutureVoteCounter(t, rawdb.PathScheme)
+}
+
+func testVotePoolPruneFutureVoteCounter(t *testing.T, scheme string) {
 	// Create a database pre-initialize with a genesis block
 	db := rawdb.NewMemoryDatabase()
-	genesis := (&core.Genesis{
+
+	gspec := &core.Genesis{
 		Config:  params.TestChainConfig,
 		Alloc:   core.GenesisAlloc{testAddr: {Balance: big.NewInt(1000000)}},
 		BaseFee: big.NewInt(params.InitialBaseFee),
-	}).MustCommit(db)
-	chain, _ := core.NewBlockChain(db, nil, params.TestChainConfig, ethash.NewFullFaker(), vm.Config{}, nil, nil)
+	}
+	genesis := gspec.MustCommit(db, trie.NewDatabase(db, nil))
+	chain, _ := core.NewBlockChain(db, core.DefaultCacheConfigWithScheme(scheme), gspec, nil, ethash.NewFullFaker(), vm.Config{}, nil, nil)
 	bs, _ := core.GenerateChain(params.TestChainConfig, genesis, ethash.NewFaker(), db, lowerLimitOfVoteBlockNumber+1, nil, true)
 	if _, err := chain.InsertChain(bs[:1], nil); err != nil {
 		panic(err)
@@ -588,7 +596,7 @@ func TestVotePoolWrongTargetNumber(t *testing.T) {
 		Alloc:   core.GenesisAlloc{testAddr: {Balance: big.NewInt(1000000)}},
 		BaseFee: big.NewInt(params.InitialBaseFee),
 	}
-	genesis := gspec.MustCommit(db)
+	genesis := gspec.MustCommit(db, trie.NewDatabase(db, trie.HashDefaults))
 	chain, _ := core.NewBlockChain(db, nil, gspec, nil, ethash.NewFullFaker(), vm.Config{}, nil, nil)
 
 	bs, _ := core.GenerateChain(params.TestChainConfig, genesis, ethash.NewFaker(), db, 1, nil, true)

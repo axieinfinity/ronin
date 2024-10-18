@@ -64,6 +64,11 @@ func (n *proofList) Delete(key []byte) error {
 // nested states. It's the general query interface to retrieve:
 // * Contracts
 // * Accounts
+//
+// Once the state is committed, tries cached in stateDB (including account
+// trie, storage tries) will no longer be functional. A new state instance
+// must be created with new root and updated database for accessing post-
+// commit states.
 type StateDB struct {
 	db         Database
 	prefetcher *triePrefetcher
@@ -707,15 +712,19 @@ func (s *StateDB) CreateAccount(addr common.Address) {
 	}
 }
 
-func (db *StateDB) ForEachStorage(addr common.Address, cb func(key, value common.Hash) bool) error {
-	so := db.getStateObject(addr)
+func (s *StateDB) ForEachStorage(addr common.Address, cb func(key, value common.Hash) bool) error {
+	so := s.getStateObject(addr)
 	if so == nil {
 		return nil
 	}
-	it := trie.NewIterator(so.getTrie().NodeIterator(nil))
+	trieIt, err := so.getTrie().NodeIterator(nil)
+	if err != nil {
+		return err
+	}
 
+	it := trie.NewIterator(trieIt)
 	for it.Next() {
-		key := common.BytesToHash(db.trie.GetKey(it.Key))
+		key := common.BytesToHash(s.trie.GetKey(it.Key))
 		if value, dirty := so.dirtyStorage[key]; dirty {
 			if !cb(key, value) {
 				return nil
@@ -997,7 +1006,10 @@ func (s *StateDB) deleteStorage(addr common.Address, addrHash common.Hash, root 
 	if err != nil {
 		return false, nil, nil, fmt.Errorf("failed to open storage trie, err: %w", err)
 	}
-	it := tr.NodeIterator(nil)
+	it, err := tr.NodeIterator(nil)
+	if err != nil {
+		return false, nil, nil, fmt.Errorf("failed to create iterator, err: %w", err)
+	}
 	var (
 		set       = trienode.NewNodeSet(addrHash)
 		slots     = make(map[common.Hash][]byte)
@@ -1137,6 +1149,10 @@ func (s *StateDB) clearJournalAndRefund() {
 //
 // The associated block number of the state transition is also provided
 // for more chain context.
+// Once the state is committed, tries cached in stateDB (including account
+// trie, storage tries) will no longer be functional. A new state instance
+// must be created with new root and updated database for accessing post-
+// commit states.
 func (s *StateDB) Commit(block uint64, deleteEmptyObjects bool) (common.Hash, error) {
 	if s.dbErr != nil {
 		return common.Hash{}, fmt.Errorf("commit aborted due to earlier error: %v", s.dbErr)
@@ -1151,8 +1167,9 @@ func (s *StateDB) Commit(block uint64, deleteEmptyObjects bool) (common.Hash, er
 		storageTrieNodesUpdated int
 		storageTrieNodesDeleted int
 		nodes                   = trienode.NewMergedNodeSet()
+		codeWriter              = s.db.TrieDB().DiskDB().NewBatch()
 	)
-	codeWriter := s.db.TrieDB().DiskDB().NewBatch()
+
 	// Handle all state deletions first
 	incomplete, err := s.handleDestruction(nodes)
 	if err != nil {
