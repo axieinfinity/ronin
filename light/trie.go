@@ -151,8 +151,8 @@ func (t *odrTrie) Hash() common.Hash {
 	return t.trie.Hash()
 }
 
-func (t *odrTrie) NodeIterator(startkey []byte) trie.NodeIterator {
-	return newNodeIterator(t, startkey)
+func (t *odrTrie) NodeIterator(startkey []byte) (trie.NodeIterator, error) {
+	return newNodeIterator(t, startkey), nil
 }
 
 func (t *odrTrie) GetKey(sha []byte) []byte {
@@ -175,7 +175,7 @@ func (t *odrTrie) do(key []byte, fn func() error) error {
 			} else {
 				id = trie.StateTrieID(t.id.StateRoot)
 			}
-			t.trie, err = trie.New(id, trie.NewDatabase(t.db.backend.Database()))
+			t.trie, err = trie.New(id, trie.NewDatabase(t.db.backend.Database(), nil))
 		}
 		if err == nil {
 			err = fn()
@@ -207,7 +207,7 @@ func newNodeIterator(t *odrTrie, startkey []byte) trie.NodeIterator {
 			} else {
 				id = trie.StateTrieID(t.id.StateRoot)
 			}
-			t, err := trie.New(id, trie.NewDatabase(t.db.backend.Database()))
+			t, err := trie.New(id, trie.NewDatabase(t.db.backend.Database(), nil))
 			if err == nil {
 				it.t.trie = t
 			}
@@ -215,7 +215,11 @@ func newNodeIterator(t *odrTrie, startkey []byte) trie.NodeIterator {
 		})
 	}
 	it.do(func() error {
-		it.NodeIterator = it.t.trie.NodeIterator(startkey)
+		var err error
+		it.NodeIterator, err = it.t.trie.NodeIterator(startkey)
+		if err != nil {
+			return err
+		}
 		return it.NodeIterator.Error()
 	})
 	return it

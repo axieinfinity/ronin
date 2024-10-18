@@ -201,8 +201,14 @@ func (t *SecureTrie) Copy() *SecureTrie {
 
 // NodeIterator returns an iterator that returns nodes of the underlying trie. Iteration
 // starts at the key after the given start key.
-func (t *SecureTrie) NodeIterator(start []byte) NodeIterator {
+func (t *SecureTrie) NodeIterator(start []byte) (NodeIterator, error) {
 	return t.trie.NodeIterator(start)
+}
+
+// MustNodeIterator is a wrapper of NodeIterator and will omit any encountered
+// error but just print out an error message.
+func (t *SecureTrie) MustNodeIterator(start []byte) NodeIterator {
+	return t.trie.MustNodeIterator(start)
 }
 
 // hashKey returns the hash of key as an ephemeral buffer.

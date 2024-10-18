@@ -141,8 +141,11 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 		return nil, err
 	}
 
-	if err := pruner.RecoverPruning(stack.ResolvePath(""), chainDb); err != nil {
-		log.Error("Failed to recover state", "error", err)
+	// Recover the pruning data only in hash scheme
+	if config.StateScheme == rawdb.HashScheme {
+		if err := pruner.RecoverPruning(stack.ResolvePath(""), chainDb); err != nil {
+			log.Error("Failed to recover state", "error", err)
+		}
 	}
 	eth := &Ethereum{
 		config:            config,
@@ -200,9 +203,11 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 			Preimages:           config.Preimages,
 			TriesInMemory:       config.TriesInMemory,
 			NoPruningSideCar:    config.NoPruningSideCar,
+			StateHistory:        config.StateHistory,
+			StateScheme:         config.StateScheme,
 		}
 	)
-	eth.blockchain, err = core.NewBlockChain(chainDb, cacheConfig, config.Genesis, config.OverrideArrowGlacier, eth.engine, vmConfig, eth.shouldPreserve, &config.TxLookupLimit)
+	eth.blockchain, err = core.NewBlockChain(chainDb, cacheConfig, config.Genesis, config.OverrideArrowGlacier, eth.engine, vmConfig, eth.shouldPreserve, &config.TransactionHistory)
 	chainConfig := eth.blockchain.Config()
 	genesisHash := eth.blockchain.Genesis().Hash()
 	if err != nil {
@@ -600,7 +605,7 @@ func (s *Ethereum) StartMining(threads int) error {
 		}
 		// If mining is started, we can disable the transaction rejection mechanism
 		// introduced to speed sync times.
-		atomic.StoreUint32(&s.handler.acceptTxs, 1)
+		s.handler.enableSyncedFeatures()
 
 		go s.miner.Start(eb)
 	}

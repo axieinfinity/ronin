@@ -102,7 +102,10 @@ var (
 		utils.GCModeFlag,
 		utils.NoPruningSideCarFlag,
 		utils.SnapshotFlag,
-		utils.TxLookupLimitFlag,
+		utils.TxLookupLimitFlag, // deprecated
+		utils.TransactionHistoryFlag,
+		utils.StateSchemeFlag,
+		utils.StateHistoryFlag,
 		utils.TriesInMemoryFlag,
 		utils.LightServeFlag,
 		utils.LightIngressFlag,

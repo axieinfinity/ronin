@@ -51,9 +51,9 @@ const (
 	namespace = "eth/db/state"
 )
 
-// stateHistoryFreezerNoSnappy configures whether compression is disabled for the stateHistory.
+// stateFreezerNoSnappy configures whether compression is disabled for the stateHistory.
 // https://github.com/golang/snappy, Reason for splititng files for looking up in archive mode easily.
-var stateHistoryFreezerNoSnappy = map[string]bool{
+var stateFreezerNoSnappy = map[string]bool{
 	stateHistoryMeta:         true,
 	stateHistoryAccountIndex: false,
 	stateHistoryStorageIndex: false,
@@ -80,9 +80,9 @@ var (
 // freezers the collections of all builtin freezers.
 var freezers = []string{chainFreezerName}
 
-// NewStateHistoryFreezer initializes the freezer for state history.
-func NewStateHistoryFreezer(ancientDir string, readOnly bool) (*ResettableFreezer, error) {
+// NewStateFreezer initializes the freezer for state history.
+func NewStateFreezer(ancientDir string, readOnly bool) (*ResettableFreezer, error) {
 	return NewResettableFreezer(
 		filepath.Join(ancientDir, stateFreezerName), namespace, readOnly,
-		stateHistoryTableSize, stateHistoryFreezerNoSnappy)
+		stateHistoryTableSize, stateFreezerNoSnappy)
 }
