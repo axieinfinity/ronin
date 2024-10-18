@@ -23,6 +23,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
+	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/trie"
@@ -41,7 +42,8 @@ func newStateEnv() *stateEnv {
 
 func TestDump(t *testing.T) {
 	db := rawdb.NewMemoryDatabase()
-	sdb, _ := New(common.Hash{}, NewDatabaseWithConfig(db, &trie.Config{Preimages: true}), nil)
+	tdb := NewDatabaseWithConfig(db, &trie.Config{Preimages: true})
+	sdb, _ := New(types.EmptyRootHash, tdb, nil)
 	s := &stateEnv{db: db, state: sdb}
 
 	// generate a few entries
@@ -56,8 +58,10 @@ func TestDump(t *testing.T) {
 	s.state.updateStateObject(obj1)
 	s.state.updateStateObject(obj2)
 	s.state.Commit(0, false)
+	root, _ := s.state.Commit(0, false)
 
 	// check that DumpToCollector contains the state objects that are in trie
+	s.state, _ = New(root, tdb, nil)
 	got := string(s.state.Dump(nil))
 	want := `{
     "root": "71edff0130dd2385947095001c73d9e28d862fc286fca2b922ca6f6f3cddfdd2",
