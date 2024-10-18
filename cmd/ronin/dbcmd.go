@@ -23,7 +23,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"sort"
 	"strconv"
 	"strings"
 	"syscall"
@@ -181,7 +180,7 @@ WARNING: This is a low-level operation which may cause database corruption!`,
 		Action:    dbDumpTrie,
 		Name:      "dumptrie",
 		Usage:     "Show the storage key/values of a given storage trie",
-		ArgsUsage: "<hex-encoded storage trie root> <hex-encoded start (optional)> <int max elements (optional)>",
+		ArgsUsage: "<hex-encoded state root> <hex-encoded account hash> <hex-encoded storage trie root> <hex-encoded start (optional)> <int max elements (optional)>",
 		Flags: []cli.Flag{
 			utils.DataDirFlag,
 			utils.DBEngineFlag,
@@ -191,14 +190,15 @@ WARNING: This is a low-level operation which may cause database corruption!`,
 			utils.SepoliaFlag,
 			utils.RinkebyFlag,
 			utils.GoerliFlag,
+			utils.StateSchemeFlag,
 		},
 		Description: "This command looks up the specified database key from the database.",
 	}
 	dbDumpFreezerIndex = &cli.Command{
 		Action:    freezerInspect,
 		Name:      "freezer-index",
-		Usage:     "Dump out the index of a given freezer type",
-		ArgsUsage: "<type> <start (int)> <end (int)>",
+		Usage:     "Dump out the index of a specific freezer table",
+		ArgsUsage: "<freezer-type> <table-type> <start (int)> <end (int)>",
 		Flags: []cli.Flag{
 			utils.DataDirFlag,
 			utils.DBEngineFlag,
@@ -311,7 +311,7 @@ func inspect(ctx *cli.Context) error {
 		start  []byte
 	)
 	if ctx.NArg() > 2 {
-		return fmt.Errorf("Max 2 arguments: %v", ctx.Command.ArgsUsage)
+		return fmt.Errorf("max 2 arguments: %v", ctx.Command.ArgsUsage)
 	}
 	if ctx.NArg() >= 1 {
 		if d, err := hexutil.Decode(ctx.Args().Get(0)); err != nil {
@@ -336,7 +336,7 @@ func inspect(ctx *cli.Context) error {
 	return rawdb.InspectDatabase(db, prefix, start)
 }
 
-func showLeveldbStats(db ethdb.Stater) {
+func showLeveldbStats(db ethdb.KeyValueStater) {
 	if stats, err := db.Stat("leveldb.stats"); err != nil {
 		log.Warn("Failed to read database stats", "error", err)
 	} else {
@@ -469,7 +469,7 @@ func dbPut(ctx *cli.Context) error {
 
 // dbDumpTrie shows the key-value slots of a given storage trie
 func dbDumpTrie(ctx *cli.Context) error {
-	if ctx.NArg() < 1 {
+	if ctx.NArg() < 3 {
 		return fmt.Errorf("required arguments: %v", ctx.Command.ArgsUsage)
 	}
 	stack, _ := makeConfigNode(ctx)
@@ -477,35 +477,51 @@ func dbDumpTrie(ctx *cli.Context) error {
 
 	db := utils.MakeChainDatabase(ctx, stack, true)
 	defer db.Close()
+	triedb := utils.MakeTrieDatabase(ctx, db, false, true)
+	defer triedb.Close()
 	var (
-		root  []byte
-		start []byte
-		max   = int64(-1)
-		err   error
+		state   []byte
+		storage []byte
+		account []byte
+		start   []byte
+		max     = int64(-1)
+		err     error
 	)
-	if root, err = hexutil.Decode(ctx.Args().Get(0)); err != nil {
-		log.Info("Could not decode the root", "error", err)
+	if state, err = hexutil.Decode(ctx.Args().Get(0)); err != nil {
+		log.Info("Could not decode the state", "error", err)
 		return err
 	}
-	stRoot := common.BytesToHash(root)
-	if ctx.NArg() >= 2 {
-		if start, err = hexutil.Decode(ctx.Args().Get(1)); err != nil {
+	if account, err = hexutil.Decode(ctx.Args().Get(1)); err != nil {
+		log.Info("Could not decode the account hash", "error", err)
+		return err
+	}
+	if storage, err = hexutil.Decode(ctx.Args().Get(2)); err != nil {
+		log.Info("Could not decode the storage trie root", "error", err)
+		return err
+	}
+	if ctx.NArg() > 3 {
+		if start, err = hexutil.Decode(ctx.Args().Get(3)); err != nil {
 			log.Info("Could not decode the seek position", "error", err)
 			return err
 		}
 	}
-	if ctx.NArg() >= 3 {
-		if max, err = strconv.ParseInt(ctx.Args().Get(2), 10, 64); err != nil {
+	if ctx.NArg() > 4 {
+		if max, err = strconv.ParseInt(ctx.Args().Get(4), 10, 64); err != nil {
 			log.Info("Could not decode the max count", "error", err)
 			return err
 		}
 	}
-	theTrie, err := trie.New(stRoot, trie.NewDatabase(db))
+	id := trie.StorageTrieID(common.BytesToHash(state), common.BytesToHash(account), common.BytesToHash(storage))
+	theTrie, err := trie.New(id, triedb)
+	if err != nil {
+		return err
+	}
+	trieIt, err := theTrie.NodeIterator(start)
 	if err != nil {
 		return err
 	}
 	var count int64
-	it := trie.NewIterator(theTrie.NodeIterator(start))
+	it := trie.NewIterator(trieIt)
 	for it.Next() {
 		if max > 0 && count == max {
 			fmt.Printf("Exiting after %d values\n", count)
@@ -519,25 +535,19 @@ func dbDumpTrie(ctx *cli.Context) error {
 
 func freezerInspect(ctx *cli.Context) error {
 	var (
-		start, end    int64
-		disableSnappy bool
-		err           error
+		start, end int64
+		err        error
 	)
-	if ctx.NArg() < 3 {
+	if ctx.NArg() < 4 {
 		return fmt.Errorf("required arguments: %v", ctx.Command.ArgsUsage)
 	}
-	kind := ctx.Args().Get(0)
-	if noSnap, ok := rawdb.FreezerNoSnappy[kind]; !ok {
-		var options []string
-		for opt := range rawdb.FreezerNoSnappy {
-			options = append(options, opt)
-		}
-		sort.Strings(options)
-		return fmt.Errorf("Could read freezer-type '%v'. Available options: %v", kind, options)
-	} else {
-		disableSnappy = noSnap
-	}
-	if start, err = strconv.ParseInt(ctx.Args().Get(1), 10, 64); err != nil {
+
+	var (
+		freezerType = ctx.Args().Get(0)
+		tableType   = ctx.Args().Get(1)
+	)
+
+	if start, err = strconv.ParseInt(ctx.Args().Get(2), 10, 64); err != nil {
 		log.Info("Could read start-param", "error", err)
 		return err
 	}
@@ -545,16 +555,20 @@ func freezerInspect(ctx *cli.Context) error {
 		log.Info("Could read count param", "error", err)
 		return err
 	}
+
 	stack, _ := makeConfigNode(ctx)
 	defer stack.Close()
-	path := filepath.Join(stack.ResolvePath("chaindata"), "ancient")
-	log.Info("Opening freezer", "location", path, "name", kind)
-	if f, err := rawdb.NewFreezerTable(path, kind, disableSnappy); err != nil {
-		return err
-	} else {
-		f.DumpIndex(start, end)
+	// Open the Freezer Database with mode read-only
+	db := utils.MakeChainDatabase(ctx, stack, true)
+	defer db.Close()
+
+	ancient, err := db.AncientDatadir()
+	if err != nil {
+		log.Info("Failed to retrive ancient root", "err", err)
 	}
-	return nil
+
+	return rawdb.InspectFreezerTable(ancient, freezerType, tableType, start, end)
+
 }
 
 // ParseHexOrString tries to hexdecode b, but if the prefix is missing, it instead just returns the raw bytes

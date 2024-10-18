@@ -33,7 +33,7 @@ type freezerBatch struct {
 	tables map[string]*freezerTableBatch
 }
 
-func newFreezerBatch(f *freezer) *freezerBatch {
+func newFreezerBatch(f *Freezer) *freezerBatch {
 	batch := &freezerBatch{tables: make(map[string]*freezerTableBatch, len(f.tables))}
 	for kind, table := range f.tables {
 		batch.tables[kind] = table.newBatch()
@@ -165,6 +165,7 @@ func (batch *freezerTableBatch) appendItem(data []byte) error {
 	batch.totalBytes += itemSize
 
 	// Put index entry to buffer.
+	// The index file contains a list of index entries.
 	entry := indexEntry{filenum: batch.t.headId, offset: uint32(itemOffset + itemSize)}
 	batch.indexBuffer = entry.append(batch.indexBuffer)
 	batch.curItem++

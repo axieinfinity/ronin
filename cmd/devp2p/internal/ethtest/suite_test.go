@@ -91,8 +91,6 @@ func setupGeth(stack *node.Node) error {
 		Genesis:                 &chain.genesis,
 		NetworkId:               chain.genesis.Config.ChainID.Uint64(), // 19763
 		DatabaseCache:           10,
-		TrieCleanCache:          10,
-		TrieCleanCacheJournal:   "",
 		TrieCleanCacheRejournal: 60 * time.Minute,
 		TrieDirtyCache:          16,
 		TrieTimeout:             60 * time.Minute,

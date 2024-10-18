@@ -37,6 +37,9 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/ethereum/go-ethereum/trie"
+	"github.com/ethereum/go-ethereum/trie/triedb/hashdb"
+	"github.com/ethereum/go-ethereum/trie/triedb/pathdb"
 )
 
 // A BlockTest checks handling of entire blocks.
@@ -98,18 +101,26 @@ type btHeaderMarshaling struct {
 	BaseFeePerGas *math.HexOrDecimal256
 }
 
-func (t *BlockTest) Run(snapshotter bool) error {
+func (t *BlockTest) Run(snapshotter bool, scheme string) error {
 	config, ok := Forks[t.json.Network]
 	if !ok {
 		return UnsupportedForkError{t.json.Network}
 	}
 
 	// import pre accounts & construct test genesis block & state root
-	db := rawdb.NewMemoryDatabase()
-	gblock, err := t.genesis(config).Commit(db)
-	if err != nil {
-		return err
+	var (
+		db    = rawdb.NewMemoryDatabase()
+		tconf = &trie.Config{}
+	)
+	if scheme == rawdb.PathScheme {
+		tconf.PathDB = pathdb.Defaults
+	} else {
+		tconf.HashDB = hashdb.Defaults
 	}
+	triedb := trie.NewDatabase(db, tconf)
+	// Commit genesis state
+	gblock := t.genesis(config).MustCommit(db, triedb)
+	triedb.Close()
 	if gblock.Hash() != t.json.Genesis.Hash {
 		return fmt.Errorf("genesis block hash doesn't match test: computed=%x, test=%x", gblock.Hash().Bytes()[:6], t.json.Genesis.Hash[:6])
 	}
@@ -122,12 +133,15 @@ func (t *BlockTest) Run(snapshotter bool) error {
 	} else {
 		engine = ethash.NewShared()
 	}
-	cache := &core.CacheConfig{TrieCleanLimit: 0}
+	cache := &core.CacheConfig{TrieCleanLimit: 0, StateScheme: scheme}
 	if snapshotter {
 		cache.SnapshotLimit = 1
 		cache.SnapshotWait = true
 	}
-	chain, err := core.NewBlockChain(db, cache, config, engine, vm.Config{}, nil, nil)
+	gspec := &core.Genesis{
+		Config: config,
+	}
+	chain, err := core.NewBlockChain(db, cache, gspec, nil, engine, vm.Config{}, nil, nil)
 	if err != nil {
 		return err
 	}

@@ -66,12 +66,13 @@ func newTestBackend(blocks int) *testBackend {
 func newTestBackendWithGenerator(blocks int, generator func(int, *core.BlockGen)) *testBackend {
 	// Create a database pre-initialize with a genesis block
 	db := rawdb.NewMemoryDatabase()
-	(&core.Genesis{
+	gspec := &core.Genesis{
 		Config: params.TestChainConfig,
 		Alloc:  core.GenesisAlloc{testAddr: {Balance: big.NewInt(100_000_000_000_000_000)}},
-	}).MustCommit(db)
+	}
+	gspec.MustCommit(db, trie.NewDatabase(db, nil))
 
-	chain, _ := core.NewBlockChain(db, nil, params.TestChainConfig, ethash.NewFaker(), vm.Config{}, nil, nil)
+	chain, _ := core.NewBlockChain(db, nil, gspec, nil, ethash.NewFaker(), vm.Config{}, nil, nil)
 
 	bs, _ := core.GenerateChain(params.TestChainConfig, chain.Genesis(), ethash.NewFaker(), db, blocks, generator, true)
 	if _, err := chain.InsertChain(bs, nil); err != nil {
@@ -501,7 +502,7 @@ func testGetNodeData(t *testing.T, protocol uint, drop bool) {
 	// Reconstruct state tree from the received data.
 	reconstructDB := rawdb.NewMemoryDatabase()
 	for i := 0; i < len(data); i++ {
-		rawdb.WriteTrieNode(reconstructDB, hashes[i], data[i])
+		rawdb.WriteLegacyTrieNode(reconstructDB, hashes[i], data[i])
 	}
 
 	// Sanity check whether all state matches.

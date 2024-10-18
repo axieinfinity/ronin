@@ -37,6 +37,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/trie"
 	"github.com/holiman/uint256"
 )
 
@@ -143,12 +144,13 @@ func newTestHandler() *testHandler {
 func newTestHandlerWithBlocks(blocks int) *testHandler {
 	// Create a database pre-initialize with a genesis block
 	db := rawdb.NewMemoryDatabase()
-	(&core.Genesis{
+	gspec := &core.Genesis{
 		Config: params.TestChainConfig,
 		Alloc:  core.GenesisAlloc{testAddr: {Balance: big.NewInt(1000000)}},
-	}).MustCommit(db)
+	}
+	gspec.MustCommit(db, trie.NewDatabase(db, nil))
 
-	chain, _ := core.NewBlockChain(db, nil, params.TestChainConfig, ethash.NewFaker(), vm.Config{}, nil, nil)
+	chain, _ := core.NewBlockChain(db, nil, gspec, nil, ethash.NewFaker(), vm.Config{}, nil, nil)
 
 	bs, _ := core.GenerateChain(params.TestChainConfig, chain.Genesis(), ethash.NewFaker(), db, blocks, nil, true)
 	if _, err := chain.InsertChain(bs, nil); err != nil {
@@ -221,8 +223,8 @@ func newTestHandlerWithBlocks100(blocks int) (*testHandler, []*types.BlobTxSidec
 			},
 		},
 	}
-	gspec.MustCommit(db)
-	chain, err := core.NewBlockChain(db, nil, &chainConfig, engine, vm.Config{}, nil, nil)
+	gspec.MustCommit(db, trie.NewDatabase(db, nil))
+	chain, err := core.NewBlockChain(db, nil, gspec, nil, engine, vm.Config{}, nil, nil)
 	if err != nil {
 		panic(err)
 	}
