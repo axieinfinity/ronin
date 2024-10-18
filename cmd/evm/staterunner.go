@@ -20,11 +20,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/ethereum/go-ethereum/eth/tracers/logger"
 	"io/ioutil"
 	"os"
 
+	"github.com/ethereum/go-ethereum/eth/tracers/logger"
+
+	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
+	"github.com/ethereum/go-ethereum/core/state/snapshot"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/tests"
@@ -96,21 +99,22 @@ func stateTestCmd(ctx *cli.Context) error {
 	results := make([]StatetestResult, 0, len(tests))
 	for key, test := range tests {
 		for _, st := range test.Subtests() {
+			dump := ctx.Bool(DumpFlag.Name)
 			// Run the test and aggregate the result
 			result := &StatetestResult{Name: key, Fork: st.Fork, Pass: true}
-			_, s, err := test.Run(st, cfg, false)
-			// print state root for evmlab tracing
-			if ctx.Bool(MachineFlag.Name) && s != nil {
-				fmt.Fprintf(os.Stderr, "{\"stateRoot\": \"%x\"}\n", s.IntermediateRoot(false))
-			}
-			if err != nil {
-				// Test failed, mark as so and dump any state to aid debugging
-				result.Pass, result.Error = false, err.Error()
-				if ctx.Bool(DumpFlag.Name) && s != nil {
-					dump := s.RawDump(nil)
-					result.State = &dump
+			test.Run(st, cfg, false, rawdb.HashScheme, func(err error, snaps *snapshot.Tree, state *state.StateDB) {
+				if err != nil {
+					// Test failed, mark as so and dump any state to aid debugging
+					result.Pass, result.Error = false, err.Error()
+					if dump {
+						dump := state.RawDump(nil)
+						result.State = &dump
+					}
 				}
-			}
+				if ctx.Bool(MachineFlag.Name) && state != nil {
+					fmt.Fprintf(os.Stderr, "{\"stateRoot\": \"%x\"}\n", state.IntermediateRoot(false))
+				}
+			})
 
 			results = append(results, *result)
 

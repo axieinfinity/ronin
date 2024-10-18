@@ -88,7 +88,9 @@ func NewPruner(db ethdb.Database, datadir string, bloomSize uint64) (*Pruner, er
 	if headBlock == nil {
 		return nil, errors.New("Failed to load head block")
 	}
-	snaptree, err := snapshot.New(db, trie.NewDatabase(db), 256, headBlock.Root(), false, false, false)
+	// Offline pruning is only supported in legacy hash based scheme.
+	triedb := trie.NewDatabase(db, trie.HashDefaults)
+	snaptree, err := snapshot.New(db, triedb, 256, headBlock.Root(), false, false, false)
 	if err != nil {
 		return nil, err // The relevant snapshot(s) might not exist
 	}
@@ -355,7 +357,9 @@ func RecoverPruning(datadir string, db ethdb.Database) error {
 	// - The state HEAD is rewound already because of multiple incomplete `prune-state`
 	// In this case, even the state HEAD is not exactly matched with snapshot, it
 	// still feasible to recover the pruning correctly.
-	snaptree, err := snapshot.New(db, trie.NewDatabase(db), 256, headBlock.Root(), false, false, true)
+	// Offline pruning is only supported in legacy hash based scheme.
+	triedb := trie.NewDatabase(db, trie.HashDefaults)
+	snaptree, err := snapshot.New(db, triedb, 256, headBlock.Root(), false, false, true)
 	if err != nil {
 		return err // The relevant snapshot(s) might not exist
 	}
@@ -397,11 +401,14 @@ func extractGenesis(db ethdb.Database, stateBloom *stateBloom) error {
 	if genesis == nil {
 		return errors.New("missing genesis block")
 	}
-	t, err := trie.NewSecure(trie.StateTrieID(genesis.Root()), trie.NewDatabase(db))
+	t, err := trie.NewSecure(trie.StateTrieID(genesis.Root()), trie.NewDatabase(db, trie.HashDefaults))
 	if err != nil {
 		return err
 	}
-	accIter := t.NodeIterator(nil)
+	accIter, err := t.NodeIterator(nil)
+	if err != nil {
+		return err
+	}
 	for accIter.Next(true) {
 		hash := accIter.Hash()
 
@@ -417,11 +424,14 @@ func extractGenesis(db ethdb.Database, stateBloom *stateBloom) error {
 				return err
 			}
 			if acc.Root != emptyRoot {
-				storageTrie, err := trie.NewSecure(trie.StorageTrieID(genesis.Root(), common.BytesToHash(accIter.LeafKey()), acc.Root), trie.NewDatabase(db))
+				storageTrie, err := trie.NewSecure(trie.StorageTrieID(genesis.Root(), common.BytesToHash(accIter.LeafKey()), acc.Root), trie.NewDatabase(db, trie.HashDefaults))
 				if err != nil {
 					return err
 				}
-				storageIter := storageTrie.NodeIterator(nil)
+				storageIter, err := storageTrie.NodeIterator(nil)
+				if err != nil {
+					return err
+				}
 				for storageIter.Next(true) {
 					hash := storageIter.Hash()
 					if hash != (common.Hash{}) {
