@@ -28,14 +28,14 @@ import (
 )
 
 func newEmptySecure() *SecureTrie {
-	trie, _ := NewSecure(TrieID(common.Hash{}), NewDatabase(rawdb.NewMemoryDatabase()))
+	trie, _ := NewSecure(TrieID(common.Hash{}), NewDatabase(rawdb.NewMemoryDatabase(), nil))
 	return trie
 }
 
 // makeTestSecureTrie creates a large enough secure trie for testing.
 func makeTestSecureTrie() (*Database, *SecureTrie, map[string][]byte) {
 	// Create an empty trie
-	triedb := NewDatabase(rawdb.NewMemoryDatabase())
+	triedb := NewDatabase(rawdb.NewMemoryDatabase(), nil)
 	trie, _ := NewSecure(TrieID(common.Hash{}), triedb)
 
 	// Fill it with some arbitrary data

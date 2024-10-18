@@ -88,7 +88,7 @@ func newTester() *downloadTester {
 	}
 	tester.stateDb = rawdb.NewMemoryDatabase()
 	tester.stateDb.Put(testGenesis.Root().Bytes(), []byte{0x00})
-	tester.triedb = trie.NewDatabase(tester.stateDb)
+	tester.triedb = trie.NewDatabase(tester.stateDb, nil)
 
 	tester.downloader = New(0, tester.stateDb, trie.NewSyncBloom(1, tester.stateDb), new(event.TypeMux), tester, nil, tester.dropPeer, tester.verifyBlobHeader)
 	return tester
@@ -234,7 +234,7 @@ func (dl *downloadTester) CurrentFastBlock() *types.Block {
 func (dl *downloadTester) FastSyncCommitHead(hash common.Hash) error {
 	// For now only check that the state trie is correct
 	if block := dl.GetBlockByHash(hash); block != nil {
-		_, err := trie.NewSecure(trie.StateTrieID(block.Root()), trie.NewDatabase(dl.stateDb))
+		_, err := trie.NewSecure(trie.StateTrieID(block.Root()), trie.NewDatabase(dl.stateDb, nil))
 		return err
 	}
 	return fmt.Errorf("non existent block: %x", hash[:4])
