@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -202,6 +203,10 @@ func handleGetNodeData66(backend Backend, msg Decoder, peer *Peer) error {
 }
 
 func answerGetNodeDataQuery(backend Backend, query GetNodeDataPacket, peer *Peer) [][]byte {
+	// Request nodes by hash is not supported in path-based scheme.
+	if backend.Chain().TrieDB().Scheme() == rawdb.PathScheme {
+		return nil
+	}
 	// Gather state data until the fetch or network limits is reached
 	var (
 		bytes int
@@ -217,7 +222,7 @@ func answerGetNodeDataQuery(backend Backend, query GetNodeDataPacket, peer *Peer
 			// Only lookup the trie node if there's chance that we actually have it
 			continue
 		}
-		entry, err := backend.Chain().TrieNode(hash)
+		entry, err := backend.Chain().TrieDB().Node(hash)
 		if len(entry) == 0 || err != nil {
 			// Read the contract code with prefix only to save unnecessary lookups.
 			entry, err = backend.Chain().ContractCodeWithPrefix(hash)

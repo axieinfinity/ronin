@@ -61,7 +61,7 @@ func TestTrieTracer(t *testing.T) {
 // Tests if the trie diffs are tracked correctly. Tracer should capture
 // all non-leaf dirty nodes, no matter the node is embedded or not.
 func testTrieTracer(t *testing.T, vals []struct{ k, v string }) {
-	db := NewDatabase(rawdb.NewMemoryDatabase())
+	db := NewDatabase(rawdb.NewMemoryDatabase(), nil)
 	trie := NewEmpty(db)
 
 	// Determine all new nodes are tracked
@@ -104,7 +104,7 @@ func TestTrieTracerNoop(t *testing.T) {
 }
 
 func testTrieTracerNoop(t *testing.T, vals []struct{ k, v string }) {
-	trie := NewEmpty(NewDatabase(rawdb.NewMemoryDatabase()))
+	trie := NewEmpty(NewDatabase(rawdb.NewMemoryDatabase(), nil))
 	for _, val := range vals {
 		trie.Update([]byte(val.k), []byte(val.v))
 	}
@@ -128,7 +128,7 @@ func TestAccessList(t *testing.T) {
 
 func testAccessList(t *testing.T, vals []struct{ k, v string }) {
 	var (
-		db   = NewDatabase(rawdb.NewMemoryDatabase())
+		db   = NewDatabase(rawdb.NewMemoryDatabase(), nil)
 		trie = NewEmpty(db)
 		orig = trie.Copy()
 	)
@@ -211,7 +211,7 @@ func testAccessList(t *testing.T, vals []struct{ k, v string }) {
 // Tests origin values won't be tracked in Iterator or Prover
 func TestAccessListLeak(t *testing.T) {
 	var (
-		db   = NewDatabase(rawdb.NewMemoryDatabase())
+		db   = NewDatabase(rawdb.NewMemoryDatabase(), nil)
 		trie = NewEmpty(db)
 	)
 	// Create trie from scratch
@@ -226,14 +226,14 @@ func TestAccessListLeak(t *testing.T) {
 	}{
 		{
 			func(tr *Trie) {
-				it := tr.NodeIterator(nil)
+				it := tr.MustNodeIterator(nil)
 				for it.Next(true) {
 				}
 			},
 		},
 		{
 			func(tr *Trie) {
-				it := NewIterator(tr.NodeIterator(nil))
+				it := NewIterator(tr.MustNodeIterator(nil))
 				for it.Next() {
 				}
 			},
@@ -262,7 +262,7 @@ func TestAccessListLeak(t *testing.T) {
 // in its parent due to the smaller size of the original tree node.
 func TestTinyTree(t *testing.T) {
 	var (
-		db   = NewDatabase(rawdb.NewMemoryDatabase())
+		db   = NewDatabase(rawdb.NewMemoryDatabase(), nil)
 		trie = NewEmpty(db)
 	)
 	for _, val := range tiny {
@@ -300,7 +300,7 @@ func compareSet(setA, setB map[string]struct{}) bool {
 
 func forNodes(tr *Trie) map[string][]byte {
 	var (
-		it    = tr.NodeIterator(nil)
+		it    = tr.MustNodeIterator(nil)
 		nodes = make(map[string][]byte)
 	)
 	for it.Next(true) {
@@ -320,7 +320,7 @@ func iterNodes(db *Database, root common.Hash) map[string][]byte {
 
 func forHashedNodes(tr *Trie) map[string][]byte {
 	var (
-		it    = tr.NodeIterator(nil)
+		it    = tr.MustNodeIterator(nil)
 		nodes = make(map[string][]byte)
 	)
 	for it.Next(true) {
