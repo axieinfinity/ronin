@@ -285,6 +285,11 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 
 		blobSidecarsCache: blobSidecarsCache,
 	}
+
+	if chainConfig.ChainID != nil && chainConfig.ChainID.Cmp(big.NewInt(testnetChainId)) == 0 {
+		bc.evmHook = TestnetHook{}
+	}
+
 	bc.validator = NewBlockValidator(chainConfig, bc, engine)
 	bc.prefetcher = newStatePrefetcher(chainConfig, bc, engine)
 	bc.processor = NewStateProcessor(chainConfig, bc, engine)
