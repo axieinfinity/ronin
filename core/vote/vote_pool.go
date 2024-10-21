@@ -432,6 +432,25 @@ func (pool *VotePool) basicVerify(vote *types.VoteEnvelope, headNumber uint64, m
 	return true
 }
 
+// stats returns the vote pool's
+// - number of current votes
+// - length of current vote queue
+// - number of future votes
+// - length of future vote queue
+func (pool *VotePool) stats() (int, int, int, int) {
+	pool.mu.RLock()
+	defer pool.mu.RUnlock()
+
+	return len(pool.curVotes), pool.curVotesPq.Len(), len(pool.futureVotes), pool.futureVotesPq.Len()
+}
+
+func (pool *VotePool) getNumberOfFutureVoteByPeer(peer string) uint64 {
+	pool.mu.RLock()
+	defer pool.mu.RUnlock()
+
+	return pool.numFutureVotePerPeer[peer]
+}
+
 func (pq votesPriorityQueue) Less(i, j int) bool {
 	return pq[i].TargetNumber < pq[j].TargetNumber
 }

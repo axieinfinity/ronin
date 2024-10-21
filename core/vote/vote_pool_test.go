@@ -74,7 +74,8 @@ func (m *mockPOSA) IsFinalityVoterAt(chain consensus.ChainHeaderReader, header *
 func (pool *VotePool) verifyStructureSizeOfVotePool(curVotes, futureVotes, curVotesPq, futureVotesPq int) bool {
 	for i := 0; i < timeThreshold; i++ {
 		time.Sleep(1 * time.Second)
-		if len(pool.curVotes) == curVotes && len(pool.futureVotes) == futureVotes && pool.curVotesPq.Len() == curVotesPq && pool.futureVotesPq.Len() == futureVotesPq {
+		poolCurVotes, poolCurVotesPq, poolFutureVotes, poolFutureVotesPq := pool.stats()
+		if poolCurVotes == curVotes && poolFutureVotes == futureVotes && poolCurVotesPq == curVotesPq && poolFutureVotesPq == futureVotesPq {
 			return true
 		}
 	}
@@ -286,14 +287,15 @@ func testVotePool(t *testing.T, isValidRules bool) {
 		}
 	}
 
+	done := false
 	for i := 0; i < timeThreshold; i++ {
 		time.Sleep(1 * time.Second)
-		_, ok := votePool.curVotes[futureBlockHash]
-		if ok && len(votePool.curVotes[futureBlockHash].voteMessages) == 2 {
+		if len(votePool.FetchVoteByBlockHash(futureBlockHash)) == 2 {
+			done = true
 			break
 		}
 	}
-	if votePool.curVotes[futureBlockHash] == nil || len(votePool.curVotes[futureBlockHash].voteMessages) != 2 {
+	if !done {
 		t.Fatalf("transfer vote failed")
 	}
 
@@ -410,46 +412,55 @@ func TestVotePoolDosProtection(t *testing.T) {
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	if len(*votePool.futureVotesPq) != maxFutureVotePerPeer {
-		t.Fatalf("Future vote pool length, expect %d have %d", maxFutureVotePerPeer, len(*votePool.futureVotesPq))
+	_, _, _, futureVoteQueueLength := votePool.stats()
+	if futureVoteQueueLength != maxFutureVotePerPeer {
+		t.Fatalf("Future vote pool length, expect %d have %d", maxFutureVotePerPeer, futureVoteQueueLength)
 	}
-	if votePool.numFutureVotePerPeer["AAAA"] != maxFutureVotePerPeer {
-		t.Fatalf("Number of future vote per peer, expect %d have %d", maxFutureVotePerPeer, votePool.numFutureVotePerPeer["AAAA"])
+	numFutureVotePerPeer := votePool.getNumberOfFutureVoteByPeer("AAAA")
+	if numFutureVotePerPeer != maxFutureVotePerPeer {
+		t.Fatalf("Number of future vote per peer, expect %d have %d", maxFutureVotePerPeer, numFutureVotePerPeer)
 	}
 
 	// This vote is dropped due to DOS protection
 	vote := generateVote(1, common.BigToHash(big.NewInt(int64(maxFutureVoteAmountPerBlock+1))), secretKey)
 	votePool.PutVote("AAAA", vote)
 	time.Sleep(100 * time.Millisecond)
-	if len(*votePool.futureVotesPq) != maxFutureVotePerPeer {
-		t.Fatalf("Future vote pool length, expect %d have %d", maxFutureVotePerPeer, len(*votePool.futureVotesPq))
+	_, _, _, futureVoteQueueLength = votePool.stats()
+	if futureVoteQueueLength != maxFutureVotePerPeer {
+		t.Fatalf("Future vote pool length, expect %d have %d", maxFutureVotePerPeer, futureVoteQueueLength)
 	}
-	if votePool.numFutureVotePerPeer["AAAA"] != maxFutureVotePerPeer {
-		t.Fatalf("Number of future vote per peer, expect %d have %d", maxFutureVotePerPeer, votePool.numFutureVotePerPeer["AAAA"])
+	numFutureVotePerPeer = votePool.getNumberOfFutureVoteByPeer("AAAA")
+	if numFutureVotePerPeer != maxFutureVotePerPeer {
+		t.Fatalf("Number of future vote per peer, expect %d have %d", maxFutureVotePerPeer, numFutureVotePerPeer)
 	}
 
 	// Vote from different peer must be accepted
 	vote = generateVote(1, common.BigToHash(big.NewInt(int64(maxFutureVoteAmountPerBlock+2))), secretKey)
 	votePool.PutVote("BBBB", vote)
 	time.Sleep(100 * time.Millisecond)
-	if len(*votePool.futureVotesPq) != maxFutureVotePerPeer+1 {
-		t.Fatalf("Future vote pool length, expect %d have %d", maxFutureVotePerPeer, len(*votePool.futureVotesPq))
+	_, _, _, futureVoteQueueLength = votePool.stats()
+	if futureVoteQueueLength != maxFutureVotePerPeer+1 {
+		t.Fatalf("Future vote pool length, expect %d have %d", maxFutureVotePerPeer, futureVoteQueueLength)
 	}
-	if votePool.numFutureVotePerPeer["AAAA"] != maxFutureVotePerPeer {
-		t.Fatalf("Number of future vote per peer, expect %d have %d", maxFutureVotePerPeer, votePool.numFutureVotePerPeer["AAAA"])
+	numFutureVotePerPeer = votePool.getNumberOfFutureVoteByPeer("AAAA")
+	if numFutureVotePerPeer != maxFutureVotePerPeer {
+		t.Fatalf("Number of future vote per peer, expect %d have %d", maxFutureVotePerPeer, numFutureVotePerPeer)
 	}
-	if votePool.numFutureVotePerPeer["BBBB"] != 1 {
-		t.Fatalf("Number of future vote per peer, expect %d have %d", 1, votePool.numFutureVotePerPeer["BBBB"])
+	numFutureVotePerPeer = votePool.getNumberOfFutureVoteByPeer("BBBB")
+	if numFutureVotePerPeer != 1 {
+		t.Fatalf("Number of future vote per peer, expect %d have %d", 1, numFutureVotePerPeer)
 	}
 
 	// One vote is not queued twice
 	votePool.PutVote("CCCC", vote)
 	time.Sleep(100 * time.Millisecond)
-	if len(*votePool.futureVotesPq) != maxFutureVotePerPeer+1 {
-		t.Fatalf("Future vote pool length, expect %d have %d", maxFutureVotePerPeer, len(*votePool.futureVotesPq))
+	_, _, _, futureVoteQueueLength = votePool.stats()
+	if futureVoteQueueLength != maxFutureVotePerPeer+1 {
+		t.Fatalf("Future vote pool length, expect %d have %d", maxFutureVotePerPeer, futureVoteQueueLength)
 	}
-	if votePool.numFutureVotePerPeer["CCCC"] != 0 {
-		t.Fatalf("Number of future vote per peer, expect %d have %d", 0, votePool.numFutureVotePerPeer["CCCC"])
+	numFutureVotePerPeer = votePool.getNumberOfFutureVoteByPeer("CCCC")
+	if numFutureVotePerPeer != 0 {
+		t.Fatalf("Number of future vote per peer, expect %d have %d", 0, numFutureVotePerPeer)
 	}
 
 	if _, err := chain.InsertChain(bs[1:], nil); err != nil {
@@ -458,11 +469,13 @@ func TestVotePoolDosProtection(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 	// Future vote must be transferred to current and failed the verification,
 	// numFutureVotePerPeer decreases
-	if len(*votePool.futureVotesPq) != 0 {
-		t.Fatalf("Future vote pool length, expect %d have %d", 0, len(*votePool.futureVotesPq))
+	_, _, _, futureVoteQueueLength = votePool.stats()
+	if futureVoteQueueLength != 0 {
+		t.Fatalf("Future vote pool length, expect %d have %d", 0, futureVoteQueueLength)
 	}
-	if votePool.numFutureVotePerPeer["AAAA"] != 0 {
-		t.Fatalf("Number of future vote per peer, expect %d have %d", 0, votePool.numFutureVotePerPeer["AAAA"])
+	numFutureVotePerPeer = votePool.getNumberOfFutureVoteByPeer("AAAA")
+	if numFutureVotePerPeer != 0 {
+		t.Fatalf("Number of future vote per peer, expect %d have %d", 0, numFutureVotePerPeer)
 	}
 }
 
