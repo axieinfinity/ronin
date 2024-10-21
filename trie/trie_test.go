@@ -182,6 +182,79 @@ func TestInsert(t *testing.T) {
 	}
 }
 
+func TestBatchUpdate(t *testing.T) {
+	trie := newEmpty()
+
+	trie.TryBatchInsert([][]byte{[]byte("doe")}, [][]byte{[]byte("reindeer")})
+	trie.TryBatchInsert(
+		[][]byte{[]byte("dog"), []byte("dogglesworth")},
+		[][]byte{[]byte("puppy"), []byte("cat")},
+	)
+
+	exp := common.HexToHash("8aad789dff2f538bca5d8ea56e8abe10f4c7ba3a5dea95fea4cd6e7c3a1168d3")
+	root := trie.Hash()
+	if root != exp {
+		t.Errorf("case 1: exp %x got %x", exp, root)
+	}
+
+	trie = newEmpty()
+	// Make root node a fullnode
+	trie.TryBatchInsert(
+		[][]byte{[]byte("doe"), []byte("cat")},
+		[][]byte{[]byte("reindeer"), []byte("reindeer")},
+	)
+
+	trie.TryBatchInsert(
+		[][]byte{[]byte("wolf"), []byte("dog"), []byte("dogglesworth"), []byte("mouse")},
+		[][]byte{[]byte("reindeer"), []byte("reindeer"), []byte("cat"), []byte("reindeer")},
+	)
+
+	exp = common.HexToHash("96baa01a6376b285252d202de862d889ca05de308ed1c68cf442ffc4b9036988")
+	root = trie.Hash()
+	if root != exp {
+		t.Errorf("case 2: exp %x got %x", exp, root)
+	}
+}
+
+func FuzzBatchUpdate(f *testing.F) {
+	// Every 64-byte chunk will be use as a key-value pair
+	// Key is the first 32 bytes, value is the remainning 32 bytes
+	f.Add([]byte("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"))
+	input := append(
+		[]byte("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"),
+		[]byte("CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB")...,
+	)
+	input = append(input, []byte("DAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB")...)
+	f.Add(input)
+	f.Fuzz(func(t *testing.T, fuzzInput []byte) {
+		if len(fuzzInput) <= 64 || len(fuzzInput)%64 != 0 {
+			return
+		}
+
+		keys := make([][]byte, 0)
+		values := make([][]byte, 0)
+		for i := 0; i < len(fuzzInput); i += 64 {
+			keys = append(keys, fuzzInput[i:i+32])
+			values = append(values, fuzzInput[i+32:i+64])
+		}
+
+		trie := newEmpty()
+		for i := range keys {
+			trie.Update(keys[i], values[i])
+		}
+
+		expectedHash := trie.Hash()
+
+		trie = newEmpty()
+		trie.TryBatchInsert(keys, values)
+		gotHash := trie.Hash()
+
+		if gotHash != expectedHash {
+			t.Fatalf("Trie hash mismatches, exp: %s got %s", expectedHash, gotHash)
+		}
+	})
+}
+
 func TestGet(t *testing.T) {
 	trie := newEmpty()
 	updateString(trie, "doe", "reindeer")
@@ -517,6 +590,44 @@ func benchUpdate(b *testing.B, e binary.ByteOrder) *Trie {
 		trie.Update(k, k)
 	}
 	return trie
+}
+
+func benchmarkManyInserts(b *testing.B, f func(trie *Trie, keys [][]byte, values [][]byte)) {
+	numUpdates := 10000
+
+	k := make([]byte, 32)
+
+	keys := make([][]byte, 0, numUpdates)
+	for i := 0; i < numUpdates; i++ {
+		binary.BigEndian.PutUint64(k, uint64(i))
+		hashKey := crypto.Keccak256Hash(k)
+		keys = append(keys, hashKey[:])
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		b.StopTimer()
+		trie := newEmpty()
+		// Make trie root a fullnode
+		updateString(trie, "AAA", "BBB")
+		updateString(trie, "ZAA", "BBB")
+		b.StartTimer()
+		f(trie, keys, keys)
+	}
+}
+
+func BenchmarkNormalInsert(b *testing.B) {
+	benchmarkManyInserts(b, func(trie *Trie, keys, values [][]byte) {
+		for i := range keys {
+			trie.Update(keys[i], values[i])
+		}
+	})
+}
+
+func BenchmarkBatchInsert(b *testing.B) {
+	benchmarkManyInserts(b, func(trie *Trie, keys, values [][]byte) {
+		trie.TryBatchInsert(keys, values)
+	})
 }
 
 // Benchmarks the trie hashing. Since the trie caches the result of any operation,

@@ -28,9 +28,12 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/ethereum/go-ethereum/trie"
 )
 
 var emptyCodeHash = crypto.Keccak256(nil)
+
+const ParallelInsertThreshold = 500
 
 type Code []byte
 
@@ -338,6 +341,16 @@ func (s *stateObject) updateTrie(db Database) Trie {
 	tr := s.getTrie(db)
 	hasher := s.db.hasher
 
+	var (
+		parallelInsert, ok bool
+		secureTrie         *trie.SecureTrie
+		keys, values       [][]byte
+	)
+	if len(s.pendingStorage) > ParallelInsertThreshold {
+		if secureTrie, ok = tr.(*trie.SecureTrie); ok {
+			parallelInsert = true
+		}
+	}
 	usedStorage := make([][]byte, 0, len(s.pendingStorage))
 	for key, value := range s.pendingStorage {
 		// Skip noop changes, persist actual changes
@@ -353,8 +366,14 @@ func (s *stateObject) updateTrie(db Database) Trie {
 		} else {
 			// Encoding []byte cannot fail, ok to ignore the error.
 			v, _ = rlp.EncodeToBytes(common.TrimLeftZeroes(value[:]))
-			s.setError(tr.TryUpdate(key[:], v))
 			s.db.StorageUpdated += 1
+			if parallelInsert {
+				key := key
+				keys = append(keys, key[:])
+				values = append(values, v)
+			} else {
+				s.setError(tr.TryUpdate(key[:], v))
+			}
 		}
 		// If state snapshotting is active, cache the data til commit
 		if s.db.snap != nil {
@@ -368,6 +387,9 @@ func (s *stateObject) updateTrie(db Database) Trie {
 			storage[crypto.HashData(hasher, key[:])] = v // v will be nil if it's deleted
 		}
 		usedStorage = append(usedStorage, common.CopyBytes(key[:])) // Copy needed for closure
+	}
+	if parallelInsert && len(keys) > 0 {
+		s.setError(secureTrie.TryBatchInsert(keys, values))
 	}
 	if s.db.prefetcher != nil {
 		s.db.prefetcher.used(s.data.Root, usedStorage)
