@@ -4224,6 +4224,7 @@ func TestInsertChainWithSidecars(t *testing.T) {
 }
 
 func TestSidecarsPruning(t *testing.T) {
+	var prunePeriod uint64 = 1000
 	privateKey, _ := crypto.GenerateKey()
 	address := crypto.PubkeyToAddress(privateKey.PublicKey)
 	chainConfig := params.TestChainConfig
@@ -4243,6 +4244,7 @@ func TestSidecarsPruning(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create blockchain, err %s", err)
 	}
+	chain.setBlobPrunePeriod(prunePeriod)
 	signer := types.NewCancunSigner(chainConfig.ChainID)
 
 	// Insert BlobPrunePeriod blocks
@@ -4257,12 +4259,12 @@ func TestSidecarsPruning(t *testing.T) {
 	}
 	// Just nSidecarsToPrune first blocks have sidecars for testing
 	nSidecarsToPrune := 10
-	sidecars := make([][]*types.BlobTxSidecar, params.BlobPrunePeriod+1)
+	sidecars := make([][]*types.BlobTxSidecar, prunePeriod+1)
 	for i := 0; i < nSidecarsToPrune; i++ {
 		sidecars[i] = sidecar
 	}
 
-	blocks, _ := GenerateChain(chainConfig, genesis, engine, db, params.BlobPrunePeriod, func(i int, bg *BlockGen) {
+	blocks, _ := GenerateChain(chainConfig, genesis, engine, db, int(prunePeriod), func(i int, bg *BlockGen) {
 		if i < nSidecarsToPrune {
 			tx, err := types.SignNewTx(privateKey, signer, &types.BlobTx{
 				ChainID:    uint256.MustFromBig(chainConfig.ChainID),
@@ -4284,7 +4286,7 @@ func TestSidecarsPruning(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	curBlockNumber := params.BlobPrunePeriod
+	curBlockNumber := prunePeriod
 
 	// Check if all blobs are not pruned
 	for i := 1; i <= nSidecarsToPrune; i++ {
@@ -4304,11 +4306,11 @@ func TestSidecarsPruning(t *testing.T) {
 		}
 		blocks = append(blocks, newBlock...)
 		// Check if the oldest block's sidecars are pruned
-		pruneBlockNumber := curBlockNumber - params.BlobPrunePeriod
+		pruneBlockNumber := curBlockNumber - prunePeriod
 		pruneBlockHash := chain.GetBlockByNumber(uint64(pruneBlockNumber)).Hash()
 		sidecars := rawdb.ReadBlobSidecars(chain.db, pruneBlockHash, uint64(pruneBlockNumber))
 		if sidecars != nil {
-			t.Fatalf("Sidecars should be pruned at block %d", curBlockNumber-params.BlobPrunePeriod)
+			t.Fatalf("Sidecars should be pruned at block %d", curBlockNumber-prunePeriod)
 		}
 	}
 }
