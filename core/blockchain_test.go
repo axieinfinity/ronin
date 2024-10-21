@@ -4176,11 +4176,11 @@ func TestInsertChainWithSidecars(t *testing.T) {
 
 			// Wait for future block to be inserted
 			time.Sleep(15 * time.Second)
-			block = chain.CurrentBlock()
+			block := chain.CurrentBlock()
 			if block.Hash() != futureBlocks[0].Hash() {
 				t.Fatalf("Failed to insert future block, current: %d expected: %d", block.NumberU64(), futureBlocks[0].NumberU64())
 			}
-			savedSidecars = chain.GetBlobSidecarsByHash(block.Hash())
+			savedSidecars := chain.GetBlobSidecarsByHash(block.Hash())
 			if len(savedSidecars) != len(sidecars) {
 				t.Fatalf("Expect length of sidecar to be %d, got %d", len(sidecars), len(savedSidecars))
 			}
