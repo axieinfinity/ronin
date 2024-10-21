@@ -230,6 +230,8 @@ type BlockChain struct {
 	shouldStoreInternalTxs     bool
 	enableAdditionalChainEvent bool
 	evmHook                    vm.EVMHook
+
+	blobPrunePeriod uint64
 }
 
 type futureBlock struct {
@@ -284,6 +286,7 @@ func NewBlockChain(db ethdb.Database, cacheConfig *CacheConfig, chainConfig *par
 		shouldStoreInternalTxs:    rawdb.ReadStoreInternalTransactionsEnabled(db),
 
 		blobSidecarsCache: blobSidecarsCache,
+		blobPrunePeriod:   params.BlobPrunePeriod,
 	}
 	bc.validator = NewBlockValidator(chainConfig, bc, engine)
 	bc.prefetcher = newStatePrefetcher(chainConfig, bc, engine)
@@ -450,6 +453,12 @@ func (bc *BlockChain) SetHook(evmHook vm.EVMHook) {
 
 func (bc *BlockChain) GetHook() vm.EVMHook {
 	return bc.evmHook
+}
+
+// setBlobPrunePeriod is used in tests to override the default prune
+// period for easy testing
+func (bc *BlockChain) setBlobPrunePeriod(period uint64) {
+	bc.blobPrunePeriod = period
 }
 
 func (bc *BlockChain) loadLatestDirtyAccounts() {
@@ -1471,10 +1480,10 @@ func (bc *BlockChain) reorgNeeded(localBlock *types.Block, localTd *big.Int, ext
 
 // pruneBlockSidecars prunes the sidecars of blocks that are older than the keep period
 func (bc *BlockChain) pruneBlockSidecars(db ethdb.KeyValueWriter, curBlock *types.Block) {
-	if curBlock.NumberU64() < uint64(params.BlobPrunePeriod) {
+	if curBlock.NumberU64() < uint64(bc.blobPrunePeriod) {
 		return
 	}
-	pruneBlockNumber := curBlock.NumberU64() - uint64(params.BlobPrunePeriod)
+	pruneBlockNumber := curBlock.NumberU64() - uint64(bc.blobPrunePeriod)
 	pruneBlockHash := bc.GetCanonicalHash(pruneBlockNumber)
 	rawdb.DeleteBlobSidecars(db, pruneBlockHash, pruneBlockNumber)
 }
