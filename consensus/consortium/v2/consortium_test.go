@@ -2219,7 +2219,7 @@ func testSystemTransactionOrder(t *testing.T, scheme string) {
 }
 
 func TestIsPeriodBlock(t *testing.T) {
-	//testIsPeriodBlock(t, rawdb.PathScheme)
+	testIsPeriodBlock(t, rawdb.PathScheme)
 	testIsPeriodBlock(t, rawdb.HashScheme)
 }
 
@@ -2292,17 +2292,25 @@ func testIsPeriodBlock(t *testing.T, scheme string) {
 	if c.IsPeriodBlock(chain, header, nil) {
 		t.Error("wrong period block")
 	}
-
+	newBs := make(types.Blocks, 0)
 	for i := 0; i < 210; i++ {
 		callback := func(i int, bg *core.BlockGen) {
 			if i == 0 {
 				bg.OffsetTime(int64(dayInSeconds))
 			}
 		}
-		block, _ := core.GenerateChain(&chainConfig, bs[len(bs)-1], ethash.NewFaker(), db, 1, callback, true)
-		bs = append(bs, block...)
+		if i == 0 {
+			block, _ := core.GenerateChain(&chainConfig, bs[len(bs)-1], ethash.NewFaker(), db, 1, callback, true)
+			newBs = append(newBs, block...)
+			bs = append(bs, block...)
+		} else {
+			block, _ := core.GenerateChain(&chainConfig, newBs[len(newBs)-1], ethash.NewFaker(), db, 1, callback, true)
+			newBs = append(newBs, block...)
+			bs = append(bs, block...)
+		}
 	}
-	if _, err := chain.InsertChain(bs[:], nil); err != nil {
+	// only insert newly generated blocks
+	if _, err := chain.InsertChain(newBs[:], nil); err != nil {
 		panic(err)
 	}
 
@@ -2330,8 +2338,7 @@ Will disable this test firstly for further investigation.
 */
 func TestIsTrippEffective(t *testing.T) {
 	testIsTrippEffective(t, rawdb.HashScheme)
-	// testIsTrippEffective(t, rawdb.PathScheme)
-
+	testIsTrippEffective(t, rawdb.PathScheme)
 }
 
 func testIsTrippEffective(t *testing.T, scheme string) {
@@ -2408,16 +2415,25 @@ func testIsTrippEffective(t *testing.T, scheme string) {
 		t.Error("fail test Tripp effective")
 	}
 
+	newBs := make(types.Blocks, 0)
 	for i := 0; i < 210; i++ {
 		callback := func(i int, bg *core.BlockGen) {
 			if i == 0 {
 				bg.OffsetTime(int64(dayInSeconds))
 			}
 		}
-		block, _ := core.GenerateChain(&chainConfig, bs[len(bs)-1], ethash.NewFaker(), db, 1, callback, true)
-		bs = append(bs, block...)
+		if i == 0 {
+			block, _ := core.GenerateChain(&chainConfig, bs[len(bs)-1], ethash.NewFaker(), db, 1, callback, true)
+			newBs = append(newBs, block...)
+			bs = append(bs, block...)
+		} else {
+			block, _ := core.GenerateChain(&chainConfig, newBs[len(newBs)-1], ethash.NewFaker(), db, 1, callback, true)
+			newBs = append(newBs, block...)
+			bs = append(bs, block...)
+		}
 	}
-	if _, err := chain.InsertChain(bs[:], nil); err != nil {
+	// only insert newly generated blocks
+	if _, err := chain.InsertChain(newBs[:], nil); err != nil {
 		panic(err)
 	}
 
