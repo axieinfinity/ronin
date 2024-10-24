@@ -207,11 +207,12 @@ func New(stack *node.Node, config *ethconfig.Config) (*Ethereum, error) {
 		}
 	)
 	eth.blockchain, err = core.NewBlockChain(chainDb, cacheConfig, config.Genesis, config.OverrideArrowGlacier, eth.engine, vmConfig, eth.shouldPreserve, &config.TransactionHistory)
-	chainConfig := eth.blockchain.Config()
-	genesisHash := eth.blockchain.Genesis().Hash()
 	if err != nil {
 		return nil, err
 	}
+	chainConfig := eth.blockchain.Config()
+	genesisHash := eth.blockchain.Genesis().Hash()
+
 	if config.EnableMonitorDoubleSign {
 		go eth.blockchain.StartDoubleSignMonitor()
 	}

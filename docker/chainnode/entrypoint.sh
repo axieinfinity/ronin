@@ -29,6 +29,7 @@ params=""
 syncmode="snap"
 mine="true"
 blsParams=""
+state_scheme="hash"
 
 set -e
 
@@ -47,6 +48,11 @@ fi
 if [[ ! -z $WS_PORT ]]; then
   ws_port="$WS_PORT"
 fi
+
+if [[ ! -z $STATE_SCHEME ]]; then
+  state_scheme="$STATE_SCHEME"
+fi
+
 
 # networkid
 if [[ ! -z $NETWORK_ID ]]; then
@@ -78,15 +84,14 @@ fi
 
 # data dir
 if [[ ! -d $datadir/ronin ]]; then
-  echo "No blockchain data, creating genesis block."
-  ronin init $dbEngine --datadir $datadir $genesisPath 2> /dev/null
+  echo "No blockchain data, creating genesis block with $genesisPath, state_scheme $state_scheme ..."
+  ronin init $dbEngine --datadir $datadir --state.scheme $state_scheme $genesisPath $genesisPath
 elif [[ "$FORCE_INIT" = "true" && "$INIT_FORCE_OVERRIDE_CHAIN_CONFIG" = "true" ]]; then
-  echo "Forcing update chain config with force overriding chain config."
-  ronin init $dbEngine --overrideChainConfig --datadir $datadir $genesisPath 2> /dev/null
+  echo "Forcing update chain config with force overriding chain config with $genesisPath, state_scheme $state_scheme ..."
+  ronin init $dbEngine --overrideChainConfig --datadir $datadir --state.scheme $state_scheme $genesisPath
 elif [ "$FORCE_INIT" = "true" ]; then
-  echo "Forcing update chain config."
-  ronin init $dbEngine --datadir $datadir $genesisPath 2> /dev/null
-fi
+  echo "Forcing update chain config with $genesisPath, state_scheme $state_scheme ..."
+  ronin init $dbEngine --datadir $datadir --state.scheme $state_scheme $genesisPath
 
 # password file
 if [[ ! -f $PASSWORD_FILE ]]; then
@@ -333,6 +338,9 @@ if [[ "$BLS_SHOW_PRIVATE_KEY" = "true" ]]; then
     --finality.blswalletpath $BLS_PRIVATE_KEY_DIR \
     --secret
 fi
+echo "---------------------------------"
+echo "Starting the Ronin Node"
+echo "---------------------------------"
 
 exec ronin $params \
   --syncmode $syncmode \
