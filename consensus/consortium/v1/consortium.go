@@ -308,9 +308,13 @@ func (c *Consortium) verifyCascadingFields(chain consensus.ChainHeaderReader, he
 func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, hash common.Hash, parents []*types.Header) (*Snapshot, error) {
 	// Search for a snapshot in memory or on disk for checkpoints
 	var (
-		headers []*types.Header
-		snap    *Snapshot
+		headers    []*types.Header
+		snap       *Snapshot
+		cpyParents = make([]*types.Header, len(parents))
 	)
+	// We must copy parents before going to the loop because parents are modified.
+	// If not, the FindAncientHeader function can not find its block ancestor
+	copy(cpyParents, parents)
 	for snap == nil {
 		// If an in-memory snapshot was found, use that
 		if s, ok := c.recents.Get(hash); ok {
@@ -370,7 +374,7 @@ func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, 
 	for i := 0; i < len(headers)/2; i++ {
 		headers[i], headers[len(headers)-1-i] = headers[len(headers)-1-i], headers[i]
 	}
-	snap, err := snap.apply(chain, c, headers, parents)
+	snap, err := snap.apply(chain, c, headers, cpyParents)
 	if err != nil {
 		return nil, err
 	}
