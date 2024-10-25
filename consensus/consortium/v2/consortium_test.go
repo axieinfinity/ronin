@@ -2219,7 +2219,7 @@ func testSystemTransactionOrder(t *testing.T, scheme string) {
 }
 
 func TestIsPeriodBlock(t *testing.T) {
-	//testIsPeriodBlock(t, rawdb.PathScheme)
+	testIsPeriodBlock(t, rawdb.PathScheme)
 	testIsPeriodBlock(t, rawdb.HashScheme)
 }
 
@@ -2302,7 +2302,7 @@ func testIsPeriodBlock(t *testing.T, scheme string) {
 		block, _ := core.GenerateChain(&chainConfig, bs[len(bs)-1], ethash.NewFaker(), db, 1, callback, true)
 		bs = append(bs, block...)
 	}
-	if _, err := chain.InsertChain(bs[:], nil); err != nil {
+	if _, err := chain.InsertChain(bs[399:], nil); err != nil {
 		panic(err)
 	}
 
@@ -2322,15 +2322,9 @@ func testIsPeriodBlock(t *testing.T, scheme string) {
 	}
 }
 
-/*
-Got issues related to parent layer missing in the test
-panic: triedb parent [0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421] layer missing [recovered]
-panic: triedb parent [0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421] layer missing
-Will disable this test firstly for further investigation.
-*/
 func TestIsTrippEffective(t *testing.T) {
 	testIsTrippEffective(t, rawdb.HashScheme)
-	// testIsTrippEffective(t, rawdb.PathScheme)
+	testIsTrippEffective(t, rawdb.PathScheme)
 
 }
 
@@ -2417,7 +2411,7 @@ func testIsTrippEffective(t *testing.T, scheme string) {
 		block, _ := core.GenerateChain(&chainConfig, bs[len(bs)-1], ethash.NewFaker(), db, 1, callback, true)
 		bs = append(bs, block...)
 	}
-	if _, err := chain.InsertChain(bs[:], nil); err != nil {
+	if _, err := chain.InsertChain(bs[399:], nil); err != nil {
 		panic(err)
 	}
 
