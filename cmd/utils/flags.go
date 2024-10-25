@@ -2458,7 +2458,7 @@ func ParseStateScheme(ctx *cli.Context, disk ethdb.Database) (string, error) {
 	// If state scheme is specified, ensure it's compatible with
 	// persistent state.
 	scheme := ctx.String(StateSchemeFlag.Name)
-	if stored != "" || scheme == stored {
+	if stored == "" || scheme == stored {
 		log.Info("State scheme set by user", "scheme", scheme)
 		return scheme, nil
 	}
