@@ -79,11 +79,7 @@ func copyFrom(srcPath, destPath string, offset uint64, beforeCopyFunc func(f *os
 		return err
 	}
 	f = nil
-
-	if err := os.Rename(fname, destPath); err != nil {
-		return err
-	}
-	return nil
+	return os.Rename(fname, destPath)
 }
 
 // openFreezerFileForAppend opens a freezer table file and seeks to the end, if it's not exist, create it.
