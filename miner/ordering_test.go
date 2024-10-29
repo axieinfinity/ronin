@@ -169,3 +169,96 @@ func TestTransactionTimeSort(t *testing.T) {
 		}
 	}
 }
+
+func TestTransactionsByPriceAndNonceNext(t *testing.T) {
+	keys := make([]*ecdsa.PrivateKey, 4)
+	addresses := make([]common.Address, 4)
+	for i := range keys {
+		keys[i], _ = crypto.GenerateKey()
+		addresses[i] = crypto.PubkeyToAddress(keys[i].PublicKey)
+	}
+
+	signer := types.NewMikoSigner(big.NewInt(2020))
+
+	transactions := make([]*txpool.LazyTransaction, 4)
+	for i := range transactions {
+		tx, _ := types.SignTx(types.NewTransaction(0, common.Address{}, common.Big0, 21000, big.NewInt(int64(i)), nil), signer, keys[i])
+		transactions[i] = &txpool.LazyTransaction{
+			Tx:        tx,
+			Hash:      tx.Hash(),
+			Time:      tx.Time(),
+			GasFeeCap: uint256.MustFromBig(tx.GasFeeCap()),
+			GasTipCap: uint256.MustFromBig(tx.GasTipCap()),
+			Gas:       tx.Gas(),
+			BlobGas:   tx.BlobGas(),
+		}
+	}
+
+	// There is no next transaction
+	groups := make(map[common.Address][]*txpool.LazyTransaction)
+	groups[addresses[0]] = append(groups[addresses[0]], transactions[0])
+
+	txs := NewTransactionsByPriceAndNonce(signer, groups, nil)
+	lazyTx, _ := txs.Next()
+	if lazyTx != nil {
+		t.Fatalf("Expect no next transaction, got %v", lazyTx)
+	}
+
+	// In heap, head transaction has gas price 1, child transaction has gas price 0
+	groups = make(map[common.Address][]*txpool.LazyTransaction)
+	groups[addresses[0]] = append(groups[addresses[0]], transactions[0])
+	groups[addresses[1]] = append(groups[addresses[1]], transactions[1])
+	txs = NewTransactionsByPriceAndNonce(signer, groups, nil)
+	lazyTx, _ = txs.Next()
+	if lazyTx == nil || lazyTx.GasFeeCap.ToBig().Cmp(common.Big0) != 0 {
+		t.Fatalf("Expect to have next transaction of gas price 0, got: %v", lazyTx)
+	}
+
+	// In heap, head transaction has gas price 2, children have gas price 1, 0
+	// Next transaction must have gas price 1
+	groups = make(map[common.Address][]*txpool.LazyTransaction)
+	groups[addresses[0]] = append(groups[addresses[0]], transactions[0])
+	groups[addresses[1]] = append(groups[addresses[1]], transactions[1])
+	groups[addresses[2]] = append(groups[addresses[2]], transactions[2])
+	txs = NewTransactionsByPriceAndNonce(signer, groups, nil)
+	lazyTx, _ = txs.Next()
+	if lazyTx == nil || lazyTx.GasFeeCap.ToBig().Cmp(common.Big1) != 0 {
+		t.Fatalf("Expect to have next transaction of gas price 1, got: %v", lazyTx)
+	}
+
+	// In heap, head transaction has gas price 3, children have gas price 2, 1
+	// Next transaction must have gas price 2
+	groups = make(map[common.Address][]*txpool.LazyTransaction)
+	groups[addresses[0]] = append(groups[addresses[0]], transactions[0])
+	groups[addresses[1]] = append(groups[addresses[1]], transactions[1])
+	groups[addresses[2]] = append(groups[addresses[2]], transactions[2])
+	groups[addresses[3]] = append(groups[addresses[3]], transactions[3])
+	txs = NewTransactionsByPriceAndNonce(signer, groups, nil)
+	lazyTx, _ = txs.Next()
+	if lazyTx == nil || lazyTx.GasFeeCap.ToBig().Cmp(common.Big2) != 0 {
+		t.Fatalf("Expect to have next transaction of gas price 2, got: %v", lazyTx)
+	}
+
+	// The next transaction of head transaction has higher price than children in heap
+	nextTx, _ := types.SignTx(types.NewTransaction(0, common.Address{}, common.Big0, 21000, big.NewInt(100), nil), signer, keys[3])
+	tx := &txpool.LazyTransaction{
+		Tx:        nextTx,
+		Hash:      nextTx.Hash(),
+		Time:      nextTx.Time(),
+		GasFeeCap: uint256.MustFromBig(nextTx.GasFeeCap()),
+		GasTipCap: uint256.MustFromBig(nextTx.GasTipCap()),
+		Gas:       nextTx.Gas(),
+		BlobGas:   nextTx.BlobGas(),
+	}
+
+	groups = make(map[common.Address][]*txpool.LazyTransaction)
+	groups[addresses[0]] = append(groups[addresses[0]], transactions[0])
+	groups[addresses[1]] = append(groups[addresses[1]], transactions[1])
+	groups[addresses[2]] = append(groups[addresses[2]], transactions[2])
+	groups[addresses[3]] = append(groups[addresses[3]], transactions[3], tx)
+	txs = NewTransactionsByPriceAndNonce(signer, groups, nil)
+	lazyTx, _ = txs.Next()
+	if lazyTx == nil || lazyTx.GasFeeCap.ToBig().Cmp(big.NewInt(100)) != 0 {
+		t.Fatalf("Expect to have next transaction of gas price 100, got: %v", tx)
+	}
+}
