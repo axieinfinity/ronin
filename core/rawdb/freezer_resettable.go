@@ -225,8 +225,7 @@ func cleanup(pathToDelete string) error {
 
 	for _, name := range names {
 		if name == filepath.Base(pathToDelete)+tmpSuffix {
-			// Figure out then delete the tmp directory which is renamed in Reset Method.
-			log.Info("Cleaning up the freezer Reset directory", "pathToDelete", pathToDelete, "total files inside", len(names))
+			log.Info("Removed leftover freezer directory", "name", name)
 			return os.RemoveAll(filepath.Join(parentDir, name))
 		}
 	}
