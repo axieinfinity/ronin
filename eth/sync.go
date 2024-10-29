@@ -190,15 +190,24 @@ func (cs *chainSyncer) modeAndLocalHead() (downloader.SyncMode, *big.Int) {
 	}
 	// We are probably in full sync, but we might have rewound to before the
 	// fast sync pivot, check if we should reenable
+	head := cs.handler.chain.CurrentBlock()
 	if pivot := rawdb.ReadLastPivotNumber(cs.handler.database); pivot != nil {
-		if head := cs.handler.chain.CurrentBlock(); head.NumberU64() < *pivot {
+		if head.NumberU64() < *pivot {
 			block := cs.handler.chain.CurrentFastBlock()
 			td := cs.handler.chain.GetTd(block.Hash(), block.NumberU64())
 			return downloader.FastSync, td
 		}
 	}
+	// We are in a full sync, but the associated head state is missing. To complete
+	// the head state, forcefully rerun the snap sync. Note it doesn't mean the
+	// persistent state is corrupted, just mismatch with the head block.
+	if !cs.handler.chain.HasState(head.Root()) {
+		block := cs.handler.chain.CurrentFastBlock()
+		td := cs.handler.chain.GetTd(block.Hash(), block.NumberU64())
+		log.Info("Reenabled snap sync as chain is stateless")
+		return downloader.SnapSync, td
+	}
 	// Nope, we're really full syncing
-	head := cs.handler.chain.CurrentBlock()
 	td := cs.handler.chain.GetTd(head.Hash(), head.NumberU64())
 	return downloader.FullSync, td
 }
@@ -234,22 +243,14 @@ func (h *handler) doSync(op *chainSyncOp) error {
 	if err != nil {
 		return err
 	}
-	if atomic.LoadUint32(&h.fastSync) == 1 {
-		log.Info("Fast sync complete, auto disabling")
-		atomic.StoreUint32(&h.fastSync, 0)
-	}
-	if atomic.LoadUint32(&h.snapSync) == 1 {
-		log.Info("Snap sync complete, auto disabling")
-		atomic.StoreUint32(&h.snapSync, 0)
-	}
-	// If we've successfully finished a sync cycle and passed any required checkpoint,
-	// enable accepting transactions from the network.
+	h.enableSyncedFeatures()
+
 	head := h.chain.CurrentBlock()
 	if head.NumberU64() >= h.checkpointNumber {
 		// Checkpoint passed, sanity check the timestamp to have a fallback mechanism
 		// for non-checkpointed (number = 0) private networks.
 		if head.Time() >= uint64(time.Now().AddDate(0, -1, 0).Unix()) {
-			atomic.StoreUint32(&h.acceptTxs, 1)
+			atomic.StoreUint32(&h.synced, 1)
 		}
 	}
 	if head.NumberU64() > 0 {
