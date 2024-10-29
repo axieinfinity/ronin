@@ -25,6 +25,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/metrics"
 )
 
 // ErrNotRequested is returned by the trie sync when it's requested to process a
@@ -39,6 +40,16 @@ var ErrAlreadyProcessed = errors.New("already processed")
 // role of this value is to limit the number of trie nodes that get expanded in
 // memory if the node was configured with a significant number of peers.
 const maxFetchesPerDepth = 16384
+
+var (
+	// deletionGauge is the metric to track how many trie node deletions
+	// are performed in total during the sync process.
+	deletionGauge = metrics.NewRegisteredGauge("trie/sync/delete", nil)
+
+	// lookupGauge is the metric to track how many trie node lookups are
+	// performed to determine if node needs to be deleted.
+	lookupGauge = metrics.NewRegisteredGauge("trie/sync/lookup", nil)
+)
 
 // SyncPath is a path tuple identifying a particular trie node either in a single
 // trie (account) or a layered trie (account -> storage).
@@ -75,9 +86,10 @@ func NewSyncPath(path []byte) SyncPath {
 
 // nodeRequest represents a scheduled or already in-flight trie node retrieval request.
 type nodeRequest struct {
-	hash common.Hash // Hash of the trie node to retrieve
-	path []byte      // Merkle path leading to this node for prioritization
-	data []byte      // Data content of the node, cached until all subtrees complete
+	hash    common.Hash // Hash of the trie node to retrieve
+	path    []byte      // Merkle path leading to this node for prioritization
+	data    []byte      // Data content of the node, cached until all subtrees complete
+	deletes [][]byte    // List of internal path segments for trie nodes to delete
 
 	parent   *nodeRequest // Parent state node referencing this entry
 	deps     int          // Number of dependencies before allowed to commit this node
@@ -107,17 +119,19 @@ type CodeSyncResult struct {
 // syncMemBatch is an in-memory buffer of successfully downloaded but not yet
 // persisted data items.
 type syncMemBatch struct {
-	nodes  map[string][]byte      // In-memory membatch of recently completed nodes
-	hashes map[string]common.Hash // Hashes of recently completed nodes
-	codes  map[common.Hash][]byte // In-memory membatch of recently completed codes
+	nodes   map[string][]byte      // In-memory membatch of recently completed nodes
+	hashes  map[string]common.Hash // Hashes of recently completed nodes
+	deletes map[string]struct{}    // List of paths for trie node to delete
+	codes   map[common.Hash][]byte // In-memory membatch of recently completed codes
 }
 
 // newSyncMemBatch allocates a new memory-buffer for not-yet persisted trie nodes.
 func newSyncMemBatch() *syncMemBatch {
 	return &syncMemBatch{
-		nodes:  make(map[string][]byte),
-		hashes: make(map[string]common.Hash),
-		codes:  make(map[common.Hash][]byte),
+		nodes:   make(map[string][]byte),
+		hashes:  make(map[string]common.Hash),
+		deletes: make(map[string]struct{}),
+		codes:   make(map[common.Hash][]byte),
 	}
 }
 
@@ -358,7 +372,7 @@ func (s *Sync) ProcessNode(result NodeSyncResult) error {
 // Commit flushes the data stored in the internal membatch out to persistent
 // storage, returning any occurred error.
 func (s *Sync) Commit(dbw ethdb.Batch) error {
-	// Dump the membatch into a database dbw
+	// Flush the pending node writes into database batch.
 	for path, value := range s.membatch.nodes {
 		owner, inner := ResolvePath([]byte(path))
 		rawdb.WriteTrieNode(dbw, owner, inner, s.membatch.hashes[path], value, s.scheme)
@@ -367,14 +381,21 @@ func (s *Sync) Commit(dbw ethdb.Batch) error {
 			s.bloom.Add(hash[:])
 		}
 	}
+	// Flush the pending node deletes into the database batch.
+	// Please note that each written and deleted node has a
+	// unique path, ensuring no duplication occurs.
+	for path := range s.membatch.deletes {
+		owner, inner := ResolvePath([]byte(path))
+		rawdb.DeleteTrieNode(dbw, owner, inner, common.Hash{} /* unused */, s.scheme)
+	}
+	// Flush the pending code writes into database batch.
 	for hash, value := range s.membatch.codes {
 		rawdb.WriteCode(dbw, hash, value)
 		if s.bloom != nil {
 			s.bloom.Add(hash[:])
 		}
 	}
-	// Drop the membatch data and return
-	s.membatch = newSyncMemBatch()
+	s.membatch = newSyncMemBatch() // reset the batch
 	return nil
 }
 
@@ -438,6 +459,39 @@ func (s *Sync) children(req *nodeRequest, object node) ([]*nodeRequest, error) {
 			node: node.Val,
 			path: append(append([]byte(nil), req.path...), key...),
 		}}
+		// Mark all internal nodes between shortNode and its **in disk**
+		// child as invalid. This is essential in the case of path mode
+		// scheme; otherwise, state healing might overwrite existing child
+		// nodes silently while leaving a dangling parent node within the
+		// range of this internal path on disk. This would break the
+		// guarantee for state healing.
+		//
+		// While it's possible for this shortNode to overwrite a previously
+		// existing full node, the other branches of the fullNode can be
+		// retained as they remain untouched and complete.
+		//
+		// This step is only necessary for path mode, as there is no deletion
+		// in hash mode at all.
+		if _, ok := node.Val.(hashNode); ok && s.scheme == rawdb.PathScheme {
+			owner, inner := ResolvePath(req.path)
+			for i := 1; i < len(key); i++ {
+				// While checking for a non-existent item in Pebble can be less efficient
+				// without a bloom filter, the relatively low frequency of lookups makes
+				// the performance impact negligible.
+				var exists bool
+				if owner == (common.Hash{}) {
+					exists = rawdb.ExistsAccountTrieNode(s.database, append(inner, key[:i]...))
+				} else {
+					exists = rawdb.ExistsStorageTrieNode(s.database, owner, append(inner, key[:i]...))
+				}
+				if exists {
+					req.deletes = append(req.deletes, key[:i])
+					deletionGauge.Inc(1)
+					log.Debug("Detected dangling node", "owner", owner, "path", append(inner, key[:i]...))
+				}
+			}
+			lookupGauge.Inc(int64(len(key) - 1))
+		}
 	case *fullNode:
 		for i := 0; i < 17; i++ {
 			if node.Children[i] != nil {
@@ -507,6 +561,11 @@ func (s *Sync) commitNodeRequest(req *nodeRequest) error {
 	s.membatch.nodes[string(req.path)] = req.data
 	s.membatch.hashes[string(req.path)] = req.hash
 
+	// Delete the internal nodes which are marked as invalid
+	for _, segment := range req.deletes {
+		path := append(req.path, segment...)
+		s.membatch.deletes[string(path)] = struct{}{}
+	}
 	delete(s.nodeReqs, string(req.path))
 	s.fetches[len(req.path)]--
 
