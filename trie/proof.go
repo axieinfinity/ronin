@@ -24,7 +24,6 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
-	"github.com/ethereum/go-ethereum/rlp"
 )
 
 // Prove constructs a merkle proof for key. The result contains all encoded nodes
@@ -94,7 +93,7 @@ func (t *Trie) Prove(key []byte, fromLevel uint, proofDb ethdb.KeyValueWriter) e
 		if hash, ok := hn.(hashNode); ok || i == 0 {
 			// If the node's database encoding is a hash (or is the
 			// root node), it becomes a proof element.
-			enc, _ := rlp.EncodeToBytes(n)
+			enc := nodeToBytes(n)
 			if !ok {
 				hash = hasher.hashData(enc)
 			}
