@@ -92,6 +92,7 @@ elif [[ "$FORCE_INIT" = "true" && "$INIT_FORCE_OVERRIDE_CHAIN_CONFIG" = "true" ]
 elif [ "$FORCE_INIT" = "true" ]; then
   echo "Forcing update chain config with $genesisPath, state_scheme $state_scheme ..."
   ronin init $dbEngine --datadir $datadir --state.scheme $state_scheme $genesisPath
+fi
 
 # password file
 if [[ ! -f $PASSWORD_FILE ]]; then
