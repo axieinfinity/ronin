@@ -27,11 +27,14 @@ import (
 	"testing"
 	"time"
 
+	mrand "math/rand"
+
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb"
+	"github.com/ethereum/go-ethereum/internal/testrand"
 	"github.com/ethereum/go-ethereum/light"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
@@ -729,7 +732,7 @@ func TestSyncWithStorage(t *testing.T) {
 			})
 		}
 	)
-	sourceAccountTrie, elems, storageTries, storageElems := makeAccountTrieWithStorage(3, 3000, true, false)
+	sourceAccountTrie, elems, storageTries, storageElems := makeAccountTrieWithStorage(3, 3000, true, false, false)
 
 	mkSource := func(name string) *testPeer {
 		source := newTestPeer(name, t, term)
@@ -761,7 +764,7 @@ func TestMultiSyncManyUseless(t *testing.T) {
 			})
 		}
 	)
-	sourceAccountTrie, elems, storageTries, storageElems := makeAccountTrieWithStorage(100, 3000, true, false)
+	sourceAccountTrie, elems, storageTries, storageElems := makeAccountTrieWithStorage(100, 3000, true, false, false)
 
 	mkSource := func(name string, noAccount, noStorage, noTrieNode bool) *testPeer {
 		source := newTestPeer(name, t, term)
@@ -807,7 +810,7 @@ func TestMultiSyncManyUselessWithLowTimeout(t *testing.T) {
 			})
 		}
 	)
-	sourceAccountTrie, elems, storageTries, storageElems := makeAccountTrieWithStorage(100, 3000, true, false)
+	sourceAccountTrie, elems, storageTries, storageElems := makeAccountTrieWithStorage(100, 3000, true, false, false)
 
 	mkSource := func(name string, noAccount, noStorage, noTrieNode bool) *testPeer {
 		source := newTestPeer(name, t, term)
@@ -858,7 +861,7 @@ func TestMultiSyncManyUnresponsive(t *testing.T) {
 			})
 		}
 	)
-	sourceAccountTrie, elems, storageTries, storageElems := makeAccountTrieWithStorage(100, 3000, true, false)
+	sourceAccountTrie, elems, storageTries, storageElems := makeAccountTrieWithStorage(100, 3000, true, false, false)
 
 	mkSource := func(name string, noAccount, noStorage, noTrieNode bool) *testPeer {
 		source := newTestPeer(name, t, term)
@@ -1125,7 +1128,7 @@ func TestSyncBoundaryStorageTrie(t *testing.T) {
 			})
 		}
 	)
-	sourceAccountTrie, elems, storageTries, storageElems := makeAccountTrieWithStorage(10, 1000, false, true)
+	sourceAccountTrie, elems, storageTries, storageElems := makeAccountTrieWithStorage(10, 1000, false, true, false)
 
 	mkSource := func(name string) *testPeer {
 		source := newTestPeer(name, t, term)
@@ -1161,7 +1164,7 @@ func TestSyncWithStorageAndOneCappedPeer(t *testing.T) {
 			})
 		}
 	)
-	sourceAccountTrie, elems, storageTries, storageElems := makeAccountTrieWithStorage(300, 1000, false, false)
+	sourceAccountTrie, elems, storageTries, storageElems := makeAccountTrieWithStorage(300, 1000, false, false, false)
 
 	mkSource := func(name string, slow bool) *testPeer {
 		source := newTestPeer(name, t, term)
@@ -1202,7 +1205,7 @@ func TestSyncWithStorageAndCorruptPeer(t *testing.T) {
 			})
 		}
 	)
-	sourceAccountTrie, elems, storageTries, storageElems := makeAccountTrieWithStorage(100, 3000, true, false)
+	sourceAccountTrie, elems, storageTries, storageElems := makeAccountTrieWithStorage(100, 3000, true, false, false)
 
 	mkSource := func(name string, handler storageHandlerFunc) *testPeer {
 		source := newTestPeer(name, t, term)
@@ -1240,7 +1243,7 @@ func TestSyncWithStorageAndNonProvingPeer(t *testing.T) {
 			})
 		}
 	)
-	sourceAccountTrie, elems, storageTries, storageElems := makeAccountTrieWithStorage(100, 3000, true, false)
+	sourceAccountTrie, elems, storageTries, storageElems := makeAccountTrieWithStorage(100, 3000, true, false, false)
 
 	mkSource := func(name string, handler storageHandlerFunc) *testPeer {
 		source := newTestPeer(name, t, term)
@@ -1296,6 +1299,37 @@ func TestSyncWithStorageMisbehavingProve(t *testing.T) {
 		t.Fatalf("sync failed: %v", err)
 	}
 	verifyTrie(syncer.db, sourceAccountTrie.Hash(), t)
+}
+
+func TestSyncWithUnevenStorage(t *testing.T) {
+	t.Parallel()
+	var (
+		once   sync.Once
+		cancel = make(chan struct{})
+		term   = func() {
+			once.Do(func() {
+				close(cancel)
+			})
+		}
+	)
+
+	accountTrie, accounts, storageTries, storageElems := makeAccountTrieWithStorage(3, 256, false, false, true)
+	mkSource := func(name string) *testPeer {
+		source := newTestPeer(name, t, term)
+		source.accountTrie = accountTrie
+		source.accountValues = accounts
+		source.storageTries = storageTries
+		source.storageValues = storageElems
+		source.storageRequestHandler = func(t *testPeer, reqId uint64, root common.Hash, accounts []common.Hash, origin, limit []byte, max uint64) error {
+			return defaultStorageRequestHandler(t, reqId, root, accounts, origin, limit, 128) // retrieve storage in large mode
+		}
+		return source
+	}
+	syncer := setupSyncer(mkSource("source"))
+	if err := syncer.Sync(accountTrie.Hash(), cancel); err != nil {
+		t.Fatalf("sync failed: %v", err)
+	}
+	verifyTrie(syncer.db, accountTrie.Hash(), t)
 }
 
 type kv struct {
@@ -1466,7 +1500,7 @@ func makeAccountTrieWithStorageWithUniqueStorage(accounts, slots int, code bool)
 }
 
 // makeAccountTrieWithStorage spits out a trie, along with the leafs
-func makeAccountTrieWithStorage(accounts, slots int, code, boundary bool) (*trie.Trie, entrySlice, map[common.Hash]*trie.Trie, map[common.Hash]entrySlice) {
+func makeAccountTrieWithStorage(accounts, slots int, code, boundary bool, uneven bool) (*trie.Trie, entrySlice, map[common.Hash]*trie.Trie, map[common.Hash]entrySlice) {
 	var (
 		db             = trie.NewDatabase(rawdb.NewMemoryDatabase())
 		accTrie, _     = trie.New(common.Hash{}, db)
@@ -1474,25 +1508,29 @@ func makeAccountTrieWithStorage(accounts, slots int, code, boundary bool) (*trie
 		storageTries   = make(map[common.Hash]*trie.Trie)
 		storageEntries = make(map[common.Hash]entrySlice)
 	)
-	// Make a storage trie which we reuse for the whole lot
-	var (
-		stTrie    *trie.Trie
-		stEntries entrySlice
-	)
-	if boundary {
-		stTrie, stEntries = makeBoundaryStorageTrie(slots, db)
-	} else {
-		stTrie, stEntries = makeStorageTrieWithSeed(uint64(slots), 0, db)
-	}
-	stRoot := stTrie.Hash()
 
 	// Create n accounts in the trie
 	for i := uint64(1); i <= uint64(accounts); i++ {
+		var (
+			stTrie    *trie.Trie
+			stEntries entrySlice
+		)
+
 		key := key32(i)
 		codehash := emptyCode[:]
 		if code {
 			codehash = getCodeHash(i)
 		}
+
+		if boundary {
+			stTrie, stEntries = makeBoundaryStorageTrie(slots, db)
+		} else if uneven {
+			stTrie, stEntries = makeUnevenStorageTrie(slots, db)
+		} else {
+			stTrie, stEntries = makeStorageTrieWithSeed(uint64(slots), 0, db)
+		}
+		stRoot := stTrie.Hash()
+
 		value, _ := rlp.EncodeToBytes(types.StateAccount{
 			Nonce:    i,
 			Balance:  big.NewInt(int64(i)),
@@ -1507,8 +1545,8 @@ func makeAccountTrieWithStorage(accounts, slots int, code, boundary bool) (*trie
 		storageEntries[common.BytesToHash(key)] = stEntries
 	}
 	sort.Sort(entries)
-	stTrie.Commit(nil)
 	accTrie.Commit(nil)
+
 	return accTrie, entries, storageTries, storageEntries
 }
 
@@ -1584,6 +1622,39 @@ func makeBoundaryStorageTrie(n int, db *trie.Database) (*trie.Trie, entrySlice) 
 	sort.Sort(entries)
 	trie.Commit(nil)
 	return trie, entries
+}
+
+// makeUnevenStorageTrie constructs a storage tries will states distributed in
+// different range unevenly.
+func makeUnevenStorageTrie(slots int, db *trie.Database) (*trie.Trie, []*kv) {
+	var (
+		entries entrySlice
+		// tr, _   = trie.New(trie.StorageTrieID(types.EmptyRootHash, owner, types.EmptyRootHash), db)
+		tr, _  = trie.New(common.Hash{}, db)
+		chosen = make(map[byte]struct{})
+	)
+	for i := 0; i < 3; i++ {
+		var n int
+		for {
+			n = mrand.Intn(15) // the last range is set empty deliberately
+			if _, ok := chosen[byte(n)]; ok {
+				continue
+			}
+			chosen[byte(n)] = struct{}{}
+			break
+		}
+		for j := 0; j < slots/3; j++ {
+			key := append([]byte{byte(n)}, testrand.Bytes(31)...)
+			val, _ := rlp.EncodeToBytes(testrand.Bytes(32))
+
+			elem := &kv{key, val}
+			tr.Update(elem.k, elem.v)
+			entries = append(entries, elem)
+		}
+	}
+	sort.Sort(entries)
+	tr.Commit(nil)
+	return tr, entries
 }
 
 func verifyTrie(db ethdb.KeyValueStore, root common.Hash, t *testing.T) {
