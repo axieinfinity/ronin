@@ -338,11 +338,10 @@ func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, 
 			if cpHeader != nil {
 				hash := cpHeader.Hash()
 
-				validators, err := c.getValidatorsFromContract(chain, number)
+				validators, err := c.getValidatorsFromGenesis()
 				if err != nil {
 					return nil, err
 				}
-
 				snap = newSnapshot(c.config, c.signatures, number, hash, validators)
 				if err := snap.store(c.db); err != nil {
 					return nil, err
@@ -756,6 +755,31 @@ func (c *Consortium) doCalcDifficulty(signer common.Address, number uint64, vali
 	return new(big.Int).Set(diffNoTurn)
 }
 
+// getValidatorsFromGenesis gets the list of validators from the genesis block support backward compatibility in v1, only used with Snap Sync.
+func (c *Consortium) getValidatorsFromGenesis() ([]common.Address, error) {
+	var validatorSet []string
+	switch {
+	case c.chainConfig.ChainID.Cmp(big.NewInt(2020)) == 0:
+		validatorSet = []string{
+			"0x000000000000000000000000f224beff587362a88d859e899d0d80c080e1e812",
+			"0x00000000000000000000000011360eacdedd59bc433afad4fc8f0417d1fbebab",
+			"0x00000000000000000000000070bb1fb41c8c42f6ddd53a708e2b82209495e455",
+		}
+	case c.chainConfig.ChainID.Cmp(big.NewInt(2021)) == 0:
+		validatorSet = []string{
+			"0x0000000000000000000000004a4bc674a97737376cfe990ae2fe0d2b6e738393",
+			"0x000000000000000000000000b6bc5bc0410773a3f86b1537ce7495c52e38f88b",
+		}
+	default:
+		return nil, errors.New("no validator set for this chain only support Mainnet & Testnet")
+	}
+	var addresses []common.Address
+	for _, str := range validatorSet {
+		addresses = append(addresses, common.HexToAddress(str))
+	}
+	return addresses, nil
+}
+
 // Read the validator list from contract
 func (c *Consortium) getValidatorsFromContract(chain consensus.ChainHeaderReader, number uint64) ([]common.Address, error) {
 	if chain.Config().IsFenix(big.NewInt(int64(number))) {
@@ -779,7 +803,7 @@ func (c *Consortium) getValidatorsFromLastCheckpoint(chain consensus.ChainHeader
 
 	if lastCheckpoint == 0 {
 		// TODO(andy): Review if we should put validators in genesis block's extra data
-		return c.getValidatorsFromContract(chain, number)
+		return c.getValidatorsFromGenesis()
 	}
 
 	var header *types.Header
