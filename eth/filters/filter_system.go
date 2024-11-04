@@ -445,7 +445,7 @@ func (es *EventSystem) lightFilterLogs(header *types.Header, addresses []common.
 		// Get the logs of the block
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 		defer cancel()
-		logsList, err := es.backend.GetLogs(ctx, header.Hash())
+		logsList, err := es.backend.GetLogs(ctx, header.Hash(), header.Number.Uint64())
 		if err != nil {
 			return nil
 		}
