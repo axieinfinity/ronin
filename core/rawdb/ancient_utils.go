@@ -22,6 +22,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/ethdb"
+	"github.com/ethereum/go-ethereum/log"
 )
 
 type tableSize struct {
@@ -89,6 +90,10 @@ func inspectFreezers(db ethdb.Database) ([]freezerInfo, error) {
 			infos = append(infos, info)
 
 		case stateFreezerName:
+			if ReadStateScheme(db) != PathScheme {
+				log.Info("Skip inspecting state freezer", "reason", "state freezer is supported for PathScheme only")
+				continue
+			}
 			datadir, err := db.AncientDatadir()
 			if err != nil {
 				return nil, err
