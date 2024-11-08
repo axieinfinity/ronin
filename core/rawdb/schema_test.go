@@ -99,7 +99,7 @@ func TestResolveAccountTrieNodeKey(t *testing.T) {
 		},
 		{
 			name:          "storage prefixed",
-			inputKey:      append(trieNodeStoragePrefix, bytes4...),
+			inputKey:      append(TrieNodeStoragePrefix, bytes4...),
 			expectedCheck: false,
 			expectedKey:   nil,
 		},
@@ -175,7 +175,7 @@ func TestResolveStorageTrieNode(t *testing.T) {
 		},
 		{
 			name:          "storage prefixed hash 20 length 4",
-			inputKey:      append(append(trieNodeStoragePrefix, bytes20...), bytes4...),
+			inputKey:      append(append(TrieNodeStoragePrefix, bytes20...), bytes4...),
 			expectedCheck: false,
 			expectedHash:  common.Hash{},
 			expectedKey:   nil,
