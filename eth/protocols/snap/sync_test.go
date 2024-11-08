@@ -579,7 +579,7 @@ func testSyncBloatedProof(t *testing.T, scheme string) {
 
 	nodeScheme, sourceAccountTrie, elems := makeAccountTrieNoStorage(scheme, 100)
 	source := newTestPeer("source", t, term)
-	source.accountTrie = sourceAccountTrie
+	source.accountTrie = sourceAccountTrie.Copy()
 	source.accountValues = elems
 
 	source.accountRequestHandler = func(t *testPeer, requestId uint64, root common.Hash, origin common.Hash, limit common.Hash, cap uint64) error {
@@ -663,7 +663,7 @@ func testSync(t *testing.T, scheme string) {
 
 	mkSource := func(name string) *testPeer {
 		source := newTestPeer(name, t, term)
-		source.accountTrie = sourceAccountTrie
+		source.accountTrie = sourceAccountTrie.Copy()
 		source.accountValues = elems
 		return source
 	}
@@ -696,7 +696,7 @@ func testSyncTinyTriePanic(t *testing.T, scheme string) {
 
 	mkSource := func(name string) *testPeer {
 		source := newTestPeer(name, t, term)
-		source.accountTrie = sourceAccountTrie
+		source.accountTrie = sourceAccountTrie.Copy()
 		source.accountValues = elems
 		return source
 	}
@@ -730,7 +730,7 @@ func testMultiSync(t *testing.T, scheme string) {
 
 	mkSource := func(name string) *testPeer {
 		source := newTestPeer(name, t, term)
-		source.accountTrie = sourceAccountTrie
+		source.accountTrie = sourceAccountTrie.Copy()
 		source.accountValues = elems
 		return source
 	}
@@ -767,7 +767,7 @@ func testSyncWithStorage(t *testing.T, scheme string) {
 
 	mkSource := func(name string) *testPeer {
 		source := newTestPeer(name, t, term)
-		source.accountTrie = sourceAccountTrie
+		source.accountTrie = sourceAccountTrie.Copy()
 		source.accountValues = elems
 		source.storageTries = storageTries
 		source.storageValues = storageElems
@@ -984,7 +984,7 @@ func testSyncBoundaryAccountTrie(t *testing.T, scheme string) {
 
 	mkSource := func(name string) *testPeer {
 		source := newTestPeer(name, t, term)
-		source.accountTrie = sourceAccountTrie
+		source.accountTrie = sourceAccountTrie.Copy()
 		source.accountValues = elems
 		return source
 	}
@@ -1108,7 +1108,7 @@ func testSyncNoStorageAndOneAccountCorruptPeer(t *testing.T, scheme string) {
 
 	mkSource := func(name string, accFn accountHandlerFunc) *testPeer {
 		source := newTestPeer(name, t, term)
-		source.accountTrie = sourceAccountTrie
+		source.accountTrie = sourceAccountTrie.Copy()
 		source.accountValues = elems
 		source.accountRequestHandler = accFn
 		return source
@@ -1151,7 +1151,7 @@ func testSyncNoStorageAndOneCodeCappedPeer(t *testing.T, scheme string) {
 
 	mkSource := func(name string, codeFn codeHandlerFunc) *testPeer {
 		source := newTestPeer(name, t, term)
-		source.accountTrie = sourceAccountTrie
+		source.accountTrie = sourceAccountTrie.Copy()
 		source.accountValues = elems
 		source.codeRequestHandler = codeFn
 		return source
@@ -1204,7 +1204,7 @@ func testSyncBoundaryStorageTrie(t *testing.T, scheme string) {
 
 	mkSource := func(name string) *testPeer {
 		source := newTestPeer(name, t, term)
-		source.accountTrie = sourceAccountTrie
+		source.accountTrie = sourceAccountTrie.Copy()
 		source.accountValues = elems
 		source.storageTries = storageTries
 		source.storageValues = storageElems
@@ -1244,7 +1244,7 @@ func testSyncWithStorageAndOneCappedPeer(t *testing.T, scheme string) {
 
 	mkSource := func(name string, slow bool) *testPeer {
 		source := newTestPeer(name, t, term)
-		source.accountTrie = sourceAccountTrie
+		source.accountTrie = sourceAccountTrie.Copy()
 		source.accountValues = elems
 		source.storageTries = storageTries
 		source.storageValues = storageElems
@@ -1290,7 +1290,7 @@ func testSyncWithStorageAndCorruptPeer(t *testing.T, scheme string) {
 
 	mkSource := func(name string, handler storageHandlerFunc) *testPeer {
 		source := newTestPeer(name, t, term)
-		source.accountTrie = sourceAccountTrie
+		source.accountTrie = sourceAccountTrie.Copy()
 		source.accountValues = elems
 		source.storageTries = storageTries
 		source.storageValues = storageElems
@@ -1332,7 +1332,7 @@ func testSyncWithStorageAndNonProvingPeer(t *testing.T, scheme string) {
 
 	mkSource := func(name string, handler storageHandlerFunc) *testPeer {
 		source := newTestPeer(name, t, term)
-		source.accountTrie = sourceAccountTrie
+		source.accountTrie = sourceAccountTrie.Copy()
 		source.accountValues = elems
 		source.storageTries = storageTries
 		source.storageValues = storageElems
@@ -1377,7 +1377,7 @@ func testSyncWithStorageMisbehavingProve(t *testing.T, scheme string) {
 
 	mkSource := func(name string) *testPeer {
 		source := newTestPeer(name, t, term)
-		source.accountTrie = sourceAccountTrie
+		source.accountTrie = sourceAccountTrie.Copy()
 		source.accountValues = elems
 		source.storageTries = storageTries
 		source.storageValues = storageElems
@@ -1800,7 +1800,7 @@ func testSyncAccountPerformance(t *testing.T, scheme string) {
 
 	mkSource := func(name string) *testPeer {
 		source := newTestPeer(name, t, term)
-		source.accountTrie = sourceAccountTrie
+		source.accountTrie = sourceAccountTrie.Copy()
 		source.accountValues = elems
 		return source
 	}
