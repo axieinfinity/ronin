@@ -1021,6 +1021,14 @@ func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.He
 		return err
 	}
 
+	// Ensure the timestamp has the correct delay
+	parent := chain.GetHeader(header.ParentHash, number-1)
+	if parent == nil {
+		return consensus.ErrUnknownAncestor
+	}
+
+	header.Time = c.computeHeaderTime(header, parent, snap)
+
 	// Set the correct difficulty
 	header.Difficulty = CalcDifficulty(snap, coinbase)
 
@@ -1075,13 +1083,6 @@ func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.He
 	// Mix digest is reserved for now, set to empty
 	header.MixDigest = common.Hash{}
 
-	// Ensure the timestamp has the correct delay
-	parent := chain.GetHeader(header.ParentHash, number-1)
-	if parent == nil {
-		return consensus.ErrUnknownAncestor
-	}
-
-	header.Time = c.computeHeaderTime(header, parent, snap)
 	return nil
 }
 
