@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - master
+      - hotfix-for-v2.8.3
 
 env:
   REGISTRY: ghcr.io
