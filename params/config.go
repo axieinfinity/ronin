@@ -1135,8 +1135,8 @@ type Rules struct {
 	ChainID                                                 *big.Int
 	IsHomestead, IsEIP150, IsEIP155, IsEIP158               bool
 	IsByzantium, IsConstantinople, IsPetersburg, IsIstanbul bool
-	IsBerlin, IsLondon                                      bool
-	IsOdysseusFork, IsFenix, IsConsortiumV2, IsAntenna      bool
+	IsBerlin, IsLondon, IsOdysseusFork                      bool
+	IsFenix, IsShillin, IsConsortiumV2, IsAntenna           bool
 	IsMiko, IsTripp, IsAaron, IsShanghai, IsCancun          bool
 	IsVenoki                                                bool
 }
@@ -1161,6 +1161,7 @@ func (c *ChainConfig) Rules(num *big.Int) Rules {
 		IsLondon:         c.IsLondon(num),
 		IsOdysseusFork:   c.IsOdysseus(num),
 		IsFenix:          c.IsFenix(num),
+		IsShillin:        c.IsShillin(num),
 		IsConsortiumV2:   c.IsConsortiumV2(num),
 		IsAntenna:        c.IsAntenna(num),
 		IsMiko:           c.IsMiko(num),

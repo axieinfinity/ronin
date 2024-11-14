@@ -28,20 +28,21 @@ type Snapshot struct {
 	ethAPI      *ethapi.PublicBlockChainAPI
 	sigCache    *arc.ARCCache[common.Hash, common.Address] // Cache of recent block signatures to speed up ecrecover
 
-	Number     uint64                      `json:"number"`               // Block number where the snapshot was created
-	Hash       common.Hash                 `json:"hash"`                 // Block hash where the snapshot was created
-	Validators map[common.Address]struct{} `json:"validators,omitempty"` // Set of authorized validators at this moment before Shillin
-	Recents    map[uint64]common.Address   `json:"recents"`              // Set of recent validators for spam protections
+	Number  uint64                    `json:"number"`  // Block number where the snapshot was created
+	Hash    common.Hash               `json:"hash"`    // Block hash where the snapshot was created
+	Recents map[uint64]common.Address `json:"recents"` // Set of recent validators for spam protections
 
-	// Finality additional fields
-	ValidatorsWithBlsPub []finality.ValidatorWithBlsPub `json:"validatorWithBlsPub,omitempty"` // Array of sorted authorized validators and BLS public keys after Shillin
+	// The block producer list (is able to produce block) before Shillin
+	Validators map[common.Address]struct{} `json:"validators,omitempty"`
+	// After Shillin before Tripp, the block producer list with BLS key
+	// After Tripp, the validator list (is able to finality vote) with BLS key and weight
+	ValidatorsWithBlsPub []finality.ValidatorWithBlsPub `json:"validatorWithBlsPub,omitempty"`
+	// After Tripp, the block producer list
+	BlockProducers []common.Address `json:"blockProducers,omitempty"`
 
-	// After Tripp, block producers are stored separately in a new field BlockProducers,
-	// differentiating from validator candidates, which are stored in ValidatorsWithBlsPub.
-	BlockProducers       []common.Address `json:"blockProducers,omitempty"`       // Array of sorted block producers After Tripp.
-	JustifiedBlockNumber uint64           `json:"justifiedBlockNumber,omitempty"` // The justified block number
-	JustifiedBlockHash   common.Hash      `json:"justifiedBlockHash,omitempty"`   // The justified block hash
-	CurrentPeriod        uint64           `json:"currentPeriod,omitempty"`        // Period number where the snapshot was created
+	JustifiedBlockNumber uint64      `json:"justifiedBlockNumber,omitempty"` // The justified block number
+	JustifiedBlockHash   common.Hash `json:"justifiedBlockHash,omitempty"`   // The justified block hash
+	CurrentPeriod        uint64      `json:"currentPeriod,omitempty"`        // Period number where the snapshot was created
 }
 
 // validatorsAscending implements the sort interface to allow sorting a list of addresses
@@ -159,6 +160,28 @@ func (s *Snapshot) copy() *Snapshot {
 	return cpy
 }
 
+// isTrippEffective returns true the next day after the Tripp hardfork. Here we depends on
+// header's extra data which is checked in verifyValidatorFieldsInExtraData already
+func isTrippEffective(chainRules *params.Rules, extraData *finality.HeaderExtraData) bool {
+	return chainRules.IsTripp && len(extraData.BlockProducers) != 0
+}
+
+// isAaronEffective returns true the next day after the Aaron hardfork. Here we depends on
+// header's extra data which is checked in verifyValidatorFieldsInExtraData already
+func isAaronEffective(chainRules *params.Rules, extraData *finality.HeaderExtraData) bool {
+	return chainRules.IsAaron && extraData.BlockProducersBitSet != 0
+}
+
+func newRecentListLimit(chainRules *params.Rules, extraData *finality.HeaderExtraData) int {
+	if isAaronEffective(chainRules, extraData) {
+		return len(extraData.BlockProducersBitSet.Indices())/2 + 1
+	} else if isTrippEffective(chainRules, extraData) {
+		return len(extraData.BlockProducers)/2 + 1
+	} else {
+		return len(extraData.CheckpointValidators)/2 + 1
+	}
+}
+
 // apply creates a new authorization snapshot by applying the given headers to
 // the original one.
 func (s *Snapshot) apply(headers []*types.Header, chain consensus.ChainHeaderReader, parents []*types.Header, chainId *big.Int) (*Snapshot, error) {
@@ -197,9 +220,10 @@ func (s *Snapshot) apply(headers []*types.Header, chain consensus.ChainHeaderRea
 			validator common.Address
 			err       error
 		)
+		chainRules := snap.chainConfig.Rules(header.Number)
 		// If the headers come from v1 the block hash function does not include chainId,
 		// we need to use the correct ecrecover function the get the correct signer
-		if !snap.chainConfig.IsConsortiumV2(header.Number) {
+		if !chainRules.IsConsortiumV2 {
 			validator, err = v1.Ecrecover(header, s.sigCache)
 		} else {
 			validator, err = ecrecover(header, s.sigCache, chainId)
@@ -217,7 +241,7 @@ func (s *Snapshot) apply(headers []*types.Header, chain consensus.ChainHeaderRea
 		}
 		snap.Recents[number] = validator
 
-		if chain.Config().IsShillin(header.Number) {
+		if chainRules.IsShillin {
 			extraData, err := finality.DecodeExtraV2(header.Extra, chain.Config(), header.Number)
 			if err != nil {
 				return nil, err
@@ -235,9 +259,7 @@ func (s *Snapshot) apply(headers []*types.Header, chain consensus.ChainHeaderRea
 			}
 		}
 
-		isTripp := chain.Config().IsTripp(header.Number)
-		isAaron := s.chainConfig.IsAaron(header.Number)
-		if isTripp && number%s.config.EpochV2 == 0 && header.Time/dayInSeconds > snap.CurrentPeriod {
+		if chainRules.IsTripp && number%s.config.EpochV2 == 0 && header.Time/dayInSeconds > snap.CurrentPeriod {
 			snap.CurrentPeriod = header.Time / dayInSeconds
 		}
 		// Change the validator set base on the size of the validators set
@@ -263,16 +285,7 @@ func (s *Snapshot) apply(headers []*types.Header, chain consensus.ChainHeaderRea
 				}
 
 				oldLimit := len(snap.validators())/2 + 1
-				var newLimit int
-				// After Tripp, list of block producers is retrieved from the
-				// field BlockProducer, instead of field CheckpointValidators.
-				if isAaron && extraData.BlockProducersBitSet != 0 {
-					newLimit = len(extraData.BlockProducersBitSet.Indices())/2 + 1
-				} else if isTripp && len(extraData.BlockProducers) != 0 {
-					newLimit = len(extraData.BlockProducers)/2 + 1
-				} else {
-					newLimit = len(extraData.CheckpointValidators)/2 + 1
-				}
+				newLimit := newRecentListLimit(&chainRules, extraData)
 				if newLimit < oldLimit {
 					for i := 0; i < oldLimit-newLimit; i++ {
 						delete(snap.Recents, number-uint64(newLimit)-uint64(i))
@@ -281,13 +294,13 @@ func (s *Snapshot) apply(headers []*types.Header, chain consensus.ChainHeaderRea
 
 				// After Aaron, block producer list in snapshot is
 				// reconstructed from bit set and validator candidate list.
-				if isAaron && extraData.BlockProducersBitSet != 0 {
+				if isAaronEffective(&chainRules, extraData) {
 					if len(extraData.CheckpointValidators) != 0 {
 						snap.ValidatorsWithBlsPub = extraData.CheckpointValidators
 					}
 					snap.BlockProducers = decodeValidatorBitSet(extraData.BlockProducersBitSet, snap.ValidatorsWithBlsPub)
 					snap.Validators = nil
-				} else if isTripp && len(extraData.BlockProducers) != 0 {
+				} else if isTrippEffective(&chainRules, extraData) {
 					// After Tripp is effective, the checkpoint validators in header's extra data
 					// is set only at the period block, not at all checkpoint blocks anymore. So
 					// only update snapshot's validator with bls public key when checkpoint
@@ -297,11 +310,10 @@ func (s *Snapshot) apply(headers []*types.Header, chain consensus.ChainHeaderRea
 					}
 					snap.BlockProducers = extraData.BlockProducers
 					snap.Validators = nil
-				} else if chain.Config().IsShillin(checkpointHeader.Number) {
+				} else if chainRules.IsShillin {
 					// The validator information in checkpoint header is already sorted,
 					// we don't need to sort here
-					snap.ValidatorsWithBlsPub = make([]finality.ValidatorWithBlsPub, len(extraData.CheckpointValidators))
-					copy(snap.ValidatorsWithBlsPub, extraData.CheckpointValidators)
+					snap.ValidatorsWithBlsPub = extraData.CheckpointValidators
 					snap.Validators = nil
 					snap.BlockProducers = nil
 				} else {
