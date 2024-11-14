@@ -437,8 +437,7 @@ func FindAncientHeader(header *types.Header, ite uint64, chain consensus.ChainHe
 			index := sort.Search(len(candidateParents), func(i int) bool {
 				return candidateParents[i].Number.Uint64() >= parentHeight
 			})
-			if index < len(candidateParents) && candidateParents[index].Number.Uint64() == parentHeight &&
-				candidateParents[index].Hash() == parentHash {
+			if index < len(candidateParents) && candidateParents[index].Number.Uint64() == parentHeight {
 				ancient = candidateParents[index]
 				found = true
 			}
