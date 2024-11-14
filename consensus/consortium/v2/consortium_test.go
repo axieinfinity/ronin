@@ -2242,7 +2242,7 @@ func testSystemTransactionOrder(t *testing.T, scheme string) {
 }
 
 func TestIsPeriodBlock(t *testing.T) {
-	//testIsPeriodBlock(t, rawdb.PathScheme)
+	testIsPeriodBlock(t, rawdb.PathScheme)
 	testIsPeriodBlock(t, rawdb.HashScheme)
 }
 
@@ -2321,7 +2321,11 @@ func testIsPeriodBlock(t *testing.T, scheme string) {
 		block, _ := core.GenerateChain(&chainConfig, bs[len(bs)-1], ethash.NewFaker(), db, 1, callback, true)
 		bs = append(bs, block...)
 	}
-	if _, err := chain.InsertChain(bs[:], nil); err != nil {
+	// Only the new blocks are inserted here
+	// For path scheme, the number of db diff layers corresponding to blocks are limited to 128
+	// So just the newest 128 blocks can be retrieved from the db
+	// Therefore, the handling of the inserted blocks can result in error since the older blocks can not be retrieved for checking
+	if _, err := chain.InsertChain(bs[399:], nil); err != nil {
 		panic(err)
 	}
 
@@ -2589,7 +2593,7 @@ Will disable this test firstly for further investigation.
 */
 func TestIsTrippEffective(t *testing.T) {
 	testIsTrippEffective(t, rawdb.HashScheme)
-	// testIsTrippEffective(t, rawdb.PathScheme)
+	testIsTrippEffective(t, rawdb.PathScheme)
 
 }
 
@@ -2676,7 +2680,11 @@ func testIsTrippEffective(t *testing.T, scheme string) {
 		block, _ := core.GenerateChain(&chainConfig, bs[len(bs)-1], ethash.NewFaker(), db, 1, callback, true)
 		bs = append(bs, block...)
 	}
-	if _, err := chain.InsertChain(bs[:], nil); err != nil {
+	// Only the new blocks are inserted here
+	// For path scheme, the number of db diff layers corresponding to blocks are limited to 128
+	// So just the newest 128 blocks can be retrieved from the db
+	// Therefore, the handling of the inserted blocks can result in error since the older blocks can not be retrieved for checking
+	if _, err := chain.InsertChain(bs[399:], nil); err != nil {
 		panic(err)
 	}
 
