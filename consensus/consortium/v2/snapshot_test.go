@@ -29,13 +29,14 @@ func (chainReader *mockChainReader) OpEvents() []*vm.PublishEvent               
 
 func TestFindCheckpointHeader(t *testing.T) {
 	// Case 1: checkpoint header is at block 5 (in parent list)
+	// parent list ranges from [0, 10)
 	parents := make([]*types.Header, 10)
 	for i := range parents {
 		parents[i] = &types.Header{Number: big.NewInt(int64(i)), Coinbase: common.BigToAddress(big.NewInt(int64(i)))}
 	}
 
 	currentHeader := &types.Header{Number: big.NewInt(10)}
-	checkpointHeader := FindAncientHeader(currentHeader, currentHeader.Number.Uint64()-5, nil, parents)
+	checkpointHeader := findAncestorHeader(currentHeader, 5, nil, parents)
 	if checkpointHeader.Number.Cmp(big.NewInt(5)) != 0 && checkpointHeader.Coinbase != common.BigToAddress(big.NewInt(5)) {
 		t.Fatalf("Expect checkpoint header number: %d, got: %d", 5, checkpointHeader.Number.Int64())
 	}
@@ -66,7 +67,7 @@ func TestFindCheckpointHeader(t *testing.T) {
 
 	currentHeader = &types.Header{ParentHash: common.BigToHash(big.NewInt(19)), Number: big.NewInt(20)}
 	// Must traverse and get the correct header in chain 2
-	checkpointHeader = FindAncientHeader(currentHeader, currentHeader.Number.Uint64()-5, &mockChain, parents)
+	checkpointHeader = findAncestorHeader(currentHeader, 5, &mockChain, parents)
 	if checkpointHeader == nil {
 		t.Fatal("Failed to find checkpoint header")
 	}
@@ -79,7 +80,7 @@ func TestFindCheckpointHeader(t *testing.T) {
 
 	// Case 3: find checkpoint header with nil parent list
 	currentHeader = &types.Header{Number: big.NewInt(10), ParentHash: common.BigToHash(big.NewInt(109))}
-	checkpointHeader = FindAncientHeader(currentHeader, currentHeader.Number.Uint64()-5, &mockChain, nil)
+	checkpointHeader = findAncestorHeader(currentHeader, 5, &mockChain, nil)
 	// Must traverse and get the correct header in chain 1
 	if checkpointHeader == nil {
 		t.Fatal("Failed to find checkpoint header")
@@ -89,5 +90,17 @@ func TestFindCheckpointHeader(t *testing.T) {
 			5, common.BigToHash(big.NewInt(int64(104))),
 			checkpointHeader.Number.Int64(), checkpointHeader.ParentHash,
 		)
+	}
+
+	// Case 4: checkpoint header is higher than parent list, this must not happen
+	// but the function must not crash in this case
+	// parent list ranges from [0, 10)
+	parents = make([]*types.Header, 10)
+	for i := range parents {
+		parents[i] = &types.Header{Number: big.NewInt(int64(i)), Coinbase: common.BigToAddress(big.NewInt(int64(i)))}
+	}
+	checkpointHeader = findAncestorHeader(nil, 10, nil, parents)
+	if checkpointHeader != nil {
+		t.Fatalf("Expect %v checkpoint header, got %v", nil, checkpointHeader)
 	}
 }
