@@ -42,7 +42,12 @@ type Snapshot struct {
 
 	JustifiedBlockNumber uint64      `json:"justifiedBlockNumber,omitempty"` // The justified block number
 	JustifiedBlockHash   common.Hash `json:"justifiedBlockHash,omitempty"`   // The justified block hash
-	CurrentPeriod        uint64      `json:"currentPeriod,omitempty"`        // Period number where the snapshot was created
+
+	// After Tripp before Venoki, the period number of an epoch calculated based on the timestamp
+	// of first block in epoch
+	// After Venoki, the period number of an epoch calculated based on the the timestamp of last block
+	// in the previous epoch
+	CurrentPeriod uint64 `json:"currentPeriod,omitempty"`
 }
 
 // validatorsAscending implements the sort interface to allow sorting a list of addresses
@@ -259,8 +264,17 @@ func (s *Snapshot) apply(headers []*types.Header, chain consensus.ChainHeaderRea
 			}
 		}
 
-		if chainRules.IsTripp && number%s.config.EpochV2 == 0 && header.Time/dayInSeconds > snap.CurrentPeriod {
-			snap.CurrentPeriod = header.Time / dayInSeconds
+		// First block of an epoch
+		if number%s.config.EpochV2 == 0 {
+			if chainRules.IsVenoki {
+				parentHeader := FindAncientHeader(header, 1, chain, parents)
+				if parentHeader == nil {
+					return nil, consensus.ErrUnknownAncestor
+				}
+				snap.CurrentPeriod = parentHeader.Time / dayInSeconds
+			} else if chainRules.IsTripp {
+				snap.CurrentPeriod = header.Time / dayInSeconds
+			}
 		}
 		// Change the validator set base on the size of the validators set
 		if number > 0 && number%s.config.EpochV2 == uint64(len(snap.validators())/2) {
