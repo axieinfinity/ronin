@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"math/big"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -122,6 +123,16 @@ func (validator ValidatorWithBlsPub) MarshalJSON() ([]byte, error) {
 	}
 
 	return json.Marshal(&savedValidator)
+}
+
+func (validator ValidatorWithBlsPub) String() string {
+	var blsPublicKey string
+	if validator.BlsPublicKey != nil {
+		blsPublicKey = hex.EncodeToString(validator.BlsPublicKey.Marshal())
+	}
+
+	return fmt.Sprintf("Address: %v, BlsPublicKey: %s, Weight: %d",
+		validator.Address, blsPublicKey, validator.Weight)
 }
 
 // CheckpointValidatorAscending implements the sort interface to allow sorting a list

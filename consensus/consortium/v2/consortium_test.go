@@ -2737,3 +2737,223 @@ func TestVerifyBlobHeader(t *testing.T) {
 		t.Fatal("Expected sidecars to be kept")
 	}
 }
+
+func TestVerifyValidatorExtraDataWithContract(t *testing.T) {
+	type testcase struct {
+		validatorInContract []finality.ValidatorWithBlsPub
+		extraData           *finality.HeaderExtraData
+		checkBlsKey         bool
+		checkVoteWeight     bool
+		output              error
+	}
+
+	blsKey1, _ := blst.RandKey()
+	blsKey2, _ := blst.RandKey()
+
+	var tests []testcase = []testcase{
+		// Length mismatches
+		{
+			validatorInContract: []finality.ValidatorWithBlsPub{
+				{
+					Address: common.BigToAddress(big.NewInt(10)),
+				},
+			},
+			extraData:       &finality.HeaderExtraData{},
+			checkBlsKey:     false,
+			checkVoteWeight: false,
+			output:          errMismatchingValidators,
+		},
+		// Address mismatches
+		{
+			validatorInContract: []finality.ValidatorWithBlsPub{
+				{
+					Address:      common.BigToAddress(big.NewInt(10)),
+					BlsPublicKey: blsKey1.PublicKey(),
+				},
+				{
+					Address:      common.BigToAddress(big.NewInt(11)),
+					BlsPublicKey: blsKey2.PublicKey(),
+				},
+			},
+			extraData: &finality.HeaderExtraData{
+				CheckpointValidators: []finality.ValidatorWithBlsPub{
+					{
+						Address:      common.BigToAddress(big.NewInt(10)),
+						BlsPublicKey: blsKey2.PublicKey(),
+					},
+					{
+						Address:      common.BigToAddress(big.NewInt(12)),
+						BlsPublicKey: blsKey1.PublicKey(),
+					},
+				},
+			},
+			checkBlsKey:     false,
+			checkVoteWeight: false,
+			output:          errMismatchingValidators,
+		},
+		// Address matches, we only check address here
+		{
+			validatorInContract: []finality.ValidatorWithBlsPub{
+				{
+					Address:      common.BigToAddress(big.NewInt(10)),
+					BlsPublicKey: blsKey1.PublicKey(),
+				},
+				{
+					Address:      common.BigToAddress(big.NewInt(11)),
+					BlsPublicKey: blsKey2.PublicKey(),
+				},
+			},
+			extraData: &finality.HeaderExtraData{
+				CheckpointValidators: []finality.ValidatorWithBlsPub{
+					{
+						Address:      common.BigToAddress(big.NewInt(10)),
+						BlsPublicKey: blsKey2.PublicKey(),
+					},
+					{
+						Address:      common.BigToAddress(big.NewInt(11)),
+						BlsPublicKey: blsKey1.PublicKey(),
+					},
+				},
+			},
+			checkBlsKey:     false,
+			checkVoteWeight: false,
+			output:          nil,
+		},
+		// Address matches, but BLS public key mismatches
+		{
+			validatorInContract: []finality.ValidatorWithBlsPub{
+				{
+					Address:      common.BigToAddress(big.NewInt(10)),
+					BlsPublicKey: blsKey1.PublicKey(),
+				},
+				{
+					Address:      common.BigToAddress(big.NewInt(11)),
+					BlsPublicKey: blsKey2.PublicKey(),
+				},
+			},
+			extraData: &finality.HeaderExtraData{
+				CheckpointValidators: []finality.ValidatorWithBlsPub{
+					{
+						Address:      common.BigToAddress(big.NewInt(10)),
+						BlsPublicKey: blsKey2.PublicKey(),
+					},
+					{
+						Address:      common.BigToAddress(big.NewInt(11)),
+						BlsPublicKey: blsKey1.PublicKey(),
+					},
+				},
+			},
+			checkBlsKey:     true,
+			checkVoteWeight: false,
+			output:          errMismatchingValidators,
+		},
+		// Address matches, BLS key matches, ignore weight
+		{
+			validatorInContract: []finality.ValidatorWithBlsPub{
+				{
+					Address:      common.BigToAddress(big.NewInt(10)),
+					BlsPublicKey: blsKey1.PublicKey(),
+					Weight:       10,
+				},
+				{
+					Address:      common.BigToAddress(big.NewInt(11)),
+					BlsPublicKey: blsKey2.PublicKey(),
+					Weight:       11,
+				},
+			},
+			extraData: &finality.HeaderExtraData{
+				CheckpointValidators: []finality.ValidatorWithBlsPub{
+					{
+						Address:      common.BigToAddress(big.NewInt(10)),
+						BlsPublicKey: blsKey1.PublicKey(),
+						Weight:       5,
+					},
+					{
+						Address:      common.BigToAddress(big.NewInt(11)),
+						BlsPublicKey: blsKey2.PublicKey(),
+						Weight:       6,
+					},
+				},
+			},
+			checkBlsKey:     true,
+			checkVoteWeight: false,
+			output:          nil,
+		},
+		// Address matches, BLS key matches, weight mismatches
+		{
+			validatorInContract: []finality.ValidatorWithBlsPub{
+				{
+					Address:      common.BigToAddress(big.NewInt(10)),
+					BlsPublicKey: blsKey1.PublicKey(),
+					Weight:       10,
+				},
+				{
+					Address:      common.BigToAddress(big.NewInt(11)),
+					BlsPublicKey: blsKey2.PublicKey(),
+					Weight:       11,
+				},
+			},
+			extraData: &finality.HeaderExtraData{
+				CheckpointValidators: []finality.ValidatorWithBlsPub{
+					{
+						Address:      common.BigToAddress(big.NewInt(10)),
+						BlsPublicKey: blsKey1.PublicKey(),
+						Weight:       5,
+					},
+					{
+						Address:      common.BigToAddress(big.NewInt(11)),
+						BlsPublicKey: blsKey2.PublicKey(),
+						Weight:       6,
+					},
+				},
+			},
+			checkBlsKey:     true,
+			checkVoteWeight: true,
+			output:          errMismatchingValidators,
+		},
+		// Everything matches
+		{
+			validatorInContract: []finality.ValidatorWithBlsPub{
+				{
+					Address:      common.BigToAddress(big.NewInt(10)),
+					BlsPublicKey: blsKey1.PublicKey(),
+					Weight:       5,
+				},
+				{
+					Address:      common.BigToAddress(big.NewInt(11)),
+					BlsPublicKey: blsKey2.PublicKey(),
+					Weight:       6,
+				},
+			},
+			extraData: &finality.HeaderExtraData{
+				CheckpointValidators: []finality.ValidatorWithBlsPub{
+					{
+						Address:      common.BigToAddress(big.NewInt(10)),
+						BlsPublicKey: blsKey1.PublicKey(),
+						Weight:       5,
+					},
+					{
+						Address:      common.BigToAddress(big.NewInt(11)),
+						BlsPublicKey: blsKey2.PublicKey(),
+						Weight:       6,
+					},
+				},
+			},
+			checkBlsKey:     true,
+			checkVoteWeight: true,
+			output:          nil,
+		},
+	}
+
+	for _, test := range tests {
+		output := verifyValidatorExtraDataWithContract(
+			test.validatorInContract,
+			test.extraData,
+			test.checkBlsKey,
+			test.checkVoteWeight,
+		)
+		if !errors.Is(output, test.output) {
+			t.Fatalf("Expect err: %v, got: %v", test.output, output)
+		}
+	}
+}

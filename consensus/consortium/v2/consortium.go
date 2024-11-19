@@ -1201,6 +1201,37 @@ func (c *Consortium) upgradeTransparentProxyCode(blockNumber *big.Int, statedb *
 	}
 }
 
+func verifyValidatorExtraDataWithContract(
+	validatorInContract []finality.ValidatorWithBlsPub,
+	extraData *finality.HeaderExtraData,
+	checkBlsKey bool,
+	checkVoteWeight bool,
+) error {
+	if len(validatorInContract) != len(extraData.CheckpointValidators) {
+		return fmt.Errorf("%w: contract: %v, extraData: %v",
+			errMismatchingValidators, validatorInContract, extraData.CheckpointValidators)
+	}
+	for i := range validatorInContract {
+		if validatorInContract[i].Address != extraData.CheckpointValidators[i].Address {
+			return fmt.Errorf("%w: contract: %v, extraData: %v",
+				errMismatchingValidators, validatorInContract, extraData.CheckpointValidators)
+		}
+		if checkBlsKey {
+			if !validatorInContract[i].BlsPublicKey.Equals(extraData.CheckpointValidators[i].BlsPublicKey) {
+				return fmt.Errorf("%w: contract: %v, extraData: %v",
+					errMismatchingValidators, validatorInContract, extraData.CheckpointValidators)
+			}
+		}
+		if checkVoteWeight {
+			if validatorInContract[i].Weight != extraData.CheckpointValidators[i].Weight {
+				return fmt.Errorf("%w: contract: %v, extraData: %v",
+					errMismatchingValidators, validatorInContract, extraData.CheckpointValidators)
+			}
+		}
+	}
+	return nil
+}
+
 // Finalize implements consensus.Engine that calls three methods from smart contracts:
 // - WrapUpEpoch at epoch to distribute rewards and sort the validators set
 // - Slash the validator who does not sign if it is in-turn
@@ -1257,51 +1288,27 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 				}
 				bitSet := encodeValidatorBitSet(checkpointValidators, blockProducers)
 				if bitSet != extraData.BlockProducersBitSet {
-					return errMismatchingValidators
+					return fmt.Errorf("%w: contract's bitset: %x, extraData's bitset: %x",
+						errMismatchingValidators, bitSet, extraData.BlockProducersBitSet)
 				}
 			} else {
 				if len(blockProducers) != len(extraData.BlockProducers) {
-					return errMismatchingValidators
+					return fmt.Errorf("%w: contract's block producer: %v, extraData's block producer: %v",
+						errMismatchingValidators, blockProducers, extraData.BlockProducers)
 				}
 				for i := range blockProducers {
 					if blockProducers[i] != extraData.BlockProducers[i] {
-						return errMismatchingValidators
+						return fmt.Errorf("%w: contract's block producer: %v, extraData's block producer: %v",
+							errMismatchingValidators, blockProducers, extraData.BlockProducers)
 					}
 				}
 			}
 			if c.IsPeriodBlock(chain, header, nil) {
-				if len(checkpointValidators) != len(extraData.CheckpointValidators) {
-					return errMismatchingValidators
-				}
-				for i := range checkpointValidators {
-					if checkpointValidators[i].Address != extraData.CheckpointValidators[i].Address {
-						return errMismatchingValidators
-					}
-					if !checkpointValidators[i].BlsPublicKey.Equals(extraData.CheckpointValidators[i].BlsPublicKey) {
-						return errMismatchingValidators
-					}
-					if checkpointValidators[i].Weight != extraData.CheckpointValidators[i].Weight {
-						return errMismatchingValidators
-					}
-				}
+				return verifyValidatorExtraDataWithContract(checkpointValidators, extraData, true, true)
 			}
 		} else {
-			if len(checkpointValidators) != len(extraData.CheckpointValidators) {
-				return errMismatchingValidators
-			}
-
 			isShillin := c.chainConfig.IsShillin(header.Number)
-			for i := range checkpointValidators {
-				if checkpointValidators[i].Address != extraData.CheckpointValidators[i].Address {
-					return errMismatchingValidators
-				}
-
-				if isShillin {
-					if !checkpointValidators[i].BlsPublicKey.Equals(extraData.CheckpointValidators[i].BlsPublicKey) {
-						return errMismatchingValidators
-					}
-				}
-			}
+			return verifyValidatorExtraDataWithContract(checkpointValidators, extraData, isShillin, false)
 		}
 	}
 
