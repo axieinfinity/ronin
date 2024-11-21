@@ -75,7 +75,7 @@ func (evm *EVM) precompile(caller ContractRef, addr common.Address) (Precompiled
 		precompiles = PrecompiledContractsBerlin
 	case evm.chainRules.IsMiko:
 		precompiles = PrecompiledContractsConsortiumMiko
-	case evm.chainRules.IsConsortiumV2:
+	case evm.chainRules.IsLastConsortiumV1Block, evm.chainRules.IsConsortiumV2:
 		precompiles = PrecompiledContractsConsortium
 	case evm.chainRules.IsIstanbul:
 		precompiles = PrecompiledContractsIstanbul

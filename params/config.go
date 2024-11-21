@@ -848,6 +848,15 @@ func (c *ChainConfig) IsFenix(num *big.Int) bool {
 	return isForked(c.FenixBlock, num)
 }
 
+// IsLastConsortiumV1Block return if num is the last block in Consortium v1
+func (c *ChainConfig) IsLastConsortiumV1Block(num *big.Int) bool {
+	if c.ConsortiumV2Block != nil && num != nil {
+		// ConsortiumV2Block must be >= 1 so no overflow check here
+		return new(big.Int).Sub(c.ConsortiumV2Block, common.Big1).Cmp(num) == 0
+	}
+	return false
+}
+
 // IsConsortiumV2 returns whether the num is equals to or larger than the consortiumV2 fork block.
 func (c *ChainConfig) IsConsortiumV2(num *big.Int) bool {
 	return isForked(c.ConsortiumV2Block, num)
@@ -1138,7 +1147,7 @@ type Rules struct {
 	IsBerlin, IsLondon, IsOdysseusFork                      bool
 	IsFenix, IsShillin, IsConsortiumV2, IsAntenna           bool
 	IsMiko, IsTripp, IsAaron, IsShanghai, IsCancun          bool
-	IsVenoki                                                bool
+	IsVenoki, IsLastConsortiumV1Block                       bool
 }
 
 // Rules ensures c's ChainID is not nil.
@@ -1148,27 +1157,28 @@ func (c *ChainConfig) Rules(num *big.Int) Rules {
 		chainID = new(big.Int)
 	}
 	return Rules{
-		ChainID:          new(big.Int).Set(chainID),
-		IsHomestead:      c.IsHomestead(num),
-		IsEIP150:         c.IsEIP150(num),
-		IsEIP155:         c.IsEIP155(num),
-		IsEIP158:         c.IsEIP158(num),
-		IsByzantium:      c.IsByzantium(num),
-		IsConstantinople: c.IsConstantinople(num),
-		IsPetersburg:     c.IsPetersburg(num),
-		IsIstanbul:       c.IsIstanbul(num),
-		IsBerlin:         c.IsBerlin(num),
-		IsLondon:         c.IsLondon(num),
-		IsOdysseusFork:   c.IsOdysseus(num),
-		IsFenix:          c.IsFenix(num),
-		IsShillin:        c.IsShillin(num),
-		IsConsortiumV2:   c.IsConsortiumV2(num),
-		IsAntenna:        c.IsAntenna(num),
-		IsMiko:           c.IsMiko(num),
-		IsTripp:          c.IsTripp(num),
-		IsAaron:          c.IsAaron(num),
-		IsShanghai:       c.IsShanghai(num),
-		IsCancun:         c.IsCancun(num),
-		IsVenoki:         c.IsVenoki(num),
+		ChainID:                 new(big.Int).Set(chainID),
+		IsHomestead:             c.IsHomestead(num),
+		IsEIP150:                c.IsEIP150(num),
+		IsEIP155:                c.IsEIP155(num),
+		IsEIP158:                c.IsEIP158(num),
+		IsByzantium:             c.IsByzantium(num),
+		IsConstantinople:        c.IsConstantinople(num),
+		IsPetersburg:            c.IsPetersburg(num),
+		IsIstanbul:              c.IsIstanbul(num),
+		IsBerlin:                c.IsBerlin(num),
+		IsLondon:                c.IsLondon(num),
+		IsOdysseusFork:          c.IsOdysseus(num),
+		IsFenix:                 c.IsFenix(num),
+		IsShillin:               c.IsShillin(num),
+		IsLastConsortiumV1Block: c.IsLastConsortiumV1Block(num),
+		IsConsortiumV2:          c.IsConsortiumV2(num),
+		IsAntenna:               c.IsAntenna(num),
+		IsMiko:                  c.IsMiko(num),
+		IsTripp:                 c.IsTripp(num),
+		IsAaron:                 c.IsAaron(num),
+		IsShanghai:              c.IsShanghai(num),
+		IsCancun:                c.IsCancun(num),
+		IsVenoki:                c.IsVenoki(num),
 	}
 }
