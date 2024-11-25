@@ -1304,11 +1304,15 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 				}
 			}
 			if c.IsPeriodBlock(chain, header, nil) {
-				return verifyValidatorExtraDataWithContract(checkpointValidators, extraData, true, true)
+				if err := verifyValidatorExtraDataWithContract(checkpointValidators, extraData, true, true); err != nil {
+					return err
+				}
 			}
 		} else {
 			isShillin := c.chainConfig.IsShillin(header.Number)
-			return verifyValidatorExtraDataWithContract(checkpointValidators, extraData, isShillin, false)
+			if err := verifyValidatorExtraDataWithContract(checkpointValidators, extraData, isShillin, false); err != nil {
+				return err
+			}
 		}
 	}
 
