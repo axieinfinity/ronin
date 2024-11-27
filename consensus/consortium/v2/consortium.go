@@ -1979,12 +1979,14 @@ func getParentHeader(chain consensus.ChainHeaderReader, currentHeader *types.Hea
 // After Venoki, IsPeriodBlock returns true when header is the first block of an epoch
 // (let's call epoch n) whose parent block's timestamp is on the different date from the
 // last block of "previous previous" epoch (epoch n - 2)
+//
+// The caller must ensure to call this function after passing Tripp hardfork only.
 func (c *Consortium) IsPeriodBlock(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header) (bool, error) {
 	if c.isTest {
 		return c.testTrippPeriod, nil
 	}
 	number := header.Number.Uint64()
-	if number%c.config.EpochV2 != 0 || !chain.Config().IsTripp(header.Number) {
+	if number%c.config.EpochV2 != 0 {
 		return false, nil
 	}
 

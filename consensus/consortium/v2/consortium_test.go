@@ -2255,28 +2255,12 @@ func TestIsPeriodBlock(t *testing.T) {
 		db:       db,
 		contract: mock,
 	}
-	validators := make([]common.Address, NUM_OF_VALIDATORS)
-	for i := 0; i < NUM_OF_VALIDATORS; i++ {
-		validators = append(validators, common.BigToAddress(big.NewInt(int64(i))))
-	}
-
 	var header = &types.Header{}
-
-	// header of block 0
-	// this must not a period block
-	header = genesis.Header()
-	isPeriodBlock, err := c.IsPeriodBlock(chain, header, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if isPeriodBlock {
-		t.Errorf("wrong period block")
-	}
 
 	// header of block 200
 	// this must not a period block
 	header = bs[199].Header()
-	isPeriodBlock, err = c.IsPeriodBlock(chain, header, nil)
+	isPeriodBlock, err := c.IsPeriodBlock(chain, header, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
