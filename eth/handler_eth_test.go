@@ -117,11 +117,11 @@ func testForkIDSplit(t *testing.T, protocol uint) {
 		gspecNoFork  = &core.Genesis{Config: configNoFork}
 		gspecProFork = &core.Genesis{Config: configProFork}
 
-		genesisNoFork  = gspecNoFork.MustCommit(dbNoFork)
-		genesisProFork = gspecProFork.MustCommit(doFork)
+		genesisNoFork  = gspecNoFork.MustCommit(dbNoFork, trie.NewDatabase(dbNoFork, nil))
+		genesisProFork = gspecProFork.MustCommit(doFork, trie.NewDatabase(doFork, nil))
 
-		chainNoFork, _  = core.NewBlockChain(dbNoFork, nil, configNoFork, engine, vm.Config{}, nil, nil)
-		chainProFork, _ = core.NewBlockChain(doFork, nil, configProFork, engine, vm.Config{}, nil, nil)
+		chainNoFork, _  = core.NewBlockChain(dbNoFork, nil, gspecNoFork, nil, engine, vm.Config{}, nil, nil)
+		chainProFork, _ = core.NewBlockChain(doFork, nil, gspecProFork, nil, engine, vm.Config{}, nil, nil)
 
 		blocksNoFork, _  = core.GenerateChain(configNoFork, genesisNoFork, engine, dbNoFork, 2, nil, true)
 		blocksProFork, _ = core.GenerateChain(configProFork, genesisProFork, engine, doFork, 2, nil, true)
@@ -259,7 +259,7 @@ func testRecvTransactions(t *testing.T, protocol uint) {
 	handler := newTestHandler()
 	defer handler.close()
 
-	handler.handler.acceptTxs = 1 // mark synced to accept transactions
+	handler.handler.synced = 1 // mark synced to accept transactions
 
 	txs := make(chan core.NewTxsEvent)
 	sub := handler.txpool.SubscribeTransactions(txs, false)
@@ -408,7 +408,7 @@ func testTransactionPropagation(t *testing.T, protocol uint) {
 		sinks[i] = newTestHandler()
 		defer sinks[i].close()
 
-		sinks[i].handler.acceptTxs = 1 // mark synced to accept transactions
+		sinks[i].handler.synced = 1 // mark synced to accept transactions
 	}
 	// Interconnect all the sink handlers with the source handler
 	for i, sink := range sinks {

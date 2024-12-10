@@ -49,6 +49,9 @@ const (
 var (
 	hashT    = reflect.TypeOf(Hash{})
 	addressT = reflect.TypeOf(Address{})
+
+	// MaxHash represents the maximum possible hash value.
+	MaxHash = HexToHash("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
 )
 
 // Hash represents the 32 byte Keccak256 hash of arbitrary data.
@@ -78,6 +81,11 @@ func (h Hash) Big() *big.Int { return new(big.Int).SetBytes(h[:]) }
 
 // Hex converts a hash to a hex string.
 func (h Hash) Hex() string { return hexutil.Encode(h[:]) }
+
+// Cmp compares two hashes.
+func (h Hash) Cmp(other Hash) int {
+	return bytes.Compare(h[:], other[:])
+}
 
 // TerminalString implements log.TerminalStringer, formatting a string for console
 // output during logging.

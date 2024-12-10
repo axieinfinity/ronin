@@ -115,7 +115,7 @@ func TestFreezerModifyRollback(t *testing.T) {
 
 	// Reopen and check that the rolled-back data doesn't reappear.
 	tables := map[string]bool{"test": true}
-	f2, err := newFreezer(dir, "", false, 2049, tables)
+	f2, err := NewFreezer(dir, "", false, 2049, tables)
 	if err != nil {
 		t.Fatalf("can't reopen freezer after failed ModifyAncients: %v", err)
 	}
@@ -186,7 +186,7 @@ func TestFreezerConcurrentModifyRetrieve(t *testing.T) {
 	wg.Wait()
 }
 
-// This test runs ModifyAncients and TruncateAncients concurrently with each other.
+// This test runs ModifyAncients and TruncateHead concurrently with each other.
 func TestFreezerConcurrentModifyTruncate(t *testing.T) {
 	f, dir := newFreezerForTesting(t, freezerTestTableDef)
 	defer os.RemoveAll(dir)
@@ -196,7 +196,7 @@ func TestFreezerConcurrentModifyTruncate(t *testing.T) {
 
 	for i := 0; i < 1000; i++ {
 		// First reset and write 100 items.
-		if err := f.TruncateAncients(0); err != nil {
+		if _, err := f.TruncateHead(0); err != nil {
 			t.Fatal("truncate failed:", err)
 		}
 		_, err := f.ModifyAncients(func(op ethdb.AncientWriteOp) error {
@@ -231,7 +231,7 @@ func TestFreezerConcurrentModifyTruncate(t *testing.T) {
 			wg.Done()
 		}()
 		go func() {
-			truncateErr = f.TruncateAncients(10)
+			_, truncateErr = f.TruncateHead(10)
 			wg.Done()
 		}()
 		go func() {
@@ -253,7 +253,7 @@ func TestFreezerConcurrentModifyTruncate(t *testing.T) {
 	}
 }
 
-func newFreezerForTesting(t *testing.T, tables map[string]bool) (*freezer, string) {
+func newFreezerForTesting(t *testing.T, tables map[string]bool) (*Freezer, string) {
 	t.Helper()
 
 	dir, err := ioutil.TempDir("", "freezer")
@@ -262,7 +262,7 @@ func newFreezerForTesting(t *testing.T, tables map[string]bool) (*freezer, strin
 	}
 	// note: using low max table size here to ensure the tests actually
 	// switch between multiple files.
-	f, err := newFreezer(dir, "", false, 2049, tables)
+	f, err := NewFreezer(dir, "", false, 2049, tables)
 	if err != nil {
 		t.Fatal("can't open freezer", err)
 	}
@@ -270,7 +270,7 @@ func newFreezerForTesting(t *testing.T, tables map[string]bool) (*freezer, strin
 }
 
 // checkAncientCount verifies that the freezer contains n items.
-func checkAncientCount(t *testing.T, f *freezer, kind string, n uint64) {
+func checkAncientCount(t *testing.T, f *Freezer, kind string, n uint64) {
 	t.Helper()
 
 	if frozen, _ := f.Ancients(); frozen != n {

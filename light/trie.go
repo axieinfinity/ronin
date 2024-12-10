@@ -29,6 +29,7 @@ import (
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/trie"
+	"github.com/ethereum/go-ethereum/trie/trienode"
 )
 
 var (
@@ -54,7 +55,7 @@ func (db *odrDatabase) OpenTrie(root common.Hash) (state.Trie, error) {
 	return &odrTrie{db: db, id: db.id}, nil
 }
 
-func (db *odrDatabase) OpenStorageTrie(addrHash, root common.Hash) (state.Trie, error) {
+func (db *odrDatabase) OpenStorageTrie(stateRoot, addrHash, root common.Hash) (state.Trie, error) {
 	return &odrTrie{db: db, id: StorageTrieID(db.id, addrHash, root)}, nil
 }
 
@@ -63,8 +64,7 @@ func (db *odrDatabase) CopyTrie(t state.Trie) state.Trie {
 	case *odrTrie:
 		cpy := &odrTrie{db: t.db, id: t.id}
 		if t.trie != nil {
-			cpytrie := *t.trie
-			cpy.trie = &cpytrie
+			cpy.trie = t.trie.Copy()
 		}
 		return cpy
 	default:
@@ -137,11 +137,11 @@ func (t *odrTrie) TryDelete(key []byte) error {
 	})
 }
 
-func (t *odrTrie) Commit(onleaf trie.LeafCallback) (common.Hash, int, error) {
+func (t *odrTrie) Commit(collectLeaf bool) (common.Hash, *trienode.NodeSet, error) {
 	if t.trie == nil {
-		return t.id.Root, 0, nil
+		return t.id.Root, nil, nil
 	}
-	return t.trie.Commit(onleaf)
+	return t.trie.Commit(collectLeaf)
 }
 
 func (t *odrTrie) Hash() common.Hash {
@@ -151,8 +151,8 @@ func (t *odrTrie) Hash() common.Hash {
 	return t.trie.Hash()
 }
 
-func (t *odrTrie) NodeIterator(startkey []byte) trie.NodeIterator {
-	return newNodeIterator(t, startkey)
+func (t *odrTrie) NodeIterator(startkey []byte) (trie.NodeIterator, error) {
+	return newNodeIterator(t, startkey), nil
 }
 
 func (t *odrTrie) GetKey(sha []byte) []byte {
@@ -169,7 +169,13 @@ func (t *odrTrie) do(key []byte, fn func() error) error {
 	for {
 		var err error
 		if t.trie == nil {
-			t.trie, err = trie.New(t.id.Root, trie.NewDatabase(t.db.backend.Database()))
+			var id *trie.ID
+			if len(t.id.AccKey) > 0 {
+				id = trie.StorageTrieID(t.id.StateRoot, common.BytesToHash(t.id.AccKey), t.id.Root)
+			} else {
+				id = trie.StateTrieID(t.id.StateRoot)
+			}
+			t.trie, err = trie.New(id, trie.NewDatabase(t.db.backend.Database(), nil))
 		}
 		if err == nil {
 			err = fn()
@@ -195,7 +201,13 @@ func newNodeIterator(t *odrTrie, startkey []byte) trie.NodeIterator {
 	// Open the actual non-ODR trie if that hasn't happened yet.
 	if t.trie == nil {
 		it.do(func() error {
-			t, err := trie.New(t.id.Root, trie.NewDatabase(t.db.backend.Database()))
+			var id *trie.ID
+			if len(t.id.AccKey) > 0 {
+				id = trie.StorageTrieID(t.id.StateRoot, common.BytesToHash(t.id.AccKey), t.id.Root)
+			} else {
+				id = trie.StateTrieID(t.id.StateRoot)
+			}
+			t, err := trie.New(id, trie.NewDatabase(t.db.backend.Database(), nil))
 			if err == nil {
 				it.t.trie = t
 			}
@@ -203,7 +215,11 @@ func newNodeIterator(t *odrTrie, startkey []byte) trie.NodeIterator {
 		})
 	}
 	it.do(func() error {
-		it.NodeIterator = it.t.trie.NodeIterator(startkey)
+		var err error
+		it.NodeIterator, err = it.t.trie.NodeIterator(startkey)
+		if err != nil {
+			return err
+		}
 		return it.NodeIterator.Error()
 	})
 	return it

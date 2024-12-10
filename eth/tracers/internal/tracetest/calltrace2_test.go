@@ -162,8 +162,9 @@ func testCallTracer2(tracerName string, dirPath string, t *testing.T) {
 					Difficulty:  (*big.Int)(test.Context.Difficulty),
 					GasLimit:    uint64(test.Context.GasLimit),
 				}
-				_, statedb = tests.MakePreState(rawdb.NewMemoryDatabase(), test.Genesis.Alloc, false)
+				triedb, _, statedb = tests.MakePreState(rawdb.NewMemoryDatabase(), test.Genesis.Alloc, false, rawdb.HashScheme)
 			)
+			defer triedb.Close()
 			tracer, err := tracers.DefaultDirectory.New(tracerName, new(tracers.Context), test.TracerConfig)
 			if err != nil {
 				t.Fatalf("failed to create call tracer: %v", err)
@@ -265,7 +266,8 @@ func benchTracer2(tracerName string, test *callTracer2Test, b *testing.B) {
 		Difficulty:  (*big.Int)(test.Context.Difficulty),
 		GasLimit:    uint64(test.Context.GasLimit),
 	}
-	_, statedb := tests.MakePreState(rawdb.NewMemoryDatabase(), test.Genesis.Alloc, false)
+	triedb, _, statedb := tests.MakePreState(rawdb.NewMemoryDatabase(), test.Genesis.Alloc, false, rawdb.HashScheme)
+	defer triedb.Close()
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -335,7 +337,8 @@ func TestZeroValueToNotExitCall2(t *testing.T) {
 			Balance: big.NewInt(500000000000000),
 		},
 	}
-	_, statedb := tests.MakePreState(rawdb.NewMemoryDatabase(), alloc, false)
+	triedb, _, statedb := tests.MakePreState(rawdb.NewMemoryDatabase(), alloc, false, rawdb.HashScheme)
+	defer triedb.Close()
 	// Create the tracer, the EVM environment and run it
 	tracer, err := tracers.DefaultDirectory.New("callTracer2", new(tracers.Context), nil)
 	if err != nil {

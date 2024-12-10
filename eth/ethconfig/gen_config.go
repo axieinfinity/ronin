@@ -27,6 +27,9 @@ func (c Config) MarshalTOML() (interface{}, error) {
 		NoPruning               bool
 		NoPrefetch              bool
 		TxLookupLimit           uint64                 `toml:",omitempty"`
+		TransactionHistory      uint64                 `toml:",omitempty"`
+		StateHistory            uint64                 `toml:",omitempty"`
+		StateScheme             string                 `toml:",omitempty"`
 		Whitelist               map[uint64]common.Hash `toml:"-"`
 		LightServ               int                    `toml:",omitempty"`
 		LightIngress            int                    `toml:",omitempty"`
@@ -43,8 +46,6 @@ func (c Config) MarshalTOML() (interface{}, error) {
 		DatabaseCache           int
 		DatabaseFreezer         string
 		TrieCleanCache          int
-		TrieCleanCacheJournal   string        `toml:",omitempty"`
-		TrieCleanCacheRejournal time.Duration `toml:",omitempty"`
 		TrieDirtyCache          int
 		TrieTimeout             time.Duration
 		SnapshotCache           int
@@ -71,6 +72,9 @@ func (c Config) MarshalTOML() (interface{}, error) {
 	enc.NoPruning = c.NoPruning
 	enc.NoPrefetch = c.NoPrefetch
 	enc.TxLookupLimit = c.TxLookupLimit
+	enc.TransactionHistory = c.TransactionHistory
+	enc.StateHistory = c.StateHistory
+	enc.StateScheme = c.StateScheme
 	enc.Whitelist = c.Whitelist
 	enc.LightServ = c.LightServ
 	enc.LightIngress = c.LightIngress
@@ -87,8 +91,6 @@ func (c Config) MarshalTOML() (interface{}, error) {
 	enc.DatabaseCache = c.DatabaseCache
 	enc.DatabaseFreezer = c.DatabaseFreezer
 	enc.TrieCleanCache = c.TrieCleanCache
-	enc.TrieCleanCacheJournal = c.TrieCleanCacheJournal
-	enc.TrieCleanCacheRejournal = c.TrieCleanCacheRejournal
 	enc.TrieDirtyCache = c.TrieDirtyCache
 	enc.TrieTimeout = c.TrieTimeout
 	enc.SnapshotCache = c.SnapshotCache
@@ -119,6 +121,9 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 		NoPruning               *bool
 		NoPrefetch              *bool
 		TxLookupLimit           *uint64                `toml:",omitempty"`
+		TransactionHistory      *uint64                `toml:",omitempty"`
+		StateHistory            *uint64                `toml:",omitempty"`
+		StateScheme             *string                `toml:",omitempty"`
 		Whitelist               map[uint64]common.Hash `toml:"-"`
 		LightServ               *int                   `toml:",omitempty"`
 		LightIngress            *int                   `toml:",omitempty"`
@@ -135,8 +140,6 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 		DatabaseCache           *int
 		DatabaseFreezer         *string
 		TrieCleanCache          *int
-		TrieCleanCacheJournal   *string        `toml:",omitempty"`
-		TrieCleanCacheRejournal *time.Duration `toml:",omitempty"`
 		TrieDirtyCache          *int
 		TrieTimeout             *time.Duration
 		SnapshotCache           *int
@@ -181,6 +184,15 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 	}
 	if dec.TxLookupLimit != nil {
 		c.TxLookupLimit = *dec.TxLookupLimit
+	}
+	if dec.TransactionHistory != nil {
+		c.TransactionHistory = *dec.TransactionHistory
+	}
+	if dec.StateHistory != nil {
+		c.StateHistory = *dec.StateHistory
+	}
+	if dec.StateScheme != nil {
+		c.StateScheme = *dec.StateScheme
 	}
 	if dec.Whitelist != nil {
 		c.Whitelist = dec.Whitelist
@@ -229,12 +241,6 @@ func (c *Config) UnmarshalTOML(unmarshal func(interface{}) error) error {
 	}
 	if dec.TrieCleanCache != nil {
 		c.TrieCleanCache = *dec.TrieCleanCache
-	}
-	if dec.TrieCleanCacheJournal != nil {
-		c.TrieCleanCacheJournal = *dec.TrieCleanCacheJournal
-	}
-	if dec.TrieCleanCacheRejournal != nil {
-		c.TrieCleanCacheRejournal = *dec.TrieCleanCacheRejournal
 	}
 	if dec.TrieDirtyCache != nil {
 		c.TrieDirtyCache = *dec.TrieDirtyCache
