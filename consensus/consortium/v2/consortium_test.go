@@ -2445,11 +2445,13 @@ func createNewChain(
 	chainConfig *params.ChainConfig,
 	validatorAddr common.Address,
 	blsSecretKey blsCommon.SecretKey,
+	scheme string,
 ) (*types.Block, *core.BlockChain, ethdb.Database, *Consortium) {
 	db := rawdb.NewMemoryDatabase()
-	genesis := (&core.Genesis{
+	gspec := &core.Genesis{
 		Config: chainConfig,
-	}).MustCommit(db)
+	}
+	genesis := gspec.MustCommit(db, trie.NewDatabase(db, nil))
 
 	mock := &mockContract{
 		validators: map[common.Address]mockValidator{
@@ -2475,11 +2477,16 @@ func createNewChain(
 		},
 	}
 
-	chain, _ := core.NewBlockChain(db, nil, chainConfig, v2, vm.Config{}, nil, nil)
+	chain, _ := core.NewBlockChain(db, core.DefaultCacheConfigWithScheme(scheme), gspec, nil, v2, vm.Config{}, nil, nil)
 	return genesis, chain, db, v2
 }
 
 func TestIsPeriodVenoki(t *testing.T) {
+	testIsPeriodVenoki(t, rawdb.PathScheme)
+	testIsPeriodVenoki(t, rawdb.HashScheme)
+}
+
+func testIsPeriodVenoki(t *testing.T, scheme string) {
 	blsSecretKey, err := blst.RandKey()
 	if err != nil {
 		t.Fatal(err)
@@ -2512,7 +2519,7 @@ func TestIsPeriodVenoki(t *testing.T) {
 		},
 	}
 
-	genesis, chain, db, v2 := createNewChain(&chainConfig, validatorAddr, blsSecretKey)
+	genesis, chain, db, v2 := createNewChain(&chainConfig, validatorAddr, blsSecretKey, scheme)
 	block := generateChain(t, genesis, &chainConfig, chain, v2, db, secretKey, validatorAddr, blsSecretKey, false)
 
 	// Case 1
@@ -2539,7 +2546,7 @@ func TestIsPeriodVenoki(t *testing.T) {
 	// previous epoch passes 0:00
 	// The last block of previous epoch does not pass 0:00
 	chainConfig.VenokiBlock = big.NewInt(200)
-	genesis, chain, db, v2 = createNewChain(&chainConfig, validatorAddr, blsSecretKey)
+	genesis, chain, db, v2 = createNewChain(&chainConfig, validatorAddr, blsSecretKey, scheme)
 	block = generateChain(t, genesis, &chainConfig, chain, v2, db, secretKey, validatorAddr, blsSecretKey, false)
 	isPeriodBlock, err = v2.IsPeriodBlock(chain, block[0].Header(), nil)
 	if err != nil {
@@ -2559,7 +2566,7 @@ func TestIsPeriodVenoki(t *testing.T) {
 
 	// Case 3
 	// The last block of previous epoch passes 0:00
-	genesis, chain, db, v2 = createNewChain(&chainConfig, validatorAddr, blsSecretKey)
+	genesis, chain, db, v2 = createNewChain(&chainConfig, validatorAddr, blsSecretKey, scheme)
 	block = generateChain(t, genesis, &chainConfig, chain, v2, db, secretKey, validatorAddr, blsSecretKey, true)
 	isPeriodBlock, err = v2.IsPeriodBlock(chain, block[0].Header(), nil)
 	if err != nil {
