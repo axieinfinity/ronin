@@ -28,6 +28,7 @@ const (
 	LogContract = iota
 	SortValidator
 	VerifyHeaders
+	VerifyHeadersVenoki
 	PickValidatorSet
 	GetDoubleSignSlashingConfig
 	ValidateFinalityVoteProof
@@ -39,6 +40,7 @@ var (
 	rawConsortiumLogAbi                = `[{"inputs":[{"internalType":"string","name":"message","type":"string"}],"name":"log","outputs":[],"stateMutability":"nonpayable","type":"function"}]`
 	rawConsortiumSortValidatorAbi      = `[{"inputs":[],"stateMutability":"nonpayable","type":"constructor"},{"inputs":[{"internalType":"address[]","name":"validators","type":"address[]"},{"internalType":"uint256[]","name":"weights","type":"uint256[]"}],"name":"sortValidators","outputs":[{"internalType":"address[]","name":"_validators","type":"address[]"}],"stateMutability":"view","type":"function"}]`
 	rawConsortiumVerifyHeadersAbi      = `[{"outputs":[],"name":"getHeader","inputs":[{"internalType":"uint256","name":"chainId","type":"uint256"},{"internalType":"bytes32","name":"parentHash","type":"bytes32"},{"internalType":"bytes32","name":"ommersHash","type":"bytes32"},{"internalType":"address","name":"coinbase","type":"address"},{"internalType":"bytes32","name":"stateRoot","type":"bytes32"},{"internalType":"bytes32","name":"transactionsRoot","type":"bytes32"},{"internalType":"bytes32","name":"receiptsRoot","type":"bytes32"},{"internalType":"uint8[256]","name":"logsBloom","type":"uint8[256]"},{"internalType":"uint256","name":"difficulty","type":"uint256"},{"internalType":"uint256","name":"number","type":"uint256"},{"internalType":"uint64","name":"gasLimit","type":"uint64"},{"internalType":"uint64","name":"gasUsed","type":"uint64"},{"internalType":"uint64","name":"timestamp","type":"uint64"},{"internalType":"bytes","name":"extraData","type":"bytes"},{"internalType":"bytes32","name":"mixHash","type":"bytes32"},{"internalType":"uint64","name":"nonce","type":"uint64"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"consensusAddr","type":"address"},{"internalType":"bytes","name":"header1","type":"bytes"},{"internalType":"bytes","name":"header2","type":"bytes"}],"name":"validatingDoubleSignProof","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"view","type":"function"}]`
+	rawConsortiumVerifyHeadersV2Abi    = `[{"outputs":[],"name":"getHeader","inputs":[{"internalType":"uint256","name":"chainId","type":"uint256"},{"internalType":"bytes32","name":"parentHash","type":"bytes32"},{"internalType":"bytes32","name":"ommersHash","type":"bytes32"},{"internalType":"address","name":"coinbase","type":"address"},{"internalType":"bytes32","name":"stateRoot","type":"bytes32"},{"internalType":"bytes32","name":"transactionsRoot","type":"bytes32"},{"internalType":"bytes32","name":"receiptsRoot","type":"bytes32"},{"internalType":"uint8[256]","name":"logsBloom","type":"uint8[256]"},{"internalType":"uint256","name":"difficulty","type":"uint256"},{"internalType":"uint256","name":"number","type":"uint256"},{"internalType":"uint64","name":"gasLimit","type":"uint64"},{"internalType":"uint64","name":"gasUsed","type":"uint64"},{"internalType":"uint64","name":"timestamp","type":"uint64"},{"internalType":"bytes","name":"extraData","type":"bytes"},{"internalType":"bytes32","name":"mixHash","type":"bytes32"},{"internalType":"uint64","name":"nonce","type":"uint64"},{"internalType":"uint256","name":"baseFee","type":"uint256"},{"internalType":"uint64","name":"blobGasUsed","type":"uint64"},{"internalType":"uint64","name":"excessBlobGas","type":"uint64"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"address","name":"consensusAddr","type":"address"},{"internalType":"bytes","name":"header1","type":"bytes"},{"internalType":"bytes","name":"header2","type":"bytes"}],"name":"validatingDoubleSignProof","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"view","type":"function"}]`
 	rawConsortiumPickValidatorSetAbi   = `[{"inputs":[],"stateMutability":"nonpayable","type":"constructor"},{"inputs":[{"internalType":"address[]","name":"_candidates","type":"address[]"},{"internalType":"uint256[]","name":"_weights","type":"uint256[]"},{"internalType":"uint256[]","name":"_trustedWeights","type":"uint256[]"},{"internalType":"uint256","name":"_maxValidatorNumber","type":"uint256"},{"internalType":"uint256","name":"_maxPrioritizedValidatorNumber","type":"uint256"}],"name":"pickValidatorSet","outputs":[{"internalType":"address[]","name":"_validators","type":"address[]"}],"stateMutability":"view","type":"function"}]`
 	rawGetDoubleSignSlashingConfigsAbi = `[{"inputs":[],"name":"getDoubleSignSlashingConfigs","outputs":[{"internalType":"uint256","name":"","type":"uint256"},{"internalType":"uint256","name":"","type":"uint256"},{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"}]`
 	rawValidateFinalityVoteProofAbi    = `[{"inputs":[{"internalType":"bytes","name":"voterPublicKey","type":"bytes"},{"internalType":"uint256","name":"targetBlockNumber","type":"uint256"},{"internalType":"bytes32[2]","name":"targetBlockHash","type":"bytes32[2]"},{"internalType":"bytes[][2]","name":"listOfPublicKey","type":"bytes[][2]"},{"internalType":"bytes[2]","name":"aggregatedSignature","type":"bytes[2]"}],"name":"validateFinalityVoteProof","outputs":[{"internalType":"bool","name":"","type":"bool"}],"stateMutability":"view","type":"function"}]`
@@ -48,6 +50,7 @@ var (
 		LogContract:                 rawConsortiumLogAbi,
 		SortValidator:               rawConsortiumSortValidatorAbi,
 		VerifyHeaders:               rawConsortiumVerifyHeadersAbi,
+		VerifyHeadersVenoki:         rawConsortiumVerifyHeadersV2Abi,
 		PickValidatorSet:            rawConsortiumPickValidatorSetAbi,
 		GetDoubleSignSlashingConfig: rawGetDoubleSignSlashingConfigsAbi,
 		ValidateFinalityVoteProof:   rawValidateFinalityVoteProofAbi,
@@ -455,8 +458,14 @@ func (c *consortiumVerifyHeaders) Run(input []byte) ([]byte, error) {
 	if err := isSystemContractCaller(c.caller, c.evm); err != nil {
 		return nil, err
 	}
-	// get method, args from abi
-	smcAbi, method, args, err := loadMethodAndArgs(VerifyHeaders, input)
+	isVenoki := c.evm.chainRules.IsVenoki
+	contractIdx := VerifyHeaders
+	if isVenoki {
+		contractIdx = VerifyHeadersVenoki
+	}
+
+	// get method, args from abi and check if method is valid
+	smcAbi, method, args, err := loadMethodAndArgs(contractIdx, input)
 	if err != nil {
 		return nil, err
 	}
@@ -470,16 +479,33 @@ func (c *consortiumVerifyHeaders) Run(input []byte) ([]byte, error) {
 	if !ok {
 		return nil, errors.New("invalid first argument type")
 	}
-	// decode header1, header2
-	var blockHeader1, blockHeader2 types.BlockHeader
-	if err := c.unpack(smcAbi, &blockHeader1, args[1].([]byte)); err != nil {
+	blockHeader1, err := c.unpackHeader(smcAbi, args[1].([]byte), isVenoki)
+	if err != nil {
 		return nil, err
 	}
-	if err := c.unpack(smcAbi, &blockHeader2, args[2].([]byte)); err != nil {
+	blockHeader2, err := c.unpackHeader(smcAbi, args[2].([]byte), isVenoki)
+	if err != nil {
 		return nil, err
 	}
 	output := c.verify(consensusAddr, blockHeader1, blockHeader2)
 	return smcAbi.Methods[verifyHeaders].Outputs.Pack(output)
+}
+
+func (c *consortiumVerifyHeaders) unpackHeader(abi abi.ABI, input []byte, isVenoki bool) (types.BlockHeader, error) {
+	if isVenoki {
+		var blochHeader types.BlockHeaderV2
+		if err := c.unpack(abi, &blochHeader, input); err != nil {
+			return nil, err
+		}
+
+		return &blochHeader, nil
+	}
+
+	var blockHeader types.BlockHeaderV1
+	if err := c.unpack(abi, &blockHeader, input); err != nil {
+		return nil, err
+	}
+	return &blockHeader, nil
 }
 
 func (c *consortiumVerifyHeaders) unpack(smcAbi abi.ABI, v interface{}, input []byte) error {
@@ -492,14 +518,15 @@ func (c *consortiumVerifyHeaders) unpack(smcAbi abi.ABI, v interface{}, input []
 	return args.Copy(v, output)
 }
 
-func (c *consortiumVerifyHeaders) getSigner(header types.BlockHeader) (common.Address, error) {
-	if header.Number == nil || header.Timestamp > uint64(time.Now().Unix()) || len(header.ExtraData) < crypto.SignatureLength {
+func (c *consortiumVerifyHeaders) getSigner(blockHeader types.BlockHeader) (common.Address, error) {
+	header := blockHeader.ToHeader()
+	if header.Number == nil || header.Time > uint64(time.Now().Unix()) || len(header.Extra) < crypto.SignatureLength {
 		return common.Address{}, errors.New("invalid header")
 	}
-	signature := header.ExtraData[len(header.ExtraData)-crypto.SignatureLength:]
-
 	// Recover the public key and the Ethereum address
-	pubkey, err := crypto.Ecrecover(SealHash(header.ToHeader(), header.ChainId).Bytes(), signature)
+	signature := header.Extra[len(header.Extra)-crypto.SignatureLength:]
+	signedHash := SealHash(blockHeader).Bytes()
+	pubkey, err := crypto.Ecrecover(signedHash, signature)
 	if err != nil {
 		return common.Address{}, err
 	}
@@ -516,20 +543,22 @@ func (c *consortiumVerifyHeaders) getSigner(header types.BlockHeader) (common.Ad
 	return signer, nil
 }
 
+// verify returns true if 2 blocks has the same signer (consensus address), same block number
+// but with different seal hash
 func (c *consortiumVerifyHeaders) verify(consensusAddr common.Address, header1, header2 types.BlockHeader) bool {
 	var maxOffset *big.Int
 
 	// c.evm s nil in benchmark, so we skip this check in benchmark
-	if c.evm != nil && !c.evm.chainConfig.IsConsortiumV2(header1.Number) {
+	if c.evm != nil && !c.evm.chainConfig.IsConsortiumV2(header1.GetNumber()) {
 		return false
 	}
 	if header1.ToHeader().ParentHash.Hex() != header2.ToHeader().ParentHash.Hex() {
 		return false
 	}
-	if len(header1.ExtraData) < crypto.SignatureLength || len(header2.ExtraData) < crypto.SignatureLength {
+	if len(header1.GetExtraData()) < crypto.SignatureLength || len(header2.GetExtraData()) < crypto.SignatureLength {
 		return false
 	}
-	if bytes.Equal(SealHash(header1.ToHeader(), header1.ChainId).Bytes(), SealHash(header2.ToHeader(), header2.ChainId).Bytes()) {
+	if bytes.Equal(SealHash(header1).Bytes(), SealHash(header2).Bytes()) {
 		return false
 	}
 	signer1, err := c.getSigner(header1)
@@ -545,11 +574,11 @@ func (c *consortiumVerifyHeaders) verify(consensusAddr common.Address, header1, 
 	if unmarshalledABIs[GetDoubleSignSlashingConfig] == nil {
 		return false
 	}
-	methodAbi := *unmarshalledABIs[GetDoubleSignSlashingConfig]
 
 	if c.test {
 		maxOffset = big.NewInt(doubleSigningOffsetTest)
 	} else {
+		methodAbi := *unmarshalledABIs[GetDoubleSignSlashingConfig]
 		if c.evm.chainConfig.ConsortiumV2Contracts == nil {
 			return false
 		} else {
@@ -576,26 +605,26 @@ func (c *consortiumVerifyHeaders) verify(consensusAddr common.Address, header1, 
 	if c.evm != nil {
 		currentBlock := c.evm.Context.BlockNumber
 		// What if current block < header1.Number?
-		if currentBlock.Cmp(header1.Number) > 0 && new(big.Int).Sub(currentBlock, header1.Number).Cmp(maxOffset) > 0 {
+		if currentBlock.Cmp(header1.GetNumber()) > 0 && new(big.Int).Sub(currentBlock, header1.GetNumber()).Cmp(maxOffset) > 0 {
 			return false
 		}
 	}
 
 	return signer1.Hex() == signer2.Hex() &&
-		signer2.Hex() == header2.Benificiary.Hex() &&
+		signer2.Hex() == header2.GetBenificiary().Hex() &&
 		bytes.Equal(consensusAddr.Bytes(), signer1.Bytes())
 }
 
 // SealHash returns the hash of a block prior to it being sealed.
-func SealHash(header *types.Header, chainId *big.Int) (hash common.Hash) {
+func SealHash(header types.BlockHeader) (hash common.Hash) {
 	hasher := sha3.NewLegacyKeccak256()
-	encodeSigHeader(hasher, header, chainId)
+	encodeSigHeader(hasher, header.ToHeader(), header.GetChainId())
 	hasher.Sum(hash[:0])
 	return hash
 }
 
 func encodeSigHeader(w io.Writer, header *types.Header, chainId *big.Int) {
-	err := rlp.Encode(w, []interface{}{
+	enc := []interface{}{
 		chainId,
 		header.ParentHash,
 		header.UncleHash,
@@ -612,8 +641,16 @@ func encodeSigHeader(w io.Writer, header *types.Header, chainId *big.Int) {
 		header.Extra[:len(header.Extra)-crypto.SignatureLength], // Yes, this will panic if extra is too short
 		header.MixDigest,
 		header.Nonce,
-	})
-	if err != nil {
+	}
+	if header.BaseFee != nil {
+		enc = append(enc, header.BaseFee)
+	}
+	// blob fields are assumed to had been verified
+	if header.BlobGasUsed != nil {
+		enc = append(enc, header.BlobGasUsed)
+		enc = append(enc, header.ExcessBlobGas)
+	}
+	if err := rlp.Encode(w, enc); err != nil {
 		panic("can't encode: " + err.Error())
 	}
 }

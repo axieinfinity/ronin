@@ -475,7 +475,12 @@ func (c *Consortium) verifyValidatorFieldsInExtraData(
 				extraData.BlockProducersBitSet,
 			)
 		}
-		if c.IsPeriodBlock(chain, header, parents) {
+		isPeriodBlock, err := c.IsPeriodBlock(chain, header, parents)
+		if err != nil {
+			log.Error("Failed to check IsPeriodBlock", "blocknum", header.Number, "err", err)
+			return err
+		}
+		if isPeriodBlock {
 			if len(extraData.CheckpointValidators) == 0 {
 				return fmt.Errorf(
 					"%w: checkpoint validator: %v",
@@ -679,13 +684,18 @@ func (c *Consortium) snapshot(chain consensus.ChainHeaderReader, number uint64, 
 			break
 		}
 
-		// this case is only happened in mock mode
+		// this case is only happened in mock/test mode
 		if number == 0 {
 			validators, err := c.contract.GetBlockProducers(common.Hash{}, common.Big0)
 			if err != nil {
 				return nil, err
 			}
 			snap = newSnapshot(c.chainConfig, c.config, c.signatures, number, hash, validators, nil, c.ethAPI)
+			if c.db != nil {
+				if err := snap.store(c.db); err != nil {
+					return nil, err
+				}
+			}
 			break
 		}
 
@@ -931,7 +941,13 @@ func (c *Consortium) getCheckpointValidatorsFromContract(
 		if !isAaron {
 			sort.Sort(validatorsAscending(blockProducers))
 		}
-		if !c.IsPeriodBlock(chain, header, nil) {
+
+		isPeriodBlock, err := c.IsPeriodBlock(chain, header, nil)
+		if err != nil {
+			log.Error("Failed to check IsPeriodBlock", "blocknum", header.Number, "err", err)
+			return nil, nil, err
+		}
+		if !isPeriodBlock {
 			return nil, blockProducers, nil
 		}
 		validatorCandidates, err := contract.GetValidatorCandidates(parentHash, parentBlockNumber)
@@ -1048,7 +1064,12 @@ func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.He
 			// current epoch, which is used to calculate block producer bit set later on.
 			var latestValidatorCandidates []finality.ValidatorWithBlsPub
 
-			if c.IsPeriodBlock(chain, header, nil) {
+			isPeriodBlock, err := c.IsPeriodBlock(chain, header, nil)
+			if err != nil {
+				log.Error("Failed to check IsPeriodBlock", "blocknum", header.Number, "err", err)
+				return err
+			}
+			if isPeriodBlock {
 				extraData.CheckpointValidators = checkpointValidators
 				latestValidatorCandidates = checkpointValidators
 			} else {
@@ -1278,8 +1299,13 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 		// If isTripp and new period, read all validator candidates and
 		// their amounts, check with stored data in header
 		if c.IsTrippEffective(chain, header) {
+			isPeriodBlock, err := c.IsPeriodBlock(chain, header, nil)
+			if err != nil {
+				log.Error("Failed to check IsPeriodBlock", "blocknum", header.Number, "err", err)
+				return err
+			}
 			if c.chainConfig.IsAaron(header.Number) {
-				if !c.IsPeriodBlock(chain, header, nil) {
+				if !isPeriodBlock {
 					// Except period block, checkpoint validator list get from contract
 					// is nil at other epoch blocks. From the fact that validator candidate list
 					// does not change over the whole period, it's possible to get the latest
@@ -1303,12 +1329,16 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 					}
 				}
 			}
-			if c.IsPeriodBlock(chain, header, nil) {
-				return verifyValidatorExtraDataWithContract(checkpointValidators, extraData, true, true)
+			if isPeriodBlock {
+				if err := verifyValidatorExtraDataWithContract(checkpointValidators, extraData, true, true); err != nil {
+					return err
+				}
 			}
 		} else {
 			isShillin := c.chainConfig.IsShillin(header.Number)
-			return verifyValidatorExtraDataWithContract(checkpointValidators, extraData, isShillin, false)
+			if err := verifyValidatorExtraDataWithContract(checkpointValidators, extraData, isShillin, false); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -1933,29 +1963,64 @@ func (c *Consortium) getLastCheckpointHeader(chain consensus.ChainHeaderReader, 
 	return current
 }
 
+func getParentHeader(chain consensus.ChainHeaderReader, currentHeader *types.Header, parents []*types.Header) *types.Header {
+	if len(parents) > 0 {
+		return parents[len(parents)-1]
+	} else {
+		return chain.GetHeader(currentHeader.ParentHash, currentHeader.Number.Uint64()-1)
+	}
+}
+
 // IsPeriodBlock returns indicator whether a block is a period checkpoint block or not,
 // which is the first checkpoint block (block % EpochV2 == 0) after 00:00 UTC everyday.
-func (c *Consortium) IsPeriodBlock(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header) bool {
+//
+// Before Venoki, IsPeriodBlock returns true when header is the first block of an epoch
+// whose timestamp is on the different date from first block of previous epoch.
+// After Venoki, IsPeriodBlock returns true when header is the first block of an epoch
+// (let's call epoch n) whose parent block's timestamp is on the different date from the
+// last block of "previous previous" epoch (epoch n - 2)
+//
+// The caller must ensure to call this function after passing Tripp hardfork only.
+func (c *Consortium) IsPeriodBlock(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header) (bool, error) {
 	if c.isTest {
-		return c.testTrippPeriod
+		return c.testTrippPeriod, nil
 	}
 	number := header.Number.Uint64()
-	if number%c.config.EpochV2 != 0 || !chain.Config().IsTripp(header.Number) {
-		return false
+	if number%c.config.EpochV2 != 0 {
+		return false, nil
 	}
 
-	// Derive parent snapshot. If err, we recursively find the nearest epoch
-	// block, and determine whether the header period is ahead of that block period.
-	snap, err := c.snapshot(chain, number-1, header.ParentHash, parents)
-	if err != nil {
-		log.Warn("Fail to get snapshot at", "blockNumber", number-1, "blockHash", header.ParentHash, "err", err)
-		parent := c.getLastCheckpointHeader(chain, header)
-		if parent == nil {
-			return false
+	// When transitioning to Venoki, we actually check the last block of previous epoch
+	// with the first block of previous epoch. This is unusual but the overall behavior
+	// shows no difference. Furthermore, we will set the Venoki in the middle of period so
+	// when transitioning, it is guaranteed to have no change in the period number. As a
+	// result, we can simplify the code to check Venoki transition here.
+	if chain.Config().IsVenoki(header.Number) {
+		snap, err := c.snapshot(chain, number-1, header.ParentHash, parents)
+		if err != nil {
+			log.Error("Failed to get snapshot", "number", number-1, "hash", header.ParentHash)
+			return false, err
 		}
-		return uint64(header.Time/dayInSeconds) > uint64(parent.Time/dayInSeconds)
+		parentHeader := getParentHeader(chain, header, parents)
+		if parentHeader == nil {
+			log.Error("Failed to get parent header", "number", number-1, "hash", header.ParentHash)
+			return false, consensus.ErrUnknownAncestor
+		}
+		return uint64(parentHeader.Time/dayInSeconds) > snap.CurrentPeriod, nil
+	} else {
+		// Derive parent snapshot. If err, we recursively find the nearest epoch
+		// block, and determine whether the header period is ahead of that block period.
+		snap, err := c.snapshot(chain, number-1, header.ParentHash, parents)
+		if err != nil {
+			log.Warn("Fail to get snapshot at", "blockNumber", number-1, "blockHash", header.ParentHash, "err", err)
+			parent := c.getLastCheckpointHeader(chain, header)
+			if parent == nil {
+				return false, consensus.ErrUnknownAncestor
+			}
+			return uint64(header.Time/dayInSeconds) > uint64(parent.Time/dayInSeconds), nil
+		}
+		return uint64(header.Time/dayInSeconds) > snap.CurrentPeriod, nil
 	}
-	return uint64(header.Time/dayInSeconds) > snap.CurrentPeriod
 }
 
 // IsTrippEffective returns indicator whether the Tripp consensus rule is effective,
