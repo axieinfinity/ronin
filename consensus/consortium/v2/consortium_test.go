@@ -18,6 +18,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 	gokzg4844 "github.com/crate-crypto/go-kzg-4844"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/consensus"
 	consortiumCommon "github.com/ethereum/go-ethereum/consensus/consortium/common"
 	"github.com/ethereum/go-ethereum/consensus/consortium/v2/finality"
@@ -30,6 +31,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto/bls/blst"
 	blsCommon "github.com/ethereum/go-ethereum/crypto/bls/common"
 	"github.com/ethereum/go-ethereum/crypto/kzg4844"
+	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/trie"
 	"github.com/hashicorp/golang-lru/arc/v2"
@@ -1109,8 +1111,14 @@ func TestGetCheckpointValidatorFromContract(t *testing.T) {
 	}
 }
 
+type mockValidator struct {
+	blsPubKey    blsCommon.PublicKey
+	stakedAmount *big.Int
+}
+
 type mockContract struct {
-	validators map[common.Address]blsCommon.PublicKey
+	validators         map[common.Address]mockValidator
+	maxValidatorNumber *big.Int
 }
 
 func (contract *mockContract) WrapUpEpoch(opts *consortiumCommon.ApplyTransactOpts) error {
@@ -1150,13 +1158,17 @@ func (contract *mockContract) GetBlockProducers(_ common.Hash, _ *big.Int) ([]co
 }
 
 func (contract *mockContract) GetValidatorCandidates(_ common.Hash, _ *big.Int) ([]common.Address, error) {
-	return nil, nil
+	var validatorAddresses []common.Address
+	for address := range contract.validators {
+		validatorAddresses = append(validatorAddresses, address)
+	}
+	return validatorAddresses, nil
 }
 
 func (contract *mockContract) GetBlsPublicKey(_ common.Hash, _ *big.Int, address common.Address) (blsCommon.PublicKey, error) {
-	if key, ok := contract.validators[address]; ok {
-		if key != nil {
-			return key, nil
+	if val, ok := contract.validators[address]; ok {
+		if val.blsPubKey != nil {
+			return val.blsPubKey, nil
 		} else {
 			return nil, errors.New("no BLS public key found")
 		}
@@ -1165,12 +1177,16 @@ func (contract *mockContract) GetBlsPublicKey(_ common.Hash, _ *big.Int, address
 	}
 }
 
-func (contract *mockContract) GetStakedAmount(_ common.Hash, _ *big.Int, _ []common.Address) ([]*big.Int, error) {
-	return nil, nil
+func (contract *mockContract) GetStakedAmount(_ common.Hash, _ *big.Int, candidates []common.Address) ([]*big.Int, error) {
+	stakedAmount := make([]*big.Int, len(candidates))
+	for i, candidate := range candidates {
+		stakedAmount[i] = contract.validators[candidate].stakedAmount
+	}
+	return stakedAmount, nil
 }
 
 func (contract *mockContract) GetMaxValidatorNumber(blockHash common.Hash, blockNumber *big.Int) (*big.Int, error) {
-	return nil, nil
+	return contract.maxValidatorNumber, nil
 }
 
 type mockVotePool struct {
@@ -1573,9 +1589,11 @@ func TestKnownBlockReorg(t *testing.T) {
 	}).MustCommit(db)
 
 	mock := &mockContract{
-		validators: make(map[common.Address]blsCommon.PublicKey),
+		validators: make(map[common.Address]mockValidator),
 	}
-	mock.validators[validatorAddrs[0]] = blsKeys[0].PublicKey()
+	mock.validators[validatorAddrs[0]] = mockValidator{
+		blsPubKey: blsKeys[0].PublicKey(),
+	}
 	recents, _ := arc.NewARC[common.Hash, *Snapshot](inmemorySnapshots)
 	signatures, _ := arc.NewARC[common.Hash, common.Address](inmemorySignatures)
 
@@ -1621,7 +1639,9 @@ func TestKnownBlockReorg(t *testing.T) {
 	}
 
 	for i := range validatorAddrs {
-		mock.validators[validatorAddrs[i]] = blsKeys[i].PublicKey()
+		mock.validators[validatorAddrs[i]] = mockValidator{
+			blsPubKey: blsKeys[i].PublicKey(),
+		}
 	}
 
 	var checkpointValidators []finality.ValidatorWithBlsPub
@@ -1824,8 +1844,10 @@ func TestUpgradeRoninTrustedOrg(t *testing.T) {
 	}).MustCommit(db)
 
 	mock := &mockContract{
-		validators: map[common.Address]blsCommon.PublicKey{
-			validatorAddr: blsSecretKey.PublicKey(),
+		validators: map[common.Address]mockValidator{
+			validatorAddr: mockValidator{
+				blsPubKey: blsSecretKey.PublicKey(),
+			},
 		},
 	}
 	recents, _ := arc.NewARC[common.Hash, *Snapshot](inmemorySnapshots)
@@ -2091,8 +2113,10 @@ func TestSystemTransactionOrder(t *testing.T) {
 	}).MustCommit(db)
 
 	mock := &mockContract{
-		validators: map[common.Address]blsCommon.PublicKey{
-			validatorAddr: blsSecretKey.PublicKey(),
+		validators: map[common.Address]mockValidator{
+			validatorAddr: mockValidator{
+				blsPubKey: blsSecretKey.PublicKey(),
+			},
 		},
 	}
 	recents, _ := arc.NewARC[common.Hash, *Snapshot](inmemorySnapshots)
@@ -2219,7 +2243,7 @@ func TestIsPeriodBlock(t *testing.T) {
 	recents, _ := arc.NewARC[common.Hash, *Snapshot](inmemorySnapshots)
 	signatures, _ := arc.NewARC[common.Hash, common.Address](inmemorySignatures)
 	mock := &mockContract{
-		validators: map[common.Address]blsCommon.PublicKey{},
+		validators: map[common.Address]mockValidator{},
 	}
 	c := &Consortium{
 		chainConfig: &chainConfig,
@@ -2231,29 +2255,25 @@ func TestIsPeriodBlock(t *testing.T) {
 		db:       db,
 		contract: mock,
 	}
-	validators := make([]common.Address, NUM_OF_VALIDATORS)
-	for i := 0; i < NUM_OF_VALIDATORS; i++ {
-		validators = append(validators, common.BigToAddress(big.NewInt(int64(i))))
-	}
-
 	var header = &types.Header{}
-
-	// header of block 0
-	// this must not a period block
-	header = genesis.Header()
-	if c.IsPeriodBlock(chain, header, nil) {
-		t.Errorf("wrong period block")
-	}
 
 	// header of block 200
 	// this must not a period block
 	header = bs[199].Header()
-	if c.IsPeriodBlock(chain, header, nil) {
+	isPeriodBlock, err := c.IsPeriodBlock(chain, header, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if isPeriodBlock {
 		t.Error("wrong period block")
 	}
 
 	header = bs[351].Header()
-	if c.IsPeriodBlock(chain, header, nil) {
+	isPeriodBlock, err = c.IsPeriodBlock(chain, header, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if isPeriodBlock {
 		t.Error("wrong period block")
 	}
 
@@ -2274,15 +2294,248 @@ func TestIsPeriodBlock(t *testing.T) {
 	// this must be a period block
 	header = bs[399].Header()
 	// this header must be period header
-	if !c.IsPeriodBlock(chain, header, nil) {
+	isPeriodBlock, err = c.IsPeriodBlock(chain, header, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !isPeriodBlock {
 		t.Errorf("wrong period block")
 	}
 
 	// header of block 500
 	// this must not be a period block
 	header = bs[499].Header()
-	if c.IsPeriodBlock(chain, header, nil) {
+	isPeriodBlock, err = c.IsPeriodBlock(chain, header, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if isPeriodBlock {
 		t.Errorf("wrong period block")
+	}
+}
+
+func generateChain(
+	t *testing.T,
+	genesis *types.Block,
+	chainConfig *params.ChainConfig,
+	chain *core.BlockChain,
+	v2 *Consortium,
+	db ethdb.Database,
+	secretKey *ecdsa.PrivateKey,
+	validatorAddr common.Address,
+	blsSecretKey blsCommon.SecretKey,
+	bumpTimeStampLastBlockOfEpoch bool,
+) []*types.Block {
+	extraData := finality.HeaderExtraData{}
+	encodedExtraData, err := extraData.EncodeV2(chainConfig, common.Big1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	parent := genesis
+	var block []*types.Block
+	for i := 0; i < 400; i++ {
+		block, _ = core.GenerateChain(
+			chainConfig,
+			parent,
+			v2,
+			db,
+			1,
+			func(_ int, bg *core.BlockGen) {
+				if i == 0 {
+					bg.OffsetTime(int64(dayInSeconds))
+				}
+
+				var blockExtraData = encodedExtraData
+				if i == 199 {
+					extraData := finality.HeaderExtraData{
+						BlockProducersBitSet: 1,
+						CheckpointValidators: []finality.ValidatorWithBlsPub{
+							{
+								Address:      validatorAddr,
+								BlsPublicKey: blsSecretKey.PublicKey(),
+								Weight:       consortiumCommon.MaxFinalityVotePercentage,
+							},
+						},
+					}
+					encodedExtraData, err := extraData.EncodeV2(chainConfig, common.Big1)
+					if err != nil {
+						t.Fatal(err)
+					}
+					blockExtraData = encodedExtraData
+				}
+				bg.SetCoinbase(validatorAddr)
+				bg.SetExtra(blockExtraData[:])
+				if bumpTimeStampLastBlockOfEpoch {
+					if i == 398 {
+						// Make block 399 to a new date
+						bg.OffsetTime(int64(dayInSeconds))
+					}
+				} else if i == 399 {
+					// Make block 400 to a new date
+					bg.OffsetTime(int64(dayInSeconds))
+				}
+				bg.SetDifficulty(big.NewInt(7))
+			},
+			true,
+		)
+
+		header := block[0].Header()
+		hash := calculateSealHash(header, big.NewInt(2021))
+		sig, err := crypto.Sign(hash[:], secretKey)
+		if err != nil {
+			t.Fatalf("Failed to sign block, err %s", err)
+		}
+
+		copy(header.Extra[len(header.Extra)-consortiumCommon.ExtraSeal:], sig)
+		block[0] = block[0].WithSeal(header)
+		parent = block[0]
+
+		if i != 399 {
+			_, err = chain.InsertChain(block, nil)
+			if err != nil {
+				t.Fatalf("Failed to insert chain, err %s", err)
+			}
+		}
+	}
+
+	return block
+}
+
+func createNewChain(
+	chainConfig *params.ChainConfig,
+	validatorAddr common.Address,
+	blsSecretKey blsCommon.SecretKey,
+) (*types.Block, *core.BlockChain, ethdb.Database, *Consortium) {
+	db := rawdb.NewMemoryDatabase()
+	genesis := (&core.Genesis{
+		Config: chainConfig,
+	}).MustCommit(db)
+
+	mock := &mockContract{
+		validators: map[common.Address]mockValidator{
+			validatorAddr: mockValidator{
+				blsPubKey:    blsSecretKey.PublicKey(),
+				stakedAmount: big.NewInt(10),
+			},
+		},
+		maxValidatorNumber: common.Big1,
+	}
+	recents, _ := arc.NewARC[common.Hash, *Snapshot](inmemorySnapshots)
+	signatures, _ := arc.NewARC[common.Hash, common.Address](inmemorySignatures)
+
+	v2 := &Consortium{
+		chainConfig: chainConfig,
+		contract:    mock,
+		recents:     recents,
+		signatures:  signatures,
+		fakeDiff:    true,
+		db:          db,
+		config: &params.ConsortiumConfig{
+			EpochV2: 200,
+		},
+	}
+
+	chain, _ := core.NewBlockChain(db, nil, chainConfig, v2, vm.Config{}, nil, nil)
+	return genesis, chain, db, v2
+}
+
+func TestIsPeriodVenoki(t *testing.T) {
+	blsSecretKey, err := blst.RandKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	secretKey, err := crypto.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	validatorAddr := crypto.PubkeyToAddress(secretKey.PublicKey)
+
+	chainConfig := params.ChainConfig{
+		ChainID:           big.NewInt(2021),
+		HomesteadBlock:    common.Big0,
+		EIP150Block:       common.Big0,
+		EIP155Block:       common.Big0,
+		EIP158Block:       common.Big0,
+		ConsortiumV2Block: common.Big0,
+		MikoBlock:         common.Big0,
+		ShillinBlock:      common.Big1,
+		TrippBlock:        common.Big1,
+		TrippPeriod:       common.Big0,
+		AaronBlock:        common.Big1,
+		Consortium: &params.ConsortiumConfig{
+			EpochV2: 200,
+		},
+		TransparentProxyCodeUpgrade: &params.ContractCodeUpgrade{
+			Code:        hexutil.Bytes{},
+			AxieAddress: common.Address{},
+			LandAddress: common.Address{},
+		},
+	}
+
+	genesis, chain, db, v2 := createNewChain(&chainConfig, validatorAddr, blsSecretKey)
+	block := generateChain(t, genesis, &chainConfig, chain, v2, db, secretKey, validatorAddr, blsSecretKey, false)
+
+	// Case 1
+	// Before Venoki, the first block of epoch passes 0:00 must be the
+	// start of new period
+	isPeriodBlock, err := v2.IsPeriodBlock(chain, block[0].Header(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !isPeriodBlock {
+		t.Fatalf("Expect isPeriodBlock before Venoki, got: %v", isPeriodBlock)
+	}
+	snapshot, err := v2.snapshot(chain, block[0].NumberU64(), block[0].Hash(), []*types.Header{block[0].Header()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Snapshot period number must be the period of first block of epoch (block 400) which is 2
+	if snapshot.CurrentPeriod != 2 {
+		t.Fatalf("Mismatch period block before Venoki, exp: %v, got: %v", 2, snapshot.CurrentPeriod)
+	}
+
+	// Case 2
+	// After Venoki, the start of new period must be when the last block of
+	// previous epoch passes 0:00
+	// The last block of previous epoch does not pass 0:00
+	chainConfig.VenokiBlock = big.NewInt(200)
+	genesis, chain, db, v2 = createNewChain(&chainConfig, validatorAddr, blsSecretKey)
+	block = generateChain(t, genesis, &chainConfig, chain, v2, db, secretKey, validatorAddr, blsSecretKey, false)
+	isPeriodBlock, err = v2.IsPeriodBlock(chain, block[0].Header(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if isPeriodBlock {
+		t.Fatalf("Expect not isPeriodBlock after Venoki, got: %v", isPeriodBlock)
+	}
+	snapshot, err = v2.snapshot(chain, block[0].NumberU64(), block[0].Hash(), []*types.Header{block[0].Header()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Snapshot period number must be the period of last block of previous epoch (block 399) which is 1
+	if snapshot.CurrentPeriod != 1 {
+		t.Fatalf("Mismatch period block after Venoki, exp: %v, got: %v", 1, snapshot.CurrentPeriod)
+	}
+
+	// Case 3
+	// The last block of previous epoch passes 0:00
+	genesis, chain, db, v2 = createNewChain(&chainConfig, validatorAddr, blsSecretKey)
+	block = generateChain(t, genesis, &chainConfig, chain, v2, db, secretKey, validatorAddr, blsSecretKey, true)
+	isPeriodBlock, err = v2.IsPeriodBlock(chain, block[0].Header(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !isPeriodBlock {
+		t.Fatalf("Expect isPeriodBlock after Venoki, got: %v", isPeriodBlock)
+	}
+	snapshot, err = v2.snapshot(chain, block[0].NumberU64(), block[0].Hash(), []*types.Header{block[0].Header()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Snapshot period number must be the period of last block of previous epoch (block 399) which is 2
+	if snapshot.CurrentPeriod != 2 {
+		t.Fatalf("Mismatch period block after Venoki, exp: %v, got: %v", 2, snapshot.CurrentPeriod)
 	}
 }
 
@@ -2315,7 +2568,7 @@ func TestIsTrippEffective(t *testing.T) {
 	recents, _ := arc.NewARC[common.Hash, *Snapshot](inmemorySnapshots)
 	signatures, _ := arc.NewARC[common.Hash, common.Address](inmemorySignatures)
 	mock := &mockContract{
-		validators: map[common.Address]blsCommon.PublicKey{},
+		validators: map[common.Address]mockValidator{},
 	}
 	c := &Consortium{
 		chainConfig: &chainConfig,
