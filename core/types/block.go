@@ -66,8 +66,67 @@ func (n *BlockNonce) UnmarshalText(input []byte) error {
 	return hexutil.UnmarshalFixedText("BlockNonce", input, n[:])
 }
 
-// BlockHeader is used for consortium precompiled contracts
-type BlockHeader struct {
+type BlockHeader interface {
+	GetNumber() *big.Int
+	GetChainId() *big.Int
+	GetExtraData() []byte
+	GetBenificiary() common.Address
+	ToHeader() *Header
+	Bytes(verifyHeadersAbi string, methodName string) ([]byte, error)
+}
+
+// FromHeader creates a BlockHeader from a Header, this due to the lack of null or optional fields in the abi package
+func FromHeader(header *Header, chainId *big.Int, isVenoki bool) BlockHeader {
+	if !isVenoki {
+		blockHeader := &BlockHeaderV1{
+			ChainId:     chainId,
+			Difficulty:  header.Difficulty,
+			Number:      header.Number,
+			GasLimit:    header.GasLimit,
+			GasUsed:     header.GasUsed,
+			Timestamp:   header.Time,
+			Nonce:       header.Nonce.Uint64(),
+			ExtraData:   header.Extra,
+			LogsBloom:   header.Bloom,
+			Benificiary: header.Coinbase,
+		}
+		copy(blockHeader.ParentHash[:], header.ParentHash.Bytes())
+		copy(blockHeader.StateRoot[:], header.Root.Bytes())
+		copy(blockHeader.TransactionsRoot[:], header.TxHash.Bytes())
+		copy(blockHeader.ReceiptsRoot[:], header.ReceiptHash.Bytes())
+		copy(blockHeader.MixHash[:], header.MixDigest.Bytes())
+		return blockHeader
+	}
+
+	blockHeader := &BlockHeaderV2{
+		ChainId:     chainId,
+		Difficulty:  header.Difficulty,
+		Number:      header.Number,
+		GasLimit:    header.GasLimit,
+		GasUsed:     header.GasUsed,
+		Timestamp:   header.Time,
+		Nonce:       header.Nonce.Uint64(),
+		ExtraData:   header.Extra,
+		LogsBloom:   header.Bloom,
+		Benificiary: header.Coinbase,
+		BaseFee:     header.BaseFee,
+	}
+	copy(blockHeader.ParentHash[:], header.ParentHash.Bytes())
+	copy(blockHeader.StateRoot[:], header.Root.Bytes())
+	copy(blockHeader.TransactionsRoot[:], header.TxHash.Bytes())
+	copy(blockHeader.ReceiptsRoot[:], header.ReceiptHash.Bytes())
+	copy(blockHeader.MixHash[:], header.MixDigest.Bytes())
+	if header.BlobGasUsed != nil {
+		blockHeader.BlobGasUsed = *header.BlobGasUsed
+	}
+	if header.ExcessBlobGas != nil {
+		blockHeader.ExcessBlobGas = *header.ExcessBlobGas
+	}
+	return blockHeader
+}
+
+// BlockHeaderV1 is used for consortium precompiled contracts
+type BlockHeaderV1 struct {
 	ChainId          *big.Int       `abi:"chainId"`
 	ParentHash       [32]uint8      `abi:"parentHash"`
 	OmmersHash       [32]uint8      `abi:"ommersHash"`
@@ -86,32 +145,28 @@ type BlockHeader struct {
 	Nonce            uint64         `abi:"nonce"`
 }
 
-func FromHeader(header *Header, chainId *big.Int) *BlockHeader {
-	blockHeader := &BlockHeader{
-		ChainId:     chainId,
-		Difficulty:  header.Difficulty,
-		Number:      header.Number,
-		GasLimit:    header.GasLimit,
-		GasUsed:     header.GasUsed,
-		Timestamp:   header.Time,
-		Nonce:       header.Nonce.Uint64(),
-		ExtraData:   header.Extra,
-		LogsBloom:   header.Bloom,
-		Benificiary: header.Coinbase,
-	}
-	copy(blockHeader.ParentHash[:], header.ParentHash.Bytes())
-	copy(blockHeader.StateRoot[:], header.Root.Bytes())
-	copy(blockHeader.TransactionsRoot[:], header.TxHash.Bytes())
-	copy(blockHeader.ReceiptsRoot[:], header.ReceiptHash.Bytes())
-	copy(blockHeader.MixHash[:], header.MixDigest.Bytes())
-	return blockHeader
+func (b *BlockHeaderV1) GetNumber() *big.Int {
+	return b.Number
 }
 
-func (b *BlockHeader) Bytes(consortiumVerifyHeadersAbi string, methodName string) ([]byte, error) {
+func (b *BlockHeaderV1) GetChainId() *big.Int {
+	return b.ChainId
+}
+
+func (b *BlockHeaderV1) GetExtraData() []byte {
+	return b.ExtraData
+}
+
+func (b *BlockHeaderV1) GetBenificiary() common.Address {
+	return b.Benificiary
+}
+
+func (b *BlockHeaderV1) Bytes(consortiumVerifyHeadersAbi string, methodName string) ([]byte, error) {
 	pAbi, _ := abi.JSON(strings.NewReader(consortiumVerifyHeadersAbi))
 	bloom := BytesToBloom(b.LogsBloom[:])
-	var uncles [32]uint8
-	return pAbi.Methods[methodName].Inputs.Pack(
+	var uncles [32]uint8 // this field only for POW
+
+	args := []any{
 		b.ChainId,
 		b.ParentHash,
 		uncles,
@@ -128,10 +183,11 @@ func (b *BlockHeader) Bytes(consortiumVerifyHeadersAbi string, methodName string
 		b.ExtraData,
 		b.MixHash,
 		b.Nonce,
-	)
+	}
+	return pAbi.Methods[methodName].Inputs.Pack(args...)
 }
 
-func (b *BlockHeader) ToHeader() *Header {
+func (b *BlockHeaderV1) ToHeader() *Header {
 	return &Header{
 		ParentHash:  common.BytesToHash(b.ParentHash[:]),
 		Root:        common.BytesToHash(b.StateRoot[:]),
@@ -147,6 +203,96 @@ func (b *BlockHeader) ToHeader() *Header {
 		MixDigest:   common.BytesToHash(b.MixHash[:]),
 		Nonce:       EncodeNonce(b.Nonce),
 		Coinbase:    b.Benificiary,
+	}
+}
+
+// BlockHeaderV2 is used for consortium precompiled contracts after Venoki hard fork
+type BlockHeaderV2 struct {
+	ChainId          *big.Int       `abi:"chainId"`
+	ParentHash       [32]uint8      `abi:"parentHash"`
+	OmmersHash       [32]uint8      `abi:"ommersHash"`
+	Benificiary      common.Address `abi:"coinbase"`
+	StateRoot        [32]uint8      `abi:"stateRoot"`
+	TransactionsRoot [32]uint8      `abi:"transactionsRoot"`
+	ReceiptsRoot     [32]uint8      `abi:"receiptsRoot"`
+	LogsBloom        [256]uint8     `abi:"logsBloom"`
+	Difficulty       *big.Int       `abi:"difficulty"`
+	Number           *big.Int       `abi:"number"`
+	GasLimit         uint64         `abi:"gasLimit"`
+	GasUsed          uint64         `abi:"gasUsed"`
+	Timestamp        uint64         `abi:"timestamp"`
+	ExtraData        []byte         `abi:"extraData"`
+	MixHash          [32]uint8      `abi:"mixHash"`
+	Nonce            uint64         `abi:"nonce"`
+	BaseFee          *big.Int       `abi:"baseFee"`
+	BlobGasUsed      uint64         `abi:"blobGasUsed"`
+	ExcessBlobGas    uint64         `abi:"excessBlobGas"`
+}
+
+func (b *BlockHeaderV2) GetNumber() *big.Int {
+	return b.Number
+}
+
+func (b *BlockHeaderV2) GetChainId() *big.Int {
+	return b.ChainId
+}
+
+func (b *BlockHeaderV2) GetExtraData() []byte {
+	return b.ExtraData
+}
+
+func (b *BlockHeaderV2) GetBenificiary() common.Address {
+	return b.Benificiary
+}
+
+func (b *BlockHeaderV2) Bytes(consortiumVerifyHeadersAbi string, methodName string) ([]byte, error) {
+	pAbi, _ := abi.JSON(strings.NewReader(consortiumVerifyHeadersAbi))
+	bloom := BytesToBloom(b.LogsBloom[:])
+	var uncles [32]uint8 // this field only for POW
+
+	args := []any{
+		b.ChainId,
+		b.ParentHash,
+		uncles,
+		b.Benificiary,
+		b.StateRoot,
+		b.TransactionsRoot,
+		b.ReceiptsRoot,
+		bloom.Bytes(),
+		b.Difficulty,
+		b.Number,
+		b.GasLimit,
+		b.GasUsed,
+		b.Timestamp,
+		b.ExtraData,
+		b.MixHash,
+		b.Nonce,
+		b.BaseFee,
+		b.BlobGasUsed,
+		b.ExcessBlobGas,
+	}
+	return pAbi.Methods[methodName].Inputs.Pack(args...)
+}
+
+func (b *BlockHeaderV2) ToHeader() *Header {
+	return &Header{
+		ParentHash:    common.BytesToHash(b.ParentHash[:]),
+		Root:          common.BytesToHash(b.StateRoot[:]),
+		TxHash:        common.BytesToHash(b.TransactionsRoot[:]),
+		ReceiptHash:   common.BytesToHash(b.ReceiptsRoot[:]),
+		Bloom:         BytesToBloom(b.LogsBloom[:]),
+		Difficulty:    b.Difficulty,
+		Number:        b.Number,
+		GasLimit:      b.GasLimit,
+		GasUsed:       b.GasUsed,
+		Time:          b.Timestamp,
+		Extra:         b.ExtraData,
+		MixDigest:     common.BytesToHash(b.MixHash[:]),
+		Nonce:         EncodeNonce(b.Nonce),
+		Coinbase:      b.Benificiary,
+		BaseFee:       b.BaseFee,
+		BlobGasUsed:   &b.BlobGasUsed,
+		ExcessBlobGas: &b.ExcessBlobGas,
 	}
 }
 

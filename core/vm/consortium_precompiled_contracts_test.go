@@ -2,6 +2,7 @@ package vm
 
 import (
 	"bytes"
+	"crypto/ecdsa"
 	"fmt"
 	"math/big"
 	"math/rand"
@@ -18,6 +19,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto/bls/blst"
 	blsCommon "github.com/ethereum/go-ethereum/crypto/bls/common"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/stretchr/testify/assert"
 )
 
 /*
@@ -746,81 +748,178 @@ func TestConsortiumVerifyHeaders_verify(t *testing.T) {
 		},
 		test: true,
 	}
-	if !c.verify(header1.Coinbase, *types.FromHeader(header1, big1), *types.FromHeader(header2, big1)) {
+	if !c.verify(header1.Coinbase, types.FromHeader(header1, big1, false), types.FromHeader(header2, big1, false)) {
 		t.Fatal("expected true, got false")
 	}
 
 	// Test the same headers passed into verify
-	if c.verify(header1.Coinbase, *types.FromHeader(header1, big1), *types.FromHeader(header1, big1)) {
+	if c.verify(header1.Coinbase, types.FromHeader(header1, big1, false), types.FromHeader(header1, big1, false)) {
 		t.Fatal("expected false, got true")
 	}
 
 	// Test consensus address is different from header.Coinbase
-	if c.verify(common.Address{}, *types.FromHeader(header1, big1), *types.FromHeader(header2, big1)) {
+	if c.verify(common.Address{}, types.FromHeader(header1, big1, false), types.FromHeader(header2, big1, false)) {
 		t.Fatal("expected false, got true")
 	}
 
 	// Test current block is lower than double signed block
 	c.evm.Context.BlockNumber = new(big.Int).Sub(header1.Number, common.Big1)
-	if !c.verify(header1.Coinbase, *types.FromHeader(header1, big1), *types.FromHeader(header2, big1)) {
+	if !c.verify(header1.Coinbase, types.FromHeader(header1, big1, false), types.FromHeader(header2, big1, false)) {
 		t.Fatal("expected true, got false")
 	}
 
 	// Test current block is higher than signed block but lower than signed block + 28800
 	c.evm.Context.BlockNumber = new(big.Int).Add(header1.Number, big.NewInt(500))
-	if !c.verify(header1.Coinbase, *types.FromHeader(header1, big1), *types.FromHeader(header2, big1)) {
+	if !c.verify(header1.Coinbase, types.FromHeader(header1, big1, false), types.FromHeader(header2, big1, false)) {
 		t.Fatal("expected true, got false")
 	}
 
 	// Test current block is higher than signed block + 28800
 	c.evm.Context.BlockNumber = new(big.Int).Add(header1.Number, big.NewInt(28801))
-	if c.verify(header1.Coinbase, *types.FromHeader(header1, big1), *types.FromHeader(header2, big1)) {
+	if c.verify(header1.Coinbase, types.FromHeader(header1, big1, false), types.FromHeader(header2, big1, false)) {
 		t.Fatal("expected false, got true")
 	}
 
 	// Test too small header's extra data
 	header1.Extra = nil
-	if c.verify(header1.Coinbase, *types.FromHeader(header1, big1), *types.FromHeader(header2, big1)) {
+	if c.verify(header1.Coinbase, types.FromHeader(header1, big1, false), types.FromHeader(header2, big1, false)) {
 		t.Fatal("expected false, got true")
 	}
 }
 
-// TestConsortiumVerifyHeaders_Run init 2 headers, pack them and call `Run` function directly
+// TestConsortiumVerifyHeaders_Run init 2 headers and call `Run` function directly
 func TestConsortiumVerifyHeaders_Run(t *testing.T) {
-	var (
-		statedb, _ = state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
-	)
-	smcAbi := *unmarshalledABIs[VerifyHeaders]
+	statedb, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
 	evm, err := newEVM(caller, statedb)
 	if err != nil {
 		t.Fatal(err)
 	}
-	header1, header2, err := prepareHeader(evm.chainConfig.ChainID)
+	type headerGenerators func() (*types.Header, *types.Header, bool)
+	key, err := crypto.GenerateKey()
 	if err != nil {
 		t.Fatal(err)
 	}
-	encodedHeader1, err := types.FromHeader(header1, big1).Bytes(rawConsortiumVerifyHeadersAbi, getHeader)
-	if err != nil {
-		t.Fatal(err)
+	chainId := big1
+
+	tests := []struct {
+		name    string
+		args    headerGenerators
+		want    byte
+		wantErr bool
+	}{
+		{
+			"Test verify legacy headers should valid",
+			func() (*types.Header, *types.Header, bool) {
+				header1, header2, err := prepareHeader(evm.chainConfig.ChainID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return header1, header2, false
+			},
+			1,
+			false,
+		},
+		{
+			"Test verify valid headers after Venoki",
+			func() (*types.Header, *types.Header, bool) {
+				header1 := mockVenokiHeader(key)
+				header2 := mockVenokiHeader(key)
+				header2.Root = common.HexToHash("0x1234")
+
+				extraData := bytes.Repeat([]byte{0x00}, extraVanity)
+				// append to extraData with validators set
+				extraData = append(extraData, common.BytesToAddress([]byte("validator1")).Bytes()...)
+				extraData = append(extraData, common.BytesToAddress([]byte("validator2")).Bytes()...)
+				// add extra seal space
+				extraData = append(extraData, make([]byte, crypto.SignatureLength)...)
+
+				header1.Extra = make([]byte, len(extraData))
+				copy(header1.Extra[:], extraData)
+
+				header2.Extra = make([]byte, len(extraData))
+				copy(header2.Extra[:], extraData)
+
+				signHeader(key, header1, chainId, true)
+				signHeader(key, header2, chainId, true)
+				return header1, header2, true
+			},
+			1,
+			false,
+		},
+		{
+			"Test verify headers with invalid baseFee, blobGasUsed, excessBlobGas, extraData",
+			func() (*types.Header, *types.Header, bool) {
+				header1 := mockVenokiHeader(key)
+				header2 := mockVenokiHeader(key)
+				gas := uint64(100_000)
+				excessGas := uint64(10_000)
+				header1.BaseFee = big.NewInt(20_000)
+				header1.BlobGasUsed = &gas
+				header1.ExcessBlobGas = &excessGas
+				header2.BaseFee = big.NewInt(10_000)
+				header2.BlobGasUsed = &gas
+				header2.ExcessBlobGas = &excessGas
+				header2.Coinbase = common.Address{} // invalid coinbase
+
+				extraData := bytes.Repeat([]byte{0x00}, extraVanity)
+				// append to extraData with validators set
+				extraData = append(extraData, common.BytesToAddress([]byte("validator1")).Bytes()...)
+				extraData = append(extraData, common.BytesToAddress([]byte("validator2")).Bytes()...)
+				// add extra seal space
+				extraData = append(extraData, make([]byte, crypto.SignatureLength)...)
+
+				header1.Extra = make([]byte, len(extraData))
+				copy(header1.Extra[:], extraData)
+
+				header2.Extra = make([]byte, len(extraData))
+				copy(header2.Extra[:], extraData)
+
+				signHeader(key, header1, chainId, true)
+				signHeader(key, header2, chainId, true)
+				return header1, header2, true
+			},
+			0,
+			false,
+		},
 	}
-	encodedHeader2, err := types.FromHeader(header2, big1).Bytes(rawConsortiumVerifyHeadersAbi, getHeader)
-	if err != nil {
-		t.Fatal(err)
-	}
-	input, err := smcAbi.Pack(verifyHeaders, header1.Coinbase, encodedHeader1, encodedHeader2)
-	if err != nil {
-		t.Fatal(err)
-	}
-	c := &consortiumVerifyHeaders{evm: evm, caller: AccountRef(caller), test: true}
-	result, err := c.Run(input)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(result) != 32 {
-		t.Fatal(fmt.Sprintf("expected len 32 got %d", len(result)))
-	}
-	if result[len(result)-1] != 1 {
-		t.Fatal(fmt.Sprintf("expected 1 (true) got %d", result[len(result)-1]))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			smcAbi := *unmarshalledABIs[VerifyHeaders]
+			header1, header2, isVenoki := tt.args()
+			abi := rawConsortiumVerifyHeadersAbi
+			if isVenoki {
+				abi = rawConsortiumVerifyHeadersV2Abi
+			}
+			evm.chainRules.IsVenoki = isVenoki
+
+			blockHeader1 := types.FromHeader(header1, chainId, isVenoki)
+			blockHeader2 := types.FromHeader(header2, chainId, isVenoki)
+
+			encodedHeader1, err := blockHeader1.Bytes(abi, getHeader)
+			if err != nil {
+				t.Fatal(err)
+			}
+			encodedHeader2, err := blockHeader2.Bytes(abi, getHeader)
+			if err != nil {
+				t.Fatal(err)
+			}
+			input, err := smcAbi.Pack(verifyHeaders, header1.Coinbase, encodedHeader1, encodedHeader2)
+			if err != nil {
+				t.Fatal(err)
+			}
+			c := &consortiumVerifyHeaders{evm: evm, caller: AccountRef(caller), test: true}
+			result, err := c.Run(input)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Run() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if len(result) != 32 {
+				t.Fatal(fmt.Sprintf("expected len 32 got %d", len(result)))
+			}
+			if result[len(result)-1] != tt.want {
+				t.Fatal(fmt.Sprintf("expected %v got %d", tt.want, result[len(result)-1]))
+			}
+		})
 	}
 }
 
@@ -864,7 +963,7 @@ func TestConsortiumVerifyHeaders_malleability(t *testing.T) {
 	}
 
 	c := &consortiumVerifyHeaders{evm: &EVM{chainConfig: &params.ChainConfig{ChainID: big1}}, test: true}
-	if c.verify(header1.Coinbase, *types.FromHeader(header1, big1), *types.FromHeader(header2, big1)) {
+	if c.verify(header1.Coinbase, types.FromHeader(header1, big1, false), types.FromHeader(header2, big1, false)) {
 		t.Fatal("expected false, got true")
 	}
 }
@@ -882,11 +981,11 @@ func TestConsortiumVerifyHeaders_Run2(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	encodedHeader1, err := types.FromHeader(header1, big1).Bytes(rawConsortiumVerifyHeadersAbi, getHeader)
+	encodedHeader1, err := types.FromHeader(header1, big1, false).Bytes(rawConsortiumVerifyHeadersAbi, getHeader)
 	if err != nil {
 		t.Fatal(err)
 	}
-	encodedHeader2, err := types.FromHeader(header2, big1).Bytes(rawConsortiumVerifyHeadersAbi, getHeader)
+	encodedHeader2, err := types.FromHeader(header2, big1, false).Bytes(rawConsortiumVerifyHeadersAbi, getHeader)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -930,11 +1029,11 @@ func BenchmarkConsortiumVerifyHeaders(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	encodedHeader1, err := types.FromHeader(header1, big1).Bytes(rawConsortiumVerifyHeadersAbi, getHeader)
+	encodedHeader1, err := types.FromHeader(header1, big1, false).Bytes(rawConsortiumVerifyHeadersAbi, getHeader)
 	if err != nil {
 		b.Fatal(err)
 	}
-	encodedHeader2, err := types.FromHeader(header2, big1).Bytes(rawConsortiumVerifyHeadersAbi, getHeader)
+	encodedHeader2, err := types.FromHeader(header2, big1, false).Bytes(rawConsortiumVerifyHeadersAbi, getHeader)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -1810,11 +1909,13 @@ func prepareHeader(chainId *big.Int) (*types.Header, *types.Header, error) {
 	copy(header2.Extra[:], extraData)
 
 	// signing and add to extraData
-	sig1, err := crypto.Sign(crypto.Keccak256(consortiumRlp(header1, chainId)), privateKey)
+	blockHeader1 := types.FromHeader(header1, chainId, false)
+	sig1, err := crypto.Sign(SealHash(blockHeader1).Bytes(), privateKey)
 	if err != nil {
 		return nil, nil, err
 	}
-	sig2, err := crypto.Sign(crypto.Keccak256(consortiumRlp(header2, chainId)), privateKey)
+	blockHeader2 := types.FromHeader(header2, chainId, false)
+	sig2, err := crypto.Sign(SealHash(blockHeader2).Bytes(), privateKey)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1823,12 +1924,6 @@ func prepareHeader(chainId *big.Int) (*types.Header, *types.Header, error) {
 	copy(header2.Extra[len(header2.Extra)-crypto.SignatureLength:], sig2)
 
 	return header1, header2, nil
-}
-
-func consortiumRlp(header *types.Header, chainId *big.Int) []byte {
-	b := new(bytes.Buffer)
-	encodeSigHeader(b, header, chainId)
-	return b.Bytes()
 }
 
 func newEVM(caller common.Address, statedb StateDB) (*EVM, error) {
@@ -2161,4 +2256,184 @@ func BenchmarkPrecompiledValidateProofOfPossession(b *testing.B) {
 	}
 
 	benchmarkPrecompiled("6a", test, b)
+}
+
+func Test_consortiumVerifyHeaders_getSigner(t *testing.T) {
+	privateKey, err := crypto.GenerateKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	extraData := bytes.Repeat([]byte{0x00}, extraVanity)
+	// append to extraData with validators set
+	extraData = append(extraData, common.BytesToAddress([]byte("validator1")).Bytes()...)
+	extraData = append(extraData, common.BytesToAddress([]byte("validator2")).Bytes()...)
+	// add extra seal space
+	extraData = append(extraData, make([]byte, crypto.SignatureLength)...)
+
+	type args struct {
+		blockHeader *types.Header
+		chainId     *big.Int
+		isVenoki    bool
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    common.Address
+		wantErr bool
+	}{
+		{
+			name: "Get signer from header before Venoki",
+			args: args{
+				blockHeader: &types.Header{
+					ParentHash:  common.BytesToHash([]byte("11")),
+					UncleHash:   common.Hash{},
+					Coinbase:    crypto.PubkeyToAddress(privateKey.PublicKey),
+					Root:        common.BytesToHash([]byte("123")),
+					TxHash:      common.BytesToHash([]byte("abc")),
+					ReceiptHash: common.BytesToHash([]byte("def")),
+					Bloom:       types.Bloom{},
+					Difficulty:  big.NewInt(1000),
+					Number:      big.NewInt(1000),
+					GasLimit:    100000000,
+					GasUsed:     0,
+					Time:        1000,
+					Extra:       make([]byte, len(extraData)),
+					MixDigest:   common.Hash{},
+					Nonce:       types.EncodeNonce(1000),
+				},
+				chainId:  big1,
+				isVenoki: false,
+			},
+			want:    crypto.PubkeyToAddress(privateKey.PublicKey),
+			wantErr: false,
+		},
+		{
+			name: "Get signer from header after Venoki",
+			args: args{
+				blockHeader: &types.Header{
+					ParentHash:  common.BytesToHash([]byte("11")),
+					UncleHash:   common.Hash{},
+					Coinbase:    crypto.PubkeyToAddress(privateKey.PublicKey),
+					Root:        common.BytesToHash([]byte("123")),
+					TxHash:      common.BytesToHash([]byte("abc")),
+					ReceiptHash: common.BytesToHash([]byte("def")),
+					Bloom:       types.Bloom{},
+					Difficulty:  big.NewInt(1000),
+					Number:      big.NewInt(1000),
+					GasLimit:    100000000,
+					GasUsed:     0,
+					Time:        1000,
+					Extra:       make([]byte, len(extraData)),
+					MixDigest:   common.Hash{},
+					Nonce:       types.EncodeNonce(1000),
+					BaseFee:     big.NewInt(20_000),
+				},
+				chainId:  big1,
+				isVenoki: true,
+			},
+			want:    crypto.PubkeyToAddress(privateKey.PublicKey),
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &consortiumVerifyHeaders{
+				evm: &EVM{
+					chainConfig: &params.ChainConfig{
+						ChainID:           tt.args.chainId,
+						ConsortiumV2Block: big.NewInt(500),
+					},
+					Context: BlockContext{BlockNumber: big.NewInt(1000)},
+				},
+				test: true,
+			}
+			copy(tt.args.blockHeader.Extra[:], extraData)
+			blockHeader := types.FromHeader(tt.args.blockHeader, tt.args.chainId, tt.args.isVenoki)
+			header := blockHeader.ToHeader()
+			sealHash := SealHash(blockHeader).Bytes()
+			sig, err := crypto.Sign(sealHash, privateKey)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			// copy signature to extraData
+			copy(header.Extra[len(tt.args.blockHeader.Extra)-crypto.SignatureLength:], sig)
+			got, err := c.getSigner(blockHeader)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("getSigner() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if got.Cmp(tt.want) != 0 {
+				t.Errorf("getSigner() got = %v, want %v", got.Hex(), tt.want.Hex())
+			}
+		})
+	}
+}
+
+func signHeader(privateKey *ecdsa.PrivateKey, header *types.Header, chainId *big.Int, isVenoki bool) {
+	blockHeader := types.FromHeader(header, chainId, isVenoki)
+	sealHash := SealHash(blockHeader).Bytes()
+	sig, err := crypto.Sign(sealHash, privateKey)
+	if err != nil {
+		panic(err)
+	}
+	copy(header.Extra[len(header.Extra)-crypto.SignatureLength:], sig)
+}
+
+func mockVenokiHeader(privateKey *ecdsa.PrivateKey) *types.Header {
+	gas := uint64(2000)
+	return &types.Header{
+		ParentHash:    common.BytesToHash([]byte("11")),
+		UncleHash:     common.Hash{},
+		Coinbase:      crypto.PubkeyToAddress(privateKey.PublicKey),
+		Root:          common.BytesToHash([]byte("123")),
+		TxHash:        common.BytesToHash([]byte("abc")),
+		ReceiptHash:   common.BytesToHash([]byte("def")),
+		Bloom:         types.Bloom{},
+		Difficulty:    big.NewInt(1000),
+		Number:        big.NewInt(1000),
+		GasLimit:      100000000,
+		GasUsed:       0,
+		Time:          1000,
+		MixDigest:     common.Hash{},
+		Extra:         make([]byte, 0),
+		Nonce:         types.EncodeNonce(1000),
+		BaseFee:       big.NewInt(20_000),
+		BlobGasUsed:   &gas,
+		ExcessBlobGas: &gas,
+	}
+}
+
+func Test_consortiumVerifyHeaders_unpackHeader(t *testing.T) {
+	smcAbi := *unmarshalledABIs[VerifyHeaders]
+	key, _ := crypto.GenerateKey()
+	header := mockVenokiHeader(key)
+	abi := rawConsortiumVerifyHeadersV2Abi
+	blockHeader1 := types.FromHeader(header, big1, true)
+
+	encodedHeader, err := blockHeader1.Bytes(abi, getHeader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	input, err := smcAbi.Pack(verifyHeaders, header.Coinbase, encodedHeader, encodedHeader)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// get method, args from abi and check if method is valid
+	smcAbi, _, args, err := loadMethodAndArgs(VerifyHeadersVenoki, input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	statedb, _ := state.New(common.Hash{}, state.NewDatabase(rawdb.NewMemoryDatabase()), nil)
+	evm, err := newEVM(caller, statedb)
+	c := &consortiumVerifyHeaders{evm: evm, caller: AccountRef(caller), test: true}
+	recoveredHeader, err := c.unpackHeader(smcAbi, args[1].([]byte), true)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	rec := recoveredHeader.ToHeader()
+	assert.EqualValues(t, header, rec)
 }
