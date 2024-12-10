@@ -231,3 +231,9 @@ func WriteSnapshotConsortium(db ethdb.KeyValueWriter, hash common.Hash, snapshot
 func DeleteSnapshotConsortium(db ethdb.KeyValueWriter, hash common.Hash) error {
 	return db.Delete(snapshotConsortiumKey(hash))
 }
+
+// GetSnapshotsIterator returns an iterator for walking the entire snapshot
+func GetSnapshotsIterator(db ethdb.Database) ethdb.Iterator {
+	it := db.NewIterator(snapshotConsortiumPrefix, nil)
+	return it
+}
