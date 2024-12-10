@@ -20,6 +20,7 @@ import (
 	"fmt"
 
 	"github.com/ethereum/go-ethereum/eth/ethconfig"
+	"github.com/ethereum/go-ethereum/internal/flags"
 	"github.com/urfave/cli/v2"
 )
 
@@ -35,6 +36,9 @@ var ShowDeprecated = &cli.Command{
 var DeprecatedFlags = []cli.Flag{
 	LegacyMinerGasTargetFlag,
 	NoUSBFlag,
+	CacheTrieJournalFlag,
+	CacheTrieRejournalFlag,
+	TxLookupLimitFlag,
 }
 
 var (
@@ -48,6 +52,24 @@ var (
 		Name:  "miner.gastarget",
 		Usage: "Target gas floor for mined blocks (deprecated)",
 		Value: ethconfig.Defaults.Miner.GasFloor,
+	}
+	// (Deprecated Oct 2024, shown in aliased flags section)
+	CacheTrieJournalFlag = &cli.StringFlag{
+		Name:     "cache.trie.journal",
+		Usage:    "Disk journal directory for trie cache to survive node restarts",
+		Category: flags.PerfCategory,
+	}
+	CacheTrieRejournalFlag = &cli.DurationFlag{
+		Name:     "cache.trie.rejournal",
+		Usage:    "Time interval to regenerate the trie cache journal",
+		Category: flags.PerfCategory,
+	}
+	// Deprecated Nov 2024
+	TxLookupLimitFlag = &cli.Uint64Flag{
+		Name:     "txlookuplimit",
+		Usage:    "Number of recent blocks to maintain transactions index for (default = about one year, 0 = entire chain) (deprecated, use history.transactions instead)",
+		Value:    ethconfig.Defaults.TransactionHistory,
+		Category: flags.DeprecatedCategory,
 	}
 )
 

@@ -23,20 +23,20 @@ import (
 	"testing"
 
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/ethdb/memorydb"
 )
 
 func newEmptySecure() *SecureTrie {
-	trie, _ := NewSecure(common.Hash{}, NewDatabase(memorydb.New()))
+	trie, _ := NewSecure(TrieID(common.Hash{}), NewDatabase(rawdb.NewMemoryDatabase(), nil))
 	return trie
 }
 
 // makeTestSecureTrie creates a large enough secure trie for testing.
 func makeTestSecureTrie() (*Database, *SecureTrie, map[string][]byte) {
 	// Create an empty trie
-	triedb := NewDatabase(memorydb.New())
-	trie, _ := NewSecure(common.Hash{}, triedb)
+	triedb := NewDatabase(rawdb.NewMemoryDatabase(), nil)
+	trie, _ := NewSecure(TrieID(common.Hash{}), triedb)
 
 	// Fill it with some arbitrary data
 	content := make(map[string][]byte)
@@ -57,7 +57,7 @@ func makeTestSecureTrie() (*Database, *SecureTrie, map[string][]byte) {
 			trie.Update(key, val)
 		}
 	}
-	trie.Commit(nil)
+	trie.Commit(false)
 
 	// Return the generated trie
 	return triedb, trie, content
@@ -112,8 +112,7 @@ func TestSecureTrieConcurrency(t *testing.T) {
 	threads := runtime.NumCPU()
 	tries := make([]*SecureTrie, threads)
 	for i := 0; i < threads; i++ {
-		cpy := *trie
-		tries[i] = &cpy
+		tries[i] = trie.Copy()
 	}
 	// Start a batch of goroutines interactng with the trie
 	pend := new(sync.WaitGroup)
@@ -136,7 +135,7 @@ func TestSecureTrieConcurrency(t *testing.T) {
 					tries[index].Update(key, val)
 				}
 			}
-			tries[index].Commit(nil)
+			tries[index].Commit(false)
 		}(i)
 	}
 	// Wait for all threads to finish

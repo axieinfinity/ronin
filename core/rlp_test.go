@@ -28,6 +28,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rlp"
+	"github.com/ethereum/go-ethereum/trie"
 	"golang.org/x/crypto/sha3"
 )
 
@@ -45,7 +46,7 @@ func getBlock(transactions int, uncles int, dataSize int) *types.Block {
 			Config: params.TestChainConfig,
 			Alloc:  GenesisAlloc{address: {Balance: funds}},
 		}
-		genesis = gspec.MustCommit(db)
+		genesis = gspec.MustCommit(db, trie.NewDatabase(db, newDbConfig(rawdb.HashScheme)))
 	)
 
 	// We need to generate as many blocks +1 as uncles

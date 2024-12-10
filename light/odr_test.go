@@ -82,7 +82,7 @@ func (odr *testOdr) Retrieve(ctx context.Context, req OdrRequest) error {
 			req.Receipts = rawdb.ReadRawReceipts(odr.sdb, req.Hash, *number)
 		}
 	case *TrieRequest:
-		t, _ := trie.New(req.Id.Root, trie.NewDatabase(odr.sdb))
+		t, _ := trie.New(trie.StorageTrieID(req.Id.StateRoot, common.BytesToHash(req.Id.AccKey), req.Id.Root), trie.NewDatabase(odr.sdb, nil))
 		nodes := NewNodeSet()
 		t.Prove(req.Key, 0, nodes)
 		req.Proof = nodes
@@ -254,14 +254,15 @@ func testChainOdr(t *testing.T, protocol int, fn odrTestFn) {
 		sdb   = rawdb.NewMemoryDatabase()
 		ldb   = rawdb.NewMemoryDatabase()
 		gspec = core.Genesis{
+			Config:  params.TestChainConfig,
 			Alloc:   core.GenesisAlloc{testBankAddress: {Balance: testBankFunds}},
 			BaseFee: big.NewInt(params.InitialBaseFee),
 		}
-		genesis = gspec.MustCommit(sdb)
+		genesis = gspec.MustCommit(sdb, trie.NewDatabase(sdb, nil))
 	)
-	gspec.MustCommit(ldb)
+	gspec.MustCommit(ldb, trie.NewDatabase(ldb, nil))
 	// Assemble the test environment
-	blockchain, _ := core.NewBlockChain(sdb, nil, params.TestChainConfig, ethash.NewFullFaker(), vm.Config{}, nil, nil)
+	blockchain, _ := core.NewBlockChain(sdb, nil, &gspec, nil, ethash.NewFullFaker(), vm.Config{}, nil, nil)
 	gchain, _ := core.GenerateChain(params.TestChainConfig, genesis, ethash.NewFaker(), sdb, 4, testChainGen, true)
 	if _, err := blockchain.InsertChain(gchain, nil); err != nil {
 		t.Fatal(err)

@@ -51,6 +51,9 @@ var (
 			utils.DataDirFlag,
 			utils.DBEngineFlag,
 			utils.ForceOverrideChainConfigFlag,
+			utils.CachePreimagesFlag,
+			utils.StateSchemeFlag,
+			utils.AncientFlag,
 		},
 		Category: "BLOCKCHAIN COMMANDS",
 		Description: `
@@ -105,6 +108,9 @@ The dumpgenesis command dumps the genesis block configuration in JSON format to 
 			utils.MetricsInfluxDBBucketFlag,
 			utils.MetricsInfluxDBOrganizationFlag,
 			utils.TxLookupLimitFlag,
+			utils.TransactionHistoryFlag,
+			utils.StateSchemeFlag,
+			utils.StateHistoryFlag,
 		},
 		Category: "BLOCKCHAIN COMMANDS",
 		Description: `
@@ -124,6 +130,7 @@ processing will proceed even if an individual RLP-file import failure occurs.`,
 			utils.DBEngineFlag,
 			utils.CacheFlag,
 			utils.SyncModeFlag,
+			utils.StateSchemeFlag,
 		},
 		Category: "BLOCKCHAIN COMMANDS",
 		Description: `
@@ -220,15 +227,18 @@ func initGenesis(ctx *cli.Context) error {
 	defer stack.Close()
 
 	for _, name := range []string{"chaindata", "lightchaindata"} {
-		chaindb, err := stack.OpenDatabase(name, 0, 0, "", false)
+		chaindb, err := stack.OpenDatabaseWithFreezer(name, 0, 0, ctx.String(utils.AncientFlag.Name), "", false)
 		if err != nil {
 			utils.Fatalf("Failed to open database: %v", err)
 		}
-		_, hash, err := core.SetupGenesisBlock(chaindb, genesis, overrideChainConfig)
+		// Create triedb firstly
+
+		triedb := utils.MakeTrieDatabase(ctx, chaindb, ctx.Bool(utils.CachePreimagesFlag.Name), false)
+		defer chaindb.Close()
+		_, hash, err := core.SetupGenesisBlock(chaindb, triedb, genesis, overrideChainConfig)
 		if err != nil {
 			utils.Fatalf("Failed to write genesis block: %v", err)
 		}
-		chaindb.Close()
 		log.Info("Successfully wrote genesis state", "database", name, "hash", hash)
 	}
 	return nil
@@ -466,7 +476,10 @@ func dump(ctx *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	state, err := state.New(root, state.NewDatabase(db), nil)
+	triedb := utils.MakeTrieDatabase(ctx, db, true, false) // always enable preimage lookup
+	defer triedb.Close()
+	state, err := state.New(root, state.NewDatabaseWithNodeDB(db, triedb), nil)
+
 	if err != nil {
 		return err
 	}

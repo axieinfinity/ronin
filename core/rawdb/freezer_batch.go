@@ -33,7 +33,7 @@ type freezerBatch struct {
 	tables map[string]*freezerTableBatch
 }
 
-func newFreezerBatch(f *freezer) *freezerBatch {
+func newFreezerBatch(f *Freezer) *freezerBatch {
 	batch := &freezerBatch{tables: make(map[string]*freezerTableBatch, len(f.tables))}
 	for kind, table := range f.tables {
 		batch.tables[kind] = table.newBatch()
@@ -165,6 +165,7 @@ func (batch *freezerTableBatch) appendItem(data []byte) error {
 	batch.totalBytes += itemSize
 
 	// Put index entry to buffer.
+	// The index file contains a list of index entries.
 	entry := indexEntry{filenum: batch.t.headId, offset: uint32(itemOffset + itemSize)}
 	batch.indexBuffer = entry.append(batch.indexBuffer)
 	batch.curItem++
@@ -182,17 +183,25 @@ func (batch *freezerTableBatch) maybeCommit() error {
 
 // commit writes the batched items to the backing freezerTable.
 func (batch *freezerTableBatch) commit() error {
-	// Write data.
+	// Write data. The head file is fsync'd after write to ensure the
+	// data is truly transferred to disk.
 	_, err := batch.t.head.Write(batch.dataBuffer)
 	if err != nil {
+		return err
+	}
+	if err := batch.t.head.Sync(); err != nil {
 		return err
 	}
 	dataSize := int64(len(batch.dataBuffer))
 	batch.dataBuffer = batch.dataBuffer[:0]
 
-	// Write index.
+	// Write indices. The index file is fsync'd after write to ensure the
+	// data indexes are truly transferred to disk.
 	_, err = batch.t.index.Write(batch.indexBuffer)
 	if err != nil {
+		return err
+	}
+	if err := batch.t.index.Sync(); err != nil {
 		return err
 	}
 	indexSize := int64(len(batch.indexBuffer))

@@ -32,6 +32,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/ethereum/go-ethereum/trie"
 )
 
 func BenchmarkInsertChain_empty_memdb(b *testing.B) {
@@ -196,12 +197,12 @@ func benchInsertChain(b *testing.B, disk bool, gen func(int, *BlockGen)) {
 		Config: params.TestChainConfig,
 		Alloc:  GenesisAlloc{benchRootAddr: {Balance: benchRootFunds}},
 	}
-	genesis := gspec.MustCommit(db)
+	genesis := gspec.MustCommit(db, trie.NewDatabase(db, trie.HashDefaults))
 	chain, _ := GenerateChain(gspec.Config, genesis, ethash.NewFaker(), db, b.N, gen, true)
 
 	// Time the insertion of the new chain.
 	// State and blocks are stored in the same DB.
-	chainman, _ := NewBlockChain(db, nil, gspec.Config, ethash.NewFaker(), vm.Config{}, nil, nil)
+	chainman, _ := NewBlockChain(db, nil, &gspec, nil, ethash.NewFaker(), vm.Config{}, nil, nil)
 	defer chainman.Stop()
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -316,7 +317,10 @@ func benchReadChain(b *testing.B, full bool, count uint64) {
 		if err != nil {
 			b.Fatalf("error opening database at %v: %v", dir, err)
 		}
-		chain, err := NewBlockChain(db, &cacheConfig, params.TestChainConfig, ethash.NewFaker(), vm.Config{}, nil, nil)
+		gspec := &Genesis{
+			Config: params.TestChainConfig,
+		}
+		chain, err := NewBlockChain(db, &cacheConfig, gspec, nil, ethash.NewFaker(), vm.Config{}, nil, nil)
 		if err != nil {
 			b.Fatalf("error creating chain: %v", err)
 		}

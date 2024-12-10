@@ -106,8 +106,8 @@ func TestStateProcessorErrors(t *testing.T) {
 					},
 				},
 			}
-			genesis       = gspec.MustCommit(db)
-			blockchain, _ = NewBlockChain(db, nil, gspec.Config, ethash.NewFaker(), vm.Config{}, nil, nil)
+			genesis       = gspec.MustCommit(db, trie.NewDatabase(db, newDbConfig(rawdb.HashScheme)))
+			blockchain, _ = NewBlockChain(db, nil, gspec, nil, ethash.NewFaker(), vm.Config{}, nil, nil)
 		)
 		defer blockchain.Stop()
 		bigNumber := new(big.Int).SetBytes(common.FromHex("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"))
@@ -241,8 +241,8 @@ func TestStateProcessorErrors(t *testing.T) {
 					},
 				},
 			}
-			genesis       = gspec.MustCommit(db)
-			blockchain, _ = NewBlockChain(db, nil, gspec.Config, ethash.NewFaker(), vm.Config{}, nil, nil)
+			genesis       = gspec.MustCommit(db, trie.NewDatabase(db, newDbConfig(rawdb.HashScheme)))
+			blockchain, _ = NewBlockChain(db, nil, gspec, nil, ethash.NewFaker(), vm.Config{}, nil, nil)
 		)
 		defer blockchain.Stop()
 		for i, tt := range []struct {
@@ -281,8 +281,8 @@ func TestStateProcessorErrors(t *testing.T) {
 					},
 				},
 			}
-			genesis       = gspec.MustCommit(db)
-			blockchain, _ = NewBlockChain(db, nil, gspec.Config, ethash.NewFaker(), vm.Config{}, nil, nil)
+			genesis       = gspec.MustCommit(db, trie.NewDatabase(db, newDbConfig(rawdb.HashScheme)))
+			blockchain, _ = NewBlockChain(db, nil, gspec, nil, ethash.NewFaker(), vm.Config{}, nil, nil)
 		)
 		defer blockchain.Stop()
 		for i, tt := range []struct {
@@ -335,8 +335,8 @@ func TestStateProcessorErrors(t *testing.T) {
 					},
 				},
 			}
-			genesis        = gspec.MustCommit(db)
-			blockchain, _  = NewBlockChain(db, nil, gspec.Config, ethash.NewFaker(), vm.Config{}, nil, nil)
+			genesis        = gspec.MustCommit(db, trie.NewDatabase(db, newDbConfig(rawdb.HashScheme)))
+			blockchain, _  = NewBlockChain(db, nil, gspec, nil, ethash.NewFaker(), vm.Config{}, nil, nil)
 			tooBigInitCode = [params.MaxInitCodeSize + 1]byte{}
 			smallInitCode  = [320]byte{}
 		)
@@ -398,8 +398,8 @@ func TestStateProcessorErrors(t *testing.T) {
 					},
 				},
 			}
-			genesis       = gspec.MustCommit(db)
-			blockchain, _ = NewBlockChain(db, nil, gspec.Config, ethash.NewFaker(), vm.Config{}, nil, nil)
+			genesis       = gspec.MustCommit(db, trie.NewDatabase(db, newDbConfig(rawdb.HashScheme)))
+			blockchain, _ = NewBlockChain(db, nil, gspec, nil, ethash.NewFaker(), vm.Config{}, nil, nil)
 		)
 		defer blockchain.Stop()
 		for i, tt := range []struct {
@@ -496,12 +496,13 @@ func TestBlobTxStateTransition(t *testing.T) {
 				Alloc:   GenesisAlloc{addr: {Balance: funds}},
 				BaseFee: big.NewInt(params.InitialBaseFee),
 			}
-			genesis = gspec.MustCommit(gendb)
+			triedb  = trie.NewDatabase(gendb, nil)
+			genesis = gspec.MustCommit(gendb, triedb)
 			signer  = types.LatestSigner(gspec.Config)
 		)
 		gspec.Config.ConsortiumV2Block = common.Big0
 		gspec.Config.RoninTreasuryAddress = roninTreasuryAddress
-		chain, _ := NewBlockChain(gendb, nil, params.TestChainConfig, ethash.NewFullFaker(), vm.Config{}, nil, nil)
+		chain, _ := NewBlockChain(gendb, nil, gspec, nil, ethash.NewFullFaker(), vm.Config{}, nil, nil)
 		blocks, _ := GenerateChain(gspec.Config, genesis, ethash.NewFaker(), gendb, 1, func(i int, block *BlockGen) {
 			blobHashes := make([]common.Hash, nBlobs)
 			for i := 0; i < nBlobs; i++ {
@@ -574,13 +575,14 @@ func TestBaseFee(t *testing.T) {
 			Alloc:   GenesisAlloc{addr: {Balance: big.NewInt(int64(initialFund))}},
 			BaseFee: big.NewInt(params.InitialBaseFee),
 		}
-		genesis = gspec.MustCommit(gendb)
+		triedb  = trie.NewDatabase(gendb, nil)
+		genesis = gspec.MustCommit(gendb, triedb)
 		signer  = types.LatestSigner(gspec.Config)
 	)
 	gspec.Config.ConsortiumV2Block = common.Big0
 	gspec.Config.RoninTreasuryAddress = roninTreasuryAddress
 	gspec.Config.VenokiBlock = common.Big0
-	chain, _ := NewBlockChain(gendb, nil, &chainConfig, ethash.NewFullFaker(), vm.Config{}, nil, nil)
+	chain, _ := NewBlockChain(gendb, nil, gspec, nil, ethash.NewFullFaker(), vm.Config{}, nil, nil)
 	blocks, _ := GenerateChain(gspec.Config, genesis, ethash.NewFaker(), gendb, 1, func(i int, block *BlockGen) {
 		tx, _ := types.SignTx(types.NewTx(&types.LegacyTx{
 			To:       &addr,
