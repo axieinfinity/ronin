@@ -87,7 +87,7 @@ func (t *SecureTrie) TryGetNode(path []byte) ([]byte, int, error) {
 	return t.trie.TryGetNode(path)
 }
 
-// TryUpdate account will abstract the write of an account to the
+// TryUpdateAccount will abstract the write of an account to the
 // secure trie.
 func (t *SecureTrie) TryUpdateAccount(key []byte, acc *types.StateAccount) error {
 	hk := t.hashKey(key)
