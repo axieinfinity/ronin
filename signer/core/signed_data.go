@@ -288,7 +288,7 @@ func (api *SignerAPI) determineSignatureFormat(ctx context.Context, contentType 
 	return req, useEthereumV, nil
 }
 
-// SignTextWithValidator signs the given message which can be further recovered
+// SignTextValidator signs the given message which can be further recovered
 // with the given validator.
 // hash = keccak256("\x19\x00"${address}${data}).
 func SignTextValidator(validatorData ValidatorData) (hexutil.Bytes, string) {
