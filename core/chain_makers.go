@@ -82,6 +82,11 @@ func (b *BlockGen) SetDifficulty(diff *big.Int) {
 	b.header.Difficulty = diff
 }
 
+// Difficulty returns the currently calculated difficulty of the block.
+func (b *BlockGen) Difficulty() *big.Int {
+	return new(big.Int).Set(b.header.Difficulty)
+}
+
 // addTx adds a transaction to the generated block. If no coinbase has
 // been set, the block's coinbase is set to the zero address.
 //

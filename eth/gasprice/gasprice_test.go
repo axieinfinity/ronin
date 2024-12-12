@@ -18,6 +18,8 @@ package gasprice
 
 import (
 	"context"
+	"crypto/sha256"
+	"fmt"
 	"math"
 	"math/big"
 	"testing"
@@ -29,9 +31,11 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/rpc"
+	"github.com/holiman/uint256"
 )
 
 const testHead = 32
@@ -95,7 +99,10 @@ func (b *testBackend) SubscribeChainHeadEvent(ch chan<- core.ChainHeadEvent) eve
 	return nil
 }
 
-func newTestBackend(t *testing.T, londonBlock *big.Int, pending bool) *testBackend {
+func newTestBackend(t *testing.T, londonBlock *big.Int, cancunBlock *big.Int, pending bool) *testBackend {
+	if londonBlock != nil && cancunBlock != nil && londonBlock.Cmp(cancunBlock) == 1 {
+		panic("cannot define test backend with cancun before london")
+	}
 	var (
 		key, _ = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
 		addr   = crypto.PubkeyToAddress(key.PublicKey)
@@ -105,10 +112,16 @@ func newTestBackend(t *testing.T, londonBlock *big.Int, pending bool) *testBacke
 			Alloc:  core.GenesisAlloc{addr: {Balance: big.NewInt(math.MaxInt64)}},
 		}
 		signer = types.LatestSigner(gspec.Config)
+
+		// Compute empty blob hash.
+		emptyBlob          = kzg4844.Blob{}
+		emptyBlobCommit, _ = kzg4844.BlobToCommitment(&emptyBlob)
+		emptyBlobVHash     = kzg4844.CalcBlobHashV1(sha256.New(), &emptyBlobCommit)
 	)
 	config.LondonBlock = londonBlock
 	config.ArrowGlacierBlock = londonBlock
 	engine := ethash.NewFaker()
+	td := params.GenesisDifficulty.Uint64()
 	db := rawdb.NewMemoryDatabase()
 	genesis, err := gspec.Commit(db)
 	if err != nil {
@@ -140,15 +153,39 @@ func newTestBackend(t *testing.T, londonBlock *big.Int, pending bool) *testBacke
 			}
 		}
 		b.AddTx(types.MustSignNewTx(key, signer, txdata))
+
+		if cancunBlock != nil && b.Number().Cmp(cancunBlock) >= 0 {
+			// put more blobs in each new block
+			for j := 0; j < i && j < 6; j++ {
+				blobTx := &types.BlobTx{
+					ChainID:    uint256.MustFromBig(gspec.Config.ChainID),
+					Nonce:      b.TxNonce(addr),
+					To:         common.Address{},
+					Gas:        30000,
+					GasFeeCap:  uint256.NewInt(100 * params.GWei),
+					GasTipCap:  uint256.NewInt(uint64(i+1) * params.GWei),
+					Data:       []byte{},
+					BlobFeeCap: uint256.NewInt(1),
+					BlobHashes: []common.Hash{emptyBlobVHash},
+					Value:      uint256.NewInt(100),
+					Sidecar:    nil,
+				}
+				b.AddTx(types.MustSignNewTx(key, signer, blobTx))
+			}
+		}
+		td += b.Difficulty().Uint64()
 	}, true)
 	// Construct testing chain
+	gspec.Config.TerminalTotalDifficulty = new(big.Int).SetUint64(td)
 	diskdb := rawdb.NewMemoryDatabase()
 	gspec.Commit(diskdb)
 	chain, err := core.NewBlockChain(diskdb, &core.CacheConfig{TrieCleanNoPrefetch: true}, &config, engine, vm.Config{}, nil, nil)
 	if err != nil {
 		t.Fatalf("Failed to create local chain, %v", err)
 	}
-	chain.InsertChain(blocks, nil)
+	if i, err := chain.InsertChain(blocks, nil); err != nil {
+		panic(fmt.Errorf("error inserting block %d: %w", i, err))
+	}
 	return &testBackend{chain: chain, pending: pending}
 }
 
@@ -177,7 +214,7 @@ func TestSuggestTipCap(t *testing.T) {
 		{big.NewInt(33), big.NewInt(params.GWei * int64(30))}, // Fork point in the future
 	}
 	for _, c := range cases {
-		backend := newTestBackend(t, c.fork, false)
+		backend := newTestBackend(t, c.fork, nil, false)
 		oracle := NewOracle(backend, config)
 
 		// The gas price sampled is: 32G, 31G, 30G, 29G, 28G, 27G
