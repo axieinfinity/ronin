@@ -1605,33 +1605,30 @@ func (c *Consortium) readSignerAndContract() (
 	return c.val, c.signFn, c.signTxFn, c.contract
 }
 
-// GetBestParentBlock goes backward in the canonical chain to find if the miner can
-// create a chain which has more difficulty than current chain. In case the miner
-// cannot create a better chain, this function returns the head block of current
-// canonical chain.
+// GetBestParentBlock looks at the current block to see if the miner can create
+// higher difficulty block than the current block. If it can, GetBestParentBlock
+// returns the the parent of current block and true. Otherwise, this function
+// returns current block and false.
 func (c *Consortium) GetBestParentBlock(chain *core.BlockChain) (*types.Block, bool) {
-	signer, _, _, _ := c.readSignerAndContract()
-
 	currentBlock := chain.CurrentBlock()
-	block := currentBlock
-	prevBlock := chain.GetBlockByHash(block.ParentHash())
-	diffculty := block.Difficulty().Int64()
-	for diffculty < diffInTurn.Int64() {
-		snap, err := c.snapshot(chain, block.NumberU64()-1, block.ParentHash(), nil)
+	if currentBlock.Difficulty().Int64() < diffInTurn.Int64() {
+		snap, err := c.snapshot(chain, currentBlock.NumberU64()-1, currentBlock.ParentHash(), nil)
 		if err != nil {
 			return currentBlock, false
 		}
 		// Miner can create an inturn block which helps the chain to have
-		// greater diffculty
+		// higher diffculty
+		signer, _, _, _ := c.readSignerAndContract()
 		if snap.supposeValidator() == signer {
 			if !snap.IsRecentlySigned(signer) {
-				return prevBlock, true
+				parentBlock := chain.GetBlockByHash(currentBlock.ParentHash())
+				// This must never happen, still check for safety
+				if parentBlock == nil {
+					return currentBlock, false
+				}
+				return parentBlock, true
 			}
 		}
-
-		block = prevBlock
-		prevBlock = chain.GetBlockByHash(block.ParentHash())
-		diffculty += block.Difficulty().Int64()
 	}
 
 	return currentBlock, false
