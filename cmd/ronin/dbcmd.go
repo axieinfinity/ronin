@@ -18,6 +18,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -33,9 +34,14 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/console/prompt"
+	"github.com/ethereum/go-ethereum/core/forkid"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/ethdb"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/p2p"
+	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/ethereum/go-ethereum/p2p/enr"
+	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/ethereum/go-ethereum/trie"
 	"github.com/urfave/cli/v2"
 )
@@ -69,6 +75,7 @@ Remove blockchain and state databases`,
 			dbDumpFreezerIndex,
 			dbImportCmd,
 			dbExportCmd,
+			dbInspectEnodeDBCmd,
 		},
 	}
 	dbInspectCmd = &cli.Command{
@@ -243,7 +250,92 @@ WARNING: This is a low-level operation which may cause database corruption!`,
 		},
 		Description: "Exports the specified chain data to an RLP encoded stream, optionally gzip-compressed.",
 	}
+	dbInspectEnodeDBCmd = &cli.Command{
+		Action: dbInspectEnodeDB,
+		Name:   "inspect-enodedb",
+		Usage:  "Inspect nodes in enode db",
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:     "enodedb",
+				Usage:    "Path to the enode database directory",
+				Required: true,
+			},
+			&cli.StringFlag{
+				Name:  "peersfile",
+				Usage: "File containing a list of peers from admin.peers",
+			},
+		},
+		Category: "DATABASE COMMANDS",
+	}
 )
+
+func dbInspectEnodeDB(ctx *cli.Context) error {
+	path := ctx.String("enodedb")
+	db, err := enode.OpenDB(path)
+	if err != nil {
+		return err
+	}
+
+	nodeCount := 0
+	inspectedNodes := make(map[string]*enode.Node)
+	unknownNodes := []*enode.Node{}
+	db.IterateNodes(func(n *enode.Node) error {
+		nodeCount++
+		var eth struct {
+			ForkID forkid.ID
+			Tail   []rlp.RawValue `rlp:"tail"`
+		}
+		if n.Record().Load(enr.WithEntry("eth", &eth)) == nil {
+			log.Info("Node", "ID", n.ID(), "IP", n.IP(), "UDP", n.UDP(), "TCP", n.TCP(), "eth", eth)
+		} else {
+			unknownNodes = append(unknownNodes, n)
+		}
+		inspectedNodes[n.ID().String()] = n
+		return nil
+	})
+
+	for _, n := range unknownNodes {
+		log.Info("Unknown node", "ID", n.ID(), "IP", n.IP(), "UDP", n.UDP(), "TCP", n.TCP())
+	}
+	log.Info("Total nodes", "count", nodeCount, "unknown", len(unknownNodes))
+
+	// Peers file is optional to calculate the rate of peers in Enode DB
+	if ctx.IsSet("peersfile") {
+		f, err := os.Open(ctx.String("peersfile"))
+		if err != nil {
+			return err
+		}
+
+		peersInfo := []*p2p.PeerInfo{}
+		decoder := json.NewDecoder(f)
+		err = decoder.Decode(&peersInfo)
+		if err != nil {
+			return err
+		}
+
+		foundInEnodeDB := 0
+		outbound := 0
+		for _, peerInfo := range peersInfo {
+			if peerInfo.Network.Inbound {
+				continue
+			}
+
+			outbound++
+			if _, ok := inspectedNodes[peerInfo.ID]; ok {
+				foundInEnodeDB++
+				log.Info("Found peer in EnodeDB", "ID", peerInfo.ID, "Network", peerInfo.Network)
+			} else {
+				log.Info("Peer not found in EnodeDB", "ID", peerInfo.ID, "Network", peerInfo.Network)
+			}
+		}
+
+		log.Info("Peers in EnodeDB", "total", len(peersInfo), "found", foundInEnodeDB,
+			"not_found", outbound-foundInEnodeDB, "rate", float64(foundInEnodeDB)/float64(outbound),
+			"inbound", len(peersInfo)-outbound, "outbound", outbound)
+	}
+
+	return nil
+}
 
 func removeDB(ctx *cli.Context) error {
 	stack, config := makeConfigNode(ctx)

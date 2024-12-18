@@ -26,6 +26,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/rlp"
 	"github.com/syndtr/goleveldb/leveldb"
 	"github.com/syndtr/goleveldb/leveldb/errors"
@@ -479,6 +480,28 @@ seek:
 		nodes = append(nodes, n)
 	}
 	return nodes
+}
+
+// Testing purposes only.
+func (db *DB) IterateNodes(f func(n *Node) error) {
+	it := db.lvl.NewIterator(util.BytesPrefix([]byte(dbNodePrefix)), nil)
+	defer it.Release()
+
+	for it.Next() {
+		id, rest := splitNodeKey(it.Key())
+		if string(rest) != dbDiscoverRoot {
+			continue
+		}
+		node := mustDecodeNode(id[:], it.Value())
+		if node == nil {
+			return
+		}
+
+		if err := f(node); err != nil {
+			log.Error("error during node iteration", "err", err)
+			return
+		}
+	}
 }
 
 // reads the next node record from the iterator, skipping over other
