@@ -56,49 +56,7 @@ func (m *Memory) Set32(offset uint64, val *uint256.Int) {
 		panic("invalid memory: store empty")
 	}
 	// Fill in relevant bits
-	fastWriteToArray32((*[32]byte)(m.store[offset:offset+32]), val)
-}
-
-// fastWriteToArray32 is the same as WriteToArray32 in uint256 package
-// but with the loop unrolling manually for reducing branch instructions
-func fastWriteToArray32(dest *[32]byte, val *uint256.Int) {
-	// Unroll this loop manually
-	//
-	// for i := 0; i < 32; i++ {
-	//     dest[31-i] = byte(val[i/8] >> uint64(8*(i%8)))
-	// }
-	dest[31] = byte(val[0] >> uint64(0))
-	dest[30] = byte(val[0] >> uint64(8))
-	dest[29] = byte(val[0] >> uint64(16))
-	dest[28] = byte(val[0] >> uint64(24))
-	dest[27] = byte(val[0] >> uint64(32))
-	dest[26] = byte(val[0] >> uint64(40))
-	dest[25] = byte(val[0] >> uint64(48))
-	dest[24] = byte(val[0] >> uint64(56))
-	dest[23] = byte(val[1] >> uint64(0))
-	dest[22] = byte(val[1] >> uint64(8))
-	dest[21] = byte(val[1] >> uint64(16))
-	dest[20] = byte(val[1] >> uint64(24))
-	dest[19] = byte(val[1] >> uint64(32))
-	dest[18] = byte(val[1] >> uint64(40))
-	dest[17] = byte(val[1] >> uint64(48))
-	dest[16] = byte(val[1] >> uint64(56))
-	dest[15] = byte(val[2] >> uint64(0))
-	dest[14] = byte(val[2] >> uint64(8))
-	dest[13] = byte(val[2] >> uint64(16))
-	dest[12] = byte(val[2] >> uint64(24))
-	dest[11] = byte(val[2] >> uint64(32))
-	dest[10] = byte(val[2] >> uint64(40))
-	dest[9] = byte(val[2] >> uint64(48))
-	dest[8] = byte(val[2] >> uint64(56))
-	dest[7] = byte(val[3] >> uint64(0))
-	dest[6] = byte(val[3] >> uint64(8))
-	dest[5] = byte(val[3] >> uint64(16))
-	dest[4] = byte(val[3] >> uint64(24))
-	dest[3] = byte(val[3] >> uint64(32))
-	dest[2] = byte(val[3] >> uint64(40))
-	dest[1] = byte(val[3] >> uint64(48))
-	dest[0] = byte(val[3] >> uint64(56))
+	val.PutUint256(m.store[offset:])
 }
 
 // Resize resizes the memory to size
