@@ -359,7 +359,7 @@ func (c *Consortium) verifyFinalitySignatures(
 	header *types.Header,
 	parents []*types.Header,
 ) error {
-	isTrippEffective := c.IsTrippEffective(chain, header)
+	isTrippEffective := c.IsTrippEffective(chain, header, parents)
 	snap, err := c.snapshot(chain, header.Number.Uint64()-1, header.ParentHash, parents)
 	if err != nil {
 		return err
@@ -457,7 +457,7 @@ func (c *Consortium) verifyValidatorFieldsInExtraData(
 		}
 	}
 
-	if c.IsTrippEffective(chain, header) {
+	if c.IsTrippEffective(chain, header, parents) {
 		if c.chainConfig.IsAaron(header.Number) {
 			if isEpoch && (extraData.BlockProducersBitSet == 0 || len(extraData.BlockProducers) != 0) {
 				return fmt.Errorf(
@@ -936,7 +936,7 @@ func (c *Consortium) getCheckpointValidatorsFromContract(
 
 	var checkpointValidators []finality.ValidatorWithBlsPub
 
-	if c.IsTrippEffective(chain, header) {
+	if c.IsTrippEffective(chain, header, nil) {
 		isAaron := c.chainConfig.IsAaron(header.Number)
 		if !isAaron {
 			sort.Sort(validatorsAscending(blockProducers))
@@ -1059,7 +1059,7 @@ func (c *Consortium) Prepare(chain consensus.ChainHeaderReader, header *types.He
 		// the start of new period and does not change over the whole
 		// period; whereas block producer list is changed and read at
 		// the start of every new epoch.
-		if c.IsTrippEffective(chain, header) {
+		if c.IsTrippEffective(chain, header, nil) {
 			// latestValidatorCandidates is the latest validator candidate list at the
 			// current epoch, which is used to calculate block producer bit set later on.
 			var latestValidatorCandidates []finality.ValidatorWithBlsPub
@@ -1298,7 +1298,7 @@ func (c *Consortium) Finalize(chain consensus.ChainHeaderReader, header *types.H
 
 		// If isTripp and new period, read all validator candidates and
 		// their amounts, check with stored data in header
-		if c.IsTrippEffective(chain, header) {
+		if c.IsTrippEffective(chain, header, nil) {
 			isPeriodBlock, err := c.IsPeriodBlock(chain, header, nil)
 			if err != nil {
 				log.Error("Failed to check IsPeriodBlock", "blocknum", header.Number, "err", err)
@@ -1668,7 +1668,7 @@ func (c *Consortium) assembleFinalityVote(chain consensus.ChainHeaderReader, hea
 			accumulatedVoteWeight   int
 		)
 
-		isTrippEffective := c.IsTrippEffective(chain, header)
+		isTrippEffective := c.IsTrippEffective(chain, header, nil)
 		if isTrippEffective {
 			finalityThreshold = int(math.Floor(finalityRatio*float64(consortiumCommon.MaxFinalityVotePercentage))) + 1
 		} else {
@@ -1818,7 +1818,7 @@ func (c *Consortium) IsFinalityVoterAt(chain consensus.ChainHeaderReader, header
 	nodeValidator, _, _, _ := c.readSignerAndContract()
 	// After Tripp, voting process is openned for a wider set of validator candidates
 	// (at most 64 validators), which are stored in ValidatorsWithBlsPub of HeaderExtraData
-	if c.IsTrippEffective(chain, header) {
+	if c.IsTrippEffective(chain, header, nil) {
 		return snap.inVoterSet(nodeValidator)
 	}
 	return snap.inInValidatorSet(nodeValidator)
@@ -2026,7 +2026,7 @@ func (c *Consortium) IsPeriodBlock(chain consensus.ChainHeaderReader, header *ty
 // IsTrippEffective returns indicator whether the Tripp consensus rule is effective,
 // which is the first period that is greater than Tripp period, calculated by formula:
 // period := timestamp / dayInSeconds.
-func (c *Consortium) IsTrippEffective(chain consensus.ChainHeaderReader, header *types.Header) bool {
+func (c *Consortium) IsTrippEffective(chain consensus.ChainHeaderReader, header *types.Header, parents []*types.Header) bool {
 	if c.isTest {
 		return c.testTrippEffective
 	}
@@ -2042,7 +2042,7 @@ func (c *Consortium) IsTrippEffective(chain consensus.ChainHeaderReader, header 
 		}
 
 		// else check the period number of the last checkpoint header with the configured one
-		snap, err := c.snapshot(chain, header.Number.Uint64()-1, header.ParentHash, nil)
+		snap, err := c.snapshot(chain, header.Number.Uint64()-1, header.ParentHash, parents)
 		if err != nil {
 			log.Error("Failed to get snapshot", "err", err)
 			parent := c.getLastCheckpointHeader(chain, header)
