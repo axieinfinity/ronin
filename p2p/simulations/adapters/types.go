@@ -42,7 +42,6 @@ import (
 // * SimNode    - An in-memory node
 // * ExecNode   - A child process node
 // * DockerNode - A Docker container node
-//
 type Node interface {
 	// Addr returns the node's address (e.g. an Enode URL)
 	Addr() []byte
@@ -65,6 +64,15 @@ type Node interface {
 
 	// Snapshots creates snapshots of the running services
 	Snapshots() (map[string][]byte, error)
+
+	// PeerStats returns the node's peer statistics
+	PeerStats() *PeerStats
+
+	// NodesInDHT returns all nodes in the DHT
+	NodesInDHT() [][]enode.Node
+
+	// PeersInfo returns information about the node's peers
+	PeersInfo() []*p2p.PeerInfo
 }
 
 // NodeAdapter is used to create Nodes in a simulation network
@@ -119,7 +127,8 @@ type NodeConfig struct {
 	// function to sanction or prevent suggesting a peer
 	Reachable func(id enode.ID) bool
 
-	Port uint16
+	Port               uint16
+	DisableTCPListener bool
 
 	// LogFile is the log file name of the p2p node at runtime.
 	//
@@ -131,34 +140,66 @@ type NodeConfig struct {
 	//
 	// The default verbosity is INFO.
 	LogVerbosity log.Lvl
+
+	// NoDiscovery disables the peer discovery mechanism (manual peer addition)
+	NoDiscovery bool
+
+	// Use default TCP dialer
+	UseTCPDialer bool
+
+	// UseFakeIPListener is used to fake the remote IP address when accepting incoming connections
+	UseFakeIPListener bool
+
+	// BootstrapNodes is the list of bootstrap nodes
+	BootstrapNodeURLs string
+
+	// MaxPeers is the maximum number of peers
+	MaxPeers int
+
+	// EnableENRFilter enables the ENR filter when adding node into the DHT
+	EnableENRFilter bool
 }
 
 // nodeConfigJSON is used to encode and decode NodeConfig as JSON by encoding
 // all fields as strings
 type nodeConfigJSON struct {
-	ID              string   `json:"id"`
-	PrivateKey      string   `json:"private_key"`
-	Name            string   `json:"name"`
-	Lifecycles      []string `json:"lifecycles"`
-	Properties      []string `json:"properties"`
-	EnableMsgEvents bool     `json:"enable_msg_events"`
-	Port            uint16   `json:"port"`
-	LogFile         string   `json:"logfile"`
-	LogVerbosity    int      `json:"log_verbosity"`
+	ID                 string   `json:"id"`
+	PrivateKey         string   `json:"private_key"`
+	Name               string   `json:"name"`
+	Lifecycles         []string `json:"lifecycles"`
+	Properties         []string `json:"properties"`
+	EnableMsgEvents    bool     `json:"enable_msg_events"`
+	Port               uint16   `json:"port"`
+	DisableTCPListener bool     `json:"disable_tcp_listener"`
+	LogFile            string   `json:"logfile"`
+	LogVerbosity       int      `json:"log_verbosity"`
+	NoDiscovery        bool     `json:"no_discovery"`
+	UseTCPDialer       bool     `json:"use_tcp_dialer"`
+	UseFakeIPListener  bool     `json:"use_fake_ip_listener"`
+	BootstrapNodeURLs  string   `json:"bootstrap_node_urls"`
+	MaxPeers           int      `json:"max_peers"`
+	EnableENRFilter    bool     `json:"enable_enr_filter"`
 }
 
 // MarshalJSON implements the json.Marshaler interface by encoding the config
 // fields as strings
 func (n *NodeConfig) MarshalJSON() ([]byte, error) {
 	confJSON := nodeConfigJSON{
-		ID:              n.ID.String(),
-		Name:            n.Name,
-		Lifecycles:      n.Lifecycles,
-		Properties:      n.Properties,
-		Port:            n.Port,
-		EnableMsgEvents: n.EnableMsgEvents,
-		LogFile:         n.LogFile,
-		LogVerbosity:    int(n.LogVerbosity),
+		ID:                 n.ID.String(),
+		Name:               n.Name,
+		Lifecycles:         n.Lifecycles,
+		Properties:         n.Properties,
+		Port:               n.Port,
+		DisableTCPListener: n.DisableTCPListener,
+		EnableMsgEvents:    n.EnableMsgEvents,
+		LogFile:            n.LogFile,
+		LogVerbosity:       int(n.LogVerbosity),
+		NoDiscovery:        n.NoDiscovery,
+		UseTCPDialer:       n.UseTCPDialer,
+		UseFakeIPListener:  n.UseFakeIPListener,
+		BootstrapNodeURLs:  n.BootstrapNodeURLs,
+		MaxPeers:           n.MaxPeers,
+		EnableENRFilter:    n.EnableENRFilter,
 	}
 	if n.PrivateKey != nil {
 		confJSON.PrivateKey = hex.EncodeToString(crypto.FromECDSA(n.PrivateKey))
@@ -196,9 +237,16 @@ func (n *NodeConfig) UnmarshalJSON(data []byte) error {
 	n.Lifecycles = confJSON.Lifecycles
 	n.Properties = confJSON.Properties
 	n.Port = confJSON.Port
+	n.DisableTCPListener = confJSON.DisableTCPListener
 	n.EnableMsgEvents = confJSON.EnableMsgEvents
 	n.LogFile = confJSON.LogFile
 	n.LogVerbosity = log.Lvl(confJSON.LogVerbosity)
+	n.NoDiscovery = confJSON.NoDiscovery
+	n.UseTCPDialer = confJSON.UseTCPDialer
+	n.UseFakeIPListener = confJSON.UseFakeIPListener
+	n.BootstrapNodeURLs = confJSON.BootstrapNodeURLs
+	n.MaxPeers = confJSON.MaxPeers
+	n.EnableENRFilter = confJSON.EnableENRFilter
 
 	return nil
 }
@@ -223,12 +271,15 @@ func RandomNodeConfig() *NodeConfig {
 
 	enodId := enode.PubkeyToIDV4(&prvkey.PublicKey)
 	return &NodeConfig{
-		PrivateKey:      prvkey,
-		ID:              enodId,
-		Name:            fmt.Sprintf("node_%s", enodId.String()),
-		Port:            port,
-		EnableMsgEvents: true,
-		LogVerbosity:    log.LvlInfo,
+		PrivateKey:         prvkey,
+		ID:                 enodId,
+		Name:               fmt.Sprintf("node_%s", enodId.String()),
+		Port:               port,
+		EnableMsgEvents:    true,
+		LogVerbosity:       log.LvlInfo,
+		DisableTCPListener: true,
+		UseTCPDialer:       false,
+		MaxPeers:           node.DefaultConfig.P2P.MaxPeers,
 	}
 }
 
@@ -323,4 +374,13 @@ func (n *NodeConfig) initEnode(ip net.IP, tcpport int, udpport int) error {
 
 func (n *NodeConfig) initDummyEnode() error {
 	return n.initEnode(net.IPv4(127, 0, 0, 1), int(n.Port), 0)
+}
+
+// PeerStats is a struct that holds the statistics of a node's peers
+type PeerStats struct {
+	PeerCount                int   `json:"peer_count"`
+	Tried                    int   `json:"tried"`
+	DifferentNodesDiscovered int   `json:"different_nodes_discovered"`
+	Failed                   int   `json:"failed"`
+	DHTBuckets               []int `json:"dht_buckets"`
 }

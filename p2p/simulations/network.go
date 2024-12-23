@@ -584,6 +584,20 @@ func (net *Network) getRandomNode(ids []enode.ID, excludeIDs []enode.ID) *Node {
 	return net.getNode(filtered[rand.Intn(l)])
 }
 
+// DeleteNode deletes the node with the given ID from the network
+func (net *Network) DeleteNode(name string) {
+	net.lock.Lock()
+	defer net.lock.Unlock()
+
+	for i, node := range net.Nodes {
+		if node.Config.Name == name {
+			delete(net.nodeMap, node.ID())
+			net.Nodes = append(net.Nodes[:i], net.Nodes[i+1:]...)
+			break
+		}
+	}
+}
+
 func filterIDs(ids []enode.ID, excludeIDs []enode.ID) []enode.ID {
 	exclude := make(map[enode.ID]bool)
 	for _, id := range excludeIDs {

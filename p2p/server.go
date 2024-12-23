@@ -167,6 +167,9 @@ type Config struct {
 	// Logger is a custom logger to use with the p2p.Server.
 	Logger log.Logger `toml:",omitempty"`
 
+	// Dirty is set to true if this node is dirty (for testing purposes).
+	Dirty bool
+
 	clock mclock.Clock
 }
 
@@ -303,6 +306,18 @@ func (c *conn) set(f connFlag, val bool) {
 			return
 		}
 	}
+}
+
+// SetListenFunc sets the function used to accept inbound connections.
+// For testing only.
+func (srv *Server) SetListenFunc(f func(network, addr string) (net.Listener, error)) {
+	srv.listenFunc = f
+}
+
+// UDPv4 returns the UDPv4 discovery table.
+// For testing only.
+func (srv *Server) UDPv4() *discover.UDPv4 {
+	return srv.ntab
 }
 
 // LocalNode returns the local node record.
@@ -637,6 +652,11 @@ func (srv *Server) setupDiscovery() error {
 		}
 		srv.ntab = ntab
 		srv.discmix.AddSource(ntab.RandomNodes())
+
+		// Mark the node as dirty (for testing purposes).
+		if srv.Dirty {
+			srv.ntab.SetDirty(true)
+		}
 	}
 
 	// Discovery V5
