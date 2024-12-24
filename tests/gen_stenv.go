@@ -16,12 +16,13 @@ var _ = (*stEnvMarshaling)(nil)
 // MarshalJSON marshals as JSON.
 func (s stEnv) MarshalJSON() ([]byte, error) {
 	type stEnv struct {
-		Coinbase   common.UnprefixedAddress `json:"currentCoinbase"   gencodec:"required"`
-		Difficulty *math.HexOrDecimal256    `json:"currentDifficulty" gencodec:"required"`
-		GasLimit   math.HexOrDecimal64      `json:"currentGasLimit"   gencodec:"required"`
-		Number     math.HexOrDecimal64      `json:"currentNumber"     gencodec:"required"`
-		Timestamp  math.HexOrDecimal64      `json:"currentTimestamp"  gencodec:"required"`
-		BaseFee    *math.HexOrDecimal256    `json:"currentBaseFee"  gencodec:"optional"`
+		Coinbase      common.UnprefixedAddress `json:"currentCoinbase"   gencodec:"required"`
+		Difficulty    *math.HexOrDecimal256    `json:"currentDifficulty" gencodec:"required"`
+		GasLimit      math.HexOrDecimal64      `json:"currentGasLimit"   gencodec:"required"`
+		Number        math.HexOrDecimal64      `json:"currentNumber"     gencodec:"required"`
+		Timestamp     math.HexOrDecimal64      `json:"currentTimestamp"  gencodec:"required"`
+		BaseFee       *math.HexOrDecimal256    `json:"currentBaseFee"  gencodec:"optional"`
+		ExcessBlobGas *math.HexOrDecimal64     `json:"currentExcessBlobGas" gencodec:"optional"`
 	}
 	var enc stEnv
 	enc.Coinbase = common.UnprefixedAddress(s.Coinbase)
@@ -30,18 +31,20 @@ func (s stEnv) MarshalJSON() ([]byte, error) {
 	enc.Number = math.HexOrDecimal64(s.Number)
 	enc.Timestamp = math.HexOrDecimal64(s.Timestamp)
 	enc.BaseFee = (*math.HexOrDecimal256)(s.BaseFee)
+	enc.ExcessBlobGas = (*math.HexOrDecimal64)(s.ExcessBlobGas)
 	return json.Marshal(&enc)
 }
 
 // UnmarshalJSON unmarshals from JSON.
 func (s *stEnv) UnmarshalJSON(input []byte) error {
 	type stEnv struct {
-		Coinbase   *common.UnprefixedAddress `json:"currentCoinbase"   gencodec:"required"`
-		Difficulty *math.HexOrDecimal256     `json:"currentDifficulty" gencodec:"required"`
-		GasLimit   *math.HexOrDecimal64      `json:"currentGasLimit"   gencodec:"required"`
-		Number     *math.HexOrDecimal64      `json:"currentNumber"     gencodec:"required"`
-		Timestamp  *math.HexOrDecimal64      `json:"currentTimestamp"  gencodec:"required"`
-		BaseFee    *math.HexOrDecimal256     `json:"currentBaseFee"  gencodec:"optional"`
+		Coinbase      *common.UnprefixedAddress `json:"currentCoinbase"   gencodec:"required"`
+		Difficulty    *math.HexOrDecimal256     `json:"currentDifficulty" gencodec:"required"`
+		GasLimit      *math.HexOrDecimal64      `json:"currentGasLimit"   gencodec:"required"`
+		Number        *math.HexOrDecimal64      `json:"currentNumber"     gencodec:"required"`
+		Timestamp     *math.HexOrDecimal64      `json:"currentTimestamp"  gencodec:"required"`
+		BaseFee       *math.HexOrDecimal256     `json:"currentBaseFee"  gencodec:"optional"`
+		ExcessBlobGas *math.HexOrDecimal64      `json:"currentExcessBlobGas" gencodec:"optional"`
 	}
 	var dec stEnv
 	if err := json.Unmarshal(input, &dec); err != nil {
@@ -69,6 +72,9 @@ func (s *stEnv) UnmarshalJSON(input []byte) error {
 	s.Timestamp = uint64(*dec.Timestamp)
 	if dec.BaseFee != nil {
 		s.BaseFee = (*big.Int)(dec.BaseFee)
+	}
+	if dec.ExcessBlobGas != nil {
+		s.ExcessBlobGas = (*uint64)(dec.ExcessBlobGas)
 	}
 	return nil
 }

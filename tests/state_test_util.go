@@ -27,6 +27,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/hexutil"
 	"github.com/ethereum/go-ethereum/common/math"
+	"github.com/ethereum/go-ethereum/consensus/misc/eip4844"
 	"github.com/ethereum/go-ethereum/core"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/ethereum/go-ethereum/core/state"
@@ -79,21 +80,23 @@ type stPostState struct {
 //go:generate gencodec -type stEnv -field-override stEnvMarshaling -out gen_stenv.go
 
 type stEnv struct {
-	Coinbase   common.Address `json:"currentCoinbase"   gencodec:"required"`
-	Difficulty *big.Int       `json:"currentDifficulty" gencodec:"required"`
-	GasLimit   uint64         `json:"currentGasLimit"   gencodec:"required"`
-	Number     uint64         `json:"currentNumber"     gencodec:"required"`
-	Timestamp  uint64         `json:"currentTimestamp"  gencodec:"required"`
-	BaseFee    *big.Int       `json:"currentBaseFee"  gencodec:"optional"`
+	Coinbase      common.Address `json:"currentCoinbase"   gencodec:"required"`
+	Difficulty    *big.Int       `json:"currentDifficulty" gencodec:"required"`
+	GasLimit      uint64         `json:"currentGasLimit"   gencodec:"required"`
+	Number        uint64         `json:"currentNumber"     gencodec:"required"`
+	Timestamp     uint64         `json:"currentTimestamp"  gencodec:"required"`
+	BaseFee       *big.Int       `json:"currentBaseFee"  gencodec:"optional"`
+	ExcessBlobGas *uint64        `json:"currentExcessBlobGas" gencodec:"optional"`
 }
 
 type stEnvMarshaling struct {
-	Coinbase   common.UnprefixedAddress
-	Difficulty *math.HexOrDecimal256
-	GasLimit   math.HexOrDecimal64
-	Number     math.HexOrDecimal64
-	Timestamp  math.HexOrDecimal64
-	BaseFee    *math.HexOrDecimal256
+	Coinbase      common.UnprefixedAddress
+	Difficulty    *math.HexOrDecimal256
+	GasLimit      math.HexOrDecimal64
+	Number        math.HexOrDecimal64
+	Timestamp     math.HexOrDecimal64
+	BaseFee       *math.HexOrDecimal256
+	ExcessBlobGas *math.HexOrDecimal64
 }
 
 //go:generate gencodec -type stTransaction -field-override stTransactionMarshaling -out gen_sttransaction.go
@@ -224,6 +227,9 @@ func (t *StateTest) RunNoVerify(subtest StateSubtest, vmconfig vm.Config, snapsh
 	context.BaseFee = baseFee
 	if t.json.Env.Difficulty != nil {
 		context.Difficulty = new(big.Int).Set(t.json.Env.Difficulty)
+	}
+	if config.IsCancun(new(big.Int)) && t.json.Env.ExcessBlobGas != nil {
+		context.BlobBaseFee = eip4844.CalcBlobFee(*t.json.Env.ExcessBlobGas)
 	}
 	evm := vm.NewEVM(context, txContext, statedb, config, vmconfig)
 	// Execute the message.
