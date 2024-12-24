@@ -325,11 +325,13 @@ func NewServer(network *Network) *Server {
 	s.POST("/nodes/:nodeid/conn/:peerid", s.ConnectNode)
 	s.DELETE("/nodes/:nodeid/conn/:peerid", s.DisconnectNode)
 	s.GET("/nodes/:nodeid/rpc", s.NodeRPC)
-	s.GET("/peerstats/:nodeid", s.GetNodePeerStats)
-	s.GET("/peerstats", s.GetAllNodePeerStats)
 	s.DELETE("/nodes/:nodeid", s.DeleteNode)
+
+	// Network stats
 	s.GET("/dht", s.GetAllNodeDHT)
 	s.GET("/peers", s.GetAllNodePeersInfo)
+	s.GET("/peerstats", s.GetAllNodePeerStats)
+	s.GET("/peerstats/:nodeid", s.GetNodePeerStats)
 
 	return s
 }
@@ -629,6 +631,8 @@ func (s *Server) GetNode(w http.ResponseWriter, req *http.Request) {
 // DeleteNode deletes a node from the network
 func (s *Server) DeleteNode(w http.ResponseWriter, req *http.Request) {
 	node := req.Context().Value("node").(*Node)
+	// Node must be stopped before it can be deleted
+	s.network.Stop(node.ID())
 	s.network.DeleteNode(node.NodeInfo().Name)
 	s.JSON(w, http.StatusOK, node.NodeInfo())
 }

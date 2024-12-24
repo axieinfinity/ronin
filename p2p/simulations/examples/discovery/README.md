@@ -4,12 +4,78 @@
 
 In this simulation, we will focus on benchmarking the discovery process by simulating the network with a number of nodes and bootnodes. We aim to measure peer quality when bypassing and not bypassing the ENR filter when an ENR request fails, as well as adjusting the DHT bucket size from 16 to 256.
 
+
+## Setup dirty node config
+
+In the basecode, we dont have any dirty node config, so if you start any dirty node, the simulation network will treat them as a valid node. A dirty node will try not to response if it receives a ENR request from another node in the network to simulate the case that the node is not compatible with the network but still added to the DHT of other nodes. Below is how to modify the source code to enable dirty node config:
+
+1. Add `dirty` field to `UDPv4` to mark the node as a dirty node and modify `handleENRRequest` to not response if the node is dirty
+
+```go
+// p2p/discover/v4_udp.go
+
+type UDPv4 struct {
+    ...
+	dirty bool // for testing
+}
+
+// SetDirty sets the dirty flag for testing purposes.
+func (t *UDPv4) SetDirty(dirty bool) {
+	t.dirty = dirty
+}
+
+func (t *UDPv4) handleENRRequest(h *packetHandlerV4, from *net.UDPAddr, fromID enode.ID, mac []byte) {
+	if t.dirty { // simulate dirty node, for testing purposes only
+		return
+	}
+	...
+}
+```
+
+2. Add `Dirty` field to config of `p2p.Server` to mark the node as a dirty node
+
+```go
+// p2p/server.go
+
+type Config struct {
+    ...
+	Dirty bool
+}
+
+func (srv *Server) setupDiscovery() {
+    ...
+    if !srv.NoDiscovery {
+        ...
+
+		// Mark the node as dirty (for testing purposes).
+		if srv.Dirty {
+			srv.ntab.SetDirty(true)
+		}
+    }
+    ...
+}
+```
+
+3. Finally, set the `Dirty` field when create simulation node if node is dirty 
+```go
+// p2p/simulations/adapters/inproc.go
+
+func (s *SimAdapter) NewNode(cfg *NodeConfig) (Node, error) {
+    ...
+    p2pCfg := p2p.Config{
+        ...
+		Dirty:           strings.HasPrefix(config.Name, "dirty"),
+	}
+    ...
+}
+```
+
 ## Manual run
 
-Run the p2psim server by `go run discovery.go`, and in another terminal, we can use `p2psim` cli to start, manage new nodes in the simulation network. Example:
+Run the p2psim server by `go run main.go`, and in another terminal, we can use `p2psim` cli to start, manage new nodes in the simulation network. Example:
 
 ``` bash
-$ go run discovery.go
+$ go run main.go
 INFO [12-24|14:46:39.132] starting simulation server               port=8888
 ```
 
@@ -102,7 +168,7 @@ After running the simulation, some files will be generated in the `results_dir` 
 
 ### Visualization
 
-To visualize the data, we can use the `discovery.py` script to plot the data.
+To visualize the data, we can use the `gen_chart.py` script to plot the data.
 Supported types:
 - `dht_peer`: Ratio between the number of peers (outbound) and the number of nodes in the DHT
 - `PeerCount`: Number of peers of each node

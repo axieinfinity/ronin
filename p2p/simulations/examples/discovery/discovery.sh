@@ -4,7 +4,11 @@
 # Export the logs, peers info, and DHT info to files for visualization.
 
 main_cmd="go run ."
-p2psim_cmd="go run ../../../cmd/p2psim"
+p2psim_cmd="p2psim"
+
+if ! which p2psim &>/dev/null; then
+    fail "missing p2psim binary (you need to build cmd/p2psim and put it in \$PATH)"
+fi
 
 # Number of nodes to start for each batch
 distribution=(150 100 100)
@@ -60,8 +64,8 @@ while [[ $# -gt 0 ]]; do
             num_bootnodes=$2
             shift 2
             ;;
-        --enable.enrfilter)
-            other+=" --enable.enrfilter"
+        --disable.enrfilter)
+            other+=" --enable.enrfilter false"
             shift
             ;;
         --testname)
@@ -81,7 +85,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --distribution <distribution>    Number of nodes to start for each batch (default 150,100,100)"
             echo "  --sleep <time>                   Sleep time between each batch (default 1200)"
             echo "  --num.bootnodes <num>            Number of bootnodes (default 2)"
-            echo "  --enable.enrfilter               Enable ENR filter"
+            echo "  --disable.enrfilter              Disable ENR filter"
             echo "  --testname <name>                Test name"
             echo "  --results.dir <dir>              Directory to store results"
             echo "  --help                           Show this help"
@@ -113,13 +117,13 @@ benchmark() {
 
     # Start bootnodes
     echo "Start bootnodes $test_name..."
-    $p2psim_cmd node create-multi --count $num_bootnodes --fake.iplistener --start --node.type bootnode $other
+    $p2psim_cmd node create-multi --count $num_bootnodes --node.type bootnode $other
 
     # Roll out batches
     for num_node in ${distribution[@]}; do
         # Roll out nodes
         echo "Start $num_node nodes..."
-        $p2psim_cmd node create-multi --count $num_node --fake.iplistener --start --autofill.bootnodes --interval $node_creation_interval --dirty.rate $dirty_rate --only.outbound.rate $only_outbound_rate $other
+        $p2psim_cmd node create-multi --count $num_node --autofill.bootnodes --interval $node_creation_interval --dirty.rate $dirty_rate --only.outbound.rate $only_outbound_rate $other
 
         # Wait for a while until the network is stable
         echo "Sleep $sleep_time..."
@@ -127,8 +131,8 @@ benchmark() {
     done
 
     # Export nodes in dht and peers info of all nodes
-    $p2psim_cmd network dht > $dht_file
-    $p2psim_cmd network peers > $peers_file
+    $p2psim_cmd network-stats dht > $dht_file
+    $p2psim_cmd network-stats peers > $peers_file
 
     # Kill p2psim server and log tracker
     echo "Kill server and stats $test_name..."

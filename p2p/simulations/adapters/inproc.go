@@ -20,7 +20,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math/rand"
 	"net"
 	"strings"
 	"sync"
@@ -101,7 +100,6 @@ func (s *SimAdapter) NewNode(config *NodeConfig) (Node, error) {
 		MaxPeers:        config.MaxPeers,
 		NoDiscovery:     config.NoDiscovery,
 		EnableMsgEvents: config.EnableMsgEvents,
-		Dirty:           strings.HasPrefix(config.Name, "dirty"),
 	}
 	if !config.DisableTCPListener {
 		p2pCfg.ListenAddr = fmt.Sprintf(":%d", config.Port)
@@ -125,14 +123,10 @@ func (s *SimAdapter) NewNode(config *NodeConfig) (Node, error) {
 	n, err := node.New(&node.Config{
 		P2P:            p2pCfg,
 		ExternalSigner: config.ExternalSigner,
-		Logger:         log.New("node.id", id.String()),
+		Logger:         log.New("node.name", config.Name),
 	})
 	if err != nil {
 		return nil, err
-	}
-
-	if config.UseFakeIPListener {
-		n.Server().SetListenFunc(listenFakeAddrFunc)
 	}
 
 	simNode := &SimNode{
@@ -494,38 +488,6 @@ func (sn *SimNode) trackDiscoveredNode() {
 			sn.dialer.tried++
 		}
 	}
-}
-
-func listenFakeAddrFunc(network, laddr string) (net.Listener, error) {
-	l, err := net.Listen(network, laddr)
-	if err != nil {
-		return nil, err
-	}
-	fakeAddr := &net.TCPAddr{IP: net.IP{byte(rand.Intn(255)), byte(rand.Intn(255)), byte(rand.Intn(255)), byte(rand.Intn(255))}, Port: rand.Intn(65535)}
-	return &fakeAddrListener{l, fakeAddr}, nil
-}
-
-// fakeAddrListener is a listener that creates connections with a mocked remote address.
-type fakeAddrListener struct {
-	net.Listener
-	remoteAddr net.Addr
-}
-
-type fakeAddrConn struct {
-	net.Conn
-	remoteAddr net.Addr
-}
-
-func (l *fakeAddrListener) Accept() (net.Conn, error) {
-	c, err := l.Listener.Accept()
-	if err != nil {
-		return nil, err
-	}
-	return &fakeAddrConn{c, l.remoteAddr}, nil
-}
-
-func (c *fakeAddrConn) RemoteAddr() net.Addr {
-	return c.remoteAddr
 }
 
 // wrapTCPDialerStats is a wrapper around the net.Dialer which tracks nodes that have been tried to dial

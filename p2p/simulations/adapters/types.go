@@ -147,9 +147,6 @@ type NodeConfig struct {
 	// Use default TCP dialer
 	UseTCPDialer bool
 
-	// UseFakeIPListener is used to fake the remote IP address when accepting incoming connections
-	UseFakeIPListener bool
-
 	// BootstrapNodes is the list of bootstrap nodes
 	BootstrapNodeURLs string
 
@@ -175,7 +172,6 @@ type nodeConfigJSON struct {
 	LogVerbosity       int      `json:"log_verbosity"`
 	NoDiscovery        bool     `json:"no_discovery"`
 	UseTCPDialer       bool     `json:"use_tcp_dialer"`
-	UseFakeIPListener  bool     `json:"use_fake_ip_listener"`
 	BootstrapNodeURLs  string   `json:"bootstrap_node_urls"`
 	MaxPeers           int      `json:"max_peers"`
 	EnableENRFilter    bool     `json:"enable_enr_filter"`
@@ -196,7 +192,6 @@ func (n *NodeConfig) MarshalJSON() ([]byte, error) {
 		LogVerbosity:       int(n.LogVerbosity),
 		NoDiscovery:        n.NoDiscovery,
 		UseTCPDialer:       n.UseTCPDialer,
-		UseFakeIPListener:  n.UseFakeIPListener,
 		BootstrapNodeURLs:  n.BootstrapNodeURLs,
 		MaxPeers:           n.MaxPeers,
 		EnableENRFilter:    n.EnableENRFilter,
@@ -243,7 +238,6 @@ func (n *NodeConfig) UnmarshalJSON(data []byte) error {
 	n.LogVerbosity = log.Lvl(confJSON.LogVerbosity)
 	n.NoDiscovery = confJSON.NoDiscovery
 	n.UseTCPDialer = confJSON.UseTCPDialer
-	n.UseFakeIPListener = confJSON.UseFakeIPListener
 	n.BootstrapNodeURLs = confJSON.BootstrapNodeURLs
 	n.MaxPeers = confJSON.MaxPeers
 	n.EnableENRFilter = confJSON.EnableENRFilter

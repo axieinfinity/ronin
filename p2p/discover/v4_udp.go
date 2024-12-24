@@ -74,7 +74,6 @@ type UDPv4 struct {
 	tab         *Table
 	closeOnce   sync.Once
 	wg          sync.WaitGroup
-	dirty       bool // for testing
 
 	addReplyMatcher chan *replyMatcher
 	gotreply        chan reply
@@ -154,11 +153,6 @@ func ListenV4(c UDPConn, ln *enode.LocalNode, cfg Config) (*UDPv4, error) {
 	go t.loop()
 	go t.readLoop(cfg.Unhandled)
 	return t, nil
-}
-
-// SetDirty sets the dirty flag for testing purposes.
-func (t *UDPv4) SetDirty(dirty bool) {
-	t.dirty = dirty
 }
 
 // NodesInDHT returns all nodes in the DHT.
@@ -793,9 +787,6 @@ func (t *UDPv4) verifyENRRequest(h *packetHandlerV4, from *net.UDPAddr, fromID e
 }
 
 func (t *UDPv4) handleENRRequest(h *packetHandlerV4, from *net.UDPAddr, fromID enode.ID, mac []byte) {
-	if t.dirty { // simulate dirty node, for testing purposes only
-		return
-	}
 	t.send(from, fromID, &v4wire.ENRResponse{
 		ReplyTok: mac,
 		Record:   *t.localNode.Node().Record(),

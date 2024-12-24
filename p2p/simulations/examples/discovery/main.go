@@ -39,13 +39,13 @@ func main() {
 	// - invalid: supports the invalid fork ID, used for the dirty node in the network
 	services := map[string]adapters.LifecycleConstructor{
 		"valid": func(ctx *adapters.ServiceContext, stack *node.Node) (node.Lifecycle, error) {
-			s := newMockService("valid")
+			s := newNetworkCompatibilityService("valid")
 			s.SetAttributes([]enr.Entry{validETHEntry})
 			stack.RegisterProtocols(s.Protocols())
 			return s, nil
 		},
 		"invalid": func(ctx *adapters.ServiceContext, stack *node.Node) (node.Lifecycle, error) {
-			s := newMockService("invalid")
+			s := newNetworkCompatibilityService("invalid")
 			s.SetAttributes([]enr.Entry{invalidETHEntry})
 			stack.RegisterProtocols(s.Protocols())
 			return s, nil
@@ -66,28 +66,27 @@ func main() {
 	}
 }
 
-// mockService is a simple protocol to verify the compatibility of the fork ID
-// between nodes in the simulation network
-type mockService struct {
+// networkCompatibilityService is a simple protocol to ensuring compatibility within the network
+type networkCompatibilityService struct {
 	name   string
 	attrs  []enr.Entry
 	ctx    context.Context
 	cancel context.CancelFunc
 }
 
-func newMockService(name string) *mockService {
-	s := &mockService{
+func newNetworkCompatibilityService(name string) *networkCompatibilityService {
+	s := &networkCompatibilityService{
 		name: name,
 	}
 	s.ctx, s.cancel = context.WithCancel(context.Background())
 	return s
 }
 
-func (s *mockService) SetAttributes(attrs []enr.Entry) {
+func (s *networkCompatibilityService) SetAttributes(attrs []enr.Entry) {
 	s.attrs = attrs
 }
 
-func (s *mockService) Protocols() []p2p.Protocol {
+func (s *networkCompatibilityService) Protocols() []p2p.Protocol {
 	return []p2p.Protocol{{
 		Name:       s.name,
 		Version:    1,
@@ -98,20 +97,20 @@ func (s *mockService) Protocols() []p2p.Protocol {
 	}}
 }
 
-func (s *mockService) Start() error {
+func (s *networkCompatibilityService) Start() error {
 	return nil
 }
 
-func (s *mockService) Stop() error {
+func (s *networkCompatibilityService) Stop() error {
 	s.cancel()
 	return nil
 }
 
-func (s *mockService) Info() interface{} {
+func (s *networkCompatibilityService) Info() interface{} {
 	return nil
 }
 
-func (s *mockService) Run(peer *p2p.Peer, rw p2p.MsgReadWriter) error {
+func (s *networkCompatibilityService) Run(peer *p2p.Peer, rw p2p.MsgReadWriter) error {
 	if !peer.RunningCap(s.name, []uint{1}) {
 		log.Error("peer does not support protocol", "peer", peer.ID())
 		return fmt.Errorf("peer does not support protocol %s", s.name)
@@ -122,7 +121,7 @@ func (s *mockService) Run(peer *p2p.Peer, rw p2p.MsgReadWriter) error {
 }
 
 // mockETHEntry is a mock Ethereum entry for the ENR
-// mockService uses this entry to verify the compatibility of the fork ID
+// networkCompatibilityService uses this entry to verify the compatibility of the fork ID
 type mockETHEntry struct {
 	ForkID forkid.ID
 	Rest   []rlp.RawValue `rlp:"tail"`

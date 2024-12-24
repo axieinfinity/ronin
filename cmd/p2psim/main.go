@@ -58,6 +58,15 @@ import (
 	"github.com/urfave/cli/v2"
 )
 
+type NodeType int
+
+const (
+	DefaultNode NodeType = iota
+	OutboundNode
+	DirtyNode
+	BootNode
+)
+
 var client *simulations.Client
 
 func main() {
@@ -108,14 +117,9 @@ func main() {
 			Action: loadSnapshot,
 		},
 		{
-			Name:  "network",
+			Name:  "network-stats",
 			Usage: "manage the simulation network",
 			Subcommands: []*cli.Command{
-				{
-					Name:   "start",
-					Usage:  "start all nodes in the network",
-					Action: startNetwork,
-				},
 				{
 					Name:   "peer-stats",
 					Usage:  "show peer stats",
@@ -164,19 +168,13 @@ func main() {
 							Usage: "node private key (hex encoded)",
 						},
 						&cli.BoolFlag{
-							Name:  "sim.dialer",
-							Usage: "Use the simulation dialer",
-						},
-						&cli.BoolFlag{
-							Name:  "fake.iplistener",
-							Usage: "Use the fake listener to random remote ip when accepting connections",
-						},
-						&cli.BoolFlag{
 							Name:  "start",
+							Value: true,
 							Usage: "start the node after creating successfully",
 						},
 						&cli.BoolFlag{
 							Name:  "autofill.bootnodes",
+							Value: true,
 							Usage: "autofill bootnodes with existing bootnodes from manager",
 						},
 						&cli.StringFlag{
@@ -186,6 +184,7 @@ func main() {
 						},
 						&cli.BoolFlag{
 							Name:  "enable.enrfilter",
+							Value: true,
 							Usage: "Enable ENR filter when adding nodes to the DHT",
 						},
 						&cli.BoolFlag{
@@ -218,19 +217,13 @@ func main() {
 							Usage: "node services (comma separated)",
 						},
 						&cli.BoolFlag{
-							Name:  "sim.dialer",
-							Usage: "Use the simulation dialer",
-						},
-						&cli.BoolFlag{
-							Name:  "fake.iplistener",
-							Usage: "Use the fake listener to random remote ip when accepting connections",
-						},
-						&cli.BoolFlag{
 							Name:  "start",
+							Value: true,
 							Usage: "start the node after creating successfully",
 						},
 						&cli.BoolFlag{
 							Name:  "autofill.bootnodes",
+							Value: true,
 							Usage: "autofill bootnodes with existing bootnodes from manager",
 						},
 						&cli.StringFlag{
@@ -240,6 +233,7 @@ func main() {
 						},
 						&cli.BoolFlag{
 							Name:  "enable.enrfilter",
+							Value: true,
 							Usage: "Enable ENR filter when adding nodes to the DHT",
 						},
 						&cli.DurationFlag{
@@ -430,6 +424,7 @@ func createNode(ctx *cli.Context) error {
 		return cli.ShowCommandHelp(ctx, ctx.Command.Name)
 	}
 	config := adapters.RandomNodeConfig()
+	config.UseTCPDialer = true
 	config.Name = ctx.String("name")
 	if key := ctx.String("key"); key != "" {
 		privKey, err := crypto.HexToECDSA(key)
@@ -441,14 +436,6 @@ func createNode(ctx *cli.Context) error {
 	}
 	if ctx.Bool(utils.NoDiscoverFlag.Name) {
 		config.NoDiscovery = true
-	}
-	if ctx.Bool("sim.dialer") {
-		config.UseTCPDialer = false
-	} else {
-		config.UseTCPDialer = true
-	}
-	if ctx.Bool("fake.iplistener") {
-		config.UseFakeIPListener = true
 	}
 	config.BootstrapNodeURLs = ctx.String(utils.BootnodesFlag.Name)
 	if ctx.Bool("autofill.bootnodes") {
@@ -499,6 +486,13 @@ func getBootnodes() (string, error) {
 	return strings.Join(bootnodes, ","), nil
 }
 
+func fillArray(array []NodeType, value NodeType, count int) []NodeType {
+	for i := 0; i < count; i++ {
+		array = append(array, value)
+	}
+	return array
+}
+
 func createMultiNode(ctx *cli.Context) error {
 	if ctx.Args().Len() != 0 {
 		return cli.ShowCommandHelp(ctx, ctx.Command.Name)
@@ -518,38 +512,48 @@ func createMultiNode(ctx *cli.Context) error {
 		}
 	}
 
-	// Create nodes
+	// Create array of node types based on the ratio of outbound, dirty and default nodes
 	count := ctx.Int("count")
-	outboundRate := ctx.Int("only.outbound.rate")
-	dirtyRate := ctx.Int("dirty.rate")
-	per := make([]int, 0)
-	for i := 0; i < count; i++ {
-		if i < outboundRate*count/100 {
-			per = append(per, 1)
-		} else if i < (outboundRate+dirtyRate)*count/100 {
-			per = append(per, 2)
-		} else {
-			per = append(per, 0)
-		}
+	if count < 1 {
+		return fmt.Errorf("count must be greater than 0")
 	}
-	rand.Shuffle(len(per), func(i, j int) { per[i], per[j] = per[j], per[i] })
 
+	outboundRate := ctx.Int("only.outbound.rate")
+	if outboundRate < 0 || outboundRate > 100 {
+		return fmt.Errorf("outbound rate must be between 0 and 100")
+	}
+
+	dirtyRate := ctx.Int("dirty.rate")
+	if dirtyRate < 0 || dirtyRate > 100 {
+		return fmt.Errorf("dirty rate must be between 0 and 100")
+	}
+
+	numOutboundNode := count * outboundRate / 100
+	numDirtyNode := count * dirtyRate / 100
+	numDefaultNode := count - numOutboundNode - numDirtyNode
+	nodeTypes := make([]NodeType, 0)
+	nodeTypes = fillArray(nodeTypes, OutboundNode, numOutboundNode)
+	nodeTypes = fillArray(nodeTypes, DirtyNode, numDirtyNode)
+	nodeTypes = fillArray(nodeTypes, DefaultNode, numDefaultNode)
+	rand.Shuffle(len(nodeTypes), func(i, j int) { nodeTypes[i], nodeTypes[j] = nodeTypes[j], nodeTypes[i] })
+
+	// If bootnode flag is set, create all nodes as bootnodes
 	isBootnode := ctx.String("node.type") == "bootnode"
 
-	for i := 0; i < count; i++ {
+	// Create nodes
+	for i, nodeType := range nodeTypes {
 		var nodeName string
 		if isBootnode {
 			nodeName = fmt.Sprintf("bootnode-%d-%d", t.Unix(), i)
 			ctx.Set(utils.BootnodesFlag.Name, "")
 		} else {
-			nodeType := per[i%len(per)]
 			switch nodeType {
-			case 1:
+			case OutboundNode:
 				ctx.Set("only.outbound", "true")
 				ctx.Set("node.type", "outbound")
 				ctx.Set("services", "valid")
 				nodeName = fmt.Sprintf("outbound-%d-%d", t.Unix(), i)
-			case 2:
+			case DirtyNode:
 				ctx.Set("only.outbound", "false")
 				ctx.Set("node.type", "dirty")
 				ctx.Set("services", "invalid")
@@ -710,17 +714,6 @@ func rpcSubscribe(client *rpc.Client, out io.Writer, method string, args ...stri
 			return err
 		}
 	}
-}
-
-func startNetwork(ctx *cli.Context) error {
-	if ctx.Args().Len() != 0 {
-		return cli.ShowCommandHelp(ctx, ctx.Command.Name)
-	}
-	if err := client.StartNetwork(); err != nil {
-		return err
-	}
-	fmt.Fprintln(ctx.App.Writer, "Started network")
-	return nil
 }
 
 func getNodePeerStats(ctx *cli.Context) error {
