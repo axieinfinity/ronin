@@ -4,6 +4,59 @@
 
 In this simulation, we will focus on benchmarking the discovery process by simulating the network with a number of nodes and bootnodes. We aim to measure peer quality when bypassing and not bypassing the ENR filter when an ENR request fails, as well as adjusting the DHT bucket size from 16 to 256.
 
+## Manual run
+
+Run the p2psim server by `go run discovery.go`, and in another terminal, we can use `p2psim` cli to start, manage new nodes in the simulation network. Example:
+
+``` bash
+$ go run discovery.go
+INFO [12-24|14:46:39.132] starting simulation server               port=8888
+```
+
+``` bash
+$ p2psim node create-multi --count 2 --fake.iplistener --start -node.type bootnode --enable.enrfilter
+Created bootnode-1735026417-0
+Started bootnode-1735026417-0
+Created bootnode-1735026417-1
+Started bootnode-1735026417-1
+```
+
+``` bash
+$ p2psim node create-multi --count 16 --fake.iplistener --start --autofill.bootnodes --dirty.rate 50 --enable.enrfilter
+Created node-1735026508-0
+Started node-1735026508-0
+Created node-1735026508-1
+Started node-1735026508-1
+Created dirty-1735026508-2
+Started dirty-1735026508-2
+Created dirty-1735026508-3
+Started dirty-1735026508-3
+Created dirty-1735026508-4
+Started dirty-1735026508-4
+Created node-1735026508-5
+Started node-1735026508-5
+Created node-1735026508-6
+Started node-1735026508-6
+Created node-1735026508-7
+Started node-1735026508-7
+Created node-1735026508-8
+Started node-1735026508-8
+Created dirty-1735026508-9
+Started dirty-1735026508-9
+Created node-1735026508-10
+Started node-1735026508-10
+Created dirty-1735026508-11
+Started dirty-1735026508-11
+Created dirty-1735026508-12
+Started dirty-1735026508-12
+Created node-1735026508-13
+Started node-1735026508-13
+Created dirty-1735026508-14
+Started dirty-1735026508-14
+Created dirty-1735026508-15
+Started dirty-1735026508-15
+```
+
 ## Strategy
 
 We have some types of nodes:
@@ -17,7 +70,7 @@ The benchmark default will run with 350 nodes and 2 bootnodes (can be adjusted i
 3. Rolling out nodes in batch 3 and sleep for a while
 4. Export the DHT and peers info
 
-## Run simulation
+## Run benchmark
 
 To run the simulation, run `./discovery.sh` to start both p2psim server and start the benchmark with default parameters.
 
