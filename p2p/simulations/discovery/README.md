@@ -46,3 +46,12 @@ After running the simulation, some files will be generated in the `results_dir` 
 - `stats_$test_name.csv`: Statistics of the simulation, including the number of peers, distribution of nodes in the DHT, ...
 - `peers_$test_name.log`: List peers of each node in the network
 - `dht_$test_name.log`: List nodes in the DHT of each node
+
+### Visualization
+
+To visualize the data, we can use the `discovery.py` script to plot the data.
+Supported types:
+- `dht_peer`: Ratio between the number of peers (outbound) and the number of nodes in the DHT
+- `PeerCount`: Number of peers of each node
+- `DHTBuckets`: Size of DHT
+- And more type can see in the stats file
