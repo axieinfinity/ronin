@@ -9,7 +9,7 @@ Check if the node_id has a valid prefix
 @param prefixes: the prefixes to check
 @return True if the node_id has a valid prefix
 '''
-def node_valid_with_prefixes(node_id, prefixes):
+def is_node_valid_with_prefixes(node_id, prefixes):
     if prefixes is None:
         return True
     for prefix in prefixes:
@@ -60,7 +60,7 @@ class StatsPlotter:
         df = df[df['type'] == self.metric]
         for node in self.nodes:
             # filter node by prefixes
-            if not node_valid_with_prefixes(node, self.prefixes):
+            if not is_node_valid_with_prefixes(node, self.prefixes):
                 continue
 
             df_node = df[df['node'] == node]
@@ -91,7 +91,7 @@ class StatsPlotter:
     @return: results is a dictionary where each key is a timestamp, and its
     value is a list of nodes that rolled out at that timestamp
     '''
-    def node_group_by_timestamp(self):
+    def group_nodes_by_timestamp(self):
         node_groups = dict()
         for node in self.data_nodes:
             ts = int(node.split("-")[1])
@@ -137,7 +137,7 @@ class StatsPlotter:
 
     def plot(self):
         self.parse_stats()
-        node_groups = self.node_group_by_timestamp()
+        node_groups = self.group_nodes_by_timestamp()
         results = self.calc_avg_by_group(node_groups) if self.P == -1 else self.calc_p_by_group(node_groups, self.P, reverse=True)
         normalized_timestamps = [ts - self.start_time for ts in self.timestamps]
 
@@ -179,8 +179,8 @@ class PeerDHTPlotter:
                     continue
 
                 # node_id: [peer1, peer2, ...], [peer3, peer4, ...], ...
-                node_id, peer_list = line.strip().split(':')
-                if not node_valid_with_prefixes(node_id, self.prefixes):
+                node_id, peer_list = line.split(':')
+                if not is_node_valid_with_prefixes(node_id, self.prefixes):
                     continue
                 
                 buckets = peer_list.strip().split(',')
@@ -210,8 +210,8 @@ class PeerDHTPlotter:
                     continue
 
                 # node_id: (peer1 inbound), (peer2 inbound), ...
-                node_id, peer_list = line.strip().split(':')
-                if not node_valid_with_prefixes(node_id, self.prefixes):
+                node_id, peer_list = line.split(':')
+                if not is_node_valid_with_prefixes(node_id, self.prefixes):
                     continue
 
                 for ts in peer_list.strip().split(','):
@@ -229,9 +229,7 @@ class PeerDHTPlotter:
         dht_data = self.parse_dht_log()
         peer_data = self.parse_peers_log()
 
-        x = []
-        y = []
-        
+        x, y = [], []
         for node_id, peers in peer_data.items():
             count_peer_in_dht = 0
             for peer in peers:
@@ -312,11 +310,12 @@ def main():
     else:
         try:
             time_range = [int(x) for x in args.time_range.split(",")]
-        except:
+        except Exception as e:
             time_range = [-1, -1]
-            print("Error: Invalid time range format. Using default time")
+            print(f"Error: Invalid time range format, err: {str(e)}. Using default time")
         if args.stats_file is None:
             print("Error: Stats file is required for other types.")
+            return
         plotter = StatsPlotter(args.stats_file, args.result_dir, args.type, args.P, time_range, args.prefixes.split(","))
         plotter.plot()
 
