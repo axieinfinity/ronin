@@ -80,7 +80,7 @@ INFO [12-24|14:46:39.132] starting simulation server               port=8888
 ```
 
 ``` bash
-$ p2psim node create-multi --count 2 --fake.iplistener --start -node.type bootnode --enable.enrfilter
+$ p2psim node create-multi --count 2 --node.type bootnode --autofill.bootnodes=false
 Created bootnode-1735026417-0
 Started bootnode-1735026417-0
 Created bootnode-1735026417-1
@@ -88,7 +88,7 @@ Started bootnode-1735026417-1
 ```
 
 ``` bash
-$ p2psim node create-multi --count 16 --fake.iplistener --start --autofill.bootnodes --dirty.rate 50 --enable.enrfilter
+$ p2psim node create-multi --count 16 --dirty.rate 50
 Created node-1735026508-0
 Started node-1735026508-0
 Created node-1735026508-1

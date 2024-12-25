@@ -65,7 +65,7 @@ while [[ $# -gt 0 ]]; do
             shift 2
             ;;
         --disable.enrfilter)
-            other+=" --enable.enrfilter false"
+            other+=" --enable.enrfilter=false"
             shift
             ;;
         --testname)
@@ -117,13 +117,13 @@ benchmark() {
 
     # Start bootnodes
     echo "Start bootnodes $test_name..."
-    $p2psim_cmd node create-multi --count $num_bootnodes --node.type bootnode $other
+    $p2psim_cmd node create-multi --count $num_bootnodes --node.type bootnode $other --autofill.bootnodes=false
 
     # Roll out batches
     for num_node in ${distribution[@]}; do
         # Roll out nodes
         echo "Start $num_node nodes..."
-        $p2psim_cmd node create-multi --count $num_node --autofill.bootnodes --interval $node_creation_interval --dirty.rate $dirty_rate --only.outbound.rate $only_outbound_rate $other
+        $p2psim_cmd node create-multi --count $num_node --interval $node_creation_interval --dirty.rate $dirty_rate --only.outbound.rate $only_outbound_rate $other
 
         # Wait for a while until the network is stable
         echo "Sleep $sleep_time..."
