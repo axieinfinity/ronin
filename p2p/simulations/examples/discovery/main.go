@@ -110,6 +110,7 @@ func (s *networkCompatibilityService) Info() interface{} {
 	return nil
 }
 
+// mimic the behavior of the Snap protocol check
 func (s *networkCompatibilityService) Run(peer *p2p.Peer, rw p2p.MsgReadWriter) error {
 	if !peer.RunningCap(s.name, []uint{1}) {
 		log.Error("peer does not support protocol", "peer", peer.ID())

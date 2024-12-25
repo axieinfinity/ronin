@@ -168,11 +168,6 @@ func main() {
 							Usage: "node private key (hex encoded)",
 						},
 						&cli.BoolFlag{
-							Name:  "start",
-							Value: true,
-							Usage: "start the node after creating successfully",
-						},
-						&cli.BoolFlag{
 							Name:  "autofill.bootnodes",
 							Value: true,
 							Usage: "autofill bootnodes with existing bootnodes from manager",
@@ -458,15 +453,6 @@ func createNode(ctx *cli.Context) error {
 		return err
 	}
 	fmt.Fprintln(ctx.App.Writer, "Created", node.Name)
-
-	// Start node if needed
-	if ctx.Bool("start") {
-		if err := client.StartNode(node.Name); err != nil {
-			return err
-		}
-		fmt.Fprintln(ctx.App.Writer, "Started", node.Name)
-	}
-
 	return nil
 }
 
@@ -567,14 +553,25 @@ func createMultiNode(ctx *cli.Context) error {
 		}
 		ctx.Set("name", nodeName)
 		for {
-			if err := createNode(ctx); err != nil {
-				fmt.Fprintln(ctx.App.Writer, "Failed to create node", nodeName, err)
-				// Try to create the node again
-				client.DeleteNode(nodeName)
-				time.Sleep(500 * time.Millisecond)
-			} else {
-				break
+			err := createNode(ctx)
+			if err == nil {
+				// Start node if needed
+				if ctx.Bool("start") {
+					err = client.StartNode(nodeName)
+					if err == nil {
+						fmt.Fprintln(ctx.App.Writer, "Started", nodeName)
+						break
+					}
+				} else {
+					break
+				}
 			}
+
+			fmt.Fprintln(ctx.App.Writer, "Failed to create node, retrying...", nodeName, err)
+			// Try to create the node again
+			client.DeleteNode(nodeName)
+			time.Sleep(500 * time.Millisecond)
+
 		}
 		if createInterval > 0 {
 			time.Sleep(createInterval)
