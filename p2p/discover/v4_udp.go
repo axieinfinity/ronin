@@ -155,6 +155,22 @@ func ListenV4(c UDPConn, ln *enode.LocalNode, cfg Config) (*UDPv4, error) {
 	return t, nil
 }
 
+// NodesInDHT returns all nodes in the DHT.
+// For testing only.
+func (t *UDPv4) NodesInDHT() [][]enode.Node {
+	if t == nil || t.tab == nil {
+		return nil
+	}
+	nodes := make([][]enode.Node, len(t.tab.buckets))
+	for i, bucket := range t.tab.buckets {
+		nodes[i] = make([]enode.Node, len(bucket.entries))
+		for j, entry := range bucket.entries {
+			nodes[i][j] = entry.Node
+		}
+	}
+	return nodes
+}
+
 // Self returns the local node.
 func (t *UDPv4) Self() *enode.Node {
 	return t.localNode.Node()

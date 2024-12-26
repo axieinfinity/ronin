@@ -179,6 +179,11 @@ func (c *Client) CreateNode(config *adapters.NodeConfig) (*p2p.NodeInfo, error) 
 	return node, c.Post("/nodes", config, node)
 }
 
+// DeleteNode deletes a node from the network
+func (c *Client) DeleteNode(nodeID string) error {
+	return c.Delete(fmt.Sprintf("/nodes/%s", nodeID))
+}
+
 // GetNode returns details of a node
 func (c *Client) GetNode(nodeID string) (*p2p.NodeInfo, error) {
 	node := &p2p.NodeInfo{}
@@ -209,6 +214,30 @@ func (c *Client) DisconnectNode(nodeID, peerID string) error {
 func (c *Client) RPCClient(ctx context.Context, nodeID string) (*rpc.Client, error) {
 	baseURL := strings.Replace(c.URL, "http", "ws", 1)
 	return rpc.DialWebsocket(ctx, fmt.Sprintf("%s/nodes/%s/rpc", baseURL, nodeID), "")
+}
+
+// GetNodePeerStats returns the peer stats of a node
+func (c *Client) GetNodePeerStats(nodeID string) (*adapters.PeerStats, error) {
+	stats := &adapters.PeerStats{}
+	return stats, c.Get(fmt.Sprintf("/peerstats/%s", nodeID), stats)
+}
+
+// GetAllNodePeerStats returns the peer stats of all nodes
+func (c *Client) GetAllNodePeerStats() (map[string]*adapters.PeerStats, error) {
+	stats := make(map[string]*adapters.PeerStats)
+	return stats, c.Get("/peerstats", &stats)
+}
+
+// GetAllNodeDHT returns the DHT of all nodes
+func (c *Client) GetAllNodeDHT() (map[string][][]enode.Node, error) {
+	nodesDHT := make(map[string][][]enode.Node)
+	return nodesDHT, c.Get("/dht", &nodesDHT)
+}
+
+// GetAllNodePeersInfo returns the peers info of all nodes
+func (c *Client) GetAllNodePeersInfo() (map[string][]*p2p.PeerInfo, error) {
+	peersInfo := make(map[string][]*p2p.PeerInfo)
+	return peersInfo, c.Get("/peers", &peersInfo)
 }
 
 // Get performs a HTTP GET request decoding the resulting JSON response
@@ -296,6 +325,13 @@ func NewServer(network *Network) *Server {
 	s.POST("/nodes/:nodeid/conn/:peerid", s.ConnectNode)
 	s.DELETE("/nodes/:nodeid/conn/:peerid", s.DisconnectNode)
 	s.GET("/nodes/:nodeid/rpc", s.NodeRPC)
+	s.DELETE("/nodes/:nodeid", s.DeleteNode)
+
+	// Network stats
+	s.GET("/dht", s.GetAllNodeDHT)
+	s.GET("/peers", s.GetAllNodePeersInfo)
+	s.GET("/peerstats", s.GetAllNodePeerStats)
+	s.GET("/peerstats/:nodeid", s.GetNodePeerStats)
 
 	return s
 }
@@ -592,6 +628,15 @@ func (s *Server) GetNode(w http.ResponseWriter, req *http.Request) {
 	s.JSON(w, http.StatusOK, node.NodeInfo())
 }
 
+// DeleteNode deletes a node from the network
+func (s *Server) DeleteNode(w http.ResponseWriter, req *http.Request) {
+	node := req.Context().Value("node").(*Node)
+	// Node must be stopped before it can be deleted
+	s.network.Stop(node.ID())
+	s.network.DeleteNode(node.NodeInfo().Name)
+	s.JSON(w, http.StatusOK, node.NodeInfo())
+}
+
 // StartNode starts a node
 func (s *Server) StartNode(w http.ResponseWriter, req *http.Request) {
 	node := req.Context().Value("node").(*Node)
@@ -640,6 +685,42 @@ func (s *Server) DisconnectNode(w http.ResponseWriter, req *http.Request) {
 	}
 
 	s.JSON(w, http.StatusOK, node.NodeInfo())
+}
+
+// GetNodePeerStats returns the peer stats of a node
+func (s *Server) GetNodePeerStats(w http.ResponseWriter, req *http.Request) {
+	node := req.Context().Value("node").(*Node)
+	s.JSON(w, http.StatusOK, node.PeerStats())
+}
+
+// GetAllNodePeerStats returns the peer stats of all nodes
+func (s *Server) GetAllNodePeerStats(w http.ResponseWriter, req *http.Request) {
+	stats := make(map[string]*adapters.PeerStats)
+	for _, node := range s.network.GetNodes() {
+		stats[node.Config.Name] = node.PeerStats()
+	}
+
+	s.JSON(w, http.StatusOK, stats)
+}
+
+// GetAllNodeDHT returns the DHT of all nodes
+func (s *Server) GetAllNodeDHT(w http.ResponseWriter, req *http.Request) {
+	nodesDHT := make(map[string][][]enode.Node)
+	for _, node := range s.network.GetNodes() {
+		nodesDHT[node.Config.Name] = node.NodesInDHT()
+	}
+
+	s.JSON(w, http.StatusOK, nodesDHT)
+}
+
+// GetAllNodePeersInfo returns the peers info of all nodes
+func (s *Server) GetAllNodePeersInfo(w http.ResponseWriter, req *http.Request) {
+	peersInfo := make(map[string][]*p2p.PeerInfo)
+	for _, node := range s.network.GetNodes() {
+		peersInfo[node.Config.Name] = node.PeersInfo()
+	}
+
+	s.JSON(w, http.StatusOK, peersInfo)
 }
 
 // Options responds to the OPTIONS HTTP method by returning a 200 OK response

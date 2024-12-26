@@ -364,6 +364,21 @@ func (n *ExecNode) Snapshots() (map[string][]byte, error) {
 	return snapshots, n.client.Call(&snapshots, "simulation_snapshot")
 }
 
+// Empty PeerStats
+func (n *ExecNode) PeerStats() *PeerStats {
+	return &PeerStats{}
+}
+
+// Empty DHT
+func (n *ExecNode) NodesInDHT() [][]enode.Node {
+	return nil
+}
+
+// Empty PeersInfo
+func (n *ExecNode) PeersInfo() []*p2p.PeerInfo {
+	return nil
+}
+
 // execNodeConfig is used to serialize the node configuration so it can be
 // passed to the child process as a JSON encoded environment variable
 type execNodeConfig struct {

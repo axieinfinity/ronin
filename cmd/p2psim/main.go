@@ -40,10 +40,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/rand"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"text/tabwriter"
+	"time"
 
+	"github.com/ethereum/go-ethereum/cmd/utils"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
@@ -51,6 +56,15 @@ import (
 	"github.com/ethereum/go-ethereum/p2p/simulations/adapters"
 	"github.com/ethereum/go-ethereum/rpc"
 	"github.com/urfave/cli/v2"
+)
+
+type NodeType int
+
+const (
+	DefaultNode NodeType = iota
+	OutboundNode
+	DirtyNode
+	BootNode
 )
 
 var client *simulations.Client
@@ -103,6 +117,27 @@ func main() {
 			Action: loadSnapshot,
 		},
 		{
+			Name:  "network-stats",
+			Usage: "manage the simulation network",
+			Subcommands: []*cli.Command{
+				{
+					Name:   "peer-stats",
+					Usage:  "show peer stats",
+					Action: getNetworkPeerStats,
+				},
+				{
+					Name:   "dht",
+					Usage:  "Get all nodes in the DHT of all nodes",
+					Action: getAllDHT,
+				},
+				{
+					Name:   "peers",
+					Usage:  "Get all peers of all nodes",
+					Action: getAllNodePeersInfo,
+				},
+			},
+		},
+		{
 			Name:   "node",
 			Usage:  "manage simulation nodes",
 			Action: listNodes,
@@ -132,6 +167,89 @@ func main() {
 							Value: "",
 							Usage: "node private key (hex encoded)",
 						},
+						&cli.BoolFlag{
+							Name:  "autofill.bootnodes",
+							Value: true,
+							Usage: "autofill bootnodes with existing bootnodes from manager",
+						},
+						&cli.StringFlag{
+							Name:  "node.type",
+							Value: "default",
+							Usage: "Set node type (default, outbound, dirty, bootnode)",
+						},
+						&cli.BoolFlag{
+							Name:  "enable.enrfilter",
+							Value: true,
+							Usage: "Enable ENR filter when adding nodes to the DHT",
+						},
+						&cli.BoolFlag{
+							Name:  "only.outbound",
+							Usage: "Only allow outbound connections",
+						},
+						utils.NoDiscoverFlag,
+						utils.BootnodesFlag,
+						utils.MaxPeersFlag,
+					},
+				},
+				{
+					Name:   "create-multi",
+					Usage:  "create a node",
+					Action: createMultiNode,
+					Flags: []cli.Flag{
+						&cli.StringFlag{
+							Name:  "name",
+							Value: "",
+							Usage: "node name",
+						},
+						&cli.IntFlag{
+							Name:  "count",
+							Value: 1,
+							Usage: "number of nodes to create",
+						},
+						&cli.StringFlag{
+							Name:  "services",
+							Value: "",
+							Usage: "node services (comma separated)",
+						},
+						&cli.BoolFlag{
+							Name:  "start",
+							Value: true,
+							Usage: "start the node after creating successfully",
+						},
+						&cli.BoolFlag{
+							Name:  "autofill.bootnodes",
+							Value: true,
+							Usage: "autofill bootnodes with existing bootnodes from manager",
+						},
+						&cli.StringFlag{
+							Name:  "node.type",
+							Value: "default",
+							Usage: "Set node type (default, outbound, dirty, bootnode)",
+						},
+						&cli.BoolFlag{
+							Name:  "enable.enrfilter",
+							Value: true,
+							Usage: "Enable ENR filter when adding nodes to the DHT",
+						},
+						&cli.DurationFlag{
+							Name:  "interval",
+							Usage: "create interval",
+						},
+						&cli.IntFlag{
+							Name:  "dirty.rate",
+							Usage: "Rate of dirty nodes",
+						},
+						&cli.IntFlag{
+							Name:  "only.outbound.rate",
+							Usage: "Rate of nodes that only allow outbound connections",
+						},
+						&cli.BoolFlag{
+							Name:  "only.outbound",
+							Usage: "Only allow outbound connections",
+						},
+						utils.NoDiscoverFlag,
+						utils.BootnodesFlag,
+						utils.MaxPeersFlag,
 					},
 				},
 				{
@@ -175,6 +293,29 @@ func main() {
 							Usage: "method is a subscription",
 						},
 					},
+				},
+				{
+					Name:      "peer-stats",
+					Usage:     "show peer stats",
+					ArgsUsage: "<node>",
+					Action:    getNodePeerStats,
+				},
+			},
+		},
+		{
+			Name:   "log-stats",
+			Usage:  "log peer stats to a CSV file",
+			Action: startLogStats,
+			Flags: []cli.Flag{
+				&cli.StringFlag{
+					Name:  "file",
+					Usage: "output file",
+					Value: "stats.csv",
+				},
+				&cli.DurationFlag{
+					Name:  "interval",
+					Usage: "log interval",
+					Value: 15 * time.Second,
 				},
 			},
 		},
@@ -278,6 +419,7 @@ func createNode(ctx *cli.Context) error {
 		return cli.ShowCommandHelp(ctx, ctx.Command.Name)
 	}
 	config := adapters.RandomNodeConfig()
+	config.UseTCPDialer = true
 	config.Name = ctx.String("name")
 	if key := ctx.String("key"); key != "" {
 		privKey, err := crypto.HexToECDSA(key)
@@ -287,6 +429,22 @@ func createNode(ctx *cli.Context) error {
 		config.ID = enode.PubkeyToIDV4(&privKey.PublicKey)
 		config.PrivateKey = privKey
 	}
+	if ctx.Bool(utils.NoDiscoverFlag.Name) {
+		config.NoDiscovery = true
+	}
+	config.BootstrapNodeURLs = ctx.String(utils.BootnodesFlag.Name)
+	if ctx.Bool("autofill.bootnodes") {
+		bootnodeURLs, err := getBootnodes()
+		if err != nil {
+			return err
+		}
+		if bootnodeURLs != "" {
+			config.BootstrapNodeURLs += "," + bootnodeURLs
+		}
+	}
+	config.MaxPeers = ctx.Int(utils.MaxPeersFlag.Name)
+	config.DisableTCPListener = ctx.Bool("only.outbound")
+	config.EnableENRFilter = ctx.Bool("enable.enrfilter")
 	if services := ctx.String("services"); services != "" {
 		config.Lifecycles = strings.Split(services, ",")
 	}
@@ -295,6 +453,131 @@ func createNode(ctx *cli.Context) error {
 		return err
 	}
 	fmt.Fprintln(ctx.App.Writer, "Created", node.Name)
+	return nil
+}
+
+func getBootnodes() (string, error) {
+	nodes, err := client.GetNodes()
+	if err != nil {
+		return "", err
+	}
+
+	bootnodes := make([]string, 0)
+	for _, node := range nodes {
+		if strings.HasPrefix(node.Name, "bootnode") {
+			bootnodes = append(bootnodes, node.Enode)
+		}
+	}
+
+	return strings.Join(bootnodes, ","), nil
+}
+
+func fillArray(array []NodeType, value NodeType, count int) []NodeType {
+	for i := 0; i < count; i++ {
+		array = append(array, value)
+	}
+	return array
+}
+
+func createMultiNode(ctx *cli.Context) error {
+	if ctx.Args().Len() != 0 {
+		return cli.ShowCommandHelp(ctx, ctx.Command.Name)
+	}
+
+	t := time.Now()
+
+	createInterval := ctx.Duration("interval")
+	bootNodeURLs := ctx.String(utils.BootnodesFlag.Name)
+	if ctx.Bool("autofill.bootnodes") {
+		existedBootnodeURLs, err := getBootnodes()
+		if err != nil {
+			return err
+		}
+		if existedBootnodeURLs != "" {
+			bootNodeURLs += "," + existedBootnodeURLs
+		}
+	}
+
+	// Create array of node types based on the ratio of outbound, dirty and default nodes
+	count := ctx.Int("count")
+	if count < 1 {
+		return fmt.Errorf("count must be greater than 0")
+	}
+
+	outboundRate := ctx.Int("only.outbound.rate")
+	if outboundRate < 0 || outboundRate > 100 {
+		return fmt.Errorf("outbound rate must be between 0 and 100")
+	}
+
+	dirtyRate := ctx.Int("dirty.rate")
+	if dirtyRate < 0 || dirtyRate > 100 {
+		return fmt.Errorf("dirty rate must be between 0 and 100")
+	}
+
+	numOutboundNode := count * outboundRate / 100
+	numDirtyNode := count * dirtyRate / 100
+	numDefaultNode := count - numOutboundNode - numDirtyNode
+	nodeTypes := make([]NodeType, 0)
+	nodeTypes = fillArray(nodeTypes, OutboundNode, numOutboundNode)
+	nodeTypes = fillArray(nodeTypes, DirtyNode, numDirtyNode)
+	nodeTypes = fillArray(nodeTypes, DefaultNode, numDefaultNode)
+	rand.Shuffle(len(nodeTypes), func(i, j int) { nodeTypes[i], nodeTypes[j] = nodeTypes[j], nodeTypes[i] })
+
+	// If bootnode flag is set, create all nodes as bootnodes
+	isBootnode := ctx.String("node.type") == "bootnode"
+
+	// Create nodes
+	for i, nodeType := range nodeTypes {
+		var nodeName string
+		if isBootnode {
+			nodeName = fmt.Sprintf("bootnode-%d-%d", t.Unix(), i)
+			ctx.Set(utils.BootnodesFlag.Name, "")
+		} else {
+			switch nodeType {
+			case OutboundNode:
+				ctx.Set("only.outbound", "true")
+				ctx.Set("node.type", "outbound")
+				ctx.Set("services", "valid")
+				nodeName = fmt.Sprintf("outbound-%d-%d", t.Unix(), i)
+			case DirtyNode:
+				ctx.Set("only.outbound", "false")
+				ctx.Set("node.type", "dirty")
+				ctx.Set("services", "invalid")
+				nodeName = fmt.Sprintf("dirty-%d-%d", t.Unix(), i)
+			default:
+				ctx.Set("only.outbound", "false")
+				ctx.Set("node.type", "default")
+				ctx.Set("services", "valid")
+				nodeName = fmt.Sprintf("node-%d-%d", t.Unix(), i)
+			}
+		}
+		ctx.Set("name", nodeName)
+		for {
+			err := createNode(ctx)
+			if err == nil {
+				// Start node if needed
+				if ctx.Bool("start") {
+					err = client.StartNode(nodeName)
+					if err == nil {
+						fmt.Fprintln(ctx.App.Writer, "Started", nodeName)
+						break
+					}
+				} else {
+					break
+				}
+			}
+
+			fmt.Fprintln(ctx.App.Writer, "Failed to create node, retrying...", nodeName, err)
+			// Try to create the node again
+			client.DeleteNode(nodeName)
+			time.Sleep(500 * time.Millisecond)
+
+		}
+		if createInterval > 0 {
+			time.Sleep(createInterval)
+		}
+	}
+
 	return nil
 }
 
@@ -426,6 +709,143 @@ func rpcSubscribe(client *rpc.Client, out io.Writer, method string, args ...stri
 			}
 		case err := <-sub.Err():
 			return err
+		}
+	}
+}
+
+func getNodePeerStats(ctx *cli.Context) error {
+	if ctx.Args().Len() != 1 {
+		return cli.ShowCommandHelp(ctx, ctx.Command.Name)
+	}
+	nodeName := ctx.Args().Get(0)
+	stats, err := client.GetNodePeerStats(nodeName)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintln(ctx.App.Writer, "Peer stats of", ctx.String("node"))
+	fmt.Fprintln(ctx.App.Writer, "Peer count: ", stats.PeerCount)
+	fmt.Fprintln(ctx.App.Writer, "Tried: ", stats.Tried)
+	fmt.Fprintln(ctx.App.Writer, "Failed: ", stats.Failed)
+	fmt.Fprintln(ctx.App.Writer, "Nodes count: ", stats.DifferentNodesDiscovered)
+	fmt.Fprintln(ctx.App.Writer, "DHT: ", stats.DHTBuckets)
+	return nil
+}
+
+func getNetworkPeerStats(ctx *cli.Context) error {
+	if ctx.Args().Len() != 0 {
+		return cli.ShowCommandHelp(ctx, ctx.Command.Name)
+	}
+	stats, err := client.GetAllNodePeerStats()
+	if err != nil {
+		return err
+	}
+	for nodeID, stats := range stats {
+		fmt.Fprintln(ctx.App.Writer, "Peer stats of", nodeID)
+		fmt.Fprintln(ctx.App.Writer, "Peer count: ", stats.PeerCount)
+		fmt.Fprintln(ctx.App.Writer, "Tried: ", stats.Tried)
+		fmt.Fprintln(ctx.App.Writer, "Failed: ", stats.Failed)
+		fmt.Fprintln(ctx.App.Writer, "Nodes count: ", stats.DifferentNodesDiscovered)
+		fmt.Fprintln(ctx.App.Writer, "DHT: ", stats.DHTBuckets)
+	}
+	return nil
+}
+
+func getAllDHT(ctx *cli.Context) error {
+	if ctx.Args().Len() != 0 {
+		return cli.ShowCommandHelp(ctx, ctx.Command.Name)
+	}
+
+	nodes, err := client.GetNodes()
+	if err != nil {
+		return err
+	}
+	nodeID2Name := make(map[string]string)
+	for _, node := range nodes {
+		nodeID2Name[node.ID] = node.Name
+	}
+
+	dht, err := client.GetAllNodeDHT()
+	if err != nil {
+		return err
+	}
+	for nodeName, buckets := range dht {
+		fmt.Fprintf(ctx.App.Writer, "%s: ", nodeName)
+		for _, bucket := range buckets {
+			fmt.Fprintf(ctx.App.Writer, "[")
+			for _, node := range bucket {
+				fmt.Fprintf(ctx.App.Writer, "%s ", nodeID2Name[node.ID().String()])
+			}
+			fmt.Fprintf(ctx.App.Writer, "],")
+		}
+		fmt.Fprintf(ctx.App.Writer, "\n")
+	}
+	return nil
+}
+
+func getAllNodePeersInfo(ctx *cli.Context) error {
+	if ctx.Args().Len() != 0 {
+		return cli.ShowCommandHelp(ctx, ctx.Command.Name)
+	}
+
+	nodes, err := client.GetNodes()
+	if err != nil {
+		return err
+	}
+	nodeID2Name := make(map[string]string)
+	for _, node := range nodes {
+		nodeID2Name[node.ID] = node.Name
+	}
+
+	peers, err := client.GetAllNodePeersInfo()
+	if err != nil {
+		return err
+	}
+	for nodeName, peerInfos := range peers {
+		fmt.Fprintf(ctx.App.Writer, "%s: ", nodeName)
+		for _, peerInfo := range peerInfos {
+			fmt.Fprintf(ctx.App.Writer, "(%s %v), ", nodeID2Name[peerInfo.ID], peerInfo.Network.Inbound)
+		}
+		fmt.Fprintf(ctx.App.Writer, "\n")
+	}
+	return nil
+}
+
+func startLogStats(ctx *cli.Context) error {
+	if ctx.Args().Len() != 0 {
+		return cli.ShowCommandHelp(ctx, ctx.Command.Name)
+	}
+	csvFile := ctx.String("file")
+	f, err := os.OpenFile(csvFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
+	timer := time.NewTicker(ctx.Duration("interval"))
+
+	f.WriteString("node,timestamp,type,value\n")
+
+loop:
+	for {
+		select {
+		case <-sig:
+			return nil
+		case <-timer.C:
+			stats, err := client.GetAllNodePeerStats()
+			if err != nil {
+				fmt.Fprintln(ctx.App.Writer, err)
+				goto loop
+			}
+			for nodeID, stats := range stats {
+				t := time.Now()
+				f.WriteString(fmt.Sprintf("%s,%d,%s,%d\n", nodeID, t.Unix(), "PeerCount", stats.PeerCount))
+				f.WriteString(fmt.Sprintf("%s,%d,%s,%d\n", nodeID, t.Unix(), "Tried", stats.Tried))
+				f.WriteString(fmt.Sprintf("%s,%d,%s,%d\n", nodeID, t.Unix(), "Failed", stats.Failed))
+				f.WriteString(fmt.Sprintf("%s,%d,%s,%d\n", nodeID, t.Unix(), "DifferentNodesDiscovered", stats.DifferentNodesDiscovered))
+				f.WriteString(fmt.Sprintf("%s,%d,%s,%d\n", nodeID, t.Unix(), "DHTBuckets", stats.DHTBuckets))
+			}
 		}
 	}
 }
