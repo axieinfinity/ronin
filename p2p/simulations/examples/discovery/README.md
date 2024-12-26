@@ -72,9 +72,10 @@ func (s *SimAdapter) NewNode(cfg *NodeConfig) (Node, error) {
 
 ## Manual run
 
-Run the p2psim server by `go run main.go`, and in another terminal, we can use `p2psim` cli to start, manage new nodes in the simulation network. Example:
+Run the p2psim server by `go run main.go` in `p2p/simulations/examples/discovery`, and in another terminal, we can use `p2psim` cli to start, manage new nodes in the simulation network. Example:
 
 ``` bash
+$ cd p2p/simulations/examples/discovery
 $ go run main.go
 INFO [12-24|14:46:39.132] starting simulation server               port=8888
 ```
