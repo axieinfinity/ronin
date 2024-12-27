@@ -4,7 +4,7 @@ ARG VERSION=""
 ARG BUILDNUM=""
 
 # Build Geth in a stock Go builder container
-FROM golang:1.17-alpine AS builder
+FROM golang:1.22.10-alpine3.21@sha256:58a82e883f0d11f52204d2baa58a62dc565c409105773526340f678c9dc2558f AS builder
 
 RUN apk add --no-cache gcc musl-dev linux-headers git
 
@@ -12,7 +12,7 @@ ADD . /go-ethereum
 RUN cd /go-ethereum && go run build/ci.go install
 
 # Pull all binaries into a second stage deploy alpine container
-FROM alpine:latest
+FROM alpine:3.21@sha256:21dc6063fd678b478f57c0e13f47560d0ea4eeba26dfc947b2a4f81f686b9f45
 
 RUN apk add --no-cache ca-certificates
 COPY --from=builder /go-ethereum/build/bin/* /usr/local/bin/
