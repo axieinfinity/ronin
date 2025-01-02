@@ -585,3 +585,7 @@ func (s *stateObject) Nonce() uint64 {
 func (s *stateObject) Value() *big.Int {
 	panic("Value on stateObject should never be called")
 }
+
+func (s *stateObject) Root() common.Hash {
+	return s.data.Root
+}
