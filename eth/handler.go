@@ -190,9 +190,9 @@ func newHandler(config *handlerConfig) (*handler, error) {
 		}
 	} else {
 		head := h.chain.CurrentBlock()
-		if head.NumberU64() > 0 {
+		if head.NumberU64() > 0 && h.chain.HasState(head.Root()) {
 			// Print warning log if database is not empty to run fast sync.
-			log.Warn("Switch sync mode from fast sync to full sync")
+			log.Warn("Switch sync mode from fast sync to full sync", "reason", "snap sync complete")
 		} else {
 			// If fast sync was requested and our database is empty, grant it
 			h.fastSync = uint32(1)
