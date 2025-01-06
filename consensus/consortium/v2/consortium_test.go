@@ -2587,28 +2587,28 @@ func TestIsTrippEffective(t *testing.T) {
 	// header of block 30
 	header = bs[29].Header()
 	// this header must not be Tripp effective
-	if c.IsTrippEffective(chain, header) {
+	if c.IsTrippEffective(chain, header, nil) {
 		t.Error("fail test Tripp effective")
 	}
 
 	// header of block 201
 	// this header must not be Tripp effective
 	header = bs[201].Header()
-	if c.IsTrippEffective(chain, header) {
+	if c.IsTrippEffective(chain, header, nil) {
 		t.Error("fail test Tripp effective")
 	}
 
 	// header of block 200
 	// this header must not be Tripp effective
 	header = bs[200].Header()
-	if c.IsTrippEffective(chain, header) {
+	if c.IsTrippEffective(chain, header, nil) {
 		t.Error("fail test Tripp effective")
 	}
 
 	// header of block 399
 	// this header must not be Tripp effective
 	header = bs[398].Header()
-	if c.IsTrippEffective(chain, header) {
+	if c.IsTrippEffective(chain, header, nil) {
 		t.Error("fail test Tripp effective")
 	}
 
@@ -2628,20 +2628,20 @@ func TestIsTrippEffective(t *testing.T) {
 	// header of block 400
 	// this header must be Tripp effective
 	header = bs[399].Header()
-	if !c.IsTrippEffective(nil, header) {
+	if !c.IsTrippEffective(nil, header, nil) {
 		t.Error("fail test Tripp effective")
 	}
 
 	// header of block 402
 	// this header must be Tripp effective
 	header = bs[401].Header()
-	if !c.IsTrippEffective(chain, header) {
+	if !c.IsTrippEffective(chain, header, nil) {
 		t.Error("fail test Tripp effective")
 	}
 
 	header = bs[599].Header()
 	// this header must be Tripp effective
-	if !c.IsTrippEffective(chain, header) {
+	if !c.IsTrippEffective(chain, header, nil) {
 		t.Error("fail test Tripp effective")
 	}
 }
