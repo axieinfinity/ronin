@@ -54,6 +54,8 @@ func TestState(t *testing.T) {
 
 	// Broken tests:
 	// Expected failures:
+	st.skipLoad(`^stPreCompiledContracts`) // Ronin contract are not match with Ethereum
+
 	//st.fails(`^stRevertTest/RevertPrecompiledTouch(_storage)?\.json/Byzantium/0`, "bug in test")
 	//st.fails(`^stRevertTest/RevertPrecompiledTouch(_storage)?\.json/Byzantium/3`, "bug in test")
 	//st.fails(`^stRevertTest/RevertPrecompiledTouch(_storage)?\.json/Constantinople/0`, "bug in test")
