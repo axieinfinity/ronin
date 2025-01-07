@@ -23,6 +23,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/eth/tracers/logger"
 
 	"github.com/ethereum/go-ethereum/core/rawdb"
@@ -31,10 +32,21 @@ import (
 	"github.com/ethereum/go-ethereum/core/vm"
 )
 
+// discard the proof of possession precompiled contract
+func resetPrecompiledContracts() {
+	addrProofOfPossession := common.BytesToAddress([]byte{106})
+	delete(vm.PrecompiledContractsConsortiumMiko, addrProofOfPossession)
+	delete(vm.PrecompiledContractsBerlin, addrProofOfPossession)
+	delete(vm.PrecompiledContractsCancun, addrProofOfPossession)
+}
+
 func TestState(t *testing.T) {
+	resetPrecompiledContracts()
+
 	t.Parallel()
 
 	st := new(testMatcher)
+
 	// Long tests:
 	st.slow(`^stAttackTest/ContractCreationSpam`)
 	st.slow(`^stBadOpcode/badOpcodes`)
@@ -53,9 +65,9 @@ func TestState(t *testing.T) {
 	st.skipLoad(`^stStaticCall/static_Call1MB`)
 
 	// Broken tests:
-	// Expected failures:
 	st.skipLoad(`^stPreCompiledContracts`) // Ronin contract are not match with Ethereum
 
+	// Expected failures:
 	//st.fails(`^stRevertTest/RevertPrecompiledTouch(_storage)?\.json/Byzantium/0`, "bug in test")
 	//st.fails(`^stRevertTest/RevertPrecompiledTouch(_storage)?\.json/Byzantium/3`, "bug in test")
 	//st.fails(`^stRevertTest/RevertPrecompiledTouch(_storage)?\.json/Constantinople/0`, "bug in test")
@@ -82,6 +94,7 @@ func TestState(t *testing.T) {
 						return result
 					})
 				})
+
 				t.Run(key+"/hash/snap", func(t *testing.T) {
 					withTrace(t, test.gasLimit(subtest), func(vmconfig vm.Config) error {
 						var result error
