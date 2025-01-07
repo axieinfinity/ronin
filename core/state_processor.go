@@ -163,7 +163,8 @@ func applyTransaction(
 
 	// Check if sender and recipient are blacklisted
 	payer := msg.Payer()
-	if config.Consortium != nil && config.IsOdysseus(blockNumber) {
+	// After the Venoki hardfork, all addresses now can submit transaction
+	if config.Consortium != nil && config.IsOdysseus(blockNumber) && !config.IsVenoki(blockNumber) {
 		contractAddr := config.BlacklistContractAddress
 		if state.IsAddressBlacklisted(statedb, contractAddr, &from) ||
 			state.IsAddressBlacklisted(statedb, contractAddr, msg.To()) ||

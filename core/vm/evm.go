@@ -63,8 +63,11 @@ func (evm *EVM) precompile(caller ContractRef, addr common.Address) (Precompiled
 			return contract, isPrecompile
 		}
 	}
-	if c := evm.ChainConfig().BlacklistContractAddress; evm.chainRules.IsOdysseusFork && evm.StateDB.Blacklisted(c, &addr) {
-		return &blacklistedAddress{}, true
+	// Blacklisted contract is only effective from Odysseus to Venoki
+	if evm.chainRules.IsOdysseusFork && !evm.chainRules.IsVenoki {
+		if c := evm.ChainConfig().BlacklistContractAddress; evm.StateDB.Blacklisted(c, &addr) {
+			return &blacklistedAddress{}, true
+		}
 	}
 
 	var precompiles map[common.Address]PrecompiledContract

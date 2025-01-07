@@ -383,7 +383,8 @@ func ValidateTransactionWithState(tx *types.Transaction, signer types.Signer, op
 		}
 
 		// Check if sender, payer and recipient are blacklisted
-		if opts.Config.Consortium != nil && opts.Config.IsOdysseus(opts.Head.Number) {
+		// This is only affective from Odysseus to Venoki to prevent blacklisted address/contract
+		if opts.Config.Consortium != nil && opts.Config.IsOdysseus(opts.Head.Number) && !opts.Config.IsVenoki(opts.Head.Number) {
 			contractAddr := opts.Config.BlacklistContractAddress
 			if state.IsAddressBlacklisted(opts.State, contractAddr, &from) ||
 				state.IsAddressBlacklisted(opts.State, contractAddr, tx.To()) ||
