@@ -365,9 +365,12 @@ func ValidateTransactionWithState(tx *types.Transaction, signer types.Signer, op
 	}
 
 	if opts.Config != nil {
+		// The whitelisted deployer logic is not affective after Venoki
 		if tx.To() == nil && opts.Config.Consortium != nil {
 			var whitelisted bool
-			if opts.Config.IsAntenna(opts.Head.Number) {
+			if opts.Config.IsVenoki(opts.Head.Number) {
+				whitelisted = true
+			} else if opts.Config.IsAntenna(opts.Head.Number) {
 				whitelisted = state.IsWhitelistedDeployerV2(
 					opts.State,
 					from,
