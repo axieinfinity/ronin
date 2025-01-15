@@ -225,6 +225,12 @@ var (
 		Value:    "full",
 		Category: flags.StateCategory,
 	}
+	NoPruningSideCarFlag = &cli.BoolFlag{
+		Name:     "no-pruning-sidecar",
+		Usage:    `Disable blob sidecar pruning in archive node`,
+		Value:    true,
+		Category: flags.StateCategory,
+	}
 	SnapshotFlag = &cli.BoolFlag{
 		Name:     "snapshot",
 		Usage:    `Enables snapshot-database mode (default = enable)`,
@@ -1907,6 +1913,13 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 	if ctx.IsSet(GCModeFlag.Name) {
 		cfg.NoPruning = ctx.String(GCModeFlag.Name) == "archive"
 	}
+	if !cfg.NoPruning && ctx.IsSet(NoPruningSideCarFlag.Name) {
+		log.Warn(fmt.Sprintf("Flag --%s has no effect when gcmode is not archive",
+			NoPruningSideCarFlag.Name))
+	}
+	if cfg.NoPruning && ctx.Bool(NoPruningSideCarFlag.Name) {
+		cfg.NoPruningSideCar = true
+	}
 	if ctx.IsSet(CacheNoPrefetchFlag.Name) {
 		cfg.NoPrefetch = ctx.Bool(CacheNoPrefetchFlag.Name)
 	}
@@ -2305,14 +2318,20 @@ func MakeChain(ctx *cli.Context, stack *node.Node) (chain *core.BlockChain, chai
 	if gcmode := ctx.String(GCModeFlag.Name); gcmode != "full" && gcmode != "archive" {
 		Fatalf("--%s must be either 'full' or 'archive'", GCModeFlag.Name)
 	}
+	isArchive := ctx.String(GCModeFlag.Name) == "archive"
+	if !isArchive && ctx.IsSet(NoPruningSideCarFlag.Name) {
+		log.Warn(fmt.Sprintf("Flag --%s has no effect when gcmode is not archive",
+			NoPruningSideCarFlag.Name))
+	}
 	cache := &core.CacheConfig{
 		TrieCleanLimit:      ethconfig.Defaults.TrieCleanCache,
 		TrieCleanNoPrefetch: ctx.Bool(CacheNoPrefetchFlag.Name),
 		TrieDirtyLimit:      ethconfig.Defaults.TrieDirtyCache,
-		TrieDirtyDisabled:   ctx.String(GCModeFlag.Name) == "archive",
+		TrieDirtyDisabled:   isArchive,
 		TrieTimeLimit:       ethconfig.Defaults.TrieTimeout,
 		SnapshotLimit:       ethconfig.Defaults.SnapshotCache,
 		Preimages:           ctx.Bool(CachePreimagesFlag.Name),
+		NoPruningSideCar:    isArchive && ctx.Bool(NoPruningSideCarFlag.Name),
 	}
 	if cache.TrieDirtyDisabled && !cache.Preimages {
 		cache.Preimages = true

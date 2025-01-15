@@ -100,6 +100,7 @@ var (
 		utils.SyncModeFlag,
 		utils.ExitWhenSyncedFlag,
 		utils.GCModeFlag,
+		utils.NoPruningSideCarFlag,
 		utils.SnapshotFlag,
 		utils.TxLookupLimitFlag,
 		utils.TriesInMemoryFlag,

@@ -143,6 +143,8 @@ type Config struct {
 	NoPruning  bool // Whether to disable pruning and flush everything to disk
 	NoPrefetch bool // Whether to disable prefetching and only load state on demand
 
+	NoPruningSideCar bool // Whether to disable blob sidecar pruning
+
 	TxLookupLimit uint64 `toml:",omitempty"` // The maximum number of blocks from head whose tx indices are reserved.
 
 	// Whitelist of required block number -> hash values to accept

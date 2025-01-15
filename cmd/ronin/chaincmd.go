@@ -87,6 +87,7 @@ The dumpgenesis command dumps the genesis block configuration in JSON format to 
 			utils.CacheFlag,
 			utils.SyncModeFlag,
 			utils.GCModeFlag,
+			utils.NoPruningSideCarFlag,
 			utils.SnapshotFlag,
 			utils.CacheDatabaseFlag,
 			utils.CacheGCFlag,
