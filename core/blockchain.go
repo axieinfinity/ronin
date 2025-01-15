@@ -139,6 +139,7 @@ type CacheConfig struct {
 	SnapshotLimit       int           // Memory allowance (MB) to use for caching snapshot entries in memory
 	Preimages           bool          // Whether to store preimage of trie key to the disk
 	TriesInMemory       int           // The number of tries is kept in memory before pruning
+	NoPruningSideCar    bool          // Whether to disable blob sidecar pruning
 
 	SnapshotWait bool // Wait for snapshot construction on startup. TODO(karalabe): This is a dirty hack for testing, nuke it
 }
@@ -1486,7 +1487,7 @@ func (bc *BlockChain) reorgNeeded(localBlock *types.Block, localTd *big.Int, ext
 
 // pruneBlockSidecars prunes the sidecars of blocks that are older than the keep period
 func (bc *BlockChain) pruneBlockSidecars(db ethdb.KeyValueWriter, curBlock *types.Block) {
-	if curBlock.NumberU64() < uint64(bc.blobPrunePeriod) {
+	if bc.cacheConfig.NoPruningSideCar || curBlock.NumberU64() < uint64(bc.blobPrunePeriod) {
 		return
 	}
 	pruneBlockNumber := curBlock.NumberU64() - uint64(bc.blobPrunePeriod)
