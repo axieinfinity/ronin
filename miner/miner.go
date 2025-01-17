@@ -55,6 +55,7 @@ type Config struct {
 	Noverify             bool           // Disable remote mining solution verification(only useful in ethash).
 	BlockProduceLeftOver time.Duration
 	BlockSizeReserve     uint64
+	NoSpeculation        bool
 }
 
 // Miner creates blocks and searches for proof-of-work values.

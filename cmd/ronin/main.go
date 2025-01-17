@@ -143,6 +143,7 @@ var (
 		utils.MinerNoVerifyFlag,
 		utils.MinerBlockProduceLeftoverFlag,
 		utils.MinerBlockSizeReserveFlag,
+		utils.MinerNoSpeculation,
 		utils.NATFlag,
 		utils.NoDiscoverFlag,
 		utils.DiscoveryV5Flag,

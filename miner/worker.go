@@ -26,6 +26,7 @@ import (
 
 	mapset "github.com/deckarep/golang-set"
 	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/common/math"
 	"github.com/ethereum/go-ethereum/consensus"
 	"github.com/ethereum/go-ethereum/consensus/consortium"
 	"github.com/ethereum/go-ethereum/consensus/misc"
@@ -35,8 +36,10 @@ import (
 	"github.com/ethereum/go-ethereum/core/state"
 	"github.com/ethereum/go-ethereum/core/txpool"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/core/vm"
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/metrics"
 	"github.com/ethereum/go-ethereum/params"
 	"github.com/ethereum/go-ethereum/trie"
 	lru "github.com/hashicorp/golang-lru/v2"
@@ -89,6 +92,10 @@ const (
 	// maxBlockSize is the maximum size of block, this is used to abort transaction commit
 	// to block when the estimated block size is larger than this threshold
 	maxBlockSize = 10 * 1024 * 1024 // 10MB
+)
+
+var (
+	workerCommitTransactionsTimer = metrics.NewRegisteredTimer("worker/commit", nil)
 )
 
 // environment is the worker's current environment and holds all of the current state information.
@@ -898,6 +905,82 @@ func (w *worker) commitTransaction(tx *types.Transaction, coinbase common.Addres
 	return receipt.Logs, nil
 }
 
+func (w *worker) nextTransaction(
+	selectedTxs *TransactionsByPriceAndNonce,
+	notSelectedTx *txpool.LazyTransaction,
+	notSelectedTip *big.Int,
+) *types.Transaction {
+	tx, txTip := selectedTxs.Next()
+	var nextTx *txpool.LazyTransaction
+	if notSelectedTx == nil {
+		nextTx = tx
+	} else if tx == nil {
+		nextTx = tx
+	} else {
+		if txTip.Cmp(notSelectedTip) < 0 {
+			nextTx = notSelectedTx
+		} else {
+			nextTx = tx
+		}
+	}
+
+	if nextTx != nil {
+		return nextTx.Resolve()
+	}
+
+	return nil
+}
+
+// speculativeCommitTransaction speculatively execute the potential next transaction
+// to help prefetch the storage that is loaded in the actual execution
+// As the function is called in a separate goroutine, there are 2 channels to communicate
+// with it
+// - interrupt: The caller can close this channel to ask this function to stop
+// - done: The caller can watch this channel to know if this function returns
+func (w *worker) speculativeCommitTransaction(
+	tx *types.Transaction,
+	coinbase common.Address,
+	throwawayState *state.StateDB,
+	header *types.Header,
+	interrupt <-chan struct{},
+	done chan<- struct{},
+) {
+	from, _ := types.Sender(w.current.signer, tx)
+	payer := from
+	if tx.Type() == types.SponsoredTxType {
+		payer, _ = types.Payer(w.current.signer, tx)
+	}
+	msg := types.NewMessageWithExpiredTimeAndPayer(
+		from,
+		tx.To(),
+		tx.Nonce(),
+		tx.Value(),
+		tx.Gas(),
+		tx.GasPrice(),
+		tx.GasFeeCap(),
+		tx.GasTipCap(),
+		tx.Data(),
+		tx.AccessList(),
+		true, // fake message to avoid nonce check
+		tx.ExpiredTime(),
+		payer,
+	)
+
+	txContext := core.NewEVMTxContext(msg)
+	blockContext := core.NewEVMBlockContext(header, w.chain, &coinbase)
+	evm := vm.NewEVM(blockContext, txContext, throwawayState, w.chainConfig, *w.chain.GetVMConfig())
+
+	// This goroutine watches the interrupt channel and cancel the below possibly blocking ApplyMessage.
+	// The evm.Cancel just informs the EVM to stop, it can return before ApplyMessage returns.
+	go func() {
+		<-interrupt
+		evm.Cancel()
+	}()
+
+	core.ApplyMessage(evm, msg, new(core.GasPool).AddGas(math.MaxUint64))
+	close(done)
+}
+
 func (w *worker) commitTransactions(plainTxs, blobTxs *TransactionsByPriceAndNonce, coinbase common.Address, interrupt *int32) bool {
 	// Short circuit if current is nil
 	if w.current == nil {
@@ -953,6 +1036,13 @@ func (w *worker) commitTransactions(plainTxs, blobTxs *TransactionsByPriceAndNon
 	bloomProcessor := core.NewAsyncReceiptBloomGenerator(plainTxs.Size() + blobTxs.Size())
 	defer bloomProcessor.Close()
 
+	var (
+		copiedHeader    *types.Header
+		speculationDone chan struct{}
+	)
+	if !w.config.NoSpeculation && w.isRunning() {
+		copiedHeader = types.CopyHeader(w.current.header)
+	}
 Loop:
 	for {
 		if timer != nil {
@@ -1001,8 +1091,10 @@ Loop:
 
 		// Retrieve the next transaction and abort if all done
 		var (
-			selectedTx  *txpool.LazyTransaction
-			selectedTxs *TransactionsByPriceAndNonce
+			selectedTx     *txpool.LazyTransaction
+			selectedTxs    *TransactionsByPriceAndNonce
+			notSelectedTx  *txpool.LazyTransaction
+			notSelectedTip *big.Int
 		)
 		plainTx, plainTip := plainTxs.Peek()
 		blobTx, blobTip := blobTxs.Peek()
@@ -1013,8 +1105,12 @@ Loop:
 		} else {
 			if plainTip.Cmp(blobTip) < 0 {
 				selectedTx, selectedTxs = blobTx, blobTxs
+				notSelectedTx = plainTx
+				notSelectedTip = plainTip
 			} else {
 				selectedTx, selectedTxs = plainTx, plainTxs
+				notSelectedTx = blobTx
+				notSelectedTip = blobTip
 			}
 		}
 
@@ -1057,6 +1153,32 @@ Loop:
 			txs.Pop()
 			continue
 		}
+
+		// Speculatively execute the next transaction
+		var interruptSpeculation chan struct{}
+		if !w.config.NoSpeculation && w.isRunning() {
+			interruptSpeculation = make(chan struct{})
+			tx := w.nextTransaction(selectedTxs, notSelectedTx, notSelectedTip)
+			if tx != nil {
+				startSpeculation := true
+				if speculationDone != nil {
+					select {
+					case <-speculationDone:
+					default:
+						// Don't start new speculation when the old speculation has not finished yet
+						startSpeculation = false
+					}
+				}
+				if startSpeculation {
+					speculationDone = make(chan struct{})
+					// FIXME: Does this cause large overhead? Copy is a quite heavy operation.
+					throwawayState := w.current.state.Copy()
+					go w.speculativeCommitTransaction(tx, coinbase, throwawayState, copiedHeader,
+						interruptSpeculation, speculationDone)
+				}
+			}
+		}
+
 		// Start executing the transaction
 		w.current.state.SetTxContext(tx.Hash(), w.current.tcount)
 
@@ -1092,6 +1214,12 @@ Loop:
 			// nonce-too-high clause will prevent us from executing in vain).
 			log.Debug("Transaction failed, account skipped", "hash", tx.Hash(), "err", err)
 			txs.Shift()
+		}
+
+		// We are preparing to actually execute the next transaction,
+		// stop the speculation if it has not stopped yet.
+		if !w.config.NoSpeculation && w.isRunning() {
+			close(interruptSpeculation)
 		}
 	}
 
@@ -1277,6 +1405,7 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 			localBlobTxs[account] = txs
 		}
 	}
+	start := time.Now()
 	if len(localPlainTxs) > 0 || len(localBlobTxs) > 0 {
 		plainTxs := NewTransactionsByPriceAndNonce(w.current.signer, localPlainTxs, header.BaseFee)
 		blobTxs := NewTransactionsByPriceAndNonce(w.current.signer, localBlobTxs, header.BaseFee)
@@ -1291,6 +1420,7 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 			return
 		}
 	}
+	workerCommitTransactionsTimer.Update(time.Since(start))
 	w.commit(uncles, w.fullTaskHook, true, tstart)
 }
 

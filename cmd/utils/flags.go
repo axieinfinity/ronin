@@ -603,6 +603,11 @@ var (
 		Value:    ethconfig.Defaults.Miner.BlockSizeReserve,
 		Category: flags.MinerCategory,
 	}
+	MinerNoSpeculation = &cli.BoolFlag{
+		Name:     "miner.nospeculation",
+		Usage:    "Disable speculatively committing next transaction",
+		Category: flags.MinerCategory,
+	}
 	// Account settings
 	UnlockedAccountFlag = &cli.StringFlag{
 		Name:     "unlock",
@@ -1781,6 +1786,7 @@ func setMiner(ctx *cli.Context, cfg *miner.Config) {
 	if ctx.IsSet(LegacyMinerGasTargetFlag.Name) {
 		log.Warn("The generic --miner.gastarget flag is deprecated and will be removed in the future!")
 	}
+	cfg.NoSpeculation = ctx.Bool(MinerNoSpeculation.Name)
 }
 
 func setWhitelist(ctx *cli.Context, cfg *ethconfig.Config) {
