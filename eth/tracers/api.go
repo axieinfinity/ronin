@@ -184,9 +184,30 @@ type StdTraceConfig struct {
 
 // txTraceResult is the result of a single transaction trace.
 type txTraceResult struct {
-	TransactionHash common.Hash `json:"transactionHash,omitempty"`
+	TransactionHash common.Hash `json:"transactionHash"`
 	Result          interface{} `json:"result,omitempty"` // Trace results produced by the tracer
 	Error           string      `json:"error,omitempty"`  // Trace failure produced by the tracer
+}
+
+// Create a response that is compatible with go-ethereum
+// with txHash field but still keep transactionHash field
+// to avoid breaking change for current user.
+// FIXME: Remove this function and change transactionHash
+// to txHash after everyone has changed to use the new one.
+func (result txTraceResult) MarshalJSON() ([]byte, error) {
+	newResult := struct {
+		TxHash          common.Hash `json:"txHash"`
+		TransactionHash common.Hash `json:"transactionHash"`
+		Result          interface{} `json:"result,omitempty"`
+		Error           string      `json:"error,omitempty"`
+	}{
+		TxHash:          result.TransactionHash,
+		TransactionHash: result.TransactionHash,
+		Result:          result.Result,
+		Error:           result.Error,
+	}
+
+	return json.Marshal(&newResult)
 }
 
 // internalAndAccountResult is the result of a single transaction trace.
