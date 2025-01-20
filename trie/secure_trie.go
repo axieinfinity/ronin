@@ -132,6 +132,28 @@ func (t *SecureTrie) TryUpdate(key, value []byte) error {
 	return nil
 }
 
+// TryBatchInsert batches multiple insert together.
+func (t *SecureTrie) TryBatchInsert(keys, values [][]byte) error {
+	hashKeys := make([][]byte, 0, len(keys))
+	for i := range keys {
+		hk := t.hashKey(keys[i])
+		// t.hashKey does not return a new slice but an shared internal slice,
+		// so we must copy here
+		hashKeys = append(hashKeys, common.CopyBytes(hk))
+	}
+
+	err := t.trie.TryBatchInsert(hashKeys, values)
+	if err != nil {
+		return err
+	}
+
+	for i, hashKey := range hashKeys {
+		t.getSecKeyCache()[string(hashKey)] = common.CopyBytes(keys[i])
+	}
+
+	return nil
+}
+
 // Delete removes any existing value for key from the trie.
 func (t *SecureTrie) Delete(key []byte) {
 	if err := t.TryDelete(key); err != nil {
