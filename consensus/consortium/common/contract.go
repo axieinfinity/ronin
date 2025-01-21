@@ -435,7 +435,7 @@ func (c *ContractIntegrator) contractCall(
 			Gas:  &gas,
 			To:   &to,
 			Data: &msgData,
-		}, blockNrOrHash, nil, nil)
+		}, &blockNrOrHash, nil, nil)
 		if err != nil {
 			return err
 		}
@@ -635,7 +635,7 @@ func (b *ConsortiumBackend) CallContract(ctx context.Context, call ethereum.Call
 		Gas:  &gas,
 		To:   call.To,
 		Data: &data,
-	}, block, nil, nil)
+	}, &block, nil, nil)
 	if err != nil {
 		return nil, err
 	}
