@@ -211,6 +211,8 @@ func (args *TransactionArgs) setDefaults(ctx context.Context, b Backend) error {
 			Value:                args.Value,
 			Data:                 (*hexutil.Bytes)(&data),
 			AccessList:           args.AccessList,
+			BlobFeeCap:           args.BlobFeeCap,
+			BlobHashes:           args.BlobHashes,
 		}
 		pendingBlockNr := rpc.BlockNumberOrHashWithNumber(rpc.PendingBlockNumber)
 		estimated, err := DoEstimateGas(ctx, b, callArgs, pendingBlockNr, nil, b.RPCGasCap())
