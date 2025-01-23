@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"strconv"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/common"
@@ -121,6 +122,24 @@ func (bn BlockNumber) MarshalText() ([]byte, error) {
 
 func (bn BlockNumber) Int64() int64 {
 	return (int64)(bn)
+}
+
+func (bn BlockNumber) String() string {
+	switch bn {
+	case EarliestBlockNumber:
+		return "earliest"
+	case LatestBlockNumber:
+		return "latest"
+	case PendingBlockNumber:
+		return "pending"
+	case FinalizedBlockNumber:
+		return "finalized"
+	default:
+		if bn < 0 {
+			return fmt.Sprintf("<invalid %d>", bn)
+		}
+		return hexutil.Uint64(bn).String()
+	}
 }
 
 type BlockNumberOrHash struct {
