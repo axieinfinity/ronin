@@ -306,13 +306,20 @@ func handleMessage(backend Backend, peer *Peer) error {
 					break
 				}
 			}
-			slots = append(slots, storage)
+			// The response is cutdown if the accumulated reponse
+			// exceeds hard limit, but we do attach the proof for 
+			// this account by mistake. So the prover views this as
+			// more entries available, leading to reinjecting response
+			// and disconnecting with the server.
+			if len(storage) > 0 {
+				slots = append(slots, storage)
+			}
 			it.Release()
 
 			// Generate the Merkle proofs for the first and last storage slot, but
 			// only if the response was capped. If the entire storage trie included
 			// in the response, no need for any proofs.
-			if origin != (common.Hash{}) || abort {
+			if origin != (common.Hash{}) || (abort && len(storage) > 0) {
 				// Request started at a non-zero hash or was capped prematurely, add
 				// the endpoint Merkle proofs
 				accTrie, err := trie.New(req.Root, backend.Chain().StateCache().TrieDB())

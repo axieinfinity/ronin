@@ -2575,7 +2575,7 @@ func (s *Syncer) OnStorage(peer SyncPeer, id uint64, hashes [][]common.Hash, slo
 	// the requested data. For storage range queries that means the state being
 	// retrieved was either already pruned remotely, or the peer is not yet
 	// synced to our head.
-	if len(hashes) == 0 {
+	if len(hashes) == 0 && len(proof) == 0 {
 		logger.Debug("Peer rejected storage request")
 		s.statelessPeers[peer.ID()] = struct{}{}
 		s.lock.Unlock()
@@ -2586,6 +2586,14 @@ func (s *Syncer) OnStorage(peer SyncPeer, id uint64, hashes [][]common.Hash, slo
 
 	// Reconstruct the partial tries from the response and verify them
 	var cont bool
+
+	// If a proof was attached while the response is empty, it indicates that the
+	// requested range specified with 'origin' is empty. Construct an empty state
+	// response locally to finalize the range.
+	if len(hashes) == 0 && len(proof) > 0 {
+		hashes = append(hashes, []common.Hash{})
+		slots = append(slots, [][]byte{})
+	}
 
 	for i := 0; i < len(hashes); i++ {
 		// Convert the keys and proofs into an internal format
