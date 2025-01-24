@@ -314,6 +314,8 @@ func (sf *subfetcher) loop() {
 					ch <- sf.db.CopyTrie(sf.trie)
 
 				default:
+					// Lock the mutex to prevent race condition within the prefetcher
+					sf.lock.Lock()
 					// No termination request yet, prefetch the next entry
 					if _, ok := sf.seen[string(task)]; ok {
 						sf.dups++
@@ -321,6 +323,7 @@ func (sf *subfetcher) loop() {
 						sf.trie.TryGet(task)
 						sf.seen[string(task)] = struct{}{}
 					}
+					sf.lock.Unlock()
 				}
 			}
 
