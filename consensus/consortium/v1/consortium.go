@@ -679,10 +679,12 @@ func (c *Consortium) Seal(chain consensus.ChainHeaderReader, block *types.Block,
 	// Wait until sealing is terminated or delay timeout.
 	log.Trace("Waiting for slot to sign and propagate", "delay", common.PrettyDuration(delay))
 	go func() {
+		timer := time.NewTimer(delay)
+		defer timer.Stop()
 		select {
 		case <-stop:
 			return
-		case <-time.After(delay):
+		case <-timer.C:
 		}
 
 		select {

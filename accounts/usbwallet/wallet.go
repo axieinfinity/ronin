@@ -184,16 +184,20 @@ func (w *wallet) heartbeat() {
 
 	// Execute heartbeat checks until termination or error
 	var (
-		errc chan error
-		err  error
+		errc  chan error
+		err   error
+		timer = time.NewTimer(heartbeatCycle)
 	)
+	defer timer.Stop()
+
 	for errc == nil && err == nil {
 		// Wait until termination is requested or the heartbeat cycle arrives
+		timer.Reset(heartbeatCycle)
 		select {
 		case errc = <-w.healthQuit:
 			// Termination requested
 			continue
-		case <-time.After(heartbeatCycle):
+		case <-timer.C:
 			// Heartbeat time
 		}
 		// Execute a tiny data exchange to see responsiveness
@@ -345,7 +349,10 @@ func (w *wallet) selfDerive() {
 			nextAddrs = append([]common.Address{}, w.deriveNextAddrs...)
 
 			context = context.Background()
+			timer   = time.NewTimer(selfDeriveThrottling)
 		)
+		defer timer.Stop()
+
 		for i := 0; i < len(nextAddrs); i++ {
 			for empty := false; !empty; {
 				// Retrieve the next derived Ethereum account
@@ -423,11 +430,12 @@ func (w *wallet) selfDerive() {
 
 		// Notify the user of termination and loop after a bit of time (to avoid trashing)
 		reqc <- struct{}{}
+		timer.Reset(selfDeriveThrottling)
 		if err == nil {
 			select {
 			case errc = <-w.deriveQuit:
 				// Termination requested, abort
-			case <-time.After(selfDeriveThrottling):
+			case <-timer.C:
 				// Waited enough, willing to self-derive again
 			}
 		}

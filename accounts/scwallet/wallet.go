@@ -443,10 +443,13 @@ func (w *Wallet) selfDerive() {
 
 	// Execute self-derivations until termination or error
 	var (
-		reqc chan struct{}
-		errc chan error
-		err  error
+		reqc  chan struct{}
+		errc  chan error
+		err   error
+		timer = time.NewTimer(selfDeriveThrottling)
 	)
+	defer timer.Stop()
+
 	for errc == nil && err == nil {
 		// Wait until either derivation or termination is requested
 		select {
@@ -539,10 +542,11 @@ func (w *Wallet) selfDerive() {
 		// Notify the user of termination and loop after a bit of time (to avoid trashing)
 		reqc <- struct{}{}
 		if err == nil {
+			timer.Reset(selfDeriveThrottling)
 			select {
 			case errc = <-w.deriveQuit:
 				// Termination requested, abort
-			case <-time.After(selfDeriveThrottling):
+			case <-timer.C:
 				// Waited enough, willing to self-derive again
 			}
 		}

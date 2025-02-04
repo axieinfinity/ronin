@@ -653,7 +653,8 @@ func (d *Downloader) fetchHead(p *peerConnection) (head *types.Header, pivot *ty
 	go p.peer.RequestHeadersByHash(latest, fetch, fsMinFullBlocks-1, true)
 
 	ttl := d.peers.rates.TargetTimeout()
-	timeout := time.After(ttl)
+	timer := time.NewTimer(ttl)
+	defer timer.Stop()
 	for {
 		select {
 		case <-d.cancelCh:
@@ -692,7 +693,7 @@ func (d *Downloader) fetchHead(p *peerConnection) (head *types.Header, pivot *ty
 			}
 			return head, pivot, nil
 
-		case <-timeout:
+		case <-timer.C:
 			p.log.Debug("Waiting for head header timed out", "elapsed", ttl)
 			return nil, nil, errTimeout
 
@@ -838,7 +839,8 @@ func (d *Downloader) findAncestorSpanSearch(p *peerConnection, mode SyncMode, re
 	number, hash := uint64(0), common.Hash{}
 
 	ttl := d.peers.rates.TargetTimeout()
-	timeout := time.After(ttl)
+	timer := time.NewTimer(ttl)
+	defer timer.Stop()
 
 	for finished := false; !finished; {
 		select {
@@ -891,7 +893,7 @@ func (d *Downloader) findAncestorSpanSearch(p *peerConnection, mode SyncMode, re
 				}
 			}
 
-		case <-timeout:
+		case <-timer.C:
 			p.log.Debug("Waiting for head header timed out", "elapsed", ttl)
 			return 0, errTimeout
 
@@ -927,7 +929,8 @@ func (d *Downloader) findAncestorBinarySearch(p *peerConnection, mode SyncMode, 
 		check := (start + end) / 2
 
 		ttl := d.peers.rates.TargetTimeout()
-		timeout := time.After(ttl)
+		timer := time.NewTimer(ttl)
+		defer timer.Stop()
 
 		go p.peer.RequestHeadersByNumber(check, 1, 0, false)
 
@@ -976,7 +979,7 @@ func (d *Downloader) findAncestorBinarySearch(p *peerConnection, mode SyncMode, 
 				start = check
 				hash = h
 
-			case <-timeout:
+			case <-timer.C:
 				p.log.Debug("Waiting for search header timed out", "elapsed", ttl)
 				return 0, errTimeout
 
@@ -1014,6 +1017,8 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64) error {
 	timeout := time.NewTimer(0) // timer to dump a non-responsive active peer
 	<-timeout.C                 // timeout channel should be initially empty
 	defer timeout.Stop()
+	getHeaderTimer := time.NewTimer(fsHeaderContCheck)
+	defer getHeaderTimer.Stop()
 
 	var ttl time.Duration
 	getHeaders := func(from uint64) {
@@ -1112,8 +1117,9 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64) error {
 				// Don't abort header fetches while the pivot is downloading
 				if atomic.LoadInt32(&d.committed) == 0 && pivot <= from {
 					p.log.Debug("No headers, waiting for pivot commit")
+					getHeaderTimer.Reset(fsHeaderContCheck)
 					select {
-					case <-time.After(fsHeaderContCheck):
+					case <-getHeaderTimer.C:
 						getHeaders(from)
 						continue
 					case <-d.cancelCh:
@@ -1191,8 +1197,9 @@ func (d *Downloader) fetchHeaders(p *peerConnection, from uint64) error {
 			} else {
 				// No headers delivered, or all of them being delayed, sleep a bit and retry
 				p.log.Trace("All headers delayed, waiting")
+				getHeaderTimer.Reset(fsHeaderContCheck)
 				select {
-				case <-time.After(fsHeaderContCheck):
+				case <-getHeaderTimer.C:
 					getHeaders(from)
 					continue
 				case <-d.cancelCh:
@@ -1522,8 +1529,10 @@ func (d *Downloader) processHeaders(origin uint64, td *big.Int) error {
 		rollback    uint64 // Zero means no rollback (fine as you can't unroll the genesis)
 		rollbackErr error
 		mode        = d.getMode()
+		timer       = time.NewTimer(time.Second)
 	)
 	defer func() {
+		timer.Stop()
 		if rollback > 0 {
 			lastHeader, lastFastBlock, lastBlock := d.lightchain.CurrentHeader().Number, common.Big0, common.Big0
 			if mode != LightSync {
@@ -1655,11 +1664,12 @@ func (d *Downloader) processHeaders(origin uint64, td *big.Int) error {
 				if mode == FullSync || mode == FastSync {
 					// If we've reached the allowed number of pending headers, stall a bit
 					for d.queue.PendingBlocks() >= maxQueuedHeaders || d.queue.PendingReceipts() >= maxQueuedHeaders {
+						timer.Reset(time.Second)
 						select {
 						case <-d.cancelCh:
 							rollbackErr = errCanceled
 							return errCanceled
-						case <-time.After(time.Second):
+						case <-timer.C:
 						}
 					}
 					// Otherwise insert the headers for content retrieval
@@ -1776,7 +1786,9 @@ func (d *Downloader) processFastSyncContent() error {
 	var (
 		oldPivot *fetchResult   // Locked in pivot block, might change eventually
 		oldTail  []*fetchResult // Downloaded content after the pivot
+		timer    = time.NewTimer(time.Second)
 	)
+	defer timer.Stop()
 	for {
 		// Wait for the next batch of downloaded data to be available, and if the pivot
 		// block became stale, move the goalpost
@@ -1850,6 +1862,7 @@ func (d *Downloader) processFastSyncContent() error {
 				oldPivot = P
 			}
 			// Wait for completion, occasionally checking for pivot staleness
+			timer.Reset(time.Second)
 			select {
 			case <-sync.done:
 				if sync.err != nil {
@@ -1860,7 +1873,7 @@ func (d *Downloader) processFastSyncContent() error {
 				}
 				oldPivot = nil
 
-			case <-time.After(time.Second):
+			case <-timer.C:
 				oldTail = afterP
 				continue
 			}

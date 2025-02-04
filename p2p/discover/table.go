@@ -207,7 +207,8 @@ func (tab *Table) getNode(id enode.ID) *enode.Node {
 func (tab *Table) closeWorkerTask() {
 	waitTicker := time.NewTicker(1 * time.Millisecond)
 	defer waitTicker.Stop()
-	timeoutChan := time.After(timeoutWorkerTaskClose)
+	timer := time.NewTimer(timeoutWorkerTaskClose)
+	defer timer.Stop()
 	for {
 		select {
 		case <-waitTicker.C:
@@ -216,7 +217,7 @@ func (tab *Table) closeWorkerTask() {
 				return
 			}
 
-		case <-timeoutChan:
+		case <-timer.C:
 			log.Warn("Timeout waiting for workerPoolTask is refill full , force exit it.")
 			return
 		}
