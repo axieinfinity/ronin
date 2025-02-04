@@ -67,6 +67,7 @@ type VotePool struct {
 	maxCurVoteAmountPerBlock int
 
 	numFutureVotePerPeer map[string]uint64      // number of queued votes per peer
+	lastFutureVoteBlock  map[string]uint64      // last block that peer has future vote
 	originatedFrom       map[common.Hash]string // mapping from vote hash to the sender
 	justifiedBlockNumber uint64
 }
@@ -89,6 +90,7 @@ func NewVotePool(
 		engine:                   engine,
 		maxCurVoteAmountPerBlock: maxCurVoteAmountPerBlock,
 		numFutureVotePerPeer:     make(map[string]uint64),
+		lastFutureVoteBlock:      make(map[string]uint64),
 		originatedFrom:           make(map[common.Hash]string),
 	}
 
@@ -141,7 +143,6 @@ func (pool *VotePool) putIntoVotePool(voteWithPeerInfo *voteWithPeer) bool {
 	targetHash := vote.Data.TargetHash
 	header := pool.chain.CurrentBlock().Header()
 	headNumber := header.Number.Uint64()
-	isValidVote := false
 
 	// Make sure in the range (currentHeight-lowerLimitOfVoteBlockNumber, currentHeight+upperLimitOfVoteBlockNumber].
 	if targetNumber+lowerLimitOfVoteBlockNumber-1 < headNumber || targetNumber > headNumber+upperLimitOfVoteBlockNumber {
@@ -157,14 +158,28 @@ func (pool *VotePool) putIntoVotePool(voteWithPeerInfo *voteWithPeer) bool {
 		return false
 	}
 
-	voteHash := vote.Hash()
+	var (
+		isValidVote  = false
+		isFutureVote = false
+		voteHash     = vote.Hash()
+	)
+
 	if _, ok := pool.originatedFrom[voteHash]; ok {
 		log.Debug("Vote pool already contained the same vote", "voteHash", voteHash)
 		return false
 	}
 	defer func() {
-		if isValidVote {
-			pool.originatedFrom[voteHash] = peer
+		if !isValidVote {
+			return
+		}
+
+		pool.originatedFrom[voteHash] = peer
+		if isFutureVote {
+			pool.numFutureVotePerPeer[peer]++
+			lastBlock := pool.lastFutureVoteBlock[peer]
+			if lastBlock < targetNumber {
+				pool.lastFutureVoteBlock[peer] = targetNumber
+			}
 		}
 	}()
 
@@ -175,7 +190,6 @@ func (pool *VotePool) putIntoVotePool(voteWithPeerInfo *voteWithPeer) bool {
 
 	var votes map[common.Hash]*VoteBox
 	var votesPq *votesPriorityQueue
-	isFutureVote := false
 
 	voteBlock := pool.chain.GetHeaderByHash(targetHash)
 	if voteBlock == nil {
@@ -193,13 +207,9 @@ func (pool *VotePool) putIntoVotePool(voteWithPeerInfo *voteWithPeer) bool {
 		if pool.numFutureVotePerPeer[peer] >= maxFutureVotePerPeer {
 			return false
 		}
-		pool.numFutureVotePerPeer[peer]++
 	}
 
 	if ok := pool.basicVerify(vote, headNumber, votes, isFutureVote, voteHash); !ok {
-		if isFutureVote {
-			pool.numFutureVotePerPeer[peer]--
-		}
 		return false
 	}
 
@@ -362,11 +372,24 @@ func (pool *VotePool) pruneVote(
 	}
 }
 
+func (pool *VotePool) pruneFutureVoteCounter(latestBlockNumber uint64) {
+	// Only keep track of couter for peer has future vote > currentBlockNum-lowerLimitOfVoteBlockNumber
+	thresholdBlock := max(int64(latestBlockNumber)-lowerLimitOfVoteBlockNumber, 0)
+	for peer, lastBlock := range pool.lastFutureVoteBlock {
+		if lastBlock <= uint64(thresholdBlock) {
+			log.Debug("Prune future vote counter for peer", "peer", peer, "lastBlock", lastBlock, "thresholdBlock", thresholdBlock, "currentBlock", latestBlockNumber)
+			delete(pool.numFutureVotePerPeer, peer)
+			delete(pool.lastFutureVoteBlock, peer)
+		}
+	}
+}
+
 // Prune old data of curVotes and futureVotes
 // The caller must hold the pool mutex
 func (pool *VotePool) prune(latestBlockNumber uint64) {
 	pool.pruneVote(latestBlockNumber, pool.curVotes, pool.curVotesPq, false)
 	pool.pruneVote(latestBlockNumber, pool.futureVotes, pool.futureVotesPq, true)
+	pool.pruneFutureVoteCounter(latestBlockNumber)
 }
 
 // GetVotes as batch.
@@ -447,6 +470,13 @@ func (pool *VotePool) stats() (int, int, int, int) {
 	defer pool.mu.RUnlock()
 
 	return len(pool.curVotes), pool.curVotesPq.Len(), len(pool.futureVotes), pool.futureVotesPq.Len()
+}
+
+func (pool *VotePool) peerTrackStats() (int, int) {
+	pool.mu.RLock()
+	defer pool.mu.RUnlock()
+
+	return len(pool.numFutureVotePerPeer), len(pool.lastFutureVoteBlock)
 }
 
 func (pool *VotePool) getNumberOfFutureVoteByPeer(peer string) uint64 {
