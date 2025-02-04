@@ -141,6 +141,7 @@ func (pool *VotePool) putIntoVotePool(voteWithPeerInfo *voteWithPeer) bool {
 	targetHash := vote.Data.TargetHash
 	header := pool.chain.CurrentBlock().Header()
 	headNumber := header.Number.Uint64()
+	isValidVote := false
 
 	// Make sure in the range (currentHeight-lowerLimitOfVoteBlockNumber, currentHeight+upperLimitOfVoteBlockNumber].
 	if targetNumber+lowerLimitOfVoteBlockNumber-1 < headNumber || targetNumber > headNumber+upperLimitOfVoteBlockNumber {
@@ -161,7 +162,11 @@ func (pool *VotePool) putIntoVotePool(voteWithPeerInfo *voteWithPeer) bool {
 		log.Debug("Vote pool already contained the same vote", "voteHash", voteHash)
 		return false
 	}
-	pool.originatedFrom[voteHash] = peer
+	defer func() {
+		if isValidVote {
+			pool.originatedFrom[voteHash] = peer
+		}
+	}()
 
 	voteData := &types.VoteData{
 		TargetNumber: targetNumber,
@@ -210,7 +215,7 @@ func (pool *VotePool) putIntoVotePool(voteWithPeerInfo *voteWithPeer) bool {
 	}
 
 	pool.putVote(votes, votesPq, vote, voteData, voteHash, isFutureVote)
-
+	isValidVote = true
 	return true
 }
 
