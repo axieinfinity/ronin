@@ -17,13 +17,11 @@ import (
 const (
 	maxFutureVoteAmountPerBlock = 64
 	maxFutureVotePerPeer        = 25
-
-	voteBufferForPut = 256
+	voteBufferForPut            = 256
 	// votes in the range (currentBlockNum-256,currentBlockNum+11] will be stored
 	lowerLimitOfVoteBlockNumber = 256
 	upperLimitOfVoteBlockNumber = 11 // refer to fetcher.maxUncleDist
-
-	chainHeadChanSize = 10 // chainHeadChanSize is the size of channel listening to ChainHeadEvent.
+	chainHeadChanSize           = 10 // chainHeadChanSize is the size of channel listening to ChainHeadEvent.
 
 	fetchCheckFrequency = 1 * time.Millisecond
 	fetchRetry          = 500
@@ -128,11 +126,7 @@ func (pool *VotePool) loop() {
 }
 
 func (pool *VotePool) PutVote(peer string, vote *types.VoteEnvelope) {
-	select {
-	case pool.votesCh <- &voteWithPeer{vote: vote, peer: peer}:
-	default:
-		log.Debug("Failed to put vote into vote pool")
-	}
+	pool.votesCh <- &voteWithPeer{vote: vote, peer: peer}
 }
 
 func (pool *VotePool) putIntoVotePool(voteWithPeerInfo *voteWithPeer) bool {
@@ -158,30 +152,12 @@ func (pool *VotePool) putIntoVotePool(voteWithPeerInfo *voteWithPeer) bool {
 		return false
 	}
 
-	var (
-		isValidVote  = false
-		isFutureVote = false
-		voteHash     = vote.Hash()
-	)
-
+	voteHash := vote.Hash()
+	isFutureVote := false
 	if _, ok := pool.originatedFrom[voteHash]; ok {
 		log.Debug("Vote pool already contained the same vote", "voteHash", voteHash)
 		return false
 	}
-	defer func() {
-		if !isValidVote {
-			return
-		}
-
-		pool.originatedFrom[voteHash] = peer
-		if isFutureVote {
-			pool.numFutureVotePerPeer[peer]++
-			lastBlock := pool.lastFutureVoteBlock[peer]
-			if lastBlock < targetNumber {
-				pool.lastFutureVoteBlock[peer] = targetNumber
-			}
-		}
-	}()
 
 	voteData := &types.VoteData{
 		TargetNumber: targetNumber,
@@ -199,6 +175,11 @@ func (pool *VotePool) putIntoVotePool(voteWithPeerInfo *voteWithPeer) bool {
 	} else {
 		votes = pool.curVotes
 		votesPq = pool.curVotesPq
+
+		// Verify if the vote target number is the same as the vote block number
+		if voteBlock.Number != nil && voteBlock.Number.Uint64() != targetNumber {
+			return false
+		}
 	}
 
 	if isFutureVote {
@@ -225,7 +206,15 @@ func (pool *VotePool) putIntoVotePool(voteWithPeerInfo *voteWithPeer) bool {
 	}
 
 	pool.putVote(votes, votesPq, vote, voteData, voteHash, isFutureVote)
-	isValidVote = true
+	pool.originatedFrom[voteHash] = peer
+	// Update the peer feature vote counter, and its last block for pruning
+	if isFutureVote {
+		pool.numFutureVotePerPeer[peer]++
+		lastBlock := pool.lastFutureVoteBlock[peer]
+		if lastBlock < targetNumber {
+			pool.lastFutureVoteBlock[peer] = targetNumber
+		}
+	}
 	return true
 }
 
@@ -377,7 +366,8 @@ func (pool *VotePool) pruneFutureVoteCounter(latestBlockNumber uint64) {
 	thresholdBlock := max(int64(latestBlockNumber)-lowerLimitOfVoteBlockNumber, 0)
 	for peer, lastBlock := range pool.lastFutureVoteBlock {
 		if lastBlock <= uint64(thresholdBlock) {
-			log.Debug("Prune future vote counter for peer", "peer", peer, "lastBlock", lastBlock, "thresholdBlock", thresholdBlock, "currentBlock", latestBlockNumber)
+			log.Debug("Prune future vote counter for peer", "peer", peer,
+				"lastBlock", lastBlock, "thresholdBlock", thresholdBlock, "currentBlock", latestBlockNumber)
 			delete(pool.numFutureVotePerPeer, peer)
 			delete(pool.lastFutureVoteBlock, peer)
 		}
