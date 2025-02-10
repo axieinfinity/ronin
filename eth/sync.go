@@ -28,6 +28,7 @@ import (
 	"github.com/ethereum/go-ethereum/eth/downloader"
 	"github.com/ethereum/go-ethereum/eth/protocols/eth"
 	"github.com/ethereum/go-ethereum/log"
+	"github.com/ethereum/go-ethereum/trie/triedb/pathdb"
 )
 
 const (
@@ -243,8 +244,23 @@ func (h *handler) doSync(op *chainSyncOp) error {
 	if err != nil {
 		return err
 	}
-	h.enableSyncedFeatures()
 
+	// If we were running fast/snap sync and it finished, disable doing another
+	// round on next sync cycle
+	if atomic.LoadUint32(&h.fastSync) == 1 {
+		log.Info("Fast sync complete, auto disabling")
+		atomic.StoreUint32(&h.fastSync, 0)
+	}
+	if atomic.LoadUint32(&h.snapSync) == 1 {
+		log.Info("Snap sync complete, auto disabling")
+		atomic.StoreUint32(&h.snapSync, 0)
+	}
+	if h.chain.TrieDB().Scheme() == rawdb.PathScheme {
+		h.chain.TrieDB().SetBufferSize(pathdb.DefaultBufferSize)
+	}
+
+	// If we've successfully finished a sync cycle and passed any required checkpoint,
+	// enable accepting transactions from the network.
 	head := h.chain.CurrentBlock()
 	if head.NumberU64() >= h.checkpointNumber {
 		// Checkpoint passed, sanity check the timestamp to have a fallback mechanism
