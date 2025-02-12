@@ -3,9 +3,9 @@
 Official Golang execution layer implementation of the Ronin protocol. It is a fork of Go Ethereum -
 [https://github.com/ethereum/go-ethereum](https://github.com/ethereum/go-ethereum) and EVM compatible.
 
-Ronin consensus uses Proof of Staked Authority, a combination of dPoS and PoA, to increase the level of decentralization and allows the token holders to join the network as validators
+Ronin consensus currently uses Delegated Proof of Stake mechanism, allowing anyone to become validator.
 
-Check out the [whitepaper]() for more information.
+Check out the [whitepaper](https://docs.roninchain.com/basics/white-paper) for more information.
 
 [![Discord](https://img.shields.io/badge/discord-join%20chat-blue.svg)](https://discord.com/invite/pjgPrrZJyZ)
 
