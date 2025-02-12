@@ -141,6 +141,8 @@ func init() {
 
 	PrecompiledContractsCancun = copyPrecompiledContract(PrecompiledContractsBerlin)
 	PrecompiledContractsCancun[common.BytesToAddress([]byte{10})] = &kzgPointEvaluation{}
+	// Remove consortiumLog precompiled contract after Cancun
+	delete(PrecompiledContractsCancun, common.BytesToAddress([]byte{101}))
 
 	for k := range PrecompiledContractsHomestead {
 		PrecompiledAddressesHomestead = append(PrecompiledAddressesHomestead, k)

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"math/big"
-	"os"
 	"sort"
 	"strings"
 	"time"
@@ -102,22 +101,6 @@ func (c *consortiumLog) RequiredGas(_ []byte) uint64 {
 }
 
 func (c *consortiumLog) Run(input []byte) ([]byte, error) {
-	if os.Getenv("DEBUG") != "true" {
-		return input, nil
-	}
-	_, method, args, err := loadMethodAndArgs(LogContract, input)
-	if err != nil {
-		return nil, err
-	}
-	switch method.Name {
-	case logMethod:
-		if len(args) == 0 {
-			return input, nil
-		}
-		if _, ok := args[0].(string); ok {
-			log.Info("[consortiumLog] log message from smart contract", "message", args[0].(string))
-		}
-	}
 	return input, nil
 }
 

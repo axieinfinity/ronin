@@ -620,6 +620,19 @@ func TestConsortiumPrecompileQuery(t *testing.T) {
 	if _, ok := precompiledContract.(*kzgPointEvaluation); !ok {
 		t.Fatal("Wrong kzg point evaluation contract")
 	}
+
+	// consortiumLog is removed after Cancun
+	consortiumLogAddr := common.BytesToAddress([]byte{101})
+	_, ok = evm.precompile(caller, consortiumLogAddr)
+	if ok {
+		t.Fatal("consortiumLog is still available after Cancun")
+	}
+	addrs := ActivePrecompiles(evm.chainRules)
+	for _, addr := range addrs {
+		if addr == consortiumLogAddr {
+			t.Fatal("consortiumLog is still available after Cancun")
+		}
+	}
 }
 
 func BenchmarkConsortiumPrecompileQuery(b *testing.B) {
