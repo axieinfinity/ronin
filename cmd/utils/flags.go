@@ -70,6 +70,7 @@ import (
 	"github.com/ethereum/go-ethereum/node"
 	"github.com/ethereum/go-ethereum/p2p"
 	"github.com/ethereum/go-ethereum/p2p/enode"
+	"github.com/ethereum/go-ethereum/p2p/enr"
 	"github.com/ethereum/go-ethereum/p2p/nat"
 	"github.com/ethereum/go-ethereum/p2p/netutil"
 	"github.com/ethereum/go-ethereum/params"
@@ -875,6 +876,11 @@ var (
 	DNSDiscoveryFlag = &cli.StringFlag{
 		Name:     "discovery.dns",
 		Usage:    "Sets DNS discovery entry points (use \"\" to disable DNS)",
+		Category: flags.NetworkingCategory,
+	}
+	DisableTxBroadcastFromFlag = &cli.StringFlag{
+		Name:     "disable-tx-broadcast.from",
+		Usage:    "Comma separated v4 node ids from which transactions are not broadcasted",
 		Category: flags.NetworkingCategory,
 	}
 
@@ -2095,6 +2101,26 @@ func SetEthConfig(ctx *cli.Context, stack *node.Node, cfg *ethconfig.Config) {
 	log.Info("Initializing the KZG library", "backend", ctx.String(CryptoKZGFlag.Name))
 	if err := kzg4844.UseCKZG(ctx.String(CryptoKZGFlag.Name) == "ckzg"); err != nil {
 		Fatalf("Failed to set KZG library implementation to %s: %v", ctx.String(CryptoKZGFlag.Name), err)
+	}
+	if ctx.IsSet(DisableTxBroadcastFromFlag.Name) {
+		scheme := enode.V4ID{}
+		nodeIds := SplitAndTrim(ctx.String(DisableTxBroadcastFromFlag.Name))
+		peerIds := make([]string, 0, len(nodeIds))
+		for _, nodeId := range nodeIds {
+			pubkey, err := enode.ParsePubkey(nodeId)
+			if err != nil {
+				log.Error("Failed to parse node id", "id", nodeId, "err", err)
+				peerIds = []string{}
+				break
+			}
+
+			var record enr.Record
+			record.Set((*enode.Secp256k1)(pubkey))
+			enodeId := (enode.ID)(scheme.NodeAddr(&record))
+			peerIds = append(peerIds, enodeId.String())
+		}
+
+		cfg.DisableTxBroadcastFrom = peerIds
 	}
 }
 

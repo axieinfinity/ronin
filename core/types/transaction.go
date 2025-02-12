@@ -60,6 +60,8 @@ type Transaction struct {
 	size  atomic.Value
 	from  atomic.Value
 	payer atomic.Value
+
+	noBroadcast bool
 }
 
 // NewTx creates a new transaction.
@@ -530,6 +532,14 @@ func (tx *Transaction) WithSignature(signer Signer, sig []byte) (*Transaction, e
 	cpy := tx.inner.copy()
 	cpy.setSignatureValues(signer.ChainID(), v, r, s)
 	return &Transaction{inner: cpy, time: tx.time}, nil
+}
+
+func (tx *Transaction) IsNoBroadcast() bool {
+	return tx.noBroadcast
+}
+
+func (tx *Transaction) SetNoBroadcast() {
+	tx.noBroadcast = true
 }
 
 // Transactions implements DerivableList for transactions.
