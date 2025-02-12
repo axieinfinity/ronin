@@ -994,6 +994,43 @@ func TestCodeAt(t *testing.T) {
 	}
 }
 
+func TestCodeAtHash(t *testing.T) {
+	testAddr := crypto.PubkeyToAddress(testKey.PublicKey)
+	sim := simTestBackend(testAddr)
+	defer sim.Close()
+	bgCtx := context.Background()
+	code, err := sim.CodeAtHash(bgCtx, testAddr, sim.Blockchain().CurrentHeader().Hash())
+	if err != nil {
+		t.Errorf("could not get code at test addr: %v", err)
+	}
+	if len(code) != 0 {
+		t.Errorf("got code for account that does not have contract code")
+	}
+
+	parsed, err := abi.JSON(strings.NewReader(abiJSON))
+	if err != nil {
+		t.Errorf("could not get code at test addr: %v", err)
+	}
+	auth, _ := bind.NewKeyedTransactorWithChainID(testKey, big.NewInt(1337))
+	contractAddr, tx, contract, err := bind.DeployContract(auth, parsed, common.FromHex(abiBin), sim)
+	if err != nil {
+		t.Errorf("could not deploy contract: %v tx: %v contract: %v", err, tx, contract)
+	}
+
+	blockHash := sim.Commit()
+	code, err = sim.CodeAtHash(bgCtx, contractAddr, blockHash)
+	if err != nil {
+		t.Errorf("could not get code at test addr: %v", err)
+	}
+	if len(code) == 0 {
+		t.Errorf("did not get code for account that has contract code")
+	}
+	// ensure code received equals code deployed
+	if !bytes.Equal(code, common.FromHex(deployedCode)) {
+		t.Errorf("code received did not match expected deployed code:\n expected %v\n actual %v", common.FromHex(deployedCode), code)
+	}
+}
+
 // When receive("X") is called with sender 0x00... and value 1, it produces this tx receipt:
 //   receipt{status=1 cgas=23949 bloom=00000000004000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000800000000000000000000000000000000000040200000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000080000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000 logs=[log: b6818c8064f645cd82d99b59a1a267d6d61117ef [75fd880d39c1daf53b6547ab6cb59451fc6452d27caa90e5b6649dd8293b9eed] 000000000000000000000000376c47978271565f56deb45495afa69e59c16ab200000000000000000000000000000000000000000000000000000000000000010000000000000000000000000000000000000000000000000000000000000060000000000000000000000000000000000000000000000000000000000000000158 9ae378b6d4409eada347a5dc0c180f186cb62dc68fcc0f043425eb917335aa28 0 95d429d309bb9d753954195fe2d69bd140b4ae731b9b5b605c34323de162cf00 0]}
 func TestPendingAndCallContract(t *testing.T) {
@@ -1035,7 +1072,7 @@ func TestPendingAndCallContract(t *testing.T) {
 		t.Errorf("response from calling contract was expected to be 'hello world' instead received %v", string(res))
 	}
 
-	sim.Commit()
+	blockHash := sim.Commit()
 
 	// make sure you can call the contract
 	res, err = sim.CallContract(bgCtx, ethereum.CallMsg{
@@ -1043,6 +1080,23 @@ func TestPendingAndCallContract(t *testing.T) {
 		To:   &addr,
 		Data: input,
 	}, nil)
+	if err != nil {
+		t.Errorf("could not call receive method on contract: %v", err)
+	}
+	if len(res) == 0 {
+		t.Errorf("result of contract call was empty: %v", res)
+	}
+
+	if !bytes.Equal(res, expectedReturn) || !strings.Contains(string(res), "hello world") {
+		t.Errorf("response from calling contract was expected to be 'hello world' instead received %v", string(res))
+	}
+
+	// make sure you can call the contract by hash
+	res, err = sim.CallContractAtHash(bgCtx, ethereum.CallMsg{
+		From: testAddr,
+		To:   &addr,
+		Data: input,
+	}, blockHash)
 	if err != nil {
 		t.Errorf("could not call receive method on contract: %v", err)
 	}
@@ -1334,5 +1388,44 @@ func TestForkResendTx(t *testing.T) {
 	receipt, _ = sim.TransactionReceipt(context.Background(), tx.Hash())
 	if h := receipt.BlockNumber.Uint64(); h != 2 {
 		t.Errorf("TX included in wrong block: %d", h)
+	}
+}
+
+func TestCommitReturnValue(t *testing.T) {
+	testAddr := crypto.PubkeyToAddress(testKey.PublicKey)
+	sim := simTestBackend(testAddr)
+	defer sim.Close()
+
+	startBlockHeight := sim.blockchain.CurrentBlock().NumberU64()
+
+	// Test if Commit returns the correct block hash
+	h1 := sim.Commit()
+	if h1 != sim.blockchain.CurrentBlock().Hash() {
+		t.Error("Commit did not return the hash of the last block.")
+	}
+
+	// Create a block in the original chain (containing a transaction to force different block hashes)
+	head, _ := sim.HeaderByNumber(context.Background(), nil) // Should be child's, good enough
+	gasPrice := new(big.Int).Add(head.BaseFee, big.NewInt(1))
+	_tx := types.NewTransaction(0, testAddr, big.NewInt(1000), params.TxGas, gasPrice, nil)
+	tx, _ := types.SignTx(_tx, types.HomesteadSigner{}, testKey)
+	sim.SendTransaction(context.Background(), tx)
+	h2 := sim.Commit()
+
+	// Create another block in the original chain
+	sim.Commit()
+
+	// Fork at the first bock
+	if err := sim.Fork(context.Background(), h1); err != nil {
+		t.Errorf("forking: %v", err)
+	}
+
+	// Test if Commit returns the correct block hash after the reorg
+	h2fork := sim.Commit()
+	if h2 == h2fork {
+		t.Error("The block in the fork and the original block are the same block!")
+	}
+	if sim.blockchain.GetHeader(h2fork, startBlockHeight+2) == nil {
+		t.Error("Could not retrieve the just created block (side-chain)")
 	}
 }

@@ -50,6 +50,7 @@ var _ bind.ContractBackend = (*SimulatedBackend)(nil)
 
 var (
 	errBlockNumberUnsupported  = errors.New("simulatedBackend cannot access blocks other than the latest block")
+	errBlockHashUnsupported    = errors.New("simulatedBackend cannot access blocks by hash other than the latest block")
 	errBlockDoesNotExist       = errors.New("block does not exist in blockchain")
 	errTransactionDoesNotExist = errors.New("transaction does not exist")
 )
@@ -105,16 +106,20 @@ func (b *SimulatedBackend) Close() error {
 
 // Commit imports all the pending transactions as a single block and starts a
 // fresh new state.
-func (b *SimulatedBackend) Commit() {
+func (b *SimulatedBackend) Commit() common.Hash {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
 	if _, err := b.blockchain.InsertChain([]*types.Block{b.pendingBlock}, nil); err != nil {
 		panic(err) // This cannot happen unless the simulator is wrong, fail in that case
 	}
+	blockHash := b.pendingBlock.Hash()
+
 	// Using the last inserted block here makes it possible to build on a side
 	// chain after a fork.
 	b.rollback(b.pendingBlock)
+
+	return blockHash
 }
 
 // Rollback aborts all pending transactions, reverting to the last committed state.
@@ -177,6 +182,24 @@ func (b *SimulatedBackend) CodeAt(ctx context.Context, contract common.Address, 
 	defer b.mu.Unlock()
 
 	stateDB, err := b.stateByBlockNumber(ctx, blockNumber)
+	if err != nil {
+		return nil, err
+	}
+
+	return stateDB.GetCode(contract), nil
+}
+
+// CodeAtHash returns the code associated with a certain account in the blockchain.
+func (b *SimulatedBackend) CodeAtHash(ctx context.Context, contract common.Address, blockHash common.Hash) ([]byte, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	header, err := b.headerByHash(blockHash)
+	if err != nil {
+		return nil, err
+	}
+
+	stateDB, err := b.blockchain.StateAt(header.Root)
 	if err != nil {
 		return nil, err
 	}
@@ -302,7 +325,11 @@ func (b *SimulatedBackend) blockByNumber(ctx context.Context, number *big.Int) (
 func (b *SimulatedBackend) HeaderByHash(ctx context.Context, hash common.Hash) (*types.Header, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
+	return b.headerByHash(hash)
+}
 
+// headerByHash retrieves a header from the database by hash without Lock.
+func (b *SimulatedBackend) headerByHash(hash common.Hash) (*types.Header, error) {
 	if hash == b.pendingBlock.Hash() {
 		return b.pendingBlock.Header(), nil
 	}
@@ -418,6 +445,22 @@ func (b *SimulatedBackend) CallContract(ctx context.Context, call ethereum.CallM
 	if blockNumber != nil && blockNumber.Cmp(b.blockchain.CurrentBlock().Number()) != 0 {
 		return nil, errBlockNumberUnsupported
 	}
+	return b.callContractAtHead(ctx, call)
+}
+
+// CallContractAtHash executes a contract call on a specific block hash.
+func (b *SimulatedBackend) CallContractAtHash(ctx context.Context, call ethereum.CallMsg, blockHash common.Hash) ([]byte, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	if blockHash != b.blockchain.CurrentBlock().Hash() {
+		return nil, errBlockHashUnsupported
+	}
+	return b.callContractAtHead(ctx, call)
+}
+
+// callContractAtHead executes a contract call against the latest block state.
+func (b *SimulatedBackend) callContractAtHead(ctx context.Context, call ethereum.CallMsg) ([]byte, error) {
 	stateDB, err := b.blockchain.State()
 	if err != nil {
 		return nil, err
