@@ -479,6 +479,71 @@ func TestVotePoolDosProtection(t *testing.T) {
 	}
 }
 
+func TestVotePoolPruneFutureVoteCounter(t *testing.T) {
+	// Create a database pre-initialize with a genesis block
+	db := rawdb.NewMemoryDatabase()
+	genesis := (&core.Genesis{
+		Config:  params.TestChainConfig,
+		Alloc:   core.GenesisAlloc{testAddr: {Balance: big.NewInt(1000000)}},
+		BaseFee: big.NewInt(params.InitialBaseFee),
+	}).MustCommit(db)
+	chain, _ := core.NewBlockChain(db, nil, params.TestChainConfig, ethash.NewFullFaker(), vm.Config{}, nil, nil)
+	bs, _ := core.GenerateChain(params.TestChainConfig, genesis, ethash.NewFaker(), db, lowerLimitOfVoteBlockNumber+1, nil, true)
+	if _, err := chain.InsertChain(bs[:1], nil); err != nil {
+		panic(err)
+	}
+	mockEngine := &mockPOSA{}
+
+	// Create vote pool
+	voteNum := lowerLimitOfVoteBlockNumber
+	votePool := NewVotePool(chain, mockEngine, voteNum)
+	secretKey, err := bls.RandKey()
+	if err != nil {
+		t.Fatalf("Failed to create secret key, err %s", err)
+	}
+
+	// Test prune future vote counter for malicious peer
+	for i := 0; i < voteNum; i++ {
+		vote := generateVote(1, common.BigToHash(big.NewInt(int64(i))), secretKey)
+		votePool.PutVote(fmt.Sprintf("XXXX-%d", i), vote)
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	currentPeerCouter, currentPeerTrackLength := votePool.peerTrackStats()
+	if currentPeerCouter != voteNum {
+		t.Fatalf("Current peer counter, expect %d have %d", voteNum, currentPeerCouter)
+	}
+	if currentPeerTrackLength != voteNum {
+		t.Fatalf("Current peer track length, expect %d have %d", voteNum, currentPeerTrackLength)
+	}
+
+	if _, err := chain.InsertChain(bs[1:voteNum-1], nil); err != nil {
+		panic(err)
+	}
+
+	time.Sleep(500 * time.Millisecond)
+	currentPeerCouter, currentPeerTrackLength = votePool.peerTrackStats()
+	if currentPeerCouter != voteNum {
+		t.Fatalf("Current peer counter, expect %d have %d", voteNum, currentPeerCouter)
+	}
+	if currentPeerTrackLength != voteNum {
+		t.Fatalf("Current peer track length, expect %d have %d", voteNum, currentPeerTrackLength)
+	}
+
+	if _, err := chain.InsertChain(bs[voteNum-1:], nil); err != nil {
+		panic(err)
+	}
+
+	time.Sleep(100 * time.Millisecond)
+	currentPeerCouter, currentPeerTrackLength = votePool.peerTrackStats()
+	if currentPeerCouter != 0 {
+		t.Fatalf("Current peer counter, expect %d have %d", 0, currentPeerCouter)
+	}
+	if currentPeerTrackLength != 0 {
+		t.Fatalf("Current peer track length, expect %d have %d", 0, currentPeerTrackLength)
+	}
+}
+
 type mockPOSAv2 struct {
 	consensus.FastFinalityPoSA
 }
