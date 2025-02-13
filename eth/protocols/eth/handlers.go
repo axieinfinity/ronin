@@ -455,7 +455,7 @@ func answerGetPooledTransactions(backend Backend, query GetPooledTransactionsPac
 		}
 		// Retrieve the requested transaction, skipping if unknown to us
 		tx := backend.TxPool().Get(hash)
-		if tx == nil {
+		if tx == nil || tx.IsNoBroadcast() {
 			continue
 		}
 		// If known, encode and queue for response packet

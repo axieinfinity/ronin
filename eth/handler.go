@@ -88,18 +88,19 @@ type txPool interface {
 // handlerConfig is the collection of initialization parameters to create a full
 // node network handler.
 type handlerConfig struct {
-	NodeID               enode.ID                  // P2P node ID used for tx propagation topology
-	Database             ethdb.Database            // Database for direct sync insertions
-	Chain                *core.BlockChain          // Blockchain to serve data from
-	TxPool               txPool                    // Transaction pool to propagate from
-	Network              uint64                    // Network identifier to adfvertise
-	Sync                 downloader.SyncMode       // Whether to fast or full sync
-	BloomCache           uint64                    // Megabytes to alloc for fast sync bloom
-	EventMux             *event.TypeMux            // Legacy event mux, deprecate for `feed`
-	Checkpoint           *params.TrustedCheckpoint // Hard coded checkpoint for sync challenges
-	Whitelist            map[uint64]common.Hash    // Hard coded whitelist for sync challenged
-	DisableRoninProtocol bool                      // Ronin protocol is enabled
-	VotePool             *vote.VotePool            // Vote pool when fast finality is enabled
+	NodeID                 enode.ID                  // P2P node ID used for tx propagation topology
+	Database               ethdb.Database            // Database for direct sync insertions
+	Chain                  *core.BlockChain          // Blockchain to serve data from
+	TxPool                 txPool                    // Transaction pool to propagate from
+	Network                uint64                    // Network identifier to adfvertise
+	Sync                   downloader.SyncMode       // Whether to fast or full sync
+	BloomCache             uint64                    // Megabytes to alloc for fast sync bloom
+	EventMux               *event.TypeMux            // Legacy event mux, deprecate for `feed`
+	Checkpoint             *params.TrustedCheckpoint // Hard coded checkpoint for sync challenges
+	Whitelist              map[uint64]common.Hash    // Hard coded whitelist for sync challenged
+	DisableRoninProtocol   bool                      // Ronin protocol is enabled
+	VotePool               *vote.VotePool            // Vote pool when fast finality is enabled
+	DisableTxBroadcastFrom []string
 }
 
 type handler struct {
@@ -145,6 +146,8 @@ type handler struct {
 	votePool             *vote.VotePool
 	voteCh               chan core.NewVoteEvent
 	voteSub              event.Subscription
+
+	disableTxBroadcastFrom map[string]struct{}
 }
 
 // newHandler returns a handler for all Ethereum chain management protocol.
@@ -154,20 +157,24 @@ func newHandler(config *handlerConfig) (*handler, error) {
 		config.EventMux = new(event.TypeMux) // Nicety initialization for tests
 	}
 	h := &handler{
-		nodeID:               config.NodeID,
-		networkID:            config.Network,
-		forkFilter:           forkid.NewFilter(config.Chain),
-		eventMux:             config.EventMux,
-		database:             config.Database,
-		txpool:               config.TxPool,
-		chain:                config.Chain,
-		peers:                newPeerSet(),
-		whitelist:            config.Whitelist,
-		quitSync:             make(chan struct{}),
-		handlerDoneCh:        make(chan struct{}),
-		handlerStartCh:       make(chan struct{}),
-		disableRoninProtocol: config.DisableRoninProtocol,
-		votePool:             config.VotePool,
+		nodeID:                 config.NodeID,
+		networkID:              config.Network,
+		forkFilter:             forkid.NewFilter(config.Chain),
+		eventMux:               config.EventMux,
+		database:               config.Database,
+		txpool:                 config.TxPool,
+		chain:                  config.Chain,
+		peers:                  newPeerSet(),
+		whitelist:              config.Whitelist,
+		quitSync:               make(chan struct{}),
+		handlerDoneCh:          make(chan struct{}),
+		handlerStartCh:         make(chan struct{}),
+		disableRoninProtocol:   config.DisableRoninProtocol,
+		votePool:               config.VotePool,
+		disableTxBroadcastFrom: make(map[string]struct{}),
+	}
+	for _, peerId := range config.DisableTxBroadcastFrom {
+		h.disableTxBroadcastFrom[peerId] = struct{}{}
 	}
 	if config.Sync == downloader.FullSync {
 		// The database seems empty as the current block is the genesis. Yet the fast
@@ -605,6 +612,11 @@ func (h *handler) BroadcastTransactions(txs types.Transactions) {
 		hash   = make([]byte, 32)
 	)
 	for _, tx := range txs {
+		if tx.IsNoBroadcast() {
+			log.Debug("Transaction is not allowed to be broadcasted", "hash", tx.Hash())
+			continue
+		}
+
 		var maybeDirect bool
 		switch {
 		case tx.Type() == types.BlobTxType:

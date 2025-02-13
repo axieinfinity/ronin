@@ -112,6 +112,11 @@ func (h *ethHandler) Handle(peer *eth.Peer, packet eth.Packet) error {
 		return h.txFetcher.Enqueue(peer.ID(), *packet, false)
 
 	case *eth.PooledTransactionsPacket:
+		if _, ok := h.disableTxBroadcastFrom[peer.ID()]; ok {
+			for _, tx := range *packet {
+				tx.SetNoBroadcast()
+			}
+		}
 		return h.txFetcher.Enqueue(peer.ID(), *packet, true)
 
 	default:

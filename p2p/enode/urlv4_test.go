@@ -158,7 +158,7 @@ var parseNodeTests = []struct {
 }
 
 func hexPubkey(h string) *ecdsa.PublicKey {
-	k, err := parsePubkey(h)
+	k, err := ParsePubkey(h)
 	if err != nil {
 		panic(err)
 	}

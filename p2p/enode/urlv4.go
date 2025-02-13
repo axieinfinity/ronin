@@ -71,7 +71,7 @@ func MustParseV4(rawurl string) *Node {
 //    enode://<hex node id>@10.3.58.6:30303?discport=30301
 func ParseV4(rawurl string) (*Node, error) {
 	if m := incompleteNodeURL.FindStringSubmatch(rawurl); m != nil {
-		id, err := parsePubkey(m[1])
+		id, err := ParsePubkey(m[1])
 		if err != nil {
 			return nil, fmt.Errorf("invalid public key (%v)", err)
 		}
@@ -123,7 +123,7 @@ func parseComplete(rawurl string) (*Node, error) {
 	if u.User == nil {
 		return nil, errors.New("does not contain node ID")
 	}
-	if id, err = parsePubkey(u.User.String()); err != nil {
+	if id, err = ParsePubkey(u.User.String()); err != nil {
 		return nil, fmt.Errorf("invalid public key (%v)", err)
 	}
 	// Parse the IP address.
@@ -154,8 +154,8 @@ func parseComplete(rawurl string) (*Node, error) {
 	return NewV4(id, ip, int(tcpPort), int(udpPort)), nil
 }
 
-// parsePubkey parses a hex-encoded secp256k1 public key.
-func parsePubkey(in string) (*ecdsa.PublicKey, error) {
+// ParsePubkey parses a hex-encoded secp256k1 public key.
+func ParsePubkey(in string) (*ecdsa.PublicKey, error) {
 	b, err := hex.DecodeString(in)
 	if err != nil {
 		return nil, err

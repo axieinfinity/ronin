@@ -230,6 +230,9 @@ type Config struct {
 
 	// Send additional chain event
 	EnableAdditionalChainEvent bool
+
+	// Don't broadcast transactions that are originated from these peer ids
+	DisableTxBroadcastFrom []string
 }
 
 // CreateConsensusEngine creates a consensus engine for the given chain configuration.
