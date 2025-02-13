@@ -17,6 +17,7 @@
 package abi
 
 import (
+	"math"
 	"math/big"
 	"reflect"
 	"testing"
@@ -54,9 +55,27 @@ func TestMakeTopics(t *testing.T) {
 			false,
 		},
 		{
-			"support *big.Int types in topics",
-			args{[][]interface{}{{big.NewInt(1).Lsh(big.NewInt(2), 254)}}},
-			[][]common.Hash{{common.Hash{128}}},
+			"support positive *big.Int types in topics",
+			args{[][]interface{}{
+				{big.NewInt(1)},
+				{big.NewInt(1).Lsh(big.NewInt(2), 254)},
+			}},
+			[][]common.Hash{
+				{common.HexToHash("0000000000000000000000000000000000000000000000000000000000000001")},
+				{common.Hash{128}},
+			},
+			false,
+		},
+		{
+			"support negative *big.Int types in topics",
+			args{[][]interface{}{
+				{big.NewInt(-1)},
+				{big.NewInt(math.MinInt64)},
+			}},
+			[][]common.Hash{
+				{common.HexToHash("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")},
+				{common.HexToHash("ffffffffffffffffffffffffffffffffffffffffffffffff8000000000000000")},
+			},
 			false,
 		},
 		{
@@ -128,6 +147,23 @@ func TestMakeTopics(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("does not mutate big.Int", func(t *testing.T) {
+		t.Parallel()
+		want := [][]common.Hash{{common.HexToHash("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")}}
+
+		in := big.NewInt(-1)
+		got, err := MakeTopics([]interface{}{in})
+		if err != nil {
+			t.Fatalf("makeTopics() error = %v", err)
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("makeTopics() = %v, want %v", got, want)
+		}
+		if orig := big.NewInt(-1); in.Cmp(orig) != 0 {
+			t.Fatalf("makeTopics() mutated an input parameter from %v to %v", orig, in)
+		}
+	})
 }
 
 type args struct {
