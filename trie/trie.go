@@ -66,6 +66,11 @@ type Trie struct {
 	// hashing operation. This number will not directly map to the number of
 	// actually unhashed nodes
 	unhashed int
+
+	// The trie is already copied so we might share the trie node with
+	// other tries. If shared is false, we are the exclusive owner of
+	// the trie so we can modify it in place without copying.
+	shared bool
 }
 
 // newFlag returns the cache flag value for a newly created node.
@@ -136,14 +141,22 @@ func (t *Trie) tryGet(origNode node, key []byte, pos int) (value []byte, newnode
 		}
 		value, newnode, didResolve, err = t.tryGet(n.Val, key, pos+len(n.Key))
 		if err == nil && didResolve {
-			n = n.copy()
+			// This node might be shared with other tries, we must copy before
+			// modifying
+			if t.shared {
+				n = n.copy()
+			}
 			n.Val = newnode
 		}
 		return value, n, didResolve, err
 	case *fullNode:
 		value, newnode, didResolve, err = t.tryGet(n.Children[key[pos]], key, pos+1)
 		if err == nil && didResolve {
-			n = n.copy()
+			// This node might be shared with other tries, we must copy before
+			// modifying
+			if t.shared {
+				n = n.copy()
+			}
 			n.Children[key[pos]] = newnode
 		}
 		return value, n, didResolve, err
@@ -210,7 +223,11 @@ func (t *Trie) tryGetNode(origNode node, path []byte, pos int) (item []byte, new
 		}
 		item, newnode, resolved, err = t.tryGetNode(n.Val, path, pos+len(n.Key))
 		if err == nil && resolved > 0 {
-			n = n.copy()
+			// This node might be shared with other tries, we must copy before
+			// modifying
+			if t.shared {
+				n = n.copy()
+			}
 			n.Val = newnode
 		}
 		return item, n, resolved, err
@@ -218,7 +235,11 @@ func (t *Trie) tryGetNode(origNode node, path []byte, pos int) (item []byte, new
 	case *fullNode:
 		item, newnode, resolved, err = t.tryGetNode(n.Children[path[pos]], path, pos+1)
 		if err == nil && resolved > 0 {
-			n = n.copy()
+			// This node might be shared with other tries, we must copy before
+			// modifying
+			if t.shared {
+				n = n.copy()
+			}
 			n.Children[path[pos]] = newnode
 		}
 		return item, n, resolved, err
@@ -300,7 +321,14 @@ func (t *Trie) insert(n node, prefix, key []byte, value node) (bool, node, error
 			if !dirty || err != nil {
 				return false, n, err
 			}
-			return true, &shortNode{n.Key, nn, t.newFlag()}, nil
+			if t.shared {
+				// This node might be shared with other tries, we must create a new node
+				return true, &shortNode{n.Key, nn, t.newFlag()}, nil
+			} else {
+				n.Val = nn
+				n.flags = t.newFlag()
+				return true, n, nil
+			}
 		}
 		// Otherwise branch out at the index where they differ.
 		branch := &fullNode{flags: t.newFlag()}
@@ -317,15 +345,28 @@ func (t *Trie) insert(n node, prefix, key []byte, value node) (bool, node, error
 		if matchlen == 0 {
 			return true, branch, nil
 		}
-		// Otherwise, replace it with a short node leading up to the branch.
-		return true, &shortNode{key[:matchlen], branch, t.newFlag()}, nil
+		// Otherwise, replace it with a new short node leading up to the branch if
+		// trie is shared; otherwise, modify the current short node to point to the
+		// new branch.
+		if t.shared {
+			return true, &shortNode{key[:matchlen], branch, t.newFlag()}, nil
+		} else {
+			n.Key = key[:matchlen]
+			n.Val = branch
+			n.flags = t.newFlag()
+			return true, n, nil
+		}
 
 	case *fullNode:
 		dirty, nn, err := t.insert(n.Children[key[0]], append(prefix, key[0]), key[1:], value)
 		if !dirty || err != nil {
 			return false, n, err
 		}
-		n = n.copy()
+		// This node might be shared with other tries, we must copy before
+		// modifying
+		if t.shared {
+			n = n.copy()
+		}
 		n.flags = t.newFlag()
 		n.Children[key[0]] = nn
 		return true, n, nil
@@ -401,9 +442,24 @@ func (t *Trie) delete(n node, prefix, key []byte) (bool, node, error) {
 			// always creates a new slice) instead of append to
 			// avoid modifying n.Key since it might be shared with
 			// other nodes.
-			return true, &shortNode{concat(n.Key, child.Key...), child.Val, t.newFlag()}, nil
+			if t.shared {
+				// This node might be shared with other tries, we must create a new node
+				return true, &shortNode{concat(n.Key, child.Key...), child.Val, t.newFlag()}, nil
+			} else {
+				n.Key = concat(n.Key, child.Key...)
+				n.Val = child.Val
+				n.flags = t.newFlag()
+				return true, n, nil
+			}
 		default:
-			return true, &shortNode{n.Key, child, t.newFlag()}, nil
+			if t.shared {
+				// This node might be shared with other tries, we must create a new node
+				return true, &shortNode{n.Key, child, t.newFlag()}, nil
+			} else {
+				n.Val = child
+				n.flags = t.newFlag()
+				return true, n, nil
+			}
 		}
 
 	case *fullNode:
@@ -411,7 +467,11 @@ func (t *Trie) delete(n node, prefix, key []byte) (bool, node, error) {
 		if !dirty || err != nil {
 			return false, n, err
 		}
-		n = n.copy()
+		// This node might be shared with other tries, we must copy before
+		// modifying
+		if t.shared {
+			n = n.copy()
+		}
 		n.flags = t.newFlag()
 		n.Children[key[0]] = nn
 

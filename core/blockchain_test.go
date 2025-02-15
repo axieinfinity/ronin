@@ -17,6 +17,7 @@
 package core
 
 import (
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -2472,6 +2473,78 @@ func BenchmarkBlockChain_1x1000Executions(b *testing.B) {
 		return nil
 	}
 	benchmarkLargeNumberOfValueToNonexisting(b, numTxs, numBlocks, recipientFn, dataFn)
+}
+
+func BenchmarkBlockChain_1000StorageUpdate(b *testing.B) {
+	var (
+		numTxs          = 1000
+		signer          = types.HomesteadSigner{}
+		testBankKey, _  = crypto.HexToECDSA("b71c71a67e1177ad4e901695e1b4b9ee17ae16c6668d313eac2f96dbcda3f291")
+		testBankAddress = crypto.PubkeyToAddress(testBankKey.PublicKey)
+		bankFunds       = big.NewInt(100000000000000000)
+		contractAddress = common.HexToAddress("0x1234")
+		gspec           = Genesis{
+			Config: params.TestChainConfig,
+			Alloc: GenesisAlloc{
+				testBankAddress: {Balance: bankFunds},
+				contractAddress: {
+					Nonce:   1,
+					Balance: common.Big0,
+					// Store 1 into slot passed by calldata
+					Code: []byte{
+						byte(vm.PUSH0),
+						byte(vm.CALLDATALOAD),
+						byte(vm.PUSH1),
+						byte(0x1),
+						byte(vm.SWAP1),
+						byte(vm.SSTORE),
+						byte(vm.STOP),
+					},
+				},
+			},
+			GasLimit: 100e6, // 100 M
+		}
+	)
+	// Generate the original common chain segment and the two competing forks
+	engine := ethash.NewFaker()
+	db := rawdb.NewMemoryDatabase()
+	genesis := gspec.MustCommit(db)
+
+	blockGenerator := func(i int, block *BlockGen) {
+		block.SetCoinbase(common.Address{1})
+		for txi := 0; txi < numTxs; txi++ {
+			var calldata [32]byte
+			binary.BigEndian.PutUint64(calldata[:], uint64(txi))
+			tx, err := types.SignTx(
+				types.NewTransaction(uint64(txi), contractAddress, common.Big0, 100_000,
+					block.header.BaseFee, calldata[:]),
+				signer,
+				testBankKey)
+			if err != nil {
+				b.Error(err)
+			}
+			block.AddTx(tx)
+		}
+	}
+
+	shared, _ := GenerateChain(params.TestChainConfig, genesis, engine, db, 1, blockGenerator, true)
+	b.StopTimer()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		// Import the shared chain and the original canonical one
+		diskdb := rawdb.NewMemoryDatabase()
+		gspec.MustCommit(diskdb)
+
+		chain, err := NewBlockChain(diskdb, nil, params.TestChainConfig, engine, vm.Config{}, nil, nil)
+		if err != nil {
+			b.Fatalf("failed to create tester chain: %v", err)
+		}
+		b.StartTimer()
+		if _, err := chain.InsertChain(shared, nil); err != nil {
+			b.Fatalf("failed to insert shared chain: %v", err)
+		}
+		b.StopTimer()
+	}
 }
 
 // Tests that importing a some old blocks, where all blocks are before the

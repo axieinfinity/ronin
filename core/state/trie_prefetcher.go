@@ -22,6 +22,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/ethereum/go-ethereum/metrics"
+	"github.com/ethereum/go-ethereum/trie"
 )
 
 var (
@@ -40,6 +41,9 @@ type triePrefetcher struct {
 	fetches  map[common.Hash]Trie        // Partially or fully fetcher tries
 	fetchers map[common.Hash]*subfetcher // Subfetchers for each trie
 
+	shared     bool // shared is set if the prefetcher is copied
+	sharedTrie map[common.Hash]struct{}
+
 	deliveryMissMeter metrics.Meter
 	accountLoadMeter  metrics.Meter
 	accountDupMeter   metrics.Meter
@@ -55,9 +59,10 @@ type triePrefetcher struct {
 func newTriePrefetcher(db Database, root common.Hash, namespace string) *triePrefetcher {
 	prefix := triePrefetchMetricsPrefix + namespace
 	p := &triePrefetcher{
-		db:       db,
-		root:     root,
-		fetchers: make(map[common.Hash]*subfetcher), // Active prefetchers use the fetchers map
+		db:         db,
+		root:       root,
+		fetchers:   make(map[common.Hash]*subfetcher), // Active prefetchers use the fetchers map
+		sharedTrie: make(map[common.Hash]struct{}),
 
 		deliveryMissMeter: metrics.GetOrRegisterMeter(prefix+"/deliverymiss", nil),
 		accountLoadMeter:  metrics.GetOrRegisterMeter(prefix+"/account/load", nil),
@@ -109,10 +114,12 @@ func (p *triePrefetcher) close() {
 // is mostly used in the miner which creates a copy of it's actively mutated
 // state to be sealed while it may further mutate the state.
 func (p *triePrefetcher) copy() *triePrefetcher {
+	p.shared = true
 	copy := &triePrefetcher{
 		db:      p.db,
 		root:    p.root,
 		fetches: make(map[common.Hash]Trie), // Active prefetchers use the fetches map
+		shared:  true,
 
 		deliveryMissMeter: p.deliveryMissMeter,
 		accountLoadMeter:  p.accountLoadMeter,
@@ -152,6 +159,12 @@ func (p *triePrefetcher) prefetch(root common.Hash, keys [][]byte) {
 	if fetcher == nil {
 		fetcher = newSubfetcher(p.db, root)
 		p.fetchers[root] = fetcher
+	} else {
+		// The same trie root is scheduled to be prefetched more than once.
+		// It might be the case that storage tries of 2 different accounts
+		// are the same. Mark this trie as shared so that we don't mark the
+		// trie as unshared in the bellow trie() function.
+		p.sharedTrie[root] = struct{}{}
 	}
 	fetcher.schedule(keys)
 }
@@ -178,12 +191,21 @@ func (p *triePrefetcher) trie(root common.Hash) Trie {
 	// a copy of any pre-loaded trie.
 	fetcher.abort() // safe to do multiple times
 
-	trie := fetcher.peek()
-	if trie == nil {
+	tr := fetcher.peek()
+	if tr == nil {
 		p.deliveryMissMeter.Mark(1)
 		return nil
 	}
-	return trie
+
+	if !p.shared {
+		if _, shared := p.sharedTrie[root]; !shared {
+			if tr, ok := tr.(*trie.SecureTrie); ok {
+				tr.UnshareTrie()
+			}
+		}
+	}
+
+	return tr
 }
 
 // used marks a batch of state items used to allow creating statistics as to
