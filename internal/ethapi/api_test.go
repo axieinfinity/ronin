@@ -598,7 +598,7 @@ func (b testBackend) SubscribeNewTxsEvent(events chan<- core.NewTxsEvent) event.
 }
 func (b testBackend) ChainConfig() *params.ChainConfig { return b.chain.Config() }
 func (b testBackend) Engine() consensus.Engine         { return b.chain.Engine() }
-func (b testBackend) GetLogs(ctx context.Context, blockHash common.Hash) ([][]*types.Log, error) {
+func (b testBackend) GetLogs(ctx context.Context, blockHash common.Hash, blockNumber uint64) ([][]*types.Log, error) {
 	panic("implement me")
 }
 func (b testBackend) SubscribeRemovedLogsEvent(ch chan<- core.RemovedLogsEvent) event.Subscription {
