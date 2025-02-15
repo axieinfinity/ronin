@@ -283,6 +283,88 @@ func (t *Trie) TryUpdate(key, value []byte) error {
 	return nil
 }
 
+// TryBatchInsert batches multiple insert together.
+//
+// When the root node after resolving is a fullnode, TryBatchInsert will split
+// the key, value list based on the first byte of key and spawn multiple
+// goroutines to insert these lists parallel.
+func (t *Trie) TryBatchInsert(keys, values [][]byte) error {
+	t.unhashed += len(keys)
+
+	var (
+		resolvedNode node = t.root
+		err          error
+	)
+	if node, ok := t.root.(hashNode); ok {
+		resolvedNode, err = t.resolveHash(node, nil)
+		if err != nil {
+			return err
+		}
+	}
+
+	if fnode, ok := resolvedNode.(*fullNode); ok {
+		type insertTask struct {
+			key   []byte
+			value []byte
+		}
+
+		var insertTasks [17][]insertTask
+		for i := range keys {
+			k := keybytesToHex(keys[i])
+			insertTasks[k[0]] = append(insertTasks[k[0]], insertTask{
+				key:   k,
+				value: values[i],
+			})
+		}
+
+		var (
+			wg            sync.WaitGroup
+			returnedNodes [17]node
+			errors        [17]error
+		)
+		wg.Add(17)
+		for i, tasks := range insertTasks {
+			go func(index int, tasks []insertTask) {
+				defer wg.Done()
+
+				var err error
+				taskNode := fnode.Children[index]
+				for _, task := range tasks {
+					_, taskNode, err = t.insert(taskNode, []byte{byte(index)}, task.key[1:], valueNode(task.value))
+					if err != nil {
+						break
+					}
+				}
+
+				errors[index] = err
+				returnedNodes[index] = taskNode
+			}(i, tasks)
+		}
+
+		wg.Wait()
+		for _, err := range errors {
+			if err != nil {
+				return err
+			}
+		}
+		var newFullNode fullNode
+		copy(newFullNode.Children[:], returnedNodes[:])
+		newFullNode.flags = t.newFlag()
+		t.root = &newFullNode
+	} else {
+		for i := range keys {
+			k := keybytesToHex(keys[i])
+			_, n, err := t.insert(t.root, nil, k, valueNode(values[i]))
+			if err != nil {
+				return err
+			}
+			t.root = n
+		}
+	}
+
+	return nil
+}
+
 func (t *Trie) insert(n node, prefix, key []byte, value node) (bool, node, error) {
 	if len(key) == 0 {
 		if v, ok := n.(valueNode); ok {
