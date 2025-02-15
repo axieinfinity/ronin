@@ -17,6 +17,8 @@
 package vm
 
 import (
+	"fmt"
+
 	"github.com/ethereum/go-ethereum/params"
 )
 
@@ -65,6 +67,24 @@ var (
 // JumpTable contains the EVM opcodes supported at a given fork.
 type JumpTable [256]*operation
 
+func validate(jt JumpTable) JumpTable {
+	for i, op := range jt {
+		if op == nil {
+			continue
+		}
+		// The interpreter has an assumption that if the memorySize function is
+		// set, then the dynamicGas function is also set. This is a somewhat
+		// arbitrary assumption, and can be removed if we need to -- but it
+		// allows us to avoid a condition check. As long as we have that assumption
+		// in there, this little sanity check prevents us from merging in a
+		// change which violates it.
+		if op.memorySize != nil && op.dynamicGas == nil {
+			panic(fmt.Sprintf("op %v has dynamic memory but not dynamic gas", OpCode(i).String()))
+		}
+	}
+	return jt
+}
+
 func newCancunInstructionSet() JumpTable {
 	instructionSet := newShanghaiInstructionSet()
 	enable4844(&instructionSet) // EIP-4844 (BLOBHASH opcode)
@@ -72,14 +92,14 @@ func newCancunInstructionSet() JumpTable {
 	enable1153(&instructionSet) // EIP-1153 "Transient Storage"
 	enable5656(&instructionSet) // EIP-5656 (MCOPY opcode)
 	enable6780(&instructionSet) // EIP-6780 SELFDESTRUCT only in same transaction
-	return instructionSet
+	return validate(instructionSet)
 }
 
 func newShanghaiInstructionSet() JumpTable {
 	instructionSet := newLondonInstructionSet()
 	enable3855(&instructionSet) // PUSH0 instruction
 	enable3860(&instructionSet) // Limit and meter initcode
-	return instructionSet
+	return validate(instructionSet)
 }
 
 // newLondonInstructionSet returns the frontier, homestead, byzantium,
@@ -88,7 +108,7 @@ func newLondonInstructionSet() JumpTable {
 	instructionSet := newBerlinInstructionSet()
 	enable3529(&instructionSet) // EIP-3529: Reduction in refunds https://eips.ethereum.org/EIPS/eip-3529
 	enable3198(&instructionSet) // Base fee opcode https://eips.ethereum.org/EIPS/eip-3198
-	return instructionSet
+	return validate(instructionSet)
 }
 
 // newBerlinInstructionSet returns the frontier, homestead, byzantium,
@@ -96,7 +116,7 @@ func newLondonInstructionSet() JumpTable {
 func newBerlinInstructionSet() JumpTable {
 	instructionSet := newIstanbulInstructionSet()
 	enable2929(&instructionSet) // Access lists for trie accesses https://eips.ethereum.org/EIPS/eip-2929
-	return instructionSet
+	return validate(instructionSet)
 }
 
 // newIstanbulInstructionSet returns the frontier, homestead, byzantium,
@@ -108,7 +128,7 @@ func newIstanbulInstructionSet() JumpTable {
 	enable1884(&instructionSet) // Reprice reader opcodes - https://eips.ethereum.org/EIPS/eip-1884
 	enable2200(&instructionSet) // Net metered SSTORE - https://eips.ethereum.org/EIPS/eip-2200
 
-	return instructionSet
+	return validate(instructionSet)
 }
 
 // newConstantinopleInstructionSet returns the frontier, homestead,
@@ -149,7 +169,7 @@ func newConstantinopleInstructionSet() JumpTable {
 		writes:      true,
 		returns:     true,
 	}
-	return instructionSet
+	return validate(instructionSet)
 }
 
 // newByzantiumInstructionSet returns the frontier, homestead and
@@ -188,14 +208,14 @@ func newByzantiumInstructionSet() JumpTable {
 		reverts:    true,
 		returns:    true,
 	}
-	return instructionSet
+	return validate(instructionSet)
 }
 
 // EIP 158 a.k.a Spurious Dragon
 func newSpuriousDragonInstructionSet() JumpTable {
 	instructionSet := newTangerineWhistleInstructionSet()
 	instructionSet[EXP].dynamicGas = gasExpEIP158
-	return instructionSet
+	return validate(instructionSet)
 
 }
 
@@ -209,7 +229,7 @@ func newTangerineWhistleInstructionSet() JumpTable {
 	instructionSet[CALL].constantGas = params.CallGasEIP150
 	instructionSet[CALLCODE].constantGas = params.CallGasEIP150
 	instructionSet[DELEGATECALL].constantGas = params.CallGasEIP150
-	return instructionSet
+	return validate(instructionSet)
 }
 
 // newHomesteadInstructionSet returns the frontier and homestead
@@ -225,13 +245,13 @@ func newHomesteadInstructionSet() JumpTable {
 		memorySize:  memoryDelegateCall,
 		returns:     true,
 	}
-	return instructionSet
+	return validate(instructionSet)
 }
 
 // newFrontierInstructionSet returns the frontier instructions
 // that can be executed during the frontier phase.
 func newFrontierInstructionSet() JumpTable {
-	return JumpTable{
+	tlb := JumpTable{
 		STOP: {
 			execute:     opStop,
 			constantGas: 0,
@@ -1049,6 +1069,7 @@ func newFrontierInstructionSet() JumpTable {
 			writes:     true,
 		},
 	}
+	return validate(tlb)
 }
 
 func copyJumpTable(source *JumpTable) *JumpTable {
