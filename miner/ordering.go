@@ -47,13 +47,7 @@ type TxByPriceAndTime []*TxWithMinerFee
 
 func (s TxByPriceAndTime) Len() int { return len(s) }
 func (s TxByPriceAndTime) Less(i, j int) bool {
-	// If the prices are equal, use the time the transaction was first seen for
-	// deterministic sorting
-	cmp := s[i].minerFee.Cmp(s[j].minerFee)
-	if cmp == 0 {
-		return s[i].tx.Time.Before(s[j].tx.Time)
-	}
-	return cmp > 0
+	return cmpPriceAndTime(s[i], s[j])
 }
 func (s TxByPriceAndTime) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
 
@@ -67,6 +61,20 @@ func (s *TxByPriceAndTime) Pop() interface{} {
 	x := old[n-1]
 	*s = old[0 : n-1]
 	return x
+}
+
+// cmpPriceAndTime compares 2 transactions by their miner fee and
+// time first seen in txpool.
+// Returns true if `a` has higher miner fee or appears in txpool
+// before `b`.
+func cmpPriceAndTime(a *TxWithMinerFee, b *TxWithMinerFee) bool {
+	// If the prices are equal, use the time the transaction was first seen for
+	// deterministic sorting
+	cmp := a.minerFee.Cmp(b.minerFee)
+	if cmp == 0 {
+		return a.tx.Time.Before(b.tx.Time)
+	}
+	return cmp > 0
 }
 
 // TransactionsByPriceAndNonce represents a set of transactions that can return
@@ -141,4 +149,41 @@ func (t *TransactionsByPriceAndNonce) Size() int {
 
 func (t *TransactionsByPriceAndNonce) Clear() {
 	t.heads = TxByPriceAndTime{}
+}
+
+// Next return the potential next committed transaction so that we can speculative
+// execute that transaction. As we don't know the result of current transaction yet,
+// we don't know that the next operation is shift or pop. This function returns the
+// largest among right, left children and the next transaction from the account at
+// the head node.
+func (t *TransactionsByPriceAndNonce) Next() (*txpool.LazyTransaction, *big.Int) {
+	heapSize := len(t.heads)
+	acc := t.heads[0].from
+
+	var candidateTx *TxWithMinerFee
+	if txs, ok := t.txs[acc]; ok && len(txs) > 0 {
+		if tx, err := newTxWithMinerFee(txs[0], acc, t.baseFee); err == nil {
+			candidateTx = tx
+		}
+	}
+
+	if heapSize >= 2 {
+		// left child
+		if candidateTx == nil || cmpPriceAndTime(t.heads[1], candidateTx) {
+			candidateTx = t.heads[1]
+		}
+
+		if heapSize >= 3 {
+			// right child
+			if cmpPriceAndTime(t.heads[2], candidateTx) {
+				candidateTx = t.heads[2]
+			}
+		}
+	}
+
+	if candidateTx != nil {
+		return candidateTx.tx, candidateTx.minerFee
+	} else {
+		return nil, nil
+	}
 }

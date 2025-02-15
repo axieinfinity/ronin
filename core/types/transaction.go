@@ -631,6 +631,36 @@ func NewMessage(
 	}
 }
 
+func NewMessageWithExpiredTimeAndPayer(
+	from common.Address,
+	to *common.Address,
+	nonce uint64,
+	amount *big.Int,
+	gasLimit uint64,
+	gasPrice, gasFeeCap, gasTipCap *big.Int,
+	data []byte,
+	accessList AccessList,
+	isFake bool,
+	expiredTime uint64,
+	payer common.Address,
+) Message {
+	return Message{
+		from:        from,
+		to:          to,
+		nonce:       nonce,
+		amount:      amount,
+		gasLimit:    gasLimit,
+		gasPrice:    gasPrice,
+		gasFeeCap:   gasFeeCap,
+		gasTipCap:   gasTipCap,
+		data:        data,
+		accessList:  accessList,
+		isFake:      isFake,
+		expiredTime: expiredTime,
+		payer:       payer,
+	}
+}
+
 // AsMessage returns the transaction as a core.Message.
 func (tx *Transaction) AsMessage(s Signer, baseFee *big.Int) (Message, error) {
 	msg := Message{
