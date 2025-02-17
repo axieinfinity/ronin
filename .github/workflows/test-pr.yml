@@ -7,7 +7,6 @@ on:
   pull_request:
     branches:
       - master
-      - path-base-implementing
 
 concurrency:
   group: ${{ github.head_ref || github.run_id }}
