@@ -365,9 +365,12 @@ func ValidateTransactionWithState(tx *types.Transaction, signer types.Signer, op
 	}
 
 	if opts.Config != nil {
+		// The whitelisted deployer logic is not affective after Venoki
 		if tx.To() == nil && opts.Config.Consortium != nil {
 			var whitelisted bool
-			if opts.Config.IsAntenna(opts.Head.Number) {
+			if opts.Config.IsVenoki(opts.Head.Number) {
+				whitelisted = true
+			} else if opts.Config.IsAntenna(opts.Head.Number) {
 				whitelisted = state.IsWhitelistedDeployerV2(
 					opts.State,
 					from,
@@ -383,7 +386,8 @@ func ValidateTransactionWithState(tx *types.Transaction, signer types.Signer, op
 		}
 
 		// Check if sender, payer and recipient are blacklisted
-		if opts.Config.Consortium != nil && opts.Config.IsOdysseus(opts.Head.Number) {
+		// This is only affective from Odysseus to Venoki to prevent blacklisted address/contract
+		if opts.Config.Consortium != nil && opts.Config.IsOdysseus(opts.Head.Number) && !opts.Config.IsVenoki(opts.Head.Number) {
 			contractAddr := opts.Config.BlacklistContractAddress
 			if state.IsAddressBlacklisted(opts.State, contractAddr, &from) ||
 				state.IsAddressBlacklisted(opts.State, contractAddr, tx.To()) ||

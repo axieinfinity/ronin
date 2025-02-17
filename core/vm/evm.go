@@ -63,8 +63,11 @@ func (evm *EVM) precompile(caller ContractRef, addr common.Address) (Precompiled
 			return contract, isPrecompile
 		}
 	}
-	if c := evm.ChainConfig().BlacklistContractAddress; evm.chainRules.IsOdysseusFork && evm.StateDB.Blacklisted(c, &addr) {
-		return &blacklistedAddress{}, true
+	// Blacklisted contract is only effective from Odysseus to Venoki
+	if evm.chainRules.IsOdysseusFork && !evm.chainRules.IsVenoki {
+		if c := evm.ChainConfig().BlacklistContractAddress; evm.StateDB.Blacklisted(c, &addr) {
+			return &blacklistedAddress{}, true
+		}
 	}
 
 	var precompiles map[common.Address]PrecompiledContract
@@ -525,16 +528,18 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 		}
 	}
 
-	// Handle latest hardfork firstly.
-	if evm.chainRules.IsAntenna {
-		if !evm.StateDB.ValidDeployerV2(caller.Address(), evm.Context.Time, evm.ChainConfig().WhiteListDeployerContractV2Address) {
-			captureTraceEarly(ErrExecutionReverted)
-			return nil, common.Address{}, gas, ErrExecutionReverted
-		}
-	} else if evm.chainRules.IsOdysseusFork {
-		if !evm.StateDB.ValidDeployer(caller.Address()) {
-			captureTraceEarly(ErrExecutionReverted)
-			return nil, common.Address{}, gas, ErrExecutionReverted
+	// After Venoki, no need to check for whitelisted deployer anymore
+	if !evm.chainRules.IsVenoki {
+		if evm.chainRules.IsAntenna {
+			if !evm.StateDB.ValidDeployerV2(caller.Address(), evm.Context.Time, evm.ChainConfig().WhiteListDeployerContractV2Address) {
+				captureTraceEarly(ErrExecutionReverted)
+				return nil, common.Address{}, gas, ErrExecutionReverted
+			}
+		} else if evm.chainRules.IsOdysseusFork {
+			if !evm.StateDB.ValidDeployer(caller.Address()) {
+				captureTraceEarly(ErrExecutionReverted)
+				return nil, common.Address{}, gas, ErrExecutionReverted
+			}
 		}
 	}
 
