@@ -1,3 +1,9 @@
+## Deprecated
+
+This repository is deprecated due to the Ronin chain has been migrated to the new organization:
+Please refer to the following repositories for the latest Ronin implementation:
+- [ronin](https://github.com/ronin-chain/ronin)
+
 ## Go Ronin
 
 Official Golang execution layer implementation of the Ronin protocol. It is a fork of Go Ethereum -
