@@ -145,7 +145,7 @@ func TestUDPv5_unknownPacket(t *testing.T) {
 
 	// Make node known.
 	n := test.getNode(test.remotekey, test.remoteaddr).Node()
-	test.table.addSeenNodeSync(wrapNode(n))
+	test.table.addFoundNode(wrapNode(n))
 
 	test.packetIn(&v5wire.Unknown{Nonce: nonce})
 	test.waitPacketOut(func(p *v5wire.Whoareyou, addr *net.UDPAddr, _ v5wire.Nonce) {
@@ -163,9 +163,9 @@ func TestUDPv5_findnodeHandling(t *testing.T) {
 	nodes253 := nodesAtDistance(test.table.self().ID(), 253, 10)
 	nodes249 := nodesAtDistance(test.table.self().ID(), 249, 4)
 	nodes248 := nodesAtDistance(test.table.self().ID(), 248, 10)
-	fillTable(test.table, wrapNodes(nodes253))
-	fillTable(test.table, wrapNodes(nodes249))
-	fillTable(test.table, wrapNodes(nodes248))
+	fillTable(test.table, wrapNodes(nodes253), true)
+	fillTable(test.table, wrapNodes(nodes249), true)
+	fillTable(test.table, wrapNodes(nodes248), true)
 
 	// Requesting with distance zero should return the node's own record.
 	test.packetIn(&v5wire.Findnode{ReqID: []byte{0}, Distances: []uint{0}})
@@ -539,7 +539,7 @@ func TestUDPv5_lookup(t *testing.T) {
 
 	// Seed table with initial node.
 	initialNode := lookupTestnet.node(256, 0)
-	fillTable(test.table, []*node{wrapNode(initialNode)})
+	fillTable(test.table, []*node{wrapNode(initialNode)}, true)
 
 	// Start the lookup.
 	resultC := make(chan []*enode.Node, 1)
